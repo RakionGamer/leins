@@ -1,7 +1,6 @@
-// src/services/super-admin.service.js
 const boom = require('@hapi/boom');
-const bcrypt = require('bcrypt');
-const { models } = require('../libs/sequelize');
+const bcrypt = require('bcryptjs');
+const { models } = require('./../libs/sequelize');
 
 class SuperAdminService {
    constructor() { }
@@ -17,19 +16,28 @@ class SuperAdminService {
       }
    }
 
-   // busca un super admin por id
+   // buscar un admin por ID (sin devolver password)
    async findOne(id) {
-      try {
-         const superAdmin = await models.SuperAdmin.findByPk(id);
-         if (!superAdmin) {
-            throw boom.notFound('super admin not found');
-         }
-         return superAdmin;
-      } catch (error) {
-         console.error('Error in findOne():', error);
-         if (boom.isBoom(error)) throw error;
-         throw boom.badImplementation('Failed to fetch the super admin');
-      }
+      const admin = await models.SuperAdmin.findByPk(id, {
+         attributes: { exclude: ['password_hash', 'deletedAt'] }
+      });
+      if (!admin) throw boom.notFound('administrador no encontrado');
+      return admin;
+   }
+
+   // Actualizar datos del perfil (Permite name, last_name, phone)
+   async update(id, changes) {
+      const admin = await this.findOne(id);
+
+      // Filtramos campos sensibles para que no se puedan inyectar por aquí
+      const { password, password_hash, email, username, id: _id, ...allowedChanges } = changes;
+
+      const updatedAdmin = await admin.update(allowedChanges);
+
+      // Retornamos sin hash
+      const rta = updatedAdmin.toJSON();
+      delete rta.password_hash;
+      return rta;
    }
 
    // actualiza el tema del super admin
@@ -104,6 +112,25 @@ class SuperAdminService {
       const json = created.toJSON();
       delete json.password_hash;
       return json;
+   }
+
+   // cambiar contraseña (Estando logueado)
+   async changePassword(id, oldPassword, newPassword) {
+      // 1. Buscamos al usuario con su hash para comparar
+      const admin = await models.SuperAdmin.findByPk(id);
+      if (!admin) throw boom.notFound('Usuario no encontrado');
+
+      // 2. Verificamos la contraseña actual
+      const isMatch = await bcrypt.compare(oldPassword, admin.password_hash);
+      if (!isMatch) {
+         throw boom.unauthorized('La contraseña actual es incorrecta');
+      }
+
+      // 3. Hasheamos la nueva y guardamos
+      const hash = await bcrypt.hash(newPassword, 10);
+      await admin.update({ password_hash: hash });
+
+      return { message: 'Contraseña actualizada correctamente' };
    }
 
 }

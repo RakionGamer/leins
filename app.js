@@ -1,110 +1,107 @@
-// dependencias
-require('dotenv').config(); // carga .env
+// dependencias y carga de entorno
+require('dotenv').config();
+const path = require('path');
 const express = require('express');
-const routerApi = require('./routes');
 const cors = require('cors');
-const { logErrors, ormErrorHandler, boomErrorHandler, errorHandler } = require('./middlewares/error.handler');
-const { randomUUID } = require('crypto');
 const helmet = require('helmet');
+const { randomUUID } = require('crypto');
 
+// importacion de modulos locales
+const routerApi = require('./routes');
+const { logErrors, ormErrorHandler, boomErrorHandler, errorHandler } = require('./middlewares/error.handler');
+
+// inicializacion de la app
 const app = express();
 const port = process.env.PORT || 3000;
 const isProd = process.env.NODE_ENV === 'production';
 
-// seguridad/infra básica
+// configuracion basica y proxy
 app.disable('x-powered-by');
-if (isProd) app.set('trust proxy', 1); // nginx/elb
+if (isProd) {
+   // confiar en el proxy (nginx/elb)
+   app.set('trust proxy', 1);
+}
 
-// request id
-app.use((req, res, next) => {
-   req.rid = randomUUID();
-   res.set('x-request-id', req.rid);
-   next();
-});
-
-// body parsers
-app.use(express.json());
-app.use(express.urlencoded({ extended: true })); // forms (activar si lo usas)
-
-// 🔐 HELMET (headers de seguridad)
+// 1. middlewares de seguridad (helmet)
 app.use(helmet({
-   // API pura: sin CSP para evitar falsos positivos (lo puedes activar luego)
+   // sin csp para evitar falsos positivos
    contentSecurityPolicy: false,
-   // Evita problemas con COEP/COEP si no los necesitas
+   // evita problemas de cross-origin
    crossOriginEmbedderPolicy: false,
-   // Política de referer estricta
+   // politica de referer estricta
    referrerPolicy: { policy: 'no-referrer' },
-   // frameguard, nosniff, dnsPrefetch, etc. vienen activos por defecto
+   // permite cargar recursos de otros origenes (necesario para las imagenes)
+   crossOriginResourcePolicy: { policy: 'cross-origin' },
 }));
 
-// HSTS solo si estás en prod (y sirviendo por HTTPS)
+// hsts solo en produccion
 if (isProd) {
    app.use(helmet.hsts({
-      maxAge: 31536000,           // 1 año
+      maxAge: 31536000,
       includeSubDomains: true,
       preload: true
    }));
 }
 
-// ❄️ No-cache para endpoints sensibles (evita cachear respuestas de auth)
-app.use(/^\/api\/v1\/auth\/.*/, (req, res, next) => {
-   res.set('Cache-Control', 'no-store');      // no guardar en caché
-   res.set('Pragma', 'no-cache');
-   next();
-});
-
-// ===== CORS estricto (ANTES de las rutas) =====
+// 2. configuracion de cors
 const parseCsv = (v = '') => v.split(',').map(s => s.trim()).filter(Boolean);
 const originsProd = parseCsv(process.env.CORS_ORIGIN || '');
 const originsDev = parseCsv(process.env.CORS_ORIGIN_DEV || '');
 const allowedOrigins = new Set(isProd ? originsProd : [...originsProd, ...originsDev]);
-
 const allowCredentials = String(process.env.CORS_CREDENTIALS || 'false').toLowerCase() === 'true';
 
 const corsOptions = {
    origin(origin, cb) {
-      if (!origin) return cb(null, true);           // no-CORS (curl/servicios)
+      // permitir solicitudes sin origen (curl/postman)
+      if (!origin) return cb(null, true);
       return allowedOrigins.has(origin) ? cb(null, true) : cb(null, false);
    },
    credentials: allowCredentials,
    methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-   // 👇 ¡OJO! Quitamos `allowedHeaders`
    exposedHeaders: ['x-request-id'],
    maxAge: 86400,
    optionsSuccessStatus: 204
 };
 
 app.use(cors(corsOptions));
-// Express 5: usa regex, no '*'
+// habilitar pre-flight para todas las rutas
 app.options(/^\/api\/v1\/.*/, cors(corsOptions));
-// (opcional) especifico para login
-app.options('/api/v1/auth/login', cors(corsOptions));
 
-// ==============================================
+// 3. identificador de solicitud
+app.use((req, res, next) => {
+   req.rid = randomUUID();
+   res.set('x-request-id', req.rid);
+   next();
+});
 
-// (opcional) bloqueador duro 403 si el Origin no está permitido (descomenta si lo quieres)
-// app.use((req, res, next) => {
-//   const origin = req.headers.origin;
-//   if (origin && !allowedOrigins.has(origin)) {
-//     return res.status(403).json({ message: 'CORS: Origin not allowed', origin, rid: req.rid });
-//   }
-//   next();
-// });
+// 4. parsers de cuerpo (json y urlencoded)
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-// routes
+// 5. archivos estaticos (imagenes de avatar)
+app.use('/avatars', express.static(path.join(__dirname, 'public/avatars')));
+
+// 6. control de cache para autenticacion
+app.use(/^\/api\/v1\/auth\/.*/, (req, res, next) => {
+   res.set('Cache-Control', 'no-store');
+   res.set('Pragma', 'no-cache');
+   next();
+});
+
+// 7. definicion de rutas
 app.get('/', (req, res) => res.send('Hola mi server en express ' + port));
 routerApi(app);
 
-// 404 al final de las rutas (sin next())
+// 8. manejo de 404 no encontrado
 app.use((req, res) => res.status(404).json({ message: 'Not found' }));
 
-// error handlers (en este orden)
+// 9. manejadores de errores (orden importante)
 app.use(logErrors);
 app.use(ormErrorHandler);
 app.use(boomErrorHandler);
 app.use(errorHandler);
 
-// inicio
+// iniciar servidor
 app.listen(port, () => {
    if (isProd) {
       console.log(`Server listening on ${port}`);

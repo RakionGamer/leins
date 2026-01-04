@@ -4,7 +4,7 @@ const { jwtValidate } = require('./../middlewares/auth.handler');
 
 const authRouter = require('./auth.router');
 const statesRouter = require('./states.router');
-const superAdminsRouter = require('./super-admins.router');
+const superAdminsRouter = require('./super-admin.router');
 const siiDocumentsRouter = require('./sii-documents.router');
 const BankRouter = require('./bank.router');
 const EntitiesRouter = require('./entities.router');

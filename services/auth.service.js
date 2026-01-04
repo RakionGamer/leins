@@ -9,6 +9,12 @@ const { config } = require('./../config/config');
 const { formatToSantiago } = require('./../utils/helpers/dateHelper');
 const { logInfo, logError } = require('../utils/logger');
 
+const sendEmailMock = async (email, link) => {
+   console.log(`[EMAIL SERVICE] Enviando correo a ${email}`);
+   console.log(`[EMAIL SERVICE] Link de recuperación: ${link}`);
+   return true;
+};
+
 class AuthService {
 
    // helper: sanea meta para respetar longitudes de DB
@@ -18,50 +24,54 @@ class AuthService {
       return { ip, userAgent };
    }
 
+   // busca usuario por username
    async findUser(username) {
       const user = await models.SuperAdmin.findOne({ where: { username } });
       if (!user) {
-         const err = boom.unauthorized('Invalid credentials');
+         const err = boom.unauthorized('Credenciales inválidas');
          err.data = { code: 'INVALID_CREDENTIALS' };
          throw err;
       }
       return user;
    }
 
+   // busca usuario y compara credenciales
    async validateUser(username, password) {
+      // busca usuario por username
       const user = await this.findUser(username);
+      // verifica contrasena
       const isMatch = await bcrypt.compare(password, user.password_hash);
       if (!isMatch) {
-         const err = boom.unauthorized('Invalid credentials');
+         const err = boom.unauthorized('Credenciales inválidas');
          err.data = { code: 'INVALID_CREDENTIALS' };
          throw err;
       }
       return user;
    }
 
+   // genera un token
    generateAccessToken(user) {
       const payload = { sub: user.id, username: user.username };
       return jwt.sign(payload, config.jwtAccessSecret, { expiresIn: config.jwtAccessExpires });
    }
 
-   // Crea y guarda refresh token
+   // crea y guarda refresh token en la table de tokens
    async generateAndStoreRefreshToken(userId, meta = {}) {
       const tokenPlain = crypto.randomBytes(64).toString('hex');
       const token_hash = await bcrypt.hash(tokenPlain, 10); // se almacena en token_hash (CHAR/VARCHAR ok)
       const expires_at = new Date(Date.now() + this.parseMs(config.jwtRefreshExpires));
       const clean = this.sanitizeMeta(meta);
 
-      const created = await models.RefreshTokenSuperAdmin.create(
-         {
-            token_hash,
-            super_admin_id: userId,     // 👈 FK correcta
-            expires_at,
-            ip: clean.ip,
-            user_agent: clean.userAgent,
-            last_used_at: new Date(),
-         },
-         { validate: false } // endurecido contra validaciones del modelo
-      );
+      const created = await models.RefreshTokenSuperAdmin.create({
+         token_hash,
+         super_admin_id: userId,
+         expires_at,
+         ip: clean.ip,
+         user_agent: clean.userAgent,
+         last_used_at: new Date(),
+      }, {
+         validate: false
+      });
 
       return { tokenPlain, tokenRecord: created };
    }
@@ -109,7 +119,7 @@ class AuthService {
       await tokenRecord.save({ validate: false });
    }
 
-   // Limita sesiones activas, revocando las más antiguas
+   // limita sesiones activas, revocando las mas antiguas
    async pruneActiveSessions(userId, keepIds = []) {
       try {
          const cap = config.maxActiveSessions || 2;
@@ -188,22 +198,26 @@ class AuthService {
       }
    }
 
+   // inicia sesion al usuario admin
    async login(username, password, meta = {}) {
       try {
+         // busca usuario
          const user = await this.validateUser(username, password);
 
-         // evita validar todo el modelo al guardar
+         // modifica fecha de ultimo inicio de sesion del usuario
          await models.SuperAdmin.update(
             { last_login: new Date() },
             { where: { id: user.id } }
          );
-
+         // genera token
          const accessToken = this.generateAccessToken(user);
-         const { tokenPlain: refreshToken, tokenRecord } =
-            await this.generateAndStoreRefreshToken(user.id, meta);
+         // crea un refresh token y lo guarda en la tabla de tokens
+         const { tokenPlain: refreshToken, tokenRecord } = await this.generateAndStoreRefreshToken(user.id, meta);
 
+         // limpia los inicio de sesion anteriores limpiando y revokando las sesion del usuario
          await this.pruneActiveSessions(user.id, [tokenRecord.id]);
 
+         // success!
          return {
             accessToken,
             refreshToken,
@@ -213,7 +227,9 @@ class AuthService {
             },
             refreshTokenId: tokenRecord.id
          };
+
       } catch (err) {
+         // en caso de error lo guardamos en la consola de monitoreo
          logError('AUTH_LOGIN_ERR', {
             rid: meta.rid || '-',
             code: err?.data?.code || 'UNKNOWN',
@@ -221,6 +237,7 @@ class AuthService {
             ua: meta.userAgent || '-'
          });
          throw err;
+
       }
    }
 
@@ -373,6 +390,49 @@ class AuthService {
          logError('AUTH_SESS_REVOKE_OTHERS_ERR', { userId, keepId, msg: err?.message || 'unknown' });
          throw err;
       }
+   }
+
+   // solicitar recuperacion
+   async sendRecoveryLink(email) {
+      const user = await models.SuperAdmin.findOne({ where: { email } });
+      console.log(user);
+
+      if (!user) {
+         // por seguridad, no decimos si el email no existe, pero retornamos 'exito' simulado
+         return { message: 'Correo de recuperación enviado' };
+      }
+
+      // generamos un token JWT de corta duración (ej: 15 min) firmado con el secret + password_hash del usuario
+      // usar el password_hash en el secret hace que el token muera automáticamente si el usuario cambia su clave.
+      const secret = config.jwtAccessSecret + user.password_hash;
+      const payload = { sub: user.id, type: 'recovery' };
+      const token = jwt.sign(payload, secret, { expiresIn: '15m' });
+
+      // link para el frontend
+      const link = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/auth/reset-password?token=${token}&id=${user.id}`;
+
+      await sendEmailMock(email, link);
+
+      return { message: 'Correo de recuperación enviado' };
+   }
+
+   // 2. Cambiar contraseña con Token de Recuperación
+   async changePasswordByRecovery(userId, token, newPassword) {
+      const user = await models.SuperAdmin.findByPk(userId);
+      if (!user) throw boom.unauthorized('Link inválido o expirado');
+
+      try {
+         // Verificar token con el "secret dinámico"
+         const secret = config.jwtAccessSecret + user.password_hash;
+         jwt.verify(token, secret);
+      } catch (error) {
+         throw boom.unauthorized('Link inválido o expirado');
+      }
+
+      const hash = await bcrypt.hash(newPassword, 10);
+      await user.update({ password_hash: hash });
+
+      return { message: 'Contraseña reestablecida correctamente' };
    }
 }
 
