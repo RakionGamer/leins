@@ -1,27 +1,68 @@
 const boom = require('@hapi/boom');
 const bcrypt = require('bcryptjs');
+const { Op } = require('sequelize')
 const { models } = require('./../libs/sequelize');
 
 class SuperAdminService {
    constructor() { }
 
-   // lista todos los super admins
-   async find() {
-      try {
-         const { count, rows } = await models.SuperAdmin.findAndCountAll();
-         return { total: count, items: rows };
-      } catch (error) {
-         console.error('Error in find():', error);
-         throw boom.badImplementation('Failed to fetch super admins from the database');
+   // lista admins con paginacion
+   async find(query) {
+      const { limit, offset, search, excludeId } = query;
+
+      const options = {
+         attributes: { exclude: ['password_hash', 'two_factor_secret'] },
+         where: {},
+         order: [['id', 'DESC']]
+      };
+
+      if (limit !== undefined && offset !== undefined) {
+         options.limit = parseInt(limit);
+         options.offset = parseInt(offset);
       }
+
+      if (search) {
+         options.where = {
+            [Op.or]: [
+               { username: { [Op.like]: `%${search}%` } },
+               { email: { [Op.like]: `%${search}%` } },
+               { name: { [Op.like]: `%${search}%` } },
+               { last_name: { [Op.like]: `%${search}%` } }
+            ]
+         };
+      }
+
+      // excluye a quien esta consultando
+      if (excludeId) {
+         options.where.id = { [Op.ne]: excludeId };
+      }
+
+      const { count, rows } = await models.SuperAdmin.findAndCountAll(options);
+      return { total: count, items: rows };
    }
 
-   // buscar un admin por ID (sin devolver password)
+   // Cambiar estado (Activar/Bloquear)
+   async changeState(id, stateId) {
+      const admin = await this.findOne(id);
+
+      // Aquí actualizamos solo el campo state_id
+      await admin.update({ state_id: stateId });
+
+      return {
+         id: admin.id,
+         state_id: stateId,
+         message: 'Estado de usuario actualizado correctamente'
+      };
+   }
+
+   // buscar un admin por ID
    async findOne(id) {
       const admin = await models.SuperAdmin.findByPk(id, {
-         attributes: { exclude: ['password_hash', 'deletedAt'] }
+         attributes: { exclude: ['password_hash', 'two_factor_secret'] }
       });
-      if (!admin) throw boom.notFound('administrador no encontrado');
+      if (!admin) {
+         throw boom.notFound('Administrador no encontrado');
+      }
       return admin;
    }
 
@@ -30,7 +71,7 @@ class SuperAdminService {
       const admin = await this.findOne(id);
 
       // Filtramos campos sensibles para que no se puedan inyectar por aquí
-      const { password, password_hash, email, username, id: _id, ...allowedChanges } = changes;
+      const { password, password_hash, username, id: _id, ...allowedChanges } = changes;
 
       const updatedAdmin = await admin.update(allowedChanges);
 
@@ -131,6 +172,15 @@ class SuperAdminService {
       await admin.update({ password_hash: hash });
 
       return { message: 'Contraseña actualizada correctamente' };
+   }
+
+   // elimina un usuario
+   async delete(id) {
+      const admin = await this.findOne(id);
+      await admin.update({ state_id: 3 });
+      console.log('paso');
+      await admin.destroy();
+      return { id };
    }
 
 }

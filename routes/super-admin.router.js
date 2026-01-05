@@ -10,7 +10,9 @@ const {
    createSuperAdminSchema,
    updateSuperAdminSchema,
    getSuperAdminSchema,
-   changePasswordSchema
+   deleteSuperAdminSchema,
+   changePasswordSchema,
+   changeStateSchema
 } = require('../schemas/super-admin.schema');
 
 const router = express.Router();
@@ -69,6 +71,9 @@ router.post('/change-password',
          const { sub: superAdminId } = req.user;
          const { oldPassword, newPassword } = req.body;
          const result = await service.changePassword(superAdminId, oldPassword, newPassword);
+
+         logInfo('USER_PASSWORD_CHANGED', { rid: req.rid, userId: superAdminId });
+
          res.status(200).json(result);
       } catch (error) {
          next(error);
@@ -77,16 +82,14 @@ router.post('/change-password',
 );
 
 // actualizar datos de texto del perfil
-router.post('/profile',
+router.patch('/profile',
    validatorHandler(updateSuperAdminSchema, 'body'),
    async (req, res, next) => {
       try {
-         const { sub: id } = req.user;
+         const { sub: id } = req.user; // ID seguro del token
          const changes = req.body;
-
          const updated = await service.update(id, changes);
-
-         // log de auditoria: modificacion de perfil
+         
          logInfo('USER_PROFILE_UPDATED', {
             rid: req.rid,
             userId: id,
@@ -94,9 +97,29 @@ router.post('/profile',
          });
 
          res.status(200).json({ message: 'perfil actualizado', data: updated });
-      } catch (error) {
-         next(error);
-      }
+      } catch (error) { next(error); }
+   }
+);
+
+// Actualizar un super admin completo
+router.patch('/:id',
+   validatorHandler(getSuperAdminSchema, 'params'),
+   validatorHandler(updateSuperAdminSchema, 'body'),
+   async (req, res, next) => {
+      try {
+         const { id } = req.params;
+         const body = req.body;
+         const result = await service.update(id, body);
+
+         logInfo('USER_UPDATED', {
+            rid: req.rid,
+            targetId: id,
+            updatedFields: Object.keys(body),
+            author: req.user.sub
+         });
+
+         res.status(200).json(result);
+      } catch (error) { next(error); }
    }
 );
 
@@ -148,9 +171,45 @@ router.patch('/theme',
    }
 );
 
+// elimina un administrador
+router.delete('/:id',
+   validatorHandler(deleteSuperAdminSchema, 'params'),
+   async (req, res, next) => {
+      try {
+         const { id } = req.params;
+         await service.delete(id);
+
+         // Log de auditoria
+         logInfo('USER_DELETED', { rid: req.rid, targetId: id, authorIp: req.ip });
+
+         res.status(200).json({ id });
+      } catch (error) {
+         next(error);
+      }
+   }
+);
+
 // ==========================================
 //  gestion general (busquedas)
 // ==========================================
+
+// Listar super admins (con paginación y búsqueda)
+router.get('/', async (req, res, next) => {
+   try {
+      const { limit = 10, offset = 0, search } = req.query;
+      const currentUserId = req.user.sub;
+
+      const users = await service.find({
+         limit,
+         offset,
+         search,
+         excludeId: currentUserId
+      });
+      res.status(200).json(users);
+   } catch (error) {
+      next(error);
+   }
+});
 
 // obtener un super admin por id
 router.get('/:id',
@@ -158,11 +217,34 @@ router.get('/:id',
    async (req, res, next) => {
       try {
          const { id } = req.params;
-         const superAdmin = await service.findOne(id);
+         const user = await service.findOne(id);
+         res.status(200).json(user);
+      } catch (error) {
+         next(error);
+      }
+   }
+);
 
-         if (!superAdmin) throw boom.notFound('super admin not found');
+// PATCH /:id/state - Activar o Desactivar usuario
+router.patch('/:id/state',
+   validatorHandler(getSuperAdminSchema, 'params'), // Validamos que el ID sea número
+   validatorHandler(changeStateSchema, 'body'),     // Validamos que envíen state_id
+   async (req, res, next) => {
+      try {
+         const { id } = req.params;
+         const { state_id } = req.body;
 
-         res.status(200).json({ data: superAdmin });
+         const result = await service.changeState(id, state_id);
+
+         // Log de auditoría (Importante para seguridad)
+         logInfo('USER_STATE_CHANGED', {
+            rid: req.rid,
+            targetId: id,
+            newState: state_id,
+            author: req.user.sub
+         });
+
+         res.status(200).json(result);
       } catch (error) {
          next(error);
       }

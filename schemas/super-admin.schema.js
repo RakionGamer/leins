@@ -19,7 +19,6 @@ const createSuperAdminSchema = Joi.object({
    username: username.required(),
    email: email.required(),
    password: password.required(),
-   state_id: stateId.required(),
    name: name.optional(),
    last_name: lastName.optional(),
    phone: phone.optional(),
@@ -35,7 +34,8 @@ const updateSuperAdminSchema = Joi.object({
    last_name: lastName,
    phone: phone,
    avatar_url: avatarUrl,
-   theme: theme
+   theme: theme,
+   email: email
 });
 
 // schema para cambiar contrasena (post /change-password)
@@ -49,15 +49,26 @@ const getSuperAdminSchema = Joi.object({
    id: id.required(),
 });
 
+// schema para eliminar (delete /:id)
+const deleteSuperAdminSchema = Joi.object({
+   id: id.required(),
+});
+
 // schema para tema (patch /theme)
 const updateThemeSchema = Joi.object({
    theme: theme.required(),
+});
+
+const changeStateSchema = Joi.object({
+   state_id: Joi.number().integer().required()
 });
 
 module.exports = {
    createSuperAdminSchema,
    updateSuperAdminSchema,
    getSuperAdminSchema,
+   deleteSuperAdminSchema,
    updateThemeSchema,
-   changePasswordSchema
+   changePasswordSchema,
+   changeStateSchema
 };

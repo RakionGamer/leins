@@ -1,4 +1,3 @@
-// services/auth.service.js
 const boom = require('@hapi/boom');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
@@ -8,19 +7,21 @@ const { models } = require('./../libs/sequelize');
 const { config } = require('./../config/config');
 const { formatToSantiago } = require('./../utils/helpers/dateHelper');
 const { logInfo, logError } = require('../utils/logger');
+const speakeasy = require('speakeasy');
+const QRCode = require('qrcode');
 
 const sendEmailMock = async (email, link) => {
-   console.log(`[EMAIL SERVICE] Enviando correo a ${email}`);
-   console.log(`[EMAIL SERVICE] Link de recuperación: ${link}`);
+   console.log(`[EMAIL SERVICE] enviando correo a ${email}`);
+   console.log(`[EMAIL SERVICE] link de recuperacion: ${link}`);
    return true;
 };
 
 class AuthService {
 
-   // helper: sanea meta para respetar longitudes de DB
+   // helper: sanea meta para respetar longitudes de db
    sanitizeMeta(meta = {}) {
-      const ip = meta.ip ? String(meta.ip).slice(0, 45) : null;                 // varchar(45)
-      const userAgent = meta.userAgent ? String(meta.userAgent).slice(0, 255) : null; // varchar(255)
+      const ip = meta.ip ? String(meta.ip).slice(0, 45) : null;
+      const userAgent = meta.userAgent ? String(meta.userAgent).slice(0, 255) : null;
       return { ip, userAgent };
    }
 
@@ -49,16 +50,16 @@ class AuthService {
       return user;
    }
 
-   // genera un token
+   // genera un token de acceso jwt
    generateAccessToken(user) {
       const payload = { sub: user.id, username: user.username };
       return jwt.sign(payload, config.jwtAccessSecret, { expiresIn: config.jwtAccessExpires });
    }
 
-   // crea y guarda refresh token en la table de tokens
+   // crea y guarda refresh token en la tabla de tokens
    async generateAndStoreRefreshToken(userId, meta = {}) {
       const tokenPlain = crypto.randomBytes(64).toString('hex');
-      const token_hash = await bcrypt.hash(tokenPlain, 10); // se almacena en token_hash (CHAR/VARCHAR ok)
+      const token_hash = await bcrypt.hash(tokenPlain, 10);
       const expires_at = new Date(Date.now() + this.parseMs(config.jwtRefreshExpires));
       const clean = this.sanitizeMeta(meta);
 
@@ -76,12 +77,12 @@ class AuthService {
       return { tokenPlain, tokenRecord: created };
    }
 
-   // Verifica refresh token activo
+   // verifica refresh token activo y maneja rotacion
    async verifyRefreshToken(userId, refreshTokenPlain, meta = {}) {
       const now = new Date();
       const clean = this.sanitizeMeta(meta);
 
-      // 1) activos recientes
+      // 1) busca activos recientes
       const actives = await models.RefreshTokenSuperAdmin.findAll({
          where: {
             super_admin_id: userId,
@@ -99,20 +100,21 @@ class AuthService {
             rec.last_used_at = new Date();
             if (clean.ip !== null) rec.ip = clean.ip;
             if (clean.userAgent !== null) rec.user_agent = clean.userAgent;
-            await rec.save({ validate: false }); // 👈 evita validation error
-            return rec; // este es el que se rota
+            await rec.save({ validate: false });
+            return rec;
          }
       }
 
-      // 3) replay en revocados recientes
+      // 3) deteccion de replay en revocados
       await this.detectReplayAndHandle(userId, refreshTokenPlain);
 
-      // 4) inválido/expirado
+      // 4) invalido o expirado
       const err = boom.unauthorized('Invalid or expired refresh token');
       err.data = { code: 'REFRESH_INVALID' };
       throw err;
    }
 
+   // revoca un token especifico
    async revokeRefreshToken(tokenRecord, replaced_by_token_id = null) {
       tokenRecord.revoked_at = new Date();
       if (replaced_by_token_id) tokenRecord.replaced_by_token_id = replaced_by_token_id;
@@ -147,11 +149,11 @@ class AuthService {
             );
          }
       } catch (err) {
-         // no bloqueante
+         // error no bloqueante
       }
    }
 
-   // Revoca la cadena descendiente (replaced_by_token_id)
+   // revoca cadena de tokens descendientes (seguridad)
    async revokeChainFrom(startTokenId) {
       if (!startTokenId) return;
       const RT = models.RefreshTokenSuperAdmin;
@@ -168,14 +170,14 @@ class AuthService {
       }
    }
 
-   // Replay detection
+   // deteccion de reutilizacion de tokens
    async detectReplayAndHandle(userId, refreshTokenPlain) {
       const lookbackDays = parseInt(process.env.REFRESH_REPLAY_LOOKBACK_DAYS || '30', 10);
       const cutoff = new Date(Date.now() - (lookbackDays * 24 * 60 * 60 * 1000));
 
       const revokedRecent = await models.RefreshTokenSuperAdmin.findAll({
          where: {
-            super_admin_id: userId,             // 👈 variable correcta
+            super_admin_id: userId,
             revoked_at: { [Op.not]: null, [Op.gt]: cutoff },
          },
          order: [['revoked_at', 'DESC']],
@@ -198,38 +200,43 @@ class AuthService {
       }
    }
 
-   // inicia sesion al usuario admin
+   // parser de tiempo para expiracion
+   parseMs(timeStr) {
+      const match = /^(\d+)(ms|s|m|h|d)$/i.exec(timeStr);
+      if (!match) return 30 * 24 * 60 * 60 * 1000;
+      const value = parseInt(match[1], 10);
+      const unit = match[2].toLowerCase();
+      const multipliers = { ms: 1, s: 1000, m: 60 * 1000, h: 60 * 60 * 1000, d: 24 * 60 * 60 * 1000 };
+      return value * multipliers[unit];
+   }
+
+   // ==========================================
+   //  logica principal de autenticacion (login)
+   // ==========================================
+
    async login(username, password, meta = {}) {
       try {
-         // busca usuario
+         // 1. validar credenciales basicas
          const user = await this.validateUser(username, password);
 
-         // modifica fecha de ultimo inicio de sesion del usuario
-         await models.SuperAdmin.update(
-            { last_login: new Date() },
-            { where: { id: user.id } }
-         );
-         // genera token
-         const accessToken = this.generateAccessToken(user);
-         // crea un refresh token y lo guarda en la tabla de tokens
-         const { tokenPlain: refreshToken, tokenRecord } = await this.generateAndStoreRefreshToken(user.id, meta);
+         // Si no esta activa la cuenta la bloqueamos
+         if (user.state_id !== 1) {
+            throw boom.unauthorized('Tu cuenta está suspendida o inactiva. Contacta al administrador.');
+         }
 
-         // limpia los inicio de sesion anteriores limpiando y revokando las sesion del usuario
-         await this.pruneActiveSessions(user.id, [tokenRecord.id]);
+         // 2. verificar si tiene 2fa activo
+         if (user.two_factor_enabled) {
+            return {
+               require2fa: true,
+               userId: user.id,
+               message: 'Código 2FA requerido'
+            };
+         }
 
-         // success!
-         return {
-            accessToken,
-            refreshToken,
-            user: {
-               ...user.get(),
-               lastLogin: user.last_login ? formatToSantiago(user.last_login) : null
-            },
-            refreshTokenId: tokenRecord.id
-         };
+         // 3. si no tiene 2fa, procedemos a generar tokens (flujo normal)
+         return await this._finalizeLogin(user, meta);
 
       } catch (err) {
-         // en caso de error lo guardamos en la consola de monitoreo
          logError('AUTH_LOGIN_ERR', {
             rid: meta.rid || '-',
             code: err?.data?.code || 'UNKNOWN',
@@ -237,8 +244,33 @@ class AuthService {
             ua: meta.userAgent || '-'
          });
          throw err;
-
       }
+   }
+
+   // helper interno para generar tokens y finalizar login
+   async _finalizeLogin(user, meta) {
+      // actualiza ultimo login
+      await models.SuperAdmin.update(
+         { last_login: new Date() },
+         { where: { id: user.id } }
+      );
+
+      // genera tokens
+      const accessToken = this.generateAccessToken(user);
+      const { tokenPlain: refreshToken, tokenRecord } = await this.generateAndStoreRefreshToken(user.id, meta);
+
+      // limpia sesiones antiguas
+      await this.pruneActiveSessions(user.id, [tokenRecord.id]);
+
+      return {
+         accessToken,
+         refreshToken,
+         user: {
+            ...user.get(),
+            lastLogin: user.last_login ? formatToSantiago(user.last_login) : null
+         },
+         refreshTokenId: tokenRecord.id
+      };
    }
 
    async refresh(userId, refreshTokenPlain, meta = {}) {
@@ -292,20 +324,14 @@ class AuthService {
       }
    }
 
-   parseMs(timeStr) {
-      const match = /^(\d+)(ms|s|m|h|d)$/i.exec(timeStr);
-      if (!match) return 30 * 24 * 60 * 60 * 1000;
-      const value = parseInt(match[1], 10);
-      const unit = match[2].toLowerCase();
-      const multipliers = { ms: 1, s: 1000, m: 60 * 1000, h: 60 * 60 * 1000, d: 24 * 60 * 60 * 1000 };
-      return value * multipliers[unit];
-   }
+   // ==========================================
+   //  gestion de sesiones (listar / revocar)
+   // ==========================================
 
-   // lista sesiones (refresh tokens) del usuario
    async listSessions(userId, { status = 'active', limit = 20, offset = 0 } = {}) {
       try {
          const now = new Date();
-         const where = { super_admin_id: userId }; // 👈 FK correcta
+         const where = { super_admin_id: userId };
 
          const norm = String(status || 'active').toLowerCase();
          if (norm === 'active') {
@@ -313,7 +339,7 @@ class AuthService {
             where.expires_at = { [Op.gt]: now };
          } else if (norm === 'revoked') {
             where.revoked_at = { [Op.not]: null };
-         } // 'all' => sin filtro extra
+         }
 
          const lim = Math.min(Math.max(Number(limit) || 20, 1), 100);
          const off = Math.max(Number(offset) || 0, 0);
@@ -333,11 +359,10 @@ class AuthService {
       }
    }
 
-   // revoca una sesión por id (perteneciente al usuario)
    async revokeSessionById(userId, tokenId) {
       try {
          const rt = await models.RefreshTokenSuperAdmin.findOne({
-            where: { id: tokenId, super_admin_id: userId } // 👈 FK correcta
+            where: { id: tokenId, super_admin_id: userId }
          });
          if (!rt) {
             const e = boom.notFound('Session not found');
@@ -356,12 +381,11 @@ class AuthService {
       }
    }
 
-   // revoca todas las sesiones activas del usuario
    async revokeAllSessions(userId) {
       try {
          const [affected] = await models.RefreshTokenSuperAdmin.update(
             { revoked_at: new Date() },
-            { where: { super_admin_id: userId, revoked_at: { [Op.is]: null } } } // 👈 FK correcta
+            { where: { super_admin_id: userId, revoked_at: { [Op.is]: null } } }
          );
          return { revokedCount: affected || 0 };
       } catch (err) {
@@ -370,11 +394,10 @@ class AuthService {
       }
    }
 
-   // revoca todas las sesiones activas excepto una
    async revokeAllExcept(userId, keepId) {
       try {
          const keep = await models.RefreshTokenSuperAdmin.findOne({
-            where: { id: keepId, super_admin_id: userId } // 👈 FK correcta
+            where: { id: keepId, super_admin_id: userId }
          });
          if (!keep) {
             const e = boom.notFound('Session not found');
@@ -392,37 +415,32 @@ class AuthService {
       }
    }
 
-   // solicitar recuperacion
+   // ==========================================
+   //  recuperacion de contrasena
+   // ==========================================
+
    async sendRecoveryLink(email) {
       const user = await models.SuperAdmin.findOne({ where: { email } });
-      console.log(user);
 
       if (!user) {
-         // por seguridad, no decimos si el email no existe, pero retornamos 'exito' simulado
          return { message: 'Correo de recuperación enviado' };
       }
 
-      // generamos un token JWT de corta duración (ej: 15 min) firmado con el secret + password_hash del usuario
-      // usar el password_hash en el secret hace que el token muera automáticamente si el usuario cambia su clave.
       const secret = config.jwtAccessSecret + user.password_hash;
       const payload = { sub: user.id, type: 'recovery' };
       const token = jwt.sign(payload, secret, { expiresIn: '15m' });
 
-      // link para el frontend
       const link = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/auth/reset-password?token=${token}&id=${user.id}`;
-
       await sendEmailMock(email, link);
 
       return { message: 'Correo de recuperación enviado' };
    }
 
-   // 2. Cambiar contraseña con Token de Recuperación
    async changePasswordByRecovery(userId, token, newPassword) {
       const user = await models.SuperAdmin.findByPk(userId);
       if (!user) throw boom.unauthorized('Link inválido o expirado');
 
       try {
-         // Verificar token con el "secret dinámico"
          const secret = config.jwtAccessSecret + user.password_hash;
          jwt.verify(token, secret);
       } catch (error) {
@@ -434,6 +452,76 @@ class AuthService {
 
       return { message: 'Contraseña reestablecida correctamente' };
    }
+
+   // ==========================================
+   //  doble factor de autenticacion (2fa)
+   // ==========================================
+
+   // 1. generar secreto y qr para configuracion
+   async generate2FA(userId) {
+      const user = await models.SuperAdmin.findByPk(userId);
+      if (!user) throw boom.notFound('Usuario no encontrado');
+
+      // generamos un secreto unico
+      const secret = speakeasy.generateSecret({
+         name: `LeinsAdvisor (${user.email})`
+      });
+
+      // generamos qr como data url
+      const qrCodeUrl = await QRCode.toDataURL(secret.otpauth_url);
+
+      return {
+         tempSecret: secret.base32,
+         qrCode: qrCodeUrl
+      };
+   }
+
+   // 2. activar 2fa (verificacion inicial)
+   async enable2FA(userId, token, secret) {
+      const verified = speakeasy.totp.verify({
+         secret: secret,
+         encoding: 'base32',
+         token: token
+      });
+
+      if (!verified) {
+         throw boom.unauthorized('Código incorrecto');
+      }
+
+      // guardar secreto permanentemente y activar flag
+      await models.SuperAdmin.update(
+         { two_factor_secret: secret, two_factor_enabled: true },
+         { where: { id: userId } }
+      );
+
+      return { message: '2FA Activado correctamente' };
+   }
+
+   // 3. verificar 2fa durante login (paso 2)
+   async verify2FA(userId, token, meta = {}) {
+      const user = await models.SuperAdmin.findByPk(userId);
+
+      console.log(user.two_factor_secret);
+
+
+      if (!user || !user.two_factor_enabled || !user.two_factor_secret) {
+         throw boom.badRequest('2FA no está activado o usuario inválido');
+      }
+
+      const verified = speakeasy.totp.verify({
+         secret: user.two_factor_secret,
+         encoding: 'base32',
+         token: token
+      });
+
+      if (!verified) {
+         throw boom.unauthorized('Código 2FA inválido');
+      }
+
+      // si es valido, finalizamos el login (generar tokens, etc)
+      return await this._finalizeLogin(user, meta);
+   }
+
 }
 
 module.exports = AuthService;
