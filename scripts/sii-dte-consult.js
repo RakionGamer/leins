@@ -2,6 +2,8 @@
 "use strict";
 
 const path = require("path");
+const fs = require("fs");
+const { DateTime } = require("luxon");
 require("dotenv").config({ path: path.resolve(__dirname, "..", ".env") });
 const { loadCsvEntitySiiDocumentsAny } = require("../loaders/entitySiiDocumentsAny");
 
@@ -25,157 +27,166 @@ const {
 } = require("../libs/functions");
 
 const aesKey = process.env.MYSQL_AES_KEY;
-
 const CL_TZ = process.env.SII_TZ || "America/Santiago";
 
+// CONCURRENCIA: 1 es lo mas seguro. Subir si tienes mucha RAM.
+const MAX_CONCURRENCY = 3;
+
 (async () => {
-   console.log("🚀 iniciando flujo ");
+   console.log("🚀 Iniciando servicio de consulta SII (Compras/Ventas)");
 
-   // ▶ período: por flags/ENV, conservando tu helper
-   const yearArg = arg("year", "2025");
+   // -----------------------------------------------------------------------
+   // 1. CONFIGURACION DE FECHAS (PARSEO MANUAL ROBUSTO)
+   // -----------------------------------------------------------------------
+   const now = DateTime.now().setZone(CL_TZ);
 
-   // Usa un mes numerico por defecto (p.ej. "07").
-   const monthArgRaw = arg("month", "ALL"); // "ALL" para ano completo
+   // Helper para leer argumentos de consola (ej: --year 2025)
+   // Esto asegura que node scripts/sii-dte-consult.js --year 2025 --month ALL funcione
+   const getArgValue = (flag) => {
+      const idx = process.argv.indexOf(`--${flag}`);
+      return (idx !== -1 && process.argv[idx + 1]) ? process.argv[idx + 1] : null;
+   };
 
-   // Flag para año completo
-   const fullYear = String(monthArgRaw).toUpperCase() === "ALL" || process.argv.includes("--fullYear");
+   // Prioridad: Argumento explicito > arg() > Fecha actual
+   const yearInput = getArgValue("year") || arg("year", now.toFormat("yyyy"));
+   const monthInput = getArgValue("month") || arg("month", now.toFormat("MM"));
 
-   // Solo pasa mes numerico a getYearMonthPair.
-   // Si es year completo, usa "01" como dummy para inicializar.
-   const { year, month } = getYearMonthPair(yearArg, fullYear ? "01" : monthArgRaw);
+   // Deteccion de modo anual (desde argumentos o PM2)
+   const fullYear = String(monthInput).toUpperCase() === "ALL" || process.argv.includes("--fullYear");
 
-   // despues de obtener { year, month } y de calcular fullYear:
+   const { year, month } = getYearMonthPair(yearInput, fullYear ? "01" : monthInput);
+
+   // Validacion de futuro
    if (!fullYear && isFuturePeriod(year, month, CL_TZ)) {
-      console.warn(`⏭️ ${year}-${month} es futuro respecto a hoy en ${CL_TZ}. No hay datos que descargar.`);
+      console.warn(`⏭️ El período ${year}-${month} es futuro. Cancelando.`);
       process.exit(0);
    }
 
-   console.log(`▶ período: ${year}-${month} ${fullYear ? "(modo año completo)" : ""}`);
-   if (!aesKey) { console.error("Falta MYSQL_AES_KEY"); process.exit(2); }
+   console.log(`▶ Modo: ${fullYear ? "📅 AUDITORÍA ANUAL" : "⚡ CARGA DIARIA"}`);
+   console.log(`▶ Objetivo: ${fullYear ? `Año ${year}` : `${year}-${month}`}`);
+
+   // -----------------------------------------------------------------------
+   // 2. PREPARACIÓN Y CREDENCIALES
+   // -----------------------------------------------------------------------
+   if (!aesKey) { console.error("❌ Falta MYSQL_AES_KEY"); process.exit(2); }
 
    const siiCreds = await fetchCredentials({ type: "SII", aesKey });
-   console.log(`👥 entidades con credenciales SII válidas: ${siiCreds.length}`);
-   if (!siiCreds.length) { console.error("no hay credenciales SII disponibles"); process.exitCode = 2; return; }
+   console.log(`👥 Empresas a procesar: ${siiCreds.length}`);
+
+   if (!siiCreds.length) return;
 
    const onlyTypes = parseTypes(arg("types", ""));
 
-   for (const creds of siiCreds) {
-      console.log(`—— entidad #${creds.entity_id} ${creds.legal_name} (${creds.tax_id}) ——`);
+   // 3. Inicio Navegador
+   console.log("🔌 Iniciando navegador base...");
+   const browser = await createBrowser();
 
-      const baseDownloads = path.resolve(__dirname, "downloads");
-      // si es año completo, agrupo por año; si no, dejo igual que tenías
-      const downloadDir = fullYear
-         ? path.join(baseDownloads, String(creds.entity_id), String(year))
-         : path.join(baseDownloads, String(creds.entity_id));
+   try {
+      const processEntity = async (creds) => {
+         const label = `${creds.legal_name || 'Empresa'} (${creds.rut_sin_dv})`;
+         const context = await browser.createBrowserContext();
+         const page = await context.newPage();
 
-      const absDownloadDir = await ensureDir(downloadDir);
+         try {
+            console.log(`🔷 Procesando: ${label}`);
 
-      const browser = await createBrowser();
-      const page = await browser.newPage();
+            const baseDownloads = path.resolve(__dirname, "downloads");
+            const downloadDir = fullYear
+               ? path.join(baseDownloads, String(creds.entity_id), String(year))
+               : path.join(baseDownloads, String(creds.entity_id));
 
-      // acumulador anual por tipo (para el resumen final por entidad)
-      const annualByType = {};
+            await ensureDir(downloadDir);
 
-      try {
-         
-         await preparePage(page, {
-            downloadDir: absDownloadDir,
-            navTimeout: 90_000,
-            defaultTimeout: 90_000,
-            acceptLanguage: "es-CL,es;q=0.9,en;q=0.8",
-            blockResources: true,
-         });
-
-         // inicia sesion en SII
-         await ensureDownloadHooks(page, absDownloadDir); // una sola vez por page
-         await loginSII(page, creds.rut_sin_dv, creds.dv, creds.clave);
-
-         // navega la pagina hasta encontrar 'formContribuyente'
-         await navigatePages(page, [SII_URLS.comprasventas], {
-            lastSelector: 'form[name="formContribuyente"]'
-         });
-
-         // --- aquí la única diferencia: loop de meses si se pidió año completo ---
-         const monthsList = fullYear ? monthsOfYear(year) : [{ year, month }];
-
-         for (const { month: mm } of monthsList) {
-
-            if (isFuturePeriod(year, mm)) {
-               console.warn(`⏭️ ${year}-${mm} es futuro respecto a hoy en ${CL_TZ}. Deteniendo el año aquí.`);
-               break;
-            }
-
-            console.log(`📅 Procesando período: ${year}-${mm}`);
-
-            // filtra formulario
-            await fillComprasVentasForm(page, {
-               rut: `${creds.rut_sin_dv}-${creds.dv}`,
-               mes: mm,
-               anho: year,
-               timeout: 120_000,
+            await preparePage(page, {
+               downloadDir: downloadDir,
+               navTimeout: 60000,
+               defaultTimeout: 60000,
+               blockResources: true
             });
 
-            // descarga archivo
-            const file = await clickAndDownload(
-               page,
-               "//button[contains(., 'Descargar Detalles')]",
-               absDownloadDir,
-               { timeout: 120_000, nameHint: `Detalle_${year}${mm}` }
-            );
+            await ensureDownloadHooks(page, downloadDir);
 
-            if (file) {
-               const res = await loadCsvEntitySiiDocumentsAny(file, {
-                  entityId: creds.entity_id,
-                  year,
-                  month: mm,
-                  // onlyTypes: [33,34,61], // opcional
-                  onlyTypes,
-               });
+            // Login
+            let logged = false;
+            for (let attempt = 1; attempt <= 3; attempt++) {
+               try {
+                  await loginSII(page, creds.rut_sin_dv, creds.dv, creds.clave);
+                  logged = true; break;
+               } catch (e) { await sleep(2000); }
+            }
+            if (!logged) throw new Error("Fallo login tras 3 intentos");
 
-               // Mensaje por tipo (insertados)
-               for (const [tipo, stats] of Object.entries(res.byType)) {
-                  // mensaje por mes (tal como pediste antes)
-                  if (stats.inserted) {
-                     console.log(`🟢 [${year}-${mm}] Se insertaron ${stats.inserted} reportes de tipo ${tipo}.`);
-                  }
-                  // acumula anual
-                  annualByType[tipo] ??= { processed: 0, inserted: 0, updated: 0, skipped: 0 };
-                  annualByType[tipo].processed += (stats.processed || 0);
-                  annualByType[tipo].inserted += (stats.inserted || 0);
-                  annualByType[tipo].updated += (stats.updated || 0);
-                  annualByType[tipo].skipped += (stats.skipped || 0);
+            // Navegacion
+            await navigatePages(page, [SII_URLS.comprasventas], {
+               lastSelector: 'form[name="formContribuyente"]'
+            });
+
+            const monthsList = fullYear ? monthsOfYear(year) : [{ year, month }];
+
+            for (const { month: mm } of monthsList) {
+               if (isFuturePeriod(year, mm)) {
+                  if (fullYear) console.log(`   ⏭️ Fin anual en ${year}-${mm} (Futuro)`);
+                  break;
                }
 
-               // Resumen general del mes
-               console.log(`📊 [${year}-${mm}] Procesados: ${res.totals.processed}, Insertados: ${res.totals.inserted}, Actualizados: ${res.totals.updated}, Saltados: ${res.totals.skipped}`);
-            } else {
-               console.warn(`⚠️ [${year}-${mm}] No hubo archivo (quizá sin movimientos).`);
+               // Llenar formulario
+               await fillComprasVentasForm(page, {
+                  rut: `${creds.rut_sin_dv}-${creds.dv}`,
+                  mes: mm,
+                  anho: year,
+                  timeout: 60000
+               });
+
+               // --- [LIMPIEZA] Borrar versiones previas ---
+               try {
+                  const pattern = `Detalle_${year}${mm}`;
+                  const files = fs.readdirSync(downloadDir);
+                  files.forEach(f => {
+                     if (f.endsWith('.crdownload') || (f.includes(pattern) && f.endsWith('.csv'))) {
+                        fs.unlinkSync(path.join(downloadDir, f));
+                     }
+                  });
+               } catch (eClean) { /* ignorar */ }
+
+               // Descargar
+               const file = await clickAndDownload(
+                  page,
+                  "//button[contains(., 'Descargar Detalles')]",
+                  downloadDir,
+                  { timeout: 90000, nameHint: `Detalle_${year}${mm}` }
+               );
+
+               if (file) {
+                  // Carga BD
+                  const res = await loadCsvEntitySiiDocumentsAny(file, {
+                     entityId: creds.entity_id,
+                     year,
+                     month: mm,
+                     onlyTypes
+                  });
+                  console.log(`   ✅ [${year}-${mm}] Procesado: ${res.totals.inserted} nuevos.`);
+               } else {
+                  console.log(`   ⚠️ [${year}-${mm}] No se descargo archivo.`);
+               }
+
+               if (fullYear) await sleep(1000);
             }
 
-            // pequeña espera entre meses (anti-rate limit)
-            if (fullYear) await sleep(1200 + Math.floor(Math.random() * 600));
+         } catch (err) {
+            console.error(`❌ Error ${label}: ${err.message}`);
+         } finally {
+            await context.close();
          }
+      };
 
-         // Resumen anual por tipo (solo si se pidió año completo)
-         if (fullYear) {
-            console.log(`\n📦 Resumen anual ${year} - entidad #${creds.entity_id}`);
-            let totalIns = 0, totalUpd = 0, totalProc = 0, totalSkp = 0;
-            for (const [tipo, st] of Object.entries(annualByType)) {
-               console.log(`• Tipo ${tipo}: procesados ${st.processed}, insertados ${st.inserted}, actualizados ${st.updated}, saltados ${st.skipped}`);
-               totalIns += st.inserted; totalUpd += st.updated; totalProc += st.processed; totalSkp += st.skipped;
-            }
-            console.log(`➡️ Totales anuales — Procesados: ${totalProc}, Insertados: ${totalIns}, Actualizados: ${totalUpd}, Saltados: ${totalSkp}\n`);
-         }
-
-         console.log(`Fin del proceso para entidad #${creds.entity_id}\n\n`);
-
-      } catch (err) {
-         console.log(err);
-
-         console.error("❌ error en entidad", creds.entity_id, "-", err && err.message ? err.message : err);
-         process.exitCode = 1;
-      } finally {
-         await browser.close();
+      // Ejecucion por lotes
+      for (let i = 0; i < siiCreds.length; i += MAX_CONCURRENCY) {
+         const chunk = siiCreds.slice(i, i + MAX_CONCURRENCY);
+         await Promise.all(chunk.map(c => processEntity(c)));
       }
+
+   } finally {
+      console.log("🔌 Finalizado.");
+      await browser.close();
    }
 })();

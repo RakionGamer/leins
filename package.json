@@ -32,6 +32,7 @@
     "luxon": "^3.7.1",
     "multer": "^2.0.2",
     "mysql2": "^3.15.2",
+    "nodemon": "^3.1.10",
     "passport": "^0.6.0",
     "passport-jwt": "^4.0.1",
     "passport-local": "^1.0.0",
@@ -39,7 +40,9 @@
     "puppeteer-core": "^24.17.0",
     "puppeteer-extra": "^3.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "qrcode": "^1.5.4",
     "sequelize": "^6.37.7",
+    "speakeasy": "^2.0.0",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
