@@ -30,11 +30,12 @@ const {
 const aesKey = process.env.MYSQL_AES_KEY;
 const CL_TZ = process.env.SII_TZ || "America/Santiago";
 
-(async () => {
+// Función principal reutilizable
+const run = async ({ entityId = null, year: inYear = null, month: inMonth = null } = {}) => {
    console.log("🚀 iniciando servicio de boletas sii");
 
    // -----------------------------------------------------------------------
-   // 1. CONFIGURACION DE FECHAS (PARSEO MANUAL)
+   // 1. CONFIGURACION DE FECHAS
    // -----------------------------------------------------------------------
    const now = DateTime.now().setZone(CL_TZ);
 
@@ -44,12 +45,12 @@ const CL_TZ = process.env.SII_TZ || "America/Santiago";
       return (idx !== -1 && process.argv[idx + 1]) ? process.argv[idx + 1] : null;
    };
 
-   // Prioridad: Argumento explicito > arg() > Fecha actual
-   const yearInput = getArgValue("year") || arg("year", now.toFormat("yyyy"));
-   const monthInput = getArgValue("month") || arg("month", now.toFormat("MM"));
+   // Prioridad: Parámetro funcion > Argumento consola > arg() > Fecha actual
+   const yearInput = inYear || getArgValue("year") || arg("year", now.toFormat("yyyy"));
+   const monthInput = inMonth || getArgValue("month") || arg("month", now.toFormat("MM"));
 
-   // Deteccion de modo anual
-   const fullYear = String(monthInput).toUpperCase() === "ALL" || process.argv.includes("--fullYear");
+   // Deteccion de modo anual (solo si no viene un mes específico por API)
+   const fullYear = !inMonth && (String(monthInput).toUpperCase() === "ALL" || process.argv.includes("--fullYear"));
 
    // Calculo final de fechas
    const { year, month } = getYearMonthPair(yearInput, fullYear ? "01" : monthInput);
@@ -59,7 +60,7 @@ const CL_TZ = process.env.SII_TZ || "America/Santiago";
 
    if (!fullYear && isFuturePeriod(year, month, CL_TZ)) {
       console.warn(`⏭️ periodo futuro ${year}-${month}. cancelando.`);
-      process.exit(0);
+      return { ok: false, message: "Periodo futuro" };
    }
 
    // -----------------------------------------------------------------------
@@ -69,21 +70,34 @@ const CL_TZ = process.env.SII_TZ || "America/Santiago";
 
    // Filtro anti-duplicados de empresas
    let siiCreds = await fetchCredentials({ type: "SII", aesKey });
-   const rutsVistos = new Set();
-   siiCreds = siiCreds.filter(c => {
-      const key = `${c.rut_sin_dv}`;
-      if (rutsVistos.has(key)) return false;
-      rutsVistos.add(key);
-      return true;
-   });
 
-   if (!siiCreds.length) { console.log("⚠️ no hay credenciales activas."); return; }
+   // Si viene entityId especifico, filtramos
+   if (entityId) {
+      siiCreds = siiCreds.filter(c => String(c.entity_id) === String(entityId));
+      if (!siiCreds.length) {
+         console.error(`❌ No se encontraron credenciales para entityId ${entityId}`);
+         return { ok: false, message: "Sin credenciales" };
+      }
+   } else {
+      // Filtro de duplicados solo para modo masivo
+      const rutsVistos = new Set();
+      siiCreds = siiCreds.filter(c => {
+         const key = `${c.rut_sin_dv}`;
+         if (rutsVistos.has(key)) return false;
+         rutsVistos.add(key);
+         return true;
+      });
+   }
+
+   if (!siiCreds.length) { console.log("⚠️ no hay credenciales activas."); return { ok: true, count: 0 }; }
 
    // -----------------------------------------------------------------------
    // 3. INICIO DEL NAVEGADOR
    // -----------------------------------------------------------------------
    console.log("🔌 iniciando navegador...");
    const browser = await createBrowser();
+
+   const statsReport = { processed: 0, errors: [] };
 
    try {
       // Funcion principal que procesa una empresa
@@ -243,8 +257,8 @@ const CL_TZ = process.env.SII_TZ || "America/Santiago";
                            year,
                            month: mm,
                         });
-                        // Ajustamos el log al objeto que retorna nuestro nuevo loader
-                        console.log(`💾 BD: ${stats.totals.inserted} registros procesados (Saltados: ${stats.totals.skipped}).`);
+                        console.log(`💾 BD: ${stats.totals.inserted} registros procesados.`);
+                        statsReport.processed += stats.totals.inserted;
 
                      } else {
                         console.warn("⚠️ timeout: archivo no aparecio en disco.");
@@ -260,6 +274,7 @@ const CL_TZ = process.env.SII_TZ || "America/Santiago";
                      console.log(`ℹ️ sin movimientos.`);
                   } else {
                      console.error(`❌ error mes ${mm}: ${errStep.message}`);
+                     statsReport.errors.push(`Mes ${mm}: ${errStep.message}`);
                   }
                }
 
@@ -269,6 +284,8 @@ const CL_TZ = process.env.SII_TZ || "America/Santiago";
 
          } catch (e) {
             console.error(`❌ error entidad ${label}:`, e.message);
+            statsReport.errors.push(e.message);
+            throw e; // Relanzar para que el endpoint sepa que falló
          } finally {
             await context.close();
          }
@@ -279,8 +296,23 @@ const CL_TZ = process.env.SII_TZ || "America/Santiago";
          await processEntity(creds);
       }
 
+      return { ok: true, stats: statsReport };
+
    } finally {
       console.log("🔌 finalizado.");
       await browser.close();
    }
-})();
+};
+
+// AUTO-EJECUCIÓN SI SE LLAMA DESDE CONSOLA
+if (require.main === module) {
+   run().catch(err => {
+      console.error("FATAL:", err);
+      process.exit(1);
+   });
+}
+
+// EXPORTAR PARA USO EN API
+module.exports = {
+   runManualSync: (entityId, year, month) => run({ entityId, year, month })
+};

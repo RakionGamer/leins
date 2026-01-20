@@ -32,34 +32,32 @@ const CL_TZ = process.env.SII_TZ || "America/Santiago";
 // CONCURRENCIA: 1 es lo mas seguro. Subir si tienes mucha RAM.
 const MAX_CONCURRENCY = 3;
 
-(async () => {
+const run = async ({ entityId = null, year: inYear = null, month: inMonth = null } = {}) => {
    console.log("🚀 Iniciando servicio de consulta SII (Compras/Ventas)");
 
    // -----------------------------------------------------------------------
-   // 1. CONFIGURACION DE FECHAS (PARSEO MANUAL ROBUSTO)
+   // 1. CONFIGURACION DE FECHAS
    // -----------------------------------------------------------------------
    const now = DateTime.now().setZone(CL_TZ);
 
-   // Helper para leer argumentos de consola (ej: --year 2025)
-   // Esto asegura que node scripts/sii-dte-consult.js --year 2025 --month ALL funcione
    const getArgValue = (flag) => {
       const idx = process.argv.indexOf(`--${flag}`);
       return (idx !== -1 && process.argv[idx + 1]) ? process.argv[idx + 1] : null;
    };
 
-   // Prioridad: Argumento explicito > arg() > Fecha actual
-   const yearInput = getArgValue("year") || arg("year", now.toFormat("yyyy"));
-   const monthInput = getArgValue("month") || arg("month", now.toFormat("MM"));
+   // Prioridad: API > Argumento > arg() > Fecha actual
+   const yearInput = inYear || getArgValue("year") || arg("year", now.toFormat("yyyy"));
+   const monthInput = inMonth || getArgValue("month") || arg("month", now.toFormat("MM"));
 
-   // Deteccion de modo anual (desde argumentos o PM2)
-   const fullYear = String(monthInput).toUpperCase() === "ALL" || process.argv.includes("--fullYear");
+   // Deteccion de modo anual
+   const fullYear = !inMonth && (String(monthInput).toUpperCase() === "ALL" || process.argv.includes("--fullYear"));
 
    const { year, month } = getYearMonthPair(yearInput, fullYear ? "01" : monthInput);
 
    // Validacion de futuro
    if (!fullYear && isFuturePeriod(year, month, CL_TZ)) {
       console.warn(`⏭️ El período ${year}-${month} es futuro. Cancelando.`);
-      process.exit(0);
+      return { ok: false, message: "Periodo futuro" };
    }
 
    console.log(`▶ Modo: ${fullYear ? "📅 AUDITORÍA ANUAL" : "⚡ CARGA DIARIA"}`);
@@ -70,16 +68,23 @@ const MAX_CONCURRENCY = 3;
    // -----------------------------------------------------------------------
    if (!aesKey) { console.error("❌ Falta MYSQL_AES_KEY"); process.exit(2); }
 
-   const siiCreds = await fetchCredentials({ type: "SII", aesKey });
-   console.log(`👥 Empresas a procesar: ${siiCreds.length}`);
+   let siiCreds = await fetchCredentials({ type: "SII", aesKey });
 
-   if (!siiCreds.length) return;
+   // Filtro por entityId si viene de la API
+   if (entityId) {
+      siiCreds = siiCreds.filter(c => String(c.entity_id) === String(entityId));
+      if (!siiCreds.length) return { ok: false, message: "Sin credenciales" };
+   }
+
+   console.log(`👥 Empresas a procesar: ${siiCreds.length}`);
+   if (!siiCreds.length) return { ok: true, count: 0 };
 
    const onlyTypes = parseTypes(arg("types", ""));
 
    // 3. Inicio Navegador
    console.log("🔌 Iniciando navegador base...");
    const browser = await createBrowser();
+   const statsReport = { processed: 0, details: [] };
 
    try {
       const processEntity = async (creds) => {
@@ -165,6 +170,7 @@ const MAX_CONCURRENCY = 3;
                      onlyTypes
                   });
                   console.log(`   ✅ [${year}-${mm}] Procesado: ${res.totals.inserted} nuevos.`);
+                  statsReport.processed += res.totals.inserted;
                } else {
                   console.log(`   ⚠️ [${year}-${mm}] No se descargo archivo.`);
                }
@@ -174,19 +180,35 @@ const MAX_CONCURRENCY = 3;
 
          } catch (err) {
             console.error(`❌ Error ${label}: ${err.message}`);
+            throw err;
          } finally {
             await context.close();
          }
       };
 
-      // Ejecucion por lotes
+      // Ejecucion por lotes (si estamos en API con entityId, solo hay 1)
       for (let i = 0; i < siiCreds.length; i += MAX_CONCURRENCY) {
          const chunk = siiCreds.slice(i, i + MAX_CONCURRENCY);
          await Promise.all(chunk.map(c => processEntity(c)));
       }
 
+      return { ok: true, stats: statsReport };
+
    } finally {
       console.log("🔌 Finalizado.");
       await browser.close();
    }
-})();
+};
+
+// AUTO-EJECUCIÓN (CLI)
+if (require.main === module) {
+   run().catch(err => {
+      console.error("FATAL:", err);
+      process.exit(1);
+   });
+}
+
+// EXPORTACIÓN (API)
+module.exports = {
+   runManualSync: (entityId, year, month) => run({ entityId, year, month })
+};
