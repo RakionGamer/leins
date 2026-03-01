@@ -63,10 +63,12 @@ router.get('/', async (req, res, next) => {
       const sort = q.sort ? String(q.sort) : 'issue_date'; // permitido: issue_date, folio, total_amount, created_at, updated_at
       const order = q.order ? String(q.order) : 'desc';    // asc | desc
 
+      // armar payload para el servicio
       const payload = {
          entity_id: q.entity_id ? Number(q.entity_id) : undefined,
          type: typeCode,
          source: q.source ? String(q.source) : undefined,
+         operation_type: q.operation_type ? String(q.operation_type).toUpperCase() : undefined,
          month,
          from: month ? undefined : from,
          to: month ? undefined : to,

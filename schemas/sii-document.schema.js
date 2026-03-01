@@ -32,11 +32,11 @@ const validateRut = (value, helpers) => {
 const entity_id = joi.number().integer().positive();
 const total_amount = joi.number().precision(2).positive();
 const issue_date = joi.date().iso();
-const doc_type_code = joi.number().integer().positive().allow(null);
 const counterparty_rut = joi.string().max(16).allow(null, '').custom(validateRut, 'validacion matematica de rut');
 const counterparty_name = joi.string().max(255).allow(null, '');
 const state_id = joi.number().integer().positive();
 const folio = joi.string().max(50).allow(null, '');
+const operation_type = joi.string().valid('INCOME', 'EXPENSE');
 
 // esquema para leer parametros de la url
 const getDocumentSchema = joi.object({
@@ -46,20 +46,40 @@ const getDocumentSchema = joi.object({
 // esquema creacion
 const createManualIncomeSchema = joi.object({
    entity_id: entity_id.required(),
+   operation_type: operation_type.required(),
    total_amount: total_amount.required(),
    issue_date: issue_date.required(),
-   doc_type_code: doc_type_code.optional(),
+
+   // regla condicional: requerido para ingresos, opcional/nulo para egresos
+   doc_type_code: joi.when('operation_type', {
+      is: 'INCOME',
+      then: joi.number().integer().positive().required().messages({
+         'any.required': 'el tipo de documento es obligatorio para los ingresos'
+      }),
+      otherwise: joi.number().integer().positive().allow(null).optional()
+   }),
+
    counterparty_rut: counterparty_rut.optional(),
    counterparty_name: counterparty_name.optional(),
    state_id: state_id.optional(),
    folio: folio.optional()
 });
 
-// esquema actualizacion (todos opcionales)
+// esquema actualizacion
 const updateDocumentSchema = joi.object({
+   operation_type: operation_type.required(),
    total_amount: total_amount.optional(),
    issue_date: issue_date.optional(),
-   doc_type_code: doc_type_code.optional(),
+
+   // misma regla condicional al editar
+   doc_type_code: joi.when('operation_type', {
+      is: 'INCOME',
+      then: joi.number().integer().positive().required().messages({
+         'any.required': 'el tipo de documento es obligatorio para los ingresos'
+      }),
+      otherwise: joi.number().integer().positive().allow(null).optional()
+   }),
+
    counterparty_rut: counterparty_rut.optional(),
    counterparty_name: counterparty_name.optional(),
    folio: folio.optional()
