@@ -8,12 +8,39 @@ class SiiDocumentsService {
    constructor() {
    }
 
-   // comentarios en minusculas y sin acentos
-   async list({ entity_id, type, month, from, to, page = 1, limit = 50, sort = 'issue_date', order = 'desc' }) {
+   // metodo para registrar un ingreso manual
+   async createManual(data) {
+      const documentData = {
+         ...data,
+         source: 'MANUAL',
+         state_id: data.state_id || 1
+      };
+
+      // creacion del registro en la base de datos
+      const newDoc = await models.EntitySiiDocument.create(documentData);
+
+      return newDoc;
+   }
+
+   // agregamos source a los parametros desestructurados
+   async list({ entity_id, type, source, month, from, to, page = 1, limit = 50, sort = 'issue_date', order = 'desc' }) {
       // where base
       const where = {};
       if (entity_id) where.entity_id = Number(entity_id);
-      if (type) where.doc_type_code = Number(type); // se espera codigo sii (33,34,56,61,...)
+      
+      // logica de filtrado por tipo de documento o sin tipo
+      if (type) {
+         if (type === 'null') {
+            where.doc_type_code = null;
+         } else {
+            where.doc_type_code = Number(type);
+         }
+      }
+
+      // nueva logica de filtrado por origen (sii o manual)
+      if (source) {
+         where.source = String(source).toUpperCase();
+      }
 
       // helpers fecha (strings yyyy-mm-dd)
       const toYMD = (y, m, d) => `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
@@ -32,22 +59,19 @@ class SiiDocumentsService {
 
       // prioridad: si viene month se ignoran from/to
       if (month) {
-         // month = 'yyyy-mm' -> rango [yyyy-mm-01, 1er dia mes siguiente) sin tz
          const mm = parseYMD(`${month}-01`);
-         if (!mm) throw Boom.badRequest('parametro "month" invalido; esperado YYYY-MM');
+         if (!mm) throw Boom.badRequest('parametro "month" invalido; esperado yyyy-mm');
          const start = toYMD(mm.y, mm.m, 1);
          const endExcl = (mm.m === 12) ? toYMD(mm.y + 1, 1, 1) : toYMD(mm.y, mm.m + 1, 1);
          setRange(start, endExcl);
 
       } else if (from || to) {
-         // rango por fechas yyyy-mm-dd (to inclusivo -> convertimos a exclusivo sumando 1 dia)
          const f = from ? parseYMD(from) : null;
          const t = to ? parseYMD(to) : null;
-         if (from && !f) throw Boom.badRequest('parametro "from" invalido; esperado YYYY-MM-DD');
-         if (to && !t) throw Boom.badRequest('parametro "to" invalido; esperado YYYY-MM-DD');
+         if (from && !f) throw Boom.badRequest('parametro "from" invalido; esperado yyyy-mm-dd');
+         if (to && !t) throw Boom.badRequest('parametro "to" invalido; esperado yyyy-mm-dd');
 
          const plusOne = (y, m, d) => {
-            // sumar 1 dia de forma estable (sin efectos de tz)
             const tmp = new Date(Date.UTC(y, m - 1, d));
             tmp.setUTCDate(tmp.getUTCDate() + 1);
             return toYMD(tmp.getUTCFullYear(), tmp.getUTCMonth() + 1, tmp.getUTCDate());
@@ -56,9 +80,8 @@ class SiiDocumentsService {
          const startStr = f ? toYMD(f.y, f.m, f.d) : null;
          let endExclStr = null;
          if (t) endExclStr = plusOne(t.y, t.m, t.d);
-         else if (f) endExclStr = plusOne(f.y, f.m, f.d); // si solo viene from => rango 1 dia
+         else if (f) endExclStr = plusOne(f.y, f.m, f.d);
 
-         // comparar strings (yyyy-mm-dd) evita problemas de tz
          if (startStr && endExclStr && startStr >= endExclStr) {
             throw Boom.badRequest('rango de fechas invalido: "from" debe ser menor o igual que "to"');
          }
@@ -77,18 +100,16 @@ class SiiDocumentsService {
       const sortCol = sortMap[sort] || 'issue_date';
       const dir = String(order).toLowerCase() === 'asc' ? 'ASC' : 'DESC';
 
-      // paginacion
       const pageNum = Math.max(1, Number(page) || 1);
       const pageSize = Math.max(1, Math.min(200, Number(limit) || 50));
       const offset = (pageNum - 1) * pageSize;
 
-      // seleccionar solo columnas necesarias
+      // seleccionar columnas
       const attributes = [
          'id', 'entity_id', 'doc_type_code', 'counterparty_rut', 'counterparty_name', 'folio',
-         'issue_date', 'due_date', 'total_amount', 'created_at', 'updated_at',
+         'issue_date', 'due_date', 'total_amount', 'created_at', 'updated_at', 'source'
       ];
 
-      // consulta (nota: distinct evita sobreconteo por joins)
       const { rows, count } = await models.EntitySiiDocument.findAndCountAll({
          where,
          attributes,
@@ -96,14 +117,12 @@ class SiiDocumentsService {
             { model: models.Entity, as: 'entity', attributes: ['legal_name', 'tax_id'] },
             { model: models.SiiDocumentType, as: 'docType', attributes: ['code', 'slug', 'name'] },
          ],
-         order: [[sortCol, dir], ['id', dir]], // tie-breaker para orden estable
+         order: [[sortCol, dir], ['id', dir]],
          limit: pageSize,
          offset,
          distinct: true,
-         // logging: console.log,
       });
 
-      // respuesta aplanada
       const items = rows.map((r) => ({
          id: r.id,
          entity_id: r.entity_id,
@@ -117,7 +136,8 @@ class SiiDocumentsService {
          folio: r.folio,
          issue_date: r.issue_date,
          due_date: r.due_date,
-         total_amount: r.total_amount, // nota: decimal puede venir como string si no configuras decimalNumbers en la conexion
+         total_amount: r.total_amount,
+         source: r.source, 
          created_at: r.created_at,
          updated_at: r.updated_at,
       }));

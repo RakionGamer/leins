@@ -10,17 +10,9 @@ const boletaScraper = require('../scripts/sii-boletas-consult');
 const router = express.Router();
 const service = new EntitiesService();
 
-// --- DIAGNÓSTICO DE INICIO ---
-// Esto imprimirá en la consola qué es exactamente lo que se importó
-console.log('--- DEBUG NOTIFICATION SERVICE ---');
-console.log('Tipo de NotificationService:', typeof NotificationService);
-console.log('Es clase?:', NotificationService.toString().startsWith('class'));
+
 // Instanciamos
 const notifService = new NotificationService();
-console.log('Instancia creada:', notifService);
-console.log('Método create existe?:', typeof notifService.create);
-console.log('--------------------------------');
-// -----------------------------
 
 // Middleware SuperAdmin
 router.use((req, _res, next) => {

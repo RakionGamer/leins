@@ -4,6 +4,9 @@ const { Op } = require('sequelize');
 const SiiDocumentsService = require('../services/sii-document.service');
 const { models } = require('../libs/sequelize');
 
+const validatorHandler = require('../middlewares/validator.handler');
+const { createManualIncomeSchema } = require('../schemas/sii-document.schema');
+
 const router = express.Router();
 const service = new SiiDocumentsService();
 
@@ -24,11 +27,15 @@ router.get('/', async (req, res, next) => {
       if (from && !isYYYYMMDD(from)) throw boom.badRequest('parametro "from" invalido; esperado YYYY-MM-DD');
       if (to && !isYYYYMMDD(to)) throw boom.badRequest('parametro "to" invalido; esperado YYYY-MM-DD');
 
-      // mapear type: acepta codigo (33) o slug/nombre (p. ej. factura_exenta)
+      // mapear type: acepta codigo (33), slug/nombre (factura_exenta) o la palabra 'null'
       let typeCode;
       if (q.type != null && q.type !== '') {
          const typeRaw = String(q.type).trim();
-         if (/^\d+$/.test(typeRaw)) {
+         
+         // agregamos la excepcion para el string 'null' que manda el front
+         if (typeRaw === 'null') {
+            typeCode = 'null';
+         } else if (/^\d+$/.test(typeRaw)) {
             typeCode = Number(typeRaw);
          } else {
             // buscar por slug (lowercase) o por nombre
@@ -52,10 +59,10 @@ router.get('/', async (req, res, next) => {
       const sort = q.sort ? String(q.sort) : 'issue_date'; // permitido: issue_date, folio, total_amount, created_at, updated_at
       const order = q.order ? String(q.order) : 'desc';    // asc | desc
 
-      // armar payload para el servicio (month tiene prioridad sobre from/to)
-      const payload = {
+     const payload = {
          entity_id: q.entity_id ? Number(q.entity_id) : undefined,
          type: typeCode,
+         source: q.source ? String(q.source) : undefined,
          month,
          from: month ? undefined : from,
          to: month ? undefined : to,
@@ -98,5 +105,23 @@ router.get('/', async (req, res, next) => {
       next(err);
    }
 });
+
+router.post('/manual',
+   validatorHandler(createManualIncomeSchema, 'body'),
+   async (req, res, next) => {
+      try {
+         const payload = req.body;
+
+         const newDocument = await service.createManual(payload);
+
+         res.status(201).json({
+            message: 'ingreso manual registrado con exito',
+            data: newDocument
+         });
+      } catch (err) {
+         next(err);
+      }
+   }
+);
 
 module.exports = router;

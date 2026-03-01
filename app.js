@@ -96,10 +96,10 @@ routerApi(app);
 app.use((req, res) => res.status(404).json({ message: 'Not found' }));
 
 // // 9. manejadores de errores (orden importante)
-// app.use(logErrors);
-// app.use(ormErrorHandler);
-// app.use(boomErrorHandler);
-// app.use(errorHandler);
+app.use(logErrors);
+app.use(ormErrorHandler);
+app.use(boomErrorHandler);
+app.use(errorHandler);
 
 // iniciar servidor
 app.listen(port, () => {
