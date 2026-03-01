@@ -22,12 +22,41 @@ class SiiDocumentsService {
       return newDoc;
    }
 
+   // metodo para actualizar un documento existente
+   async update(id, changes) {
+      const doc = await models.EntitySiiDocument.findByPk(id);
+      if (!doc) throw Boom.notFound('documento no encontrado');
+
+      // proteccion estricta: bloqueamos edicion si el documento no es manual
+      if (doc.source !== 'MANUAL') {
+         throw Boom.unauthorized('no esta permitido modificar documentos oficiales del sii');
+      }
+
+      // aplicamos los cambios y guardamos en bd
+      await doc.update(changes);
+      return doc;
+   }
+
+   // metodo para eliminar
+   async delete(id) {
+      const doc = await models.EntitySiiDocument.findByPk(id);
+      if (!doc) throw Boom.notFound('documento no encontrado');
+
+      // proteccion estricta: bloqueamos borrado si el documento no es manual
+      if (doc.source !== 'MANUAL') {
+         throw Boom.unauthorized('no esta permitido eliminar documentos oficiales del sii');
+      }
+
+      await doc.destroy();
+      return { id };
+   }
+
    // agregamos source a los parametros desestructurados
    async list({ entity_id, type, source, month, from, to, page = 1, limit = 50, sort = 'issue_date', order = 'desc' }) {
       // where base
       const where = {};
       if (entity_id) where.entity_id = Number(entity_id);
-      
+
       // logica de filtrado por tipo de documento o sin tipo
       if (type) {
          if (type === 'null') {
@@ -137,7 +166,7 @@ class SiiDocumentsService {
          issue_date: r.issue_date,
          due_date: r.due_date,
          total_amount: r.total_amount,
-         source: r.source, 
+         source: r.source,
          created_at: r.created_at,
          updated_at: r.updated_at,
       }));

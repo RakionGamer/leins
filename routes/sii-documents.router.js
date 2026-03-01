@@ -5,7 +5,11 @@ const SiiDocumentsService = require('../services/sii-document.service');
 const { models } = require('../libs/sequelize');
 
 const validatorHandler = require('../middlewares/validator.handler');
-const { createManualIncomeSchema } = require('../schemas/sii-document.schema');
+const {
+   createManualIncomeSchema,
+   updateDocumentSchema,
+   getDocumentSchema
+} = require('../schemas/sii-document.schema');
 
 const router = express.Router();
 const service = new SiiDocumentsService();
@@ -31,7 +35,7 @@ router.get('/', async (req, res, next) => {
       let typeCode;
       if (q.type != null && q.type !== '') {
          const typeRaw = String(q.type).trim();
-         
+
          // agregamos la excepcion para el string 'null' que manda el front
          if (typeRaw === 'null') {
             typeCode = 'null';
@@ -59,7 +63,7 @@ router.get('/', async (req, res, next) => {
       const sort = q.sort ? String(q.sort) : 'issue_date'; // permitido: issue_date, folio, total_amount, created_at, updated_at
       const order = q.order ? String(q.order) : 'desc';    // asc | desc
 
-     const payload = {
+      const payload = {
          entity_id: q.entity_id ? Number(q.entity_id) : undefined,
          type: typeCode,
          source: q.source ? String(q.source) : undefined,
@@ -117,6 +121,43 @@ router.post('/manual',
          res.status(201).json({
             message: 'ingreso manual registrado con exito',
             data: newDocument
+         });
+      } catch (err) {
+         next(err);
+      }
+   }
+);
+
+// endpoint para editar el documento
+router.patch('/:id',
+   validatorHandler(getDocumentSchema, 'params'),
+   validatorHandler(updateDocumentSchema, 'body'),
+   async (req, res, next) => {
+      try {
+         const { id } = req.params;
+         const payload = req.body;
+         const updatedDocument = await service.update(id, payload);
+
+         res.status(200).json({
+            message: 'documento actualizado con exito',
+            data: updatedDocument
+         });
+      } catch (err) {
+         next(err);
+      }
+   }
+);
+
+// endpoint para eliminar el documento
+router.delete('/:id',
+   validatorHandler(getDocumentSchema, 'params'),
+   async (req, res, next) => {
+      try {
+         const { id } = req.params;
+         await service.delete(id);
+
+         res.status(200).json({
+            message: 'ingreso manual eliminado con exito'
          });
       } catch (err) {
          next(err);
