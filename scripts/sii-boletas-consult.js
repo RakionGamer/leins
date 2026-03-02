@@ -8,8 +8,10 @@ const { pipeline } = require("stream/promises");
 const { DateTime } = require("luxon");
 require("dotenv").config({ path: path.resolve(__dirname, "..", ".env") });
 
-// importaciones de librerias propias
-const { loadCsvSiiBoletas41 } = require("../loaders/entitySiiBoletas41");
+// importamos e instanciamos el nuevo servicio unificado
+const SiiLoaderService = require("../services/sii-loader.service");
+const loaderService = new SiiLoaderService();
+
 const {
    SII_URLS,
    loginSII,
@@ -26,33 +28,24 @@ const {
    monthsOfYear,
 } = require("../libs/functions");
 
-// configuracion general
 const aesKey = process.env.MYSQL_AES_KEY;
 const CL_TZ = process.env.SII_TZ || "America/Santiago";
 
-// Función principal reutilizable
 const run = async ({ entityId = null, year: inYear = null, month: inMonth = null } = {}) => {
    console.log("🚀 iniciando servicio de boletas sii");
 
-   // -----------------------------------------------------------------------
-   // 1. CONFIGURACION DE FECHAS
-   // -----------------------------------------------------------------------
    const now = DateTime.now().setZone(CL_TZ);
 
-   // Helper para leer argumentos de consola (ej: --year 2025)
    const getArgValue = (flag) => {
       const idx = process.argv.indexOf(`--${flag}`);
       return (idx !== -1 && process.argv[idx + 1]) ? process.argv[idx + 1] : null;
    };
 
-   // Prioridad: Parámetro funcion > Argumento consola > arg() > Fecha actual
    const yearInput = inYear || getArgValue("year") || arg("year", now.toFormat("yyyy"));
    const monthInput = inMonth || getArgValue("month") || arg("month", now.toFormat("MM"));
 
-   // Deteccion de modo anual (solo si no viene un mes específico por API)
    const fullYear = !inMonth && (String(monthInput).toUpperCase() === "ALL" || process.argv.includes("--fullYear"));
 
-   // Calculo final de fechas
    const { year, month } = getYearMonthPair(yearInput, fullYear ? "01" : monthInput);
 
    console.log(`▶ modo: ${fullYear ? "📅 auditoria anual" : "⚡ carga mensual"}`);
@@ -63,15 +56,10 @@ const run = async ({ entityId = null, year: inYear = null, month: inMonth = null
       return { ok: false, message: "Periodo futuro" };
    }
 
-   // -----------------------------------------------------------------------
-   // 2. VALIDACION DE CREDENCIALES
-   // -----------------------------------------------------------------------
    if (!aesKey) { console.error("❌ falta mysql_aes_key"); process.exit(2); }
 
-   // Filtro anti-duplicados de empresas
    let siiCreds = await fetchCredentials({ type: "SII", aesKey });
 
-   // Si viene entityId especifico, filtramos
    if (entityId) {
       siiCreds = siiCreds.filter(c => String(c.entity_id) === String(entityId));
       if (!siiCreds.length) {
@@ -79,7 +67,6 @@ const run = async ({ entityId = null, year: inYear = null, month: inMonth = null
          return { ok: false, message: "Sin credenciales" };
       }
    } else {
-      // Filtro de duplicados solo para modo masivo
       const rutsVistos = new Set();
       siiCreds = siiCreds.filter(c => {
          const key = `${c.rut_sin_dv}`;
@@ -91,16 +78,12 @@ const run = async ({ entityId = null, year: inYear = null, month: inMonth = null
 
    if (!siiCreds.length) { console.log("⚠️ no hay credenciales activas."); return { ok: true, count: 0 }; }
 
-   // -----------------------------------------------------------------------
-   // 3. INICIO DEL NAVEGADOR
-   // -----------------------------------------------------------------------
    console.log("🔌 iniciando navegador...");
    const browser = await createBrowser();
 
    const statsReport = { processed: 0, errors: [] };
 
    try {
-      // Funcion principal que procesa una empresa
       const processEntity = async (creds) => {
          const label = `${creds.legal_name || 'Empresa'} (${creds.rut_sin_dv})`;
          const context = await browser.createBrowserContext();
@@ -109,15 +92,12 @@ const run = async ({ entityId = null, year: inYear = null, month: inMonth = null
          try {
             console.log(`🔷 procesando: ${label}`);
 
-            // Estructura de carpetas: downloads/{ID}/{YEAR}
             const baseDownloads = path.resolve(__dirname, "downloads");
             const entityDir = path.join(baseDownloads, String(creds.entity_id), String(year));
             await ensureDir(entityDir);
 
-            // Preparar pagina (bloqueo de imagenes/css para velocidad)
             await preparePage(page, { downloadDir: entityDir, navTimeout: 60000, blockResources: true });
 
-            // A. Login en SII
             let logged = false;
             for (let i = 1; i <= 3; i++) {
                try {
@@ -127,14 +107,11 @@ const run = async ({ entityId = null, year: inYear = null, month: inMonth = null
             }
             if (!logged) throw new Error("fallo login tras 3 intentos");
 
-            // B. Navegacion al registro CV
             await navigatePages(page, [SII_URLS.comprasventas], { lastSelector: 'form[name="formContribuyente"]' });
 
-            // C. Ciclo de meses (1 mes si es diario, 12 si es --fullYear)
             const monthsList = fullYear ? monthsOfYear(year) : [{ year, month }];
 
             for (const { month: mm } of monthsList) {
-               // Saltar meses futuros en modo anual
                if (isFuturePeriod(year, mm, CL_TZ)) {
                   if (fullYear) console.log(`   ⏭️ deteniendo anual en ${year}-${mm} (es futuro)`);
                   break;
@@ -143,7 +120,6 @@ const run = async ({ entityId = null, year: inYear = null, month: inMonth = null
                console.log(`📅 periodo ${year}-${mm}...`);
 
                try {
-                  // PASO 1: Llenar formulario
                   await fillComprasVentasForm(page, {
                      rut: `${creds.rut_sin_dv}-${creds.dv}`,
                      mes: mm,
@@ -151,7 +127,6 @@ const run = async ({ entityId = null, year: inYear = null, month: inMonth = null
                      timeout: 60000
                   });
 
-                  // PASO 2: Activar pestaña Ventas
                   const selectorVentas = "#my-wrapper > div.web-sii.cuerpo > div.container > div:nth-child(1) > div > div:nth-child(2) > ul > li:nth-child(2) > a > strong";
                   try {
                      await page.waitForSelector(selectorVentas, { timeout: 30000 });
@@ -159,31 +134,25 @@ const run = async ({ entityId = null, year: inYear = null, month: inMonth = null
                      await sleep(5000);
                   } catch (e) { console.warn("⚠️ pestana ventas ya activa o no encontrada."); }
 
-                  // PASO 3: Solicitar reporte (Boton 3941)
                   const selectorBoletas = "button[ng-click*='3941']";
                   const boletasBtn = await page.waitForSelector(selectorBoletas, { visible: true, timeout: 15000 });
 
-                  // Limpieza de overlays (modals de carga)
                   await page.evaluate(() => {
                      document.querySelectorAll('#esperaDialog, .modal-backdrop, .block-ui-wrapper').forEach(el => el.remove());
                   });
 
-                  // Clic forzado
                   await page.evaluate(el => el.click(), boletasBtn);
                   console.log("⚡ solicitud enviada.");
 
-                  // PASO 4: Modal de confirmacion
                   console.log("🔎 esperando modal 'ver detalles'...");
                   await page.waitForSelector(".modal-content", { visible: true, timeout: 15000 });
 
-                  // Clic en Confirmar
                   await page.evaluate(() => {
                      const btn = document.querySelector(".modal-content .btn-primary");
                      if (btn) btn.click();
                   });
                   console.log("✅ confirmado. verificando estado...");
 
-                  // PASO 5: Manejo de aviso 'descarga vigente' (opcional)
                   await sleep(2000);
                   const alertaVigente = await page.evaluate(() => {
                      const m = document.querySelector("#alert-modal");
@@ -199,7 +168,6 @@ const run = async ({ entityId = null, year: inYear = null, month: inMonth = null
                      await sleep(1000);
                   }
 
-                  // PASO 6: Descarga final (Boton bajarArchivo)
                   console.log("⏳ esperando generacion de archivo (boton final)...");
 
                   const selectorDescargaFinal = "button[ng-click*='bajarArchivo']";
@@ -207,7 +175,6 @@ const run = async ({ entityId = null, year: inYear = null, month: inMonth = null
                   try {
                      const btnFinal = await page.waitForSelector(selectorDescargaFinal, { visible: true, timeout: 90000 });
 
-                     // 6.0: LIMPIEZA PREVIA (Borrar .gz viejos para asegurar deteccion)
                      try {
                         const archivosExistentes = fs.readdirSync(entityDir);
                         archivosExistentes.forEach(f => {
@@ -217,14 +184,11 @@ const run = async ({ entityId = null, year: inYear = null, month: inMonth = null
                         });
                      } catch (errClean) { /* ignorar */ }
 
-                     // Captura estado carpeta
                      const filesBefore = fs.readdirSync(entityDir);
 
-                     // Clic final
                      await page.evaluate(el => el.click(), btnFinal);
                      console.log("⬇️ clic final realizado. monitoreando...");
 
-                     // PASO 7: Validacion y BD
                      let newFile = null;
                      for (let w = 0; w < 60; w++) {
                         await sleep(1000);
@@ -237,7 +201,6 @@ const run = async ({ entityId = null, year: inYear = null, month: inMonth = null
                         let finalPath = path.join(entityDir, newFile);
                         console.log(`✅ archivo descargado: ${newFile}`);
 
-                        // a. Descompresion
                         if (newFile.endsWith(".gz")) {
                            console.log("🗜️ descomprimiendo...");
                            const csvName = newFile.replace(/\.gz$/, "");
@@ -251,12 +214,14 @@ const run = async ({ entityId = null, year: inYear = null, month: inMonth = null
                            finalPath = destPath;
                         }
 
-                        /// b. Carga a BD
-                        const stats = await loadCsvSiiBoletas41(finalPath, {
+                        // usamos el nuevo servicio asegurando solo tipos 39 y 41
+                        const stats = await loaderService.loadCsv(finalPath, {
                            entityId: creds.entity_id,
                            year,
                            month: mm,
+                           onlyTypes: [39, 41]
                         });
+
                         console.log(`💾 BD: ${stats.totals.inserted} registros procesados.`);
                         statsReport.processed += stats.totals.inserted;
 
@@ -278,20 +243,18 @@ const run = async ({ entityId = null, year: inYear = null, month: inMonth = null
                   }
                }
 
-               // Pausa entre meses para no saturar
                if (fullYear) await sleep(2000);
             }
 
          } catch (e) {
             console.error(`❌ error entidad ${label}:`, e.message);
             statsReport.errors.push(e.message);
-            throw e; // Relanzar para que el endpoint sepa que falló
+            throw e;
          } finally {
             await context.close();
          }
       };
 
-      // Ejecucion secuencial
       for (const creds of siiCreds) {
          await processEntity(creds);
       }
@@ -304,7 +267,6 @@ const run = async ({ entityId = null, year: inYear = null, month: inMonth = null
    }
 };
 
-// AUTO-EJECUCIÓN SI SE LLAMA DESDE CONSOLA
 if (require.main === module) {
    run().catch(err => {
       console.error("FATAL:", err);
@@ -312,7 +274,6 @@ if (require.main === module) {
    });
 }
 
-// EXPORTAR PARA USO EN API
 module.exports = {
    runManualSync: (entityId, year, month) => run({ entityId, year, month })
-};
+}; 

@@ -1,16 +1,19 @@
 // middlewares/auth.handler.js
 const jwt = require('jsonwebtoken');
-const Boom = require('@hapi/boom');
 const { config } = require('./../config/config');
 
 function jwtValidate(req, res, next) {
    const authHeader = req.headers.authorization || '';
    const [type, token] = authHeader.split(' ');
 
+   // si no hay token, devolvemos 401 directo
    if (type?.toLowerCase() !== 'bearer' || !token) {
-      const err = Boom.unauthorized('missing or invalid authorization header');
-      err.data = { code: 'AUTH_HEADER_MISSING' };
-      return next(err);
+      return res.status(401).json({
+         statusCode: 401,
+         error: 'Unauthorized',
+         message: 'missing or invalid authorization header',
+         code: 'AUTH_HEADER_MISSING'
+      });
    }
 
    try {
@@ -19,14 +22,22 @@ function jwtValidate(req, res, next) {
       req.userId = payload.sub;
       return next();
    } catch (e) {
+      // si expiro, devolvemos 401 directo
       if (e?.name === 'TokenExpiredError') {
-         const err = Boom.unauthorized('access token expired');
-         err.data = { code: 'TOKEN_EXPIRED' };
-         return next(err);
+         return res.status(401).json({
+            statusCode: 401,
+            error: 'Unauthorized',
+            message: 'access token expired',
+            code: 'TOKEN_EXPIRED'
+         });
       }
-      const err = Boom.unauthorized('invalid access token');
-      err.data = { code: 'TOKEN_INVALID' };
-      return next(err);
+      // cualquier otro error de jwt (alterado, malformado)
+      return res.status(401).json({
+         statusCode: 401,
+         error: 'Unauthorized',
+         message: 'invalid access token',
+         code: 'TOKEN_INVALID'
+      });
    }
 }
 

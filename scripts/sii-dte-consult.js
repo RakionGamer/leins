@@ -5,7 +5,10 @@ const path = require("path");
 const fs = require("fs");
 const { DateTime } = require("luxon");
 require("dotenv").config({ path: path.resolve(__dirname, "..", ".env") });
-const { loadCsvEntitySiiDocumentsAny } = require("../loaders/entitySiiDocumentsAny");
+
+// importamos e instanciamos el nuevo servicio unificado
+const SiiLoaderService = require("../services/sii-loader.service");
+const loaderService = new SiiLoaderService();
 
 const {
    SII_URLS,
@@ -29,15 +32,11 @@ const {
 const aesKey = process.env.MYSQL_AES_KEY;
 const CL_TZ = process.env.SII_TZ || "America/Santiago";
 
-// CONCURRENCIA: 1 es lo mas seguro. Subir si tienes mucha RAM.
 const MAX_CONCURRENCY = 3;
 
 const run = async ({ entityId = null, year: inYear = null, month: inMonth = null } = {}) => {
    console.log("🚀 Iniciando servicio de consulta SII (Compras/Ventas)");
 
-   // -----------------------------------------------------------------------
-   // 1. CONFIGURACION DE FECHAS
-   // -----------------------------------------------------------------------
    const now = DateTime.now().setZone(CL_TZ);
 
    const getArgValue = (flag) => {
@@ -45,16 +44,13 @@ const run = async ({ entityId = null, year: inYear = null, month: inMonth = null
       return (idx !== -1 && process.argv[idx + 1]) ? process.argv[idx + 1] : null;
    };
 
-   // Prioridad: API > Argumento > arg() > Fecha actual
    const yearInput = inYear || getArgValue("year") || arg("year", now.toFormat("yyyy"));
    const monthInput = inMonth || getArgValue("month") || arg("month", now.toFormat("MM"));
 
-   // Deteccion de modo anual
    const fullYear = !inMonth && (String(monthInput).toUpperCase() === "ALL" || process.argv.includes("--fullYear"));
 
    const { year, month } = getYearMonthPair(yearInput, fullYear ? "01" : monthInput);
 
-   // Validacion de futuro
    if (!fullYear && isFuturePeriod(year, month, CL_TZ)) {
       console.warn(`⏭️ El período ${year}-${month} es futuro. Cancelando.`);
       return { ok: false, message: "Periodo futuro" };
@@ -63,14 +59,10 @@ const run = async ({ entityId = null, year: inYear = null, month: inMonth = null
    console.log(`▶ Modo: ${fullYear ? "📅 AUDITORÍA ANUAL" : "⚡ CARGA DIARIA"}`);
    console.log(`▶ Objetivo: ${fullYear ? `Año ${year}` : `${year}-${month}`}`);
 
-   // -----------------------------------------------------------------------
-   // 2. PREPARACIÓN Y CREDENCIALES
-   // -----------------------------------------------------------------------
    if (!aesKey) { console.error("❌ Falta MYSQL_AES_KEY"); process.exit(2); }
 
    let siiCreds = await fetchCredentials({ type: "SII", aesKey });
 
-   // Filtro por entityId si viene de la API
    if (entityId) {
       siiCreds = siiCreds.filter(c => String(c.entity_id) === String(entityId));
       if (!siiCreds.length) return { ok: false, message: "Sin credenciales" };
@@ -81,7 +73,6 @@ const run = async ({ entityId = null, year: inYear = null, month: inMonth = null
 
    const onlyTypes = parseTypes(arg("types", ""));
 
-   // 3. Inicio Navegador
    console.log("🔌 Iniciando navegador base...");
    const browser = await createBrowser();
    const statsReport = { processed: 0, details: [] };
@@ -111,7 +102,6 @@ const run = async ({ entityId = null, year: inYear = null, month: inMonth = null
 
             await ensureDownloadHooks(page, downloadDir);
 
-            // Login
             let logged = false;
             for (let attempt = 1; attempt <= 3; attempt++) {
                try {
@@ -121,7 +111,6 @@ const run = async ({ entityId = null, year: inYear = null, month: inMonth = null
             }
             if (!logged) throw new Error("Fallo login tras 3 intentos");
 
-            // Navegacion
             await navigatePages(page, [SII_URLS.comprasventas], {
                lastSelector: 'form[name="formContribuyente"]'
             });
@@ -134,7 +123,6 @@ const run = async ({ entityId = null, year: inYear = null, month: inMonth = null
                   break;
                }
 
-               // Llenar formulario
                await fillComprasVentasForm(page, {
                   rut: `${creds.rut_sin_dv}-${creds.dv}`,
                   mes: mm,
@@ -142,7 +130,6 @@ const run = async ({ entityId = null, year: inYear = null, month: inMonth = null
                   timeout: 60000
                });
 
-               // --- [LIMPIEZA] Borrar versiones previas ---
                try {
                   const pattern = `Detalle_${year}${mm}`;
                   const files = fs.readdirSync(downloadDir);
@@ -153,7 +140,6 @@ const run = async ({ entityId = null, year: inYear = null, month: inMonth = null
                   });
                } catch (eClean) { /* ignorar */ }
 
-               // Descargar
                const file = await clickAndDownload(
                   page,
                   "//button[contains(., 'Descargar Detalles')]",
@@ -162,8 +148,8 @@ const run = async ({ entityId = null, year: inYear = null, month: inMonth = null
                );
 
                if (file) {
-                  // Carga BD
-                  const res = await loadCsvEntitySiiDocumentsAny(file, {
+                  // usamos el nuevo servicio
+                  const res = await loaderService.loadCsv(file, {
                      entityId: creds.entity_id,
                      year,
                      month: mm,
@@ -186,7 +172,6 @@ const run = async ({ entityId = null, year: inYear = null, month: inMonth = null
          }
       };
 
-      // Ejecucion por lotes (si estamos en API con entityId, solo hay 1)
       for (let i = 0; i < siiCreds.length; i += MAX_CONCURRENCY) {
          const chunk = siiCreds.slice(i, i + MAX_CONCURRENCY);
          await Promise.all(chunk.map(c => processEntity(c)));
@@ -200,7 +185,6 @@ const run = async ({ entityId = null, year: inYear = null, month: inMonth = null
    }
 };
 
-// AUTO-EJECUCIÓN (CLI)
 if (require.main === module) {
    run().catch(err => {
       console.error("FATAL:", err);
@@ -208,7 +192,6 @@ if (require.main === module) {
    });
 }
 
-// EXPORTACIÓN (API)
 module.exports = {
    runManualSync: (entityId, year, month) => run({ entityId, year, month })
 };
