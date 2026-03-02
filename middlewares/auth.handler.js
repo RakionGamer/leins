@@ -41,4 +41,15 @@ function jwtValidate(req, res, next) {
    }
 }
 
-module.exports = { jwtValidate };
+// middleware para setear propiedades de super admin
+// mas adelante agregar aqui la validacion real del rol usando req.user
+function isSuperAdmin(req, res, next) {
+   req.isSuperAdmin = true;
+   req.superAdminId = Number(req.userId);
+   next();
+}
+
+module.exports = { 
+   jwtValidate, 
+   isSuperAdmin 
+};

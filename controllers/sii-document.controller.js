@@ -1,6 +1,7 @@
 const boom = require('@hapi/boom');
 const SiiDocumentsService = require('../services/sii-document.service');
 const asyncHandler = require('../utils/helpers/asyncHandler');
+const { logInfo } = require('../utils/logger');
 
 const service = new SiiDocumentsService();
 
@@ -62,6 +63,15 @@ const createManualDocument = asyncHandler(async (req, res) => {
    const payload = req.body;
    const newDocument = await service.createManual(payload);
 
+   // log de auditoria: documento manual creado
+   logInfo('SII_DOCUMENT_MANUAL_CREATED', {
+      rid: req.rid,
+      userId: req.user?.sub,
+      entityId: payload.entity_id,
+      documentType: payload.type,
+      documentId: newDocument.id
+   });
+
    res.status(201).json({
       message: 'registro manual creado con exito',
       data: newDocument
@@ -74,6 +84,14 @@ const updateDocument = asyncHandler(async (req, res) => {
    const payload = req.body;
    const updatedDocument = await service.update(id, payload);
 
+   // log de auditoria: documento actualizado
+   logInfo('SII_DOCUMENT_UPDATED', {
+      rid: req.rid,
+      userId: req.user?.sub,
+      documentId: id,
+      updatedFields: Object.keys(payload)
+   });
+
    res.status(200).json({
       message: 'documento actualizado con exito',
       data: updatedDocument
@@ -84,6 +102,13 @@ const updateDocument = asyncHandler(async (req, res) => {
 const deleteDocument = asyncHandler(async (req, res) => {
    const { id } = req.params;
    await service.delete(id);
+
+   // log de auditoria: documento eliminado
+   logInfo('SII_DOCUMENT_DELETED', {
+      rid: req.rid,
+      userId: req.user?.sub,
+      documentId: id
+   });
 
    res.status(200).json({
       message: 'documento eliminado con exito',
