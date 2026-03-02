@@ -138,6 +138,38 @@ const getSuggestions = asyncHandler(async (req, res) => {
    res.json(out);
 });
 
+// controlador para contar sugerencias de conciliacion
+const countSuggestions = asyncHandler(async (req, res) => {
+   const {
+      entityId,
+      accountId,
+      type,
+      dateFrom,
+      dateTo,
+      daysWindow = '3',
+      search
+   } = req.query;
+
+   // usamos el mismo endpoint base de sugerencias, pero con limit minimo
+   const out = await reconcile.suggestions({
+      entityId: Number(entityId),
+      accountId: accountId ? Number(accountId) : null,
+      type: type || null,
+      dateFrom: dateFrom || null,
+      dateTo: dateTo || null,
+      daysWindow: Number(daysWindow),
+      limit: 1,   // no necesitamos traer rows
+      offset: 0,
+      search: search || null,
+   });
+
+   // soporte tolerante por si el servicio devuelve otro formato
+   const total =
+      Number(out?.total ?? out?.count ?? out?.meta?.total ?? 0);
+
+   res.json({ ok: true, total });
+});
+
 // controlador para conciliar de forma manual un documento
 const reconcileTransaction = asyncHandler(async (req, res) => {
    const { entityId, bank_transaction_id, document_id, amount } = req.body || {};
@@ -233,6 +265,7 @@ module.exports = {
    listTransactions,
    autoFindReconcile,
    getSuggestions,
+   countSuggestions,
    reconcileTransaction,
    bulkReconcile,
    unreconcileTransaction,

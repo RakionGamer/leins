@@ -33,6 +33,7 @@ router.get('/transactions', bankController.listTransactions);
 // rutas de conciliacion
 router.get('/reconcile/autofind', bankController.autoFindReconcile);
 router.get('/reconcile/suggestions', bankController.getSuggestions);
+router.get('/reconcile/suggestions/count', bankController.countSuggestions);
 router.post('/reconcile', bankController.reconcileTransaction);
 router.post('/reconcile/bulk', bankController.bulkReconcile);
 router.delete('/reconcile/:id', bankController.unreconcileTransaction);

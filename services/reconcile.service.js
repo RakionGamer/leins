@@ -6,6 +6,91 @@ const { QueryTypes } = require("sequelize");
 
 class ReconcileService {
 
+   // nuevo metodo exclusivo y ultra rapido para contar sugerencias
+   async countSuggestions({
+      entityId,
+      accountId = null,
+      type = null,
+      dateFrom = null,
+      dateTo = null,
+      amountTolerance = 1.0,
+      daysWindow = 3,
+      search = null,
+   }) {
+      if (!entityId) throw boom.badRequest("entityId is required");
+
+      const whereDocsByType =
+         type === "expense"
+            ? "AND d.doc_type_code IN (33,34) AND (d.received_date IS NOT NULL OR d.purchase_type IS NOT NULL)"
+            : type === "income"
+               ? "AND (d.doc_type_code NOT IN (33,34) OR d.doc_type_code IS NULL)"
+               : "";
+
+      const params = {
+         entityId,
+         accountId,
+         dateFrom,
+         dateTo,
+         amountTolerance: Number(amountTolerance),
+         daysWindow: Number(daysWindow),
+         search: search ? `%${search}%` : null,
+      };
+      if (type) params.typeParam = type;
+
+      // usamos exists para cortar la busqueda al primer match
+      // esto evita el producto cartesiano que causaba la demora de 2 minutos
+      const sqlCount = `
+         WITH bt AS (
+            SELECT
+            t.id,
+            t.amount,
+            t.issued_at,
+            t.description
+            FROM entity_bank_transactions t
+            LEFT JOIN bank_transaction_documents btd
+            ON btd.entity_bank_transaction_id = t.id
+            WHERE t.entity_id = :entityId
+            ${accountId ? "AND t.entity_bank_account_id = :accountId" : ""}
+            ${type ? "AND t.type = :typeParam" : ""}
+            ${dateFrom ? "AND t.issued_at >= :dateFrom" : ""}
+            ${dateTo ? "AND t.issued_at <  DATE_ADD(:dateTo, INTERVAL 1 DAY)" : ""}
+            GROUP BY t.id
+            HAVING (t.amount - IFNULL(SUM(btd.amount_applied),0)) > 0
+         ),
+         docs AS (
+            SELECT
+            d.id,
+            d.total_amount,
+            d.issue_date,
+            d.folio,
+            d.counterparty_rut
+            FROM entity_sii_documents d
+            LEFT JOIN bank_transaction_documents btd
+            ON btd.entity_sii_document_id = d.id
+            WHERE d.entity_id = :entityId
+            ${whereDocsByType}
+            GROUP BY d.id
+            HAVING (d.total_amount - IFNULL(SUM(btd.amount_applied),0)) > 0
+         )
+         SELECT COUNT(*) AS total
+         FROM bt
+         WHERE EXISTS (
+            SELECT 1 FROM docs d
+            WHERE ABS(bt.amount - d.total_amount) <= :amountTolerance
+              AND d.issue_date BETWEEN DATE(DATE_SUB(bt.issued_at, INTERVAL ${Number(daysWindow)} DAY))
+                                   AND DATE(DATE_ADD(bt.issued_at, INTERVAL ${Number(daysWindow)} DAY))
+              ${search ? `AND (bt.description LIKE :search OR CAST(d.folio AS CHAR) LIKE :search OR d.counterparty_rut LIKE :search)` : ""}
+         )
+      `;
+
+      const [{ total }] = await sequelize.query(sqlCount, {
+         replacements: params,
+         type: QueryTypes.SELECT,
+      });
+
+      return Number(total || 0);
+   }
+
    async suggestions({
       entityId,
       accountId = null,
@@ -27,8 +112,8 @@ class ReconcileService {
          type === "expense"
             ? "AND d.doc_type_code IN (33,34) AND (d.received_date IS NOT NULL OR d.purchase_type IS NOT NULL)"
             : type === "income"
-            ? "AND (d.doc_type_code NOT IN (33,34) OR d.doc_type_code IS NULL)"
-            : "";
+               ? "AND (d.doc_type_code NOT IN (33,34) OR d.doc_type_code IS NULL)"
+               : "";
 
       const whereSearch = search
          ? `AND (
@@ -51,7 +136,7 @@ class ReconcileService {
       };
       if (type) params.typeParam = type;
 
-      // query paginada (tu misma sql)
+      // query paginada (tu misma sql intacta)
       const sql = `
          WITH bt AS (
             SELECT
@@ -117,60 +202,16 @@ class ReconcileService {
          LIMIT :limit OFFSET :offset
       `;
 
-      // *** NUEVO *** query de conteo real (mismas CTEs, join y filtros, SIN limit/offset)
-      const sqlCount = `
-         WITH bt AS (
-            SELECT
-            t.id,
-            t.entity_id,
-            t.entity_bank_account_id,
-            t.type,
-            t.amount,
-            t.issued_at,
-            t.description,
-            (t.amount - IFNULL(SUM(btd.amount_applied),0)) AS remaining_amount
-            FROM entity_bank_transactions t
-            LEFT JOIN bank_transaction_documents btd
-            ON btd.entity_bank_transaction_id = t.id
-            WHERE t.entity_id = :entityId
-            ${accountId ? "AND t.entity_bank_account_id = :accountId" : ""}
-            ${type ? "AND t.type = :typeParam" : ""}
-            ${dateFrom ? "AND t.issued_at >= :dateFrom" : ""}
-            ${dateTo ? "AND t.issued_at <  DATE_ADD(:dateTo, INTERVAL 1 DAY)" : ""}
-            GROUP BY t.id
-            HAVING remaining_amount > 0
-         ),
-         docs AS (
-            SELECT
-            d.id,
-            d.entity_id,
-            d.doc_type_code,
-            d.folio,
-            d.issue_date,
-            d.counterparty_rut,
-            d.total_amount,
-            (d.total_amount - IFNULL(SUM(btd.amount_applied),0)) AS remaining_amount
-            FROM entity_sii_documents d
-            LEFT JOIN bank_transaction_documents btd
-            ON btd.entity_sii_document_id = d.id
-            WHERE d.entity_id = :entityId
-            ${whereDocsByType}
-            GROUP BY d.id
-            HAVING remaining_amount > 0
-         )
-         SELECT COUNT(DISTINCT bt.id) AS total
-         FROM bt
-         JOIN docs d
-            ON ABS(bt.amount - d.total_amount) <= :amountTolerance
-         AND d.issue_date BETWEEN DATE(DATE_SUB(bt.issued_at, INTERVAL ${Number(daysWindow)} DAY))
-                              AND DATE(DATE_ADD(bt.issued_at, INTERVAL ${Number(daysWindow)} DAY))
-         ${whereSearch}
-      `;
-
-      // 1) total real
-      const [{ total }] = await sequelize.query(sqlCount, {
-         replacements: params,
-         type: QueryTypes.SELECT,
+      // obtenemos el total real usando nuestra nueva funcion optimizada
+      const total = await this.countSuggestions({
+         entityId,
+         accountId,
+         type,
+         dateFrom,
+         dateTo,
+         amountTolerance,
+         daysWindow,
+         search
       });
 
       // 2) filas paginadas
@@ -200,7 +241,6 @@ class ReconcileService {
                candidates: [],
             });
          }
-         // dentro del for (const r of rows) { ... }
 
          const daysDiff = Math.abs(
             Math.floor((new Date(r.issue_date).getTime() - new Date(r.issued_at).setHours(0, 0, 0, 0)) / 86400000)
@@ -220,7 +260,7 @@ class ReconcileService {
          const onlyDigits = (s) => String(s || "").replace(/\D/g, "");
 
          // normalizar descripcion:
-         // - para rut: dejamos solo digitos y K (mismo criterio)
+         // - para rut: dejamos solo digitos y k (mismo criterio)
          // - para folio: dejamos solo digitos
          const descRutNorm = normRut(r.description);
          const descDigits = onlyDigits(r.description);
@@ -258,7 +298,6 @@ class ReconcileService {
       }
 
       // best por score (igual que ya tenias)
-      // ordenar candidatos por score desc y fijar best = 0
       // ordenar candidatos por score desc y fijar best = 0
       const rowsOut = [];
       for (const v of byTx.values()) {

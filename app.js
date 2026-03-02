@@ -12,7 +12,6 @@ const { logErrors, ormErrorHandler, boomErrorHandler, errorHandler } = require('
 
 // inicializacion de la app
 const app = express();
-const port = process.env.PORT || 3000;
 const isProd = process.env.NODE_ENV === 'production';
 
 // configuracion basica y proxy
@@ -63,6 +62,7 @@ const corsOptions = {
    optionsSuccessStatus: 204
 };
 
+// aplicamos cors despues de definir corsoptions
 app.use(cors(corsOptions));
 // habilitar pre-flight para todas las rutas
 app.options(/^\/api\/v1\/.*/, cors(corsOptions));
@@ -89,28 +89,17 @@ app.use(/^\/api\/v1\/auth\/.*/, (req, res, next) => {
 });
 
 // 7. definicion de rutas
-app.get('/', (req, res) => res.send('Hola mi server en express ' + port));
+app.get('/', (req, res) => res.send('hola mi server en express'));
 routerApi(app);
 
 // 8. manejo de 404 no encontrado
-app.use((req, res) => res.status(404).json({ message: 'Not found' }));
+app.use((req, res) => res.status(404).json({ message: 'not found' }));
 
-// // 9. manejadores de errores (orden importante)
-// app.use(logErrors);
-// app.use(ormErrorHandler);
-// app.use(boomErrorHandler);
-// app.use(errorHandler);
+// 9. manejadores de errores (orden importante)
+app.use(logErrors);
+app.use(ormErrorHandler);
+app.use(boomErrorHandler);
+app.use(errorHandler);
 
-// iniciar servidor
-app.listen(port, () => {
-   if (isProd) {
-      console.log(`Server listening on ${port}`);
-   } else {
-      console.log('Mi port: ' + port);
-      console.log('Zona horaria activa:', process.env.TZ);
-      console.log('Fecha/hora actual:', new Date());
-      console.log('CORS allowed origins:', Array.from(allowedOrigins));
-   }
-});
-
+// exportamos la aplicacion sin iniciar el puerto
 module.exports = app;
