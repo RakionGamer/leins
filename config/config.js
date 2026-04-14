@@ -15,6 +15,8 @@ const config = {
    tz: process.env.TZ || 'America/Santiago',
    maxActiveSessions: parseInt(process.env.MAX_ACTIVE_SESSIONS || '5', 10),
    mysqlAesKey: process.env.MYSQL_AES_KEY || 'dev_only_key_cambia_esto',
+   allowUnscopedSuperAdminEntityAccess:
+      String(process.env.ALLOW_UNSCOPED_SUPERADMIN_ENTITY_ACCESS || 'false').toLowerCase() === 'true',
 }
 
 module.exports = {
