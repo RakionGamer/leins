@@ -38,6 +38,14 @@ const state_id = joi.number().integer().positive();
 const folio = joi.string().max(50).allow(null, '');
 const operation_type = joi.string().valid('INCOME', 'EXPENSE');
 
+const expenseDocType = joi.alternatives().try(
+   joi.valid(null),
+   joi.number().integer().valid(33, 39)
+).messages({
+   'alternatives.match': 'para egresos solo se permite BOLETAS (39), FACTURA (33) o RECIBO (null)',
+   'any.only': 'para egresos solo se permite BOLETAS (39), FACTURA (33) o RECIBO (null)'
+});
+
 // esquema para leer parametros de la url
 const getDocumentSchema = joi.object({
    id: joi.number().integer().positive().required()
@@ -50,13 +58,13 @@ const createManualIncomeSchema = joi.object({
    total_amount: total_amount.required(),
    issue_date: issue_date.required(),
 
-   // regla condicional: requerido para ingresos, opcional/nulo para egresos
+   // regla condicional: requerido para ingresos, restringido para egresos
    doc_type_code: joi.when('operation_type', {
       is: 'INCOME',
       then: joi.number().integer().positive().required().messages({
          'any.required': 'el tipo de documento es obligatorio para los ingresos'
       }),
-      otherwise: joi.number().integer().positive().allow(null).optional()
+      otherwise: expenseDocType.optional()
    }),
 
    counterparty_rut: counterparty_rut.optional(),
@@ -77,7 +85,7 @@ const updateDocumentSchema = joi.object({
       then: joi.number().integer().positive().required().messages({
          'any.required': 'el tipo de documento es obligatorio para los ingresos'
       }),
-      otherwise: joi.number().integer().positive().allow(null).optional()
+      otherwise: expenseDocType.optional()
    }),
 
    counterparty_rut: counterparty_rut.optional(),

@@ -4,12 +4,28 @@ const { Op } = require('sequelize');
 const Boom = require('@hapi/boom');
 const { models } = require('../libs/sequelize');
 
+const ALLOWED_EXPENSE_DOC_TYPES = new Set([33, 39]);
+
+function assertExpenseDocType(payload = {}) {
+   if (String(payload.operation_type || '').toUpperCase() !== 'EXPENSE') return;
+
+   const raw = payload.doc_type_code;
+   if (raw === null || raw === undefined || raw === '') return;
+
+   const parsed = Number(raw);
+   if (!Number.isInteger(parsed) || !ALLOWED_EXPENSE_DOC_TYPES.has(parsed)) {
+      throw Boom.badRequest('para egresos solo se permite BOLETAS (39), FACTURA (33) o RECIBO (null)');
+   }
+}
+
 class SiiDocumentsService {
    constructor() {
    }
 
    // metodo para registrar un ingreso manual
    async createManual(data) {
+      assertExpenseDocType(data);
+
       const documentData = {
          ...data,
          source: 'MANUAL',
@@ -28,6 +44,8 @@ class SiiDocumentsService {
       if (doc.source !== 'MANUAL') {
          throw Boom.unauthorized('no esta permitido modificar documentos oficiales del sii');
       }
+
+      assertExpenseDocType(changes);
 
       await doc.update(changes);
       return doc;

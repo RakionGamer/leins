@@ -1,6 +1,7 @@
 // middlewares/auth.handler.js
 const jwt = require('jsonwebtoken');
 const { config } = require('./../config/config');
+const { models } = require('../libs/sequelize');
 
 function jwtValidate(req, res, next) {
    const authHeader = req.headers.authorization || '';
@@ -41,15 +42,53 @@ function jwtValidate(req, res, next) {
    }
 }
 
-// middleware para setear propiedades de super admin
-// mas adelante agregar aqui la validacion real del rol usando req.user
-function isSuperAdmin(req, res, next) {
-   req.isSuperAdmin = true;
-   req.superAdminId = Number(req.userId);
-   next();
+async function resolveSuperAdminFlags(req) {
+   const actorId = Number(req.userId || req.user?.sub || req.user?.id);
+   req.isSuperAdmin = false;
+   req.superAdminId = null;
+
+   if (!Number.isInteger(actorId) || actorId <= 0) return;
+
+   const found = await models.SuperAdmin.findByPk(actorId, {
+      attributes: ['id', 'state_id'],
+      raw: true
+   });
+
+   // consideramos super admin real si existe en tabla y esta activo
+   if (found && Number(found.state_id) === 1) {
+      req.isSuperAdmin = true;
+      req.superAdminId = actorId;
+   }
+}
+
+async function setSuperAdminContext(req, _res, next) {
+   try {
+      await resolveSuperAdminFlags(req);
+      return next();
+   } catch (err) {
+      return next(err);
+   }
+}
+
+async function isSuperAdmin(req, res, next) {
+   try {
+      await resolveSuperAdminFlags(req);
+      if (!req.isSuperAdmin) {
+         return res.status(403).json({
+            statusCode: 403,
+            error: 'Forbidden',
+            message: 'solo super admin puede ejecutar esta accion',
+            code: 'SUPER_ADMIN_REQUIRED'
+         });
+      }
+      return next();
+   } catch (err) {
+      return next(err);
+   }
 }
 
 module.exports = { 
    jwtValidate, 
-   isSuperAdmin 
+   isSuperAdmin,
+   setSuperAdminContext,
 };

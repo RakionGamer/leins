@@ -13,11 +13,18 @@ const notifService = new NotificationService();
 // controlador para listar entidades
 const listEntities = asyncHandler(async (req, res) => {
    const parsed = {
+      id: req.query.id ? Number(req.query.id) : null,
       q: (req.query.q ?? '').trim() || null,
-      limit: Math.min(Math.max(parseInt(req.query.limit ?? '20', 10), 1), 100),
+      limit: Math.min(Math.max(parseInt(req.query.limit ?? '20', 10), 1), 200),
       offset: Math.max(parseInt(req.query.offset ?? '0', 10), 0),
-      activeOnly: String(req.query.activeOnly).toLowerCase() === 'true'
+      activeOnly: String(req.query.activeOnly).toLowerCase() === 'true',
+      sort: String(req.query.sort || 'name').toLowerCase(),
+      order: String(req.query.order || 'asc').toLowerCase(),
    };
+
+   if (parsed.id != null && (!Number.isInteger(parsed.id) || parsed.id <= 0)) {
+      throw boom.badRequest('id invalido');
+   }
 
    // validacion super admin
    if (req.isSuperAdmin) {
@@ -26,12 +33,74 @@ const listEntities = asyncHandler(async (req, res) => {
    }
 
    // validacion usuario normal
-   if (!req.user?.id) {
+   const actorId = Number(req.user?.id || req.user?.sub);
+   if (!Number.isInteger(actorId) || actorId <= 0) {
       throw boom.unauthorized('no autenticado');
    }
 
-   const out = await service.listForUser({ ...parsed, userId: Number(req.user.id) });
+   const out = await service.listForUser({ ...parsed, userId: actorId });
    res.json(out);
+});
+
+const createEntity = asyncHandler(async (req, res) => {
+   if (!req.isSuperAdmin) throw boom.forbidden('solo super admin');
+
+   const { name, rut, legal_name, tax_id, state_id } = req.body || {};
+   const row = await service.create({
+      name: name ?? legal_name,
+      rut: rut ?? tax_id,
+      stateId: state_id
+   });
+
+   logInfo('ENTITY_CREATED', {
+      rid: req.rid,
+      entityId: row.id,
+      name: row.name,
+      rut: row.rut,
+      author: req.user?.sub || req.user?.id
+   });
+
+   res.status(201).json({ ok: true, row });
+});
+
+const updateEntity = asyncHandler(async (req, res) => {
+   if (!req.isSuperAdmin) throw boom.forbidden('solo super admin');
+
+   const { id } = req.params;
+   const { name, rut, legal_name, tax_id, state_id } = req.body || {};
+
+   const row = await service.update(id, {
+      name: name ?? legal_name,
+      rut: rut ?? tax_id,
+      stateId: state_id
+   });
+
+   logInfo('ENTITY_UPDATED', {
+      rid: req.rid,
+      entityId: Number(id),
+      author: req.user?.sub || req.user?.id,
+      updatedFields: Object.keys(req.body || {})
+   });
+
+   res.status(200).json({ ok: true, row });
+});
+
+const deleteEntity = asyncHandler(async (req, res) => {
+   if (!req.isSuperAdmin) throw boom.forbidden('solo super admin');
+
+   const { id } = req.params;
+   const out = await service.delete(id);
+
+   logInfo(out.deleted ? 'ENTITY_DELETED' : 'ENTITY_DEACTIVATED', {
+      rid: req.rid,
+      entityId: Number(id),
+      author: req.user?.sub || req.user?.id,
+      deleted: Boolean(out.deleted),
+      deactivated: Boolean(out.deactivated),
+      blockedBy: out.blockedBy || []
+   });
+
+   res.status(200).json({ ok: true, ...out });
 });
 
 // controlador para sincronizacion sii en segundo plano
@@ -103,5 +172,9 @@ const syncSii = asyncHandler(async (req, res) => {
 
 module.exports = {
    listEntities,
+   createEntity,
+   updateEntity,
+   deleteEntity,
    syncSii
 };
+
