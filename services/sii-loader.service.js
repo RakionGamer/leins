@@ -26,7 +26,17 @@ class SiiLoaderService {
       // parche para RUT de boletas (RUT Receptor en vez de rut normal)
       const counterpartyRut = (docTypeCode === 41 || docTypeCode === 39)
          ? (raw["RUT Receptor"] ? String(raw["RUT Receptor"]).replace(/\./g, "").toUpperCase().trim() : null)
-         : inter.counterparty_rut;
+         : (
+            inter.counterparty_rut
+            || raw["Rut cliente"]
+            || raw["RUT Cliente"]
+            || raw["Rut Cliente"]
+            || raw["RUT Receptor"]
+            || raw["Rut Receptor"]
+            || raw["RUT Proveedor"]
+            || raw["Rut Proveedor"]
+            || null
+         );
 
       const folio = (inter.folio || raw["Folio"] || "").toString().trim();
       const issueDate = inter.issue_date || this._parseDate(raw["Fecha Docto"]);
@@ -132,26 +142,55 @@ class SiiLoaderService {
       map[tipo][field] += inc;
    }
 
+   _addSkipReason(map, reason, inc = 1) {
+      map[reason] = (map[reason] || 0) + inc;
+   }
+
    /**
     * Funcion principal para cargar cualquier CSV del SII
     */
-   async loadCsv(filePath, { entityId, year, month, onlyTypes = null, operationType = null }, { chunkSize = 500 } = {}) {
+   async loadCsv(filePath, { entityId, year, month, onlyTypes = null, operationType = null, defaultDocType = null }, { chunkSize = 500 } = {}) {
       const raw = await parseCsvFile(filePath, { delimiter: ";" });
       if (!raw.length) return { totals: { processed: 0, inserted: 0, updated: 0, skipped: 0 }, byType: {} };
 
       const byType = {};
       const records = [];
       let skipped = 0;
+      const skipReasons = {};
+
+      const allowedTypes = Array.isArray(onlyTypes)
+         ? onlyTypes.map((type) => Number(type)).filter(Number.isFinite)
+         : null;
+      const forcedDocType = defaultDocType !== null && defaultDocType !== undefined
+         ? Number(defaultDocType)
+         : null;
 
       for (const r of raw) {
-         const tipo = Number(String(r["Tipo Doc"] || r["TipoDoc"] || "").trim());
-         if (!Number.isFinite(tipo)) { skipped++; continue; }
-         if (Array.isArray(onlyTypes) && onlyTypes.length && !onlyTypes.includes(tipo)) { skipped++; continue; }
+         let tipo = Number.isFinite(forcedDocType)
+            ? forcedDocType
+            : Number(String(r["Tipo Doc"] || r["TipoDoc"] || "").trim());
+
+         if (!Number.isFinite(tipo)) {
+            skipped++;
+            this._addSkipReason(skipReasons, "tipo_doc_invalido");
+            continue;
+         }
+         if (Array.isArray(allowedTypes) && allowedTypes.length && !allowedTypes.includes(tipo)) {
+            skipped++;
+            this._addSkipReason(skipReasons, "tipo_doc_filtrado");
+            continue;
+         }
 
          const inter = pickAndNormalize(r);
          const row = this._toRow(inter, r, { entityId, year, month, docTypeCode: tipo, operationType });
 
-         if (!row.issue_date || !row.folio || !row.counterparty_rut) { skipped++; continue; }
+         if (!row.issue_date || !row.folio || !row.counterparty_rut) {
+            skipped++;
+            if (!row.issue_date) this._addSkipReason(skipReasons, "sin_fecha_documento");
+            if (!row.folio) this._addSkipReason(skipReasons, "sin_folio");
+            if (!row.counterparty_rut) this._addSkipReason(skipReasons, "sin_rut_contraparte");
+            continue;
+         }
 
          // inyectamos timestamps
          row.created_at = new Date();
@@ -162,7 +201,7 @@ class SiiLoaderService {
       }
 
       if (!records.length) {
-         return { totals: { processed: 0, inserted: 0, updated: 0, skipped }, byType };
+         return { totals: { processed: 0, inserted: 0, updated: 0, skipped, skipReasons }, byType };
       }
 
       let inserted = 0, updated = 0;
@@ -190,7 +229,7 @@ class SiiLoaderService {
          }
       });
 
-      return { totals: { processed: records.length, inserted, updated, skipped }, byType };
+      return { totals: { processed: records.length, inserted, updated, skipped, skipReasons }, byType };
    }
 }
 

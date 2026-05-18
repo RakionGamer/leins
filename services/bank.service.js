@@ -60,7 +60,7 @@ class BankService {
       const startRowExcel = (headerRowIdx >= 0 ? headerRowIdx + 2 : 2);
 
       if (movementModes.has(_mode)) {
-         // seleccionar mapeador segÃºn modo
+         // seleccionar mapeador según modo
          const mapper = {
             template_movs: (r) => this.#mapTemplateRow(r),
          }[_mode];
@@ -143,7 +143,7 @@ class BankService {
       }
    }
 
-   // persiste movimientos bancarios vÃ¡lidos
+   // persiste movimientos bancarios válidos
    async #persistValidMovements(valid, { entityId, entityBankAccountId, collectSkipped = false } = {}) {
       if (!valid.length) return { saved: 0, skipped: [] };
 
@@ -227,11 +227,11 @@ class BankService {
       return null;
    }
 
-   // analiza montos numÃ©ricos en formatos comunes
+   // analiza montos numéricos en formatos comunes
    static #parseAmount(str) {
       if (str == null) return null;
       let s = String(str).trim().replace(/\s+/g, '');
-      s = s.replace(/[^\d\.\,\-]/g, ''); // deja dÃ­gitos, ., , y -
+      s = s.replace(/[^\d\.\,\-]/g, ''); // deja dígitos, ., , y -
       const hasDot = s.includes('.');
       const hasComma = s.includes(',');
       if (hasDot && hasComma) {
@@ -251,7 +251,7 @@ class BankService {
       return Number.isFinite(n) ? n : null;
    }
 
-   // separa vÃ¡lidos e invÃ¡lidos segÃºn reglas de negocio para movimientos
+   // separa válidos e inválidos según reglas de negocio para movimientos
    #splitValidMovements(items) {
       const valid = [];
       const invalid = [];
@@ -262,9 +262,9 @@ class BankService {
 
          const reasons = [];
          if (it._amountError) reasons.push(it._amountError);
-         if (!it.movementDate) reasons.push('fecha invÃ¡lida o ausente');
+         if (!it.movementDate) reasons.push('fecha inválida o ausente');
          if (!it.detail) reasons.push('descripcion requerida');
-         if (!Number.isFinite(Number(it.amount))) reasons.push('monto invÃ¡lido');
+         if (!Number.isFinite(Number(it.amount))) reasons.push('monto inválido');
          if (Number(it.amount) === 0) reasons.push('monto no puede ser 0');
 
          if (reasons.length) invalid.push({ ...it, _errors: reasons });
@@ -273,7 +273,7 @@ class BankService {
       return { valid, invalid };
    }
 
-   // Helper para hacer lookup tolerante (ya tienes versiÃ³n similar)
+   // Helper para hacer lookup tolerante (ya tienes versión similar)
    static #pickFromRow(rowObj, ...cands) {
       const normMap = {};
       for (const k of Object.keys(rowObj)) normMap[BankService.#normKey(k)] = k;
@@ -287,7 +287,7 @@ class BankService {
    // === Plantilla LEINS: formato estandar para cualquier banco ===
    #mapTemplateRow(r) {
       const rawDate = BankService.#pickFromRow(r, 'Fecha');
-      const rawDesc = BankService.#pickFromRow(r, 'Descripcion', 'DescripciÃ³n');
+      const rawDesc = BankService.#pickFromRow(r, 'Descripcion', 'Descripción');
       const rawMonto = BankService.#pickFromRow(r, 'Monto', 'Importe');
       const rawSaldo = BankService.#pickFromRow(r, 'Saldo');
       const rawDoc = BankService.#pickFromRow(r, 'No Documento', 'N Documento', 'Nro Documento', 'Numero Documento', 'Documento');
@@ -325,7 +325,7 @@ class BankService {
          .replace(/[\u0300-\u036f]/g, '') // quita acentos
          .toLowerCase()
          .replace(/\s+/g, ' ')            // colapsa espacios
-         .replace(/[^a-z0-9Â°/ ]/g, '')    // conserva letras/numeros, Âº/ y espacio
+         .replace(/[^a-z0-9°/ ]/g, '')    // conserva letras/numeros, º/ y espacio
          .trim();
    }
 
@@ -356,7 +356,7 @@ class BankService {
       const rows2D = xlsx.utils.sheet_to_json(ws, { header: 1, defval: null, blankrows: false, raw: false });
       if (!rows2D.length) throw boom.badRequest('el excel no contiene hojas');
 
-      // Encuentra la fila que luce como encabezado (mÃ¡s robusto: busca palabras clave)
+      // Encuentra la fila que luce como encabezado (más robusto: busca palabras clave)
       let headerRowIdx = -1;
       for (let i = 0; i < Math.min(rows2D.length, 30); i++) {
          const row = rows2D[i] || [];
@@ -381,7 +381,7 @@ class BankService {
          }
       }
 
-      // fallback: modo genÃ©rico (tu flujo "banks" anterior)
+      // fallback: modo genérico (tu flujo "banks" anterior)
       const rows = xlsx.utils.sheet_to_json(ws, {
          defval: null, blankrows: false, raw: false, dateNF: 'yyyy-mm-dd',
       });
@@ -735,11 +735,11 @@ class BankService {
          }
       }
 
-      // 5) filtros por descripciÃ³n (LIKE) combinables
+      // 5) filtros por descripción (LIKE) combinables
       const descLikes = [];
       if (descripcion) descLikes.push({ description: { [Op.like]: `%${descripcion}%` } });
       if (rut) descLikes.push({ description: { [Op.like]: `%${rut}%` } });
-      if (nro) descLikes.push({ description: { [Op.like]: `${nro}%` } }); // prefijo tÃ­pico de NÂ° op
+      if (nro) descLikes.push({ description: { [Op.like]: `${nro}%` } }); // prefijo típico de N° op
 
       if (descLikes.length === 1) {
          Object.assign(where, descLikes[0]);
@@ -747,7 +747,7 @@ class BankService {
          where[Op.and] = (where[Op.and] || []).concat(descLikes);
       }
 
-      // 6) ordenamiento (permite mÃºltiples "campo:dir" separados por coma)
+      // 6) ordenamiento (permite múltiples "campo:dir" separados por coma)
       let order = [['issued_at', 'DESC'], ['id', 'DESC']];
       if (sort) {
          const parts = String(sort).split(',').map(s => s.trim()).filter(Boolean);
@@ -764,7 +764,7 @@ class BankService {
       const baseAlias = models.EntityBankTransaction.name || 'EntityBankTransaction';
       const baseQuoted = `\`${baseAlias}\``; // MySQL quoting
 
-      // Suma aplicada contra el movimiento (tabla de asociaciÃ³n many-to-many)
+      // Suma aplicada contra el movimiento (tabla de asociación many-to-many)
       const appliedSumSQL =
          `(SELECT COALESCE(SUM(btd.amount_applied),0)
         FROM bank_transaction_documents btd
@@ -844,7 +844,7 @@ class BankService {
                return parts.length ? parts.join(' - ') : (r.entity_bank_account_id ?? null);
             })(),
 
-            documento: extractDoc(r.description),                   // opcional segÃºn descripcion real
+            documento: extractDoc(r.description),                   // opcional según descripcion real
             descripcion: r.description || '',
             monto: sign * Number(r.amount || 0),
             balance: (r.balance != null) ? Number(r.balance) : null,
@@ -967,7 +967,7 @@ class BankService {
       // 1) NO abras una nueva transaction; usa la `t` recibida.
       // 2) Donde usas queries, pasa { transaction: t }.
       // 3) Devuelve el mismo payload final.
-      // 4) MantÃ©n los mismos boom.* en inglÃ©s.
+      // 4) Mantén los mismos boom.* en inglés.
 
       // 1) lock filas
       const bankTx = await models.EntityBankTransaction.findOne({
@@ -1112,7 +1112,7 @@ class BankService {
             if (!document_id) throw boom.badRequest("document_id is required");
             if (amount != null && !(amount > 0)) throw boom.badRequest("amount must be a positive number");
 
-            // reutiliza tu propio reconcile pero pasando la misma transacciÃ³n
+            // reutiliza tu propio reconcile pero pasando la misma transacción
             const out = await this.#reconcileWithTx({
                entityId: Number(entityId),
                bank_transaction_id,
@@ -1146,14 +1146,14 @@ class BankService {
          `ABS(\`EntitySiiDocument\`.\`total_amount\` - ${bankAmt})`
       );
 
-      // 2) diferencia de dÃ­as contra la fecha del movimiento
+      // 2) diferencia de días contra la fecha del movimiento
       //   - issued_at viene como DATETIME; lo casteamos a DATE para DATEDIFF
       const txDate = bankTx.issued_at; // ej: "2025-08-29T00:00:00.000Z"
       const dateDiffLiteral = sequelize.literal(
          `ABS(DATEDIFF(DATE(\`EntitySiiDocument\`.\`issue_date\`), DATE('${txDate}')))`
       );
 
-      // 4) Reglas por tipo de documento (opcional; comÃ©ntalo si no aplica en tu dominio)
+      // 4) Reglas por tipo de documento (opcional; coméntalo si no aplica en tu dominio)
       const docTypeFilter = (bankTx.type === 'expense')
          ? { doc_type_code: { [Op.in]: [33, 34] } }  // ejemplo: compras (factura/b. exento)
          : { doc_type_code: { [Op.notIn]: [33, 34] } }; // ejemplo: ventas
@@ -1170,12 +1170,12 @@ class BankService {
       // 6) WHERE base: entity, tipo (opcional), rut (opcional) y saldo pendiente
       const where = {
          entity_id: entityId,
-         ...docTypeFilter,                         // quita esta lÃ­nea si no quieres filtrar por tipo
+         ...docTypeFilter,                         // quita esta línea si no quieres filtrar por tipo
          ...(rut ? { counterparty_rut: { [Op.like]: `%${String(rut).trim()}%` } } : {}),
          [Op.and]: [sequelize.where(remainingLiteral, { [Op.gt]: 0 })],
       };
 
-      // 7) Consulta: sin BETWEEN; ordenamos por cercanÃ­a de monto
+      // 7) Consulta: sin BETWEEN; ordenamos por cercanía de monto
       const docs = await models.EntitySiiDocument.findAll({
          where,
          attributes: [

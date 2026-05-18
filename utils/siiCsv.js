@@ -56,13 +56,17 @@ const H = new Map([
    ["tipo doc", "tipo_doc"],
    ["tipo compra", "purchase_type"],
    ["rut proveedor", "rut_proveedor"],
+   ["rut cliente", "rut_cliente"],
+   ["rut receptor", "rut_receptor"],
    ["razon social", "counterparty_name"],
    ["folio", "folio"],
    ["fecha docto", "issue_date"],
    ["fecha recepcion", "received_date"],
    ["fecha acuse", "acuse_date"],
+   ["fecha acuse recibo", "acuse_date"],
    ["monto exento", "amount_exempt"],
    ["monto neto", "amount_net"],
+   ["monto iva", "amount_vat"],
    ["monto iva recuperable", "amount_vat"],
    ["monto iva no recuperable", "amount_vat_non_recoverable"],
    ["codigo iva no rec.", "vat_non_recoverable_code"],
@@ -104,7 +108,17 @@ function pickAndNormalize(csvRow) {
    for (const f of moneyFields) out[f] = parseAmount(out[f]);
 
    // RUT
-   out.counterparty_rut = normalizeRut(csvRow["RUT Proveedor"] || csvRow["Rut Proveedor"] || out.rut_proveedor);
+   out.counterparty_rut = normalizeRut(
+      csvRow["RUT Proveedor"]
+      || csvRow["Rut Proveedor"]
+      || csvRow["Rut cliente"]
+      || csvRow["RUT Cliente"]
+      || csvRow["RUT Receptor"]
+      || csvRow["Rut Receptor"]
+      || out.rut_proveedor
+      || out.rut_cliente
+      || out.rut_receptor
+   );
 
    // seq_no
    if (out.seq_no != null && out.seq_no !== "") out.seq_no = Number(out.seq_no);

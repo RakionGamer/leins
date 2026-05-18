@@ -3,6 +3,7 @@
 
 const path = require("path");
 const fs = require("fs");
+const os = require("os");
 const { createGunzip } = require("zlib");
 const { pipeline } = require("stream/promises");
 const { DateTime } = require("luxon");
@@ -33,6 +34,36 @@ const aesKey = process.env.MYSQL_AES_KEY;
 const CL_TZ = process.env.SII_TZ || "America/Santiago";
 const DEFAULT_TYPES = [33];
 
+async function ensureWritableDir(dirPath) {
+   const abs = path.isAbsolute(dirPath) ? dirPath : path.resolve(process.cwd(), dirPath);
+   await ensureDir(abs);
+
+   const probe = path.join(abs, `.write-test-${process.pid}-${Date.now()}`);
+   fs.writeFileSync(probe, "ok", "utf8");
+   fs.unlinkSync(probe);
+   return abs;
+}
+
+async function resolveDownloadDir(entityId, year) {
+   const candidates = [
+      process.env.SII_DOWNLOAD_DIR ? path.join(process.env.SII_DOWNLOAD_DIR, String(entityId), String(year)) : null,
+      path.join(path.resolve(__dirname, "downloads"), String(entityId), String(year)),
+      path.join(os.tmpdir(), "leins-sii-downloads", String(entityId), String(year)),
+   ].filter(Boolean);
+
+   let lastError = null;
+   for (const candidate of candidates) {
+      try {
+         return await ensureWritableDir(candidate);
+      } catch (err) {
+         lastError = err;
+         console.warn(`Directorio de descarga no disponible (${candidate}): ${err.message}`);
+      }
+   }
+
+   throw new Error(`No hay directorio de descarga writable. Ultimo error: ${lastError?.message || "desconocido"}`);
+}
+
 function getArgValue(flag) {
    const withEquals = process.argv.find(v => v.startsWith(`--${flag}=`));
    if (withEquals) return withEquals.split("=").slice(1).join("=");
@@ -59,6 +90,7 @@ async function removeBlockingOverlays(page) {
 }
 
 async function saveDebugSnapshot(page, downloadDir, filename) {
+   const fallbackDir = path.join(os.tmpdir(), "leins-sii-debug");
    try {
       const html = await page.content();
       const url = page.url();
@@ -67,7 +99,18 @@ async function saveDebugSnapshot(page, downloadDir, filename) {
       fs.writeFileSync(filePath, `URL: ${url}\n\nTEXT:\n${bodyText}\n\nHTML:\n${html}`, "utf8");
       console.log(`Snapshot diagnostico guardado: ${filePath}`);
    } catch (err) {
-      console.warn(`No se pudo guardar snapshot diagnostico: ${err.message}`);
+      try {
+         await ensureWritableDir(fallbackDir);
+         const html = await page.content();
+         const url = page.url();
+         const bodyText = await page.evaluate(() => document.body.innerText || "").catch(() => "");
+         const fallbackPath = path.join(fallbackDir, filename);
+         fs.writeFileSync(fallbackPath, `URL: ${url}\n\nTEXT:\n${bodyText}\n\nHTML:\n${html}`, "utf8");
+         console.warn(`No se pudo guardar snapshot en ${downloadDir}: ${err.message}`);
+         console.log(`Snapshot diagnostico guardado en fallback: ${fallbackPath}`);
+      } catch (fallbackErr) {
+         console.warn(`No se pudo guardar snapshot diagnostico: ${err.message}; fallback: ${fallbackErr.message}`);
+      }
    }
 }
 
@@ -263,6 +306,55 @@ async function waitForNewFile(downloadDir, filesBefore, timeoutMs = 90000) {
    return null;
 }
 
+function parseFilenameFromContentDisposition(headerValue) {
+   if (!headerValue) return null;
+   const match = String(headerValue).match(/filename\*?=(?:UTF-8'')?["']?([^"';]+)["']?/i);
+   return match && match[1] ? decodeURIComponent(match[1]) : null;
+}
+
+function safeDownloadFilename(filename) {
+   return path.basename(String(filename || "download.csv"))
+      .replace(/[<>:"/\\|?*\x00-\x1F]/g, "_")
+      .trim() || `download-${Date.now()}.csv`;
+}
+
+async function waitAndSaveAttachment(page, downloadDir, { timeoutMs = 90000, nameHint = "FacturaElectronica" } = {}) {
+   const response = await page.waitForResponse((res) => {
+      const headers = res.headers() || {};
+      const cd = headers["content-disposition"] || "";
+      const ct = headers["content-type"] || "";
+      return /attachment/i.test(cd)
+         || /text\/csv|application\/octet-stream|application\/vnd\.ms-excel/i.test(ct);
+   }, { timeout: timeoutMs });
+
+   const headers = response.headers() || {};
+   const suggested = safeDownloadFilename(
+      parseFilenameFromContentDisposition(headers["content-disposition"])
+      || `${nameHint}-${Date.now()}.csv`
+   );
+   const filePath = path.join(downloadDir, suggested);
+   const buffer = await response.buffer();
+   fs.writeFileSync(filePath, buffer);
+   return filePath;
+}
+
+async function waitForHookedDownload(page, timeoutMs = 90000) {
+   const started = Date.now();
+   while (Date.now() - started < timeoutMs) {
+      if (page.__lastSavedFile && fs.existsSync(page.__lastSavedFile)) {
+         return page.__lastSavedFile;
+      }
+
+      const browserPath = await page.evaluate(() => window.__lastSavedFile || null).catch(() => null);
+      if (browserPath && fs.existsSync(browserPath)) {
+         return browserPath;
+      }
+
+      await sleep(500);
+   }
+   return null;
+}
+
 async function gunzipIfNeeded(filePath) {
    if (!filePath || !filePath.endsWith(".gz")) return filePath;
 
@@ -301,10 +393,44 @@ async function downloadFacturaElectronica(page, downloadDir, { year, month }) {
          await removeBlockingOverlays(page);
 
          const filesBefore = fs.readdirSync(downloadDir);
+         page.__lastSavedFile = null;
+         await page.evaluate(() => { window.__lastSavedFile = null; }).catch(() => {});
+
+         const waitForFilePromise = waitForNewFile(downloadDir, filesBefore, 90000).catch(() => null);
+         const waitForHookPromise = waitForHookedDownload(page, 90000).catch(() => null);
+         const waitForAttachmentPromise = waitAndSaveAttachment(page, downloadDir, {
+            timeoutMs: 90000,
+            nameHint,
+         }).catch(() => null);
+
          await exportButton.evaluate(el => el.scrollIntoView({ block: "center", inline: "center" }));
          await exportButton.click({ delay: 40 });
 
-         const downloaded = await waitForNewFile(downloadDir, filesBefore, 90000);
+         let downloaded = await Promise.race([
+            waitForFilePromise,
+            waitForHookPromise,
+            waitForAttachmentPromise,
+            sleep(90000).then(() => null),
+         ]);
+
+         if (!downloaded) {
+            const invoked = await page.evaluate(() => {
+               const button = document.querySelector('button[ng-click*="bajarArchivo"]');
+               if (!button) return false;
+               button.click();
+               return true;
+            }).catch(() => false);
+
+            if (invoked) {
+               downloaded = await Promise.race([
+                  waitForNewFile(downloadDir, filesBefore, 45000).catch(() => null),
+                  waitForHookedDownload(page, 45000).catch(() => null),
+                  waitAndSaveAttachment(page, downloadDir, { timeoutMs: 45000, nameHint }).catch(() => null),
+                  sleep(45000).then(() => null),
+               ]);
+            }
+         }
+
          if (downloaded) return gunzipIfNeeded(downloaded);
       } catch (err) {
          console.warn(`No se pudo exportar CSV desde detalle 33: ${err.message}`);
@@ -383,9 +509,8 @@ const run = async ({ entityId = null, year: inYear = null, month: inMonth = null
          try {
             console.log(`Procesando: ${label}`);
 
-            const baseDownloads = path.resolve(__dirname, "downloads");
-            const downloadDir = path.join(baseDownloads, String(creds.entity_id), String(year));
-            await ensureDir(downloadDir);
+            const downloadDir = await resolveDownloadDir(creds.entity_id, year);
+            console.log(`Directorio de descargas: ${downloadDir}`);
 
             await preparePage(page, {
                downloadDir,
@@ -454,9 +579,13 @@ const run = async ({ entityId = null, year: inYear = null, month: inMonth = null
                      month: mm,
                      onlyTypes,
                      operationType: "INCOME",
+                     defaultDocType: 33,
                   });
 
-                  console.log(`BD: ${stats.totals.inserted} nuevos, ${stats.totals.updated} actualizados.`);
+                  console.log(`BD: ${stats.totals.processed} procesados, ${stats.totals.inserted} nuevos, ${stats.totals.updated} actualizados, ${stats.totals.skipped} omitidos.`);
+                  if (stats.totals.skipReasons && Object.keys(stats.totals.skipReasons).length) {
+                     console.log(`Omitidos por motivo: ${JSON.stringify(stats.totals.skipReasons)}`);
+                  }
                   statsReport.processed += stats.totals.processed;
                   statsReport.details.push({ entityId: creds.entity_id, year, month: mm, totals: stats.totals });
                } catch (errStep) {
