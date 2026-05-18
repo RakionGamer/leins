@@ -166,6 +166,89 @@ const changeSuperAdminState = asyncHandler(async (req, res) => {
    res.status(200).json(result);
 });
 
+const listSuperAdminEntities = asyncHandler(async (req, res) => {
+   const { id } = req.params;
+   const actorId = req.user?.sub || req.user?.id;
+   const out = await service.listEntityAssignments(id, { actorId });
+   res.status(200).json(out);
+});
+
+const listAssignableEntities = asyncHandler(async (req, res) => {
+   const actorId = req.user?.sub || req.user?.id;
+   const out = await service.listAssignableEntities({
+      actorId,
+      q: req.query.q || null,
+      limit: req.query.limit,
+      offset: req.query.offset,
+      activeOnly: String(req.query.activeOnly ?? 'true').toLowerCase() !== 'false'
+   });
+
+   res.status(200).json(out);
+});
+
+const assignEntityToSuperAdmin = asyncHandler(async (req, res) => {
+   const { id } = req.params;
+   const actorId = req.user?.sub || req.user?.id;
+   const entityId = req.body?.entity_id || req.body?.entityId;
+
+   const out = await service.assignEntity({
+      superAdminId: id,
+      entityId,
+      actorId,
+      flags: req.body || {}
+   });
+
+   logInfo('ADMIN_ENTITY_ASSIGNED', {
+      rid: req.rid,
+      author: actorId,
+      targetId: Number(id),
+      entityId: Number(entityId)
+   });
+
+   res.status(201).json(out);
+});
+
+const updateSuperAdminEntityAssignment = asyncHandler(async (req, res) => {
+   const { id, entityId } = req.params;
+   const actorId = req.user?.sub || req.user?.id;
+
+   const out = await service.assignEntity({
+      superAdminId: id,
+      entityId,
+      actorId,
+      flags: req.body || {}
+   });
+
+   logInfo('ADMIN_ENTITY_ASSIGNMENT_UPDATED', {
+      rid: req.rid,
+      author: actorId,
+      targetId: Number(id),
+      entityId: Number(entityId)
+   });
+
+   res.status(200).json(out);
+});
+
+const removeEntityFromSuperAdmin = asyncHandler(async (req, res) => {
+   const { id, entityId } = req.params;
+   const actorId = req.user?.sub || req.user?.id;
+
+   const out = await service.removeEntityAssignment({
+      superAdminId: id,
+      entityId,
+      actorId
+   });
+
+   logInfo('ADMIN_ENTITY_UNASSIGNED', {
+      rid: req.rid,
+      author: actorId,
+      targetId: Number(id),
+      entityId: Number(entityId)
+   });
+
+   res.status(200).json(out);
+});
+
 module.exports = {
    createSuperAdmin,
    getProfile,
@@ -177,5 +260,10 @@ module.exports = {
    deleteSuperAdmin,
    listSuperAdmins,
    getSuperAdminById,
-   changeSuperAdminState
+   changeSuperAdminState,
+   listAssignableEntities,
+   listSuperAdminEntities,
+   assignEntityToSuperAdmin,
+   updateSuperAdminEntityAssignment,
+   removeEntityFromSuperAdmin
 };

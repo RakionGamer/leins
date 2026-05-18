@@ -67,7 +67,11 @@ class SiiDocumentsService {
    // listado general
    async list({ entity_id, type, source, operation_type, month, from, to, page = 1, limit = 50, sort = 'issue_date', order = 'desc' }) {
       const where = {};
-      if (entity_id) where.entity_id = Number(entity_id);
+      const parsedEntityId = Number(entity_id);
+      if (!Number.isInteger(parsedEntityId) || parsedEntityId <= 0) {
+         throw Boom.badRequest('entity_id es requerido');
+      }
+      where.entity_id = parsedEntityId;
 
       // logica de retrocompatibilidad: 
       // los datos antiguos en bd tienen operation_type nulo.

@@ -1,6 +1,6 @@
 const boom = require('@hapi/boom');
 const { sequelize, models } = require('../libs/sequelize');
-const { QueryTypes } = require('sequelize');
+const { Op, QueryTypes } = require('sequelize');
 
 const SORT_COLUMNS = {
    id: 'e.id',
@@ -69,6 +69,36 @@ function sanitizeRut(value) {
    }
 
    return formatRut(cleanRut);
+}
+
+async function assertEntityUnique({ legalName, taxId, excludeId = null, transaction = null } = {}) {
+   const where = {
+      [Op.or]: [
+         { legal_name: legalName },
+         { tax_id: taxId }
+      ]
+   };
+
+   if (excludeId) {
+      where.id = { [Op.ne]: Number(excludeId) };
+   }
+
+   const existing = await models.Entity.findOne({
+      attributes: ['id', 'legal_name', 'tax_id'],
+      where,
+      transaction,
+      raw: true
+   });
+
+   if (!existing) return;
+   if (String(existing.tax_id) === String(taxId)) {
+      throw boom.conflict('ya existe una entidad registrada con ese RUT');
+   }
+   if (String(existing.legal_name).toLowerCase() === String(legalName).toLowerCase()) {
+      throw boom.conflict('ya existe una entidad registrada con ese nombre');
+   }
+
+   throw boom.conflict('ya existe una entidad registrada con esos datos');
 }
 
 function buildEntityFilters({ q, activeOnly, id, activeStateId }) {
@@ -195,22 +225,98 @@ class EntitiesService {
       return { ok: true, total: Number(total || 0), limit, offset, rows };
    }
 
-   async create({ name, rut, stateId = null } = {}) {
+   async hasSuperAdminEntityScope(superAdminId) {
+      const parsedSuperAdminId = Number(superAdminId);
+      if (!Number.isInteger(parsedSuperAdminId) || parsedSuperAdminId <= 0) return false;
+
+      const row = await models.AdminEntity.findOne({
+         attributes: ['id'],
+         include: [{
+            model: models.Admin,
+            as: 'admin',
+            attributes: [],
+            required: true,
+            where: { super_admin_id: parsedSuperAdminId },
+         }],
+         raw: true,
+      });
+
+      return Boolean(row);
+   }
+
+   async listForSuperAdmin({ superAdminId, q = null, limit = 20, offset = 0, activeOnly = false, id = null, sort = 'name', order = 'asc' } = {}) {
+      const ACTIVE_STATE_ID = Number(process.env.ACTIVE_STATE_ID || 1);
+      const sortColumn = normalizeSort(sort);
+      const sortOrder = normalizeOrder(order);
+      const parsedId = Number.isInteger(Number(id)) ? Number(id) : null;
+
+      if (!superAdminId) throw boom.badRequest('superAdminId is required');
+
+      const filters = buildEntityFilters({
+         q,
+         activeOnly,
+         id: parsedId,
+         activeStateId: ACTIVE_STATE_ID
+      });
+
+      const baseJoin = `
+         FROM entities e
+         JOIN admin_entities ae ON ae.entity_id = e.id
+         JOIN admins a ON a.id = ae.admin_id
+         WHERE a.super_admin_id = :superAdminId
+         ${filters.whereSql}
+      `;
+      const sql = `
+         SELECT DISTINCT e.id, e.legal_name AS name, e.legal_name, e.tax_id AS rut, e.tax_id, e.state_id
+         ${baseJoin}
+         ORDER BY ${sortColumn} ${sortOrder}
+         LIMIT :limit OFFSET :offset
+      `;
+      const sqlCount = `
+         SELECT COUNT(DISTINCT e.id) AS total
+         ${baseJoin}
+      `;
+
+      const params = { superAdminId, ...filters.params, limit, offset };
+      const [{ total }] = await sequelize.query(sqlCount, {
+         type: QueryTypes.SELECT,
+         replacements: params
+      });
+      const rowsRaw = await sequelize.query(sql, {
+         type: QueryTypes.SELECT,
+         replacements: params
+      });
+      const rows = rowsRaw.map(mapEntityRow);
+
+      return { ok: true, total: Number(total || 0), limit, offset, rows };
+   }
+
+   async create({ name, rut, stateId = null, actorId = null } = {}) {
       const legalName = String(name || '').trim();
       const ACTIVE_STATE_ID = Number(process.env.ACTIVE_STATE_ID || 1);
 
       if (!legalName) throw boom.badRequest('nombre de entidad requerido');
       const taxId = sanitizeRut(rut);
 
-      const created = await models.Entity.create({
-         legal_name: legalName,
-         tax_id: taxId,
-         state_id: Number.isInteger(Number(stateId)) && Number(stateId) > 0
-            ? Number(stateId)
-            : ACTIVE_STATE_ID
-      });
+      return await sequelize.transaction(async (transaction) => {
+         await assertEntityUnique({ legalName, taxId, transaction });
 
-      return mapEntityRow(created.toJSON());
+         const created = await models.Entity.create({
+            legal_name: legalName,
+            tax_id: taxId,
+            state_id: Number.isInteger(Number(stateId)) && Number(stateId) > 0
+               ? Number(stateId)
+               : ACTIVE_STATE_ID
+         }, { transaction });
+
+         await this.ensureSuperAdminEntityAccess({
+            superAdminId: actorId,
+            entityId: created.id,
+            transaction
+         });
+
+         return mapEntityRow(created.toJSON());
+      });
    }
 
    async update(id, { name, rut, stateId } = {}) {
@@ -231,6 +337,13 @@ class EntitiesService {
       if (rut !== undefined) {
          changes.tax_id = sanitizeRut(rut);
       }
+      if (changes.legal_name || changes.tax_id) {
+         await assertEntityUnique({
+            legalName: changes.legal_name || entity.legal_name,
+            taxId: changes.tax_id || entity.tax_id,
+            excludeId: entityId
+         });
+      }
       if (stateId !== undefined && stateId !== null && String(stateId).trim() !== '') {
          const parsedState = Number(stateId);
          if (!Number.isInteger(parsedState) || parsedState <= 0) {
@@ -242,6 +355,54 @@ class EntitiesService {
 
       await entity.update(changes);
       return mapEntityRow(entity.toJSON());
+   }
+
+   async ensureSuperAdminEntityAccess({ superAdminId, entityId, transaction } = {}) {
+      const parsedSuperAdminId = Number(superAdminId);
+      const parsedEntityId = Number(entityId);
+
+      if (!Number.isInteger(parsedSuperAdminId) || parsedSuperAdminId <= 0) return;
+      if (!Number.isInteger(parsedEntityId) || parsedEntityId <= 0) return;
+
+      const superAdmin = await models.SuperAdmin.findByPk(parsedSuperAdminId, {
+         attributes: ['id', 'username', 'email', 'password_hash', 'state_id'],
+         transaction
+      });
+      if (!superAdmin) return;
+
+      let admin = await models.Admin.findOne({
+         where: { super_admin_id: parsedSuperAdminId },
+         transaction
+      });
+
+      if (!admin) {
+         admin = await models.Admin.create({
+            super_admin_id: parsedSuperAdminId,
+            username: `superadmin_${parsedSuperAdminId}`,
+            email: `superadmin_${parsedSuperAdminId}@leins.local`,
+            password_hash: superAdmin.password_hash,
+            state_id: superAdmin.state_id || Number(process.env.ACTIVE_STATE_ID || 1)
+         }, { transaction });
+      }
+
+      const existing = await models.AdminEntity.findOne({
+         where: {
+            admin_id: admin.id,
+            entity_id: parsedEntityId
+         },
+         transaction
+      });
+
+      if (existing) return;
+
+      await models.AdminEntity.create({
+         admin_id: admin.id,
+         entity_id: parsedEntityId,
+         can_create: true,
+         can_update: true,
+         can_delete: true,
+         is_admin: true
+      }, { transaction });
    }
 
    async countRelatedRecords(entityId) {

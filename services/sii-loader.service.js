@@ -16,7 +16,7 @@ class SiiLoaderService {
    }
 
    // funcion para armar el registro homogeneo para la bd
-   _toRow(inter, raw, { entityId, year, month, docTypeCode }) {
+   _toRow(inter, raw, { entityId, year, month, docTypeCode, operationType = null }) {
       // parche especifico para boletas (41, 39) que a veces traen un espacio en el CSV
       const montoExentoBoleta = raw["Monto Exento"] || raw[" Monto Exento"] || 0;
       const amountExempt = (docTypeCode === 41 || docTypeCode === 39)
@@ -45,6 +45,7 @@ class SiiLoaderService {
          period_year: Number(year),
          period_month: Number(month),
          state_id: this.STATE_ID_DEFAULT,
+         operation_type: operationType,
 
          total_amount: inter.total_amount || this._parseNum(raw["Monto Total"]),
          amount_net: inter.amount_net || this._parseNum(raw["Monto Neto"]),
@@ -134,7 +135,7 @@ class SiiLoaderService {
    /**
     * Funcion principal para cargar cualquier CSV del SII
     */
-   async loadCsv(filePath, { entityId, year, month, onlyTypes = null }, { chunkSize = 500 } = {}) {
+   async loadCsv(filePath, { entityId, year, month, onlyTypes = null, operationType = null }, { chunkSize = 500 } = {}) {
       const raw = await parseCsvFile(filePath, { delimiter: ";" });
       if (!raw.length) return { totals: { processed: 0, inserted: 0, updated: 0, skipped: 0 }, byType: {} };
 
@@ -148,7 +149,7 @@ class SiiLoaderService {
          if (Array.isArray(onlyTypes) && onlyTypes.length && !onlyTypes.includes(tipo)) { skipped++; continue; }
 
          const inter = pickAndNormalize(r);
-         const row = this._toRow(inter, r, { entityId, year, month, docTypeCode: tipo });
+         const row = this._toRow(inter, r, { entityId, year, month, docTypeCode: tipo, operationType });
 
          if (!row.issue_date || !row.folio || !row.counterparty_rut) { skipped++; continue; }
 

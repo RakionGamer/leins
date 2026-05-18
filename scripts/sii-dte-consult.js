@@ -153,7 +153,8 @@ const run = async ({ entityId = null, year: inYear = null, month: inMonth = null
                      entityId: creds.entity_id,
                      year,
                      month: mm,
-                     onlyTypes
+                     onlyTypes,
+                     operationType: "EXPENSE"
                   });
                   console.log(`   ✅ [${year}-${mm}] Procesado: ${res.totals.inserted} nuevos.`);
                   statsReport.processed += res.totals.inserted;

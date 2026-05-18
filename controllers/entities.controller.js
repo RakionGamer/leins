@@ -3,6 +3,7 @@ const EntitiesService = require('../services/entities.service');
 const NotificationService = require('../services/notification.service');
 const dteScraper = require('../scripts/sii-dte-consult');
 const boletaScraper = require('../scripts/sii-boletas-consult');
+const salesInvoiceScraper = require('../scripts/sii-ventas-facturas-consult');
 const asyncHandler = require('../utils/helpers/asyncHandler');
 const { logInfo } = require('../utils/logger');
 
@@ -28,7 +29,8 @@ const listEntities = asyncHandler(async (req, res) => {
 
    // validacion super admin
    if (req.isSuperAdmin) {
-      const out = await service.listAll(parsed);
+      const actorId = Number(req.user?.id || req.user?.sub);
+      const out = await service.listForSuperAdmin({ ...parsed, superAdminId: actorId });
       return res.json(out);
    }
 
@@ -49,7 +51,8 @@ const createEntity = asyncHandler(async (req, res) => {
    const row = await service.create({
       name: name ?? legal_name,
       rut: rut ?? tax_id,
-      stateId: state_id
+      stateId: state_id,
+      actorId: req.user?.sub || req.user?.id
    });
 
    logInfo('ENTITY_CREATED', {
@@ -105,7 +108,7 @@ const deleteEntity = asyncHandler(async (req, res) => {
 
 // controlador para sincronizacion sii en segundo plano
 const syncSii = asyncHandler(async (req, res) => {
-   const entityId = req.params.id;
+   const entityId = req.params.entityId || req.params.id || req.entityId;
    const { year, month, type } = req.body;
    const userId = req.superAdminId || req.user?.id;
 
@@ -137,7 +140,9 @@ const syncSii = asyncHandler(async (req, res) => {
          const isFullYear = month === 'ALL';
          const targetMonth = isFullYear ? 'ALL' : month;
 
-         if (type === 'invoices') {
+         if (type === 'sales-invoices') {
+            await salesInvoiceScraper.runManualSync(entityId, year, targetMonth);
+         } else if (type === 'invoices') {
             await dteScraper.runManualSync(entityId, year, targetMonth);
          } else {
             await boletaScraper.runManualSync(entityId, year, targetMonth);
@@ -149,7 +154,7 @@ const syncSii = asyncHandler(async (req, res) => {
                userId,
                type: 'success',
                title: 'sincronizacion sii finalizada',
-               message: `la carga de ${type === 'invoices' ? 'facturas' : 'boletas'} (${year}-${isFullYear ? 'completo' : month}) ha terminado exitosamente.`
+               message: `la carga de ${type === 'sales-invoices' ? 'facturas de venta' : type === 'invoices' ? 'facturas' : 'boletas'} (${year}-${isFullYear ? 'completo' : month}) ha terminado exitosamente.`
             });
          } else {
             console.error('error: notifservice.create no esta disponible');
@@ -177,4 +182,3 @@ module.exports = {
    deleteEntity,
    syncSii
 };
-

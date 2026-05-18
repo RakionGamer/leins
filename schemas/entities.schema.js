@@ -45,8 +45,14 @@ function validateRut(value, helpers) {
 }
 
 const id = Joi.number().integer().positive();
-const name = Joi.string().min(2).max(255);
-const rut = Joi.string().trim().min(3).max(20).custom(validateRut, 'validacion matematica de rut chileno');
+const name = Joi.string().trim().min(2).max(255).empty('').messages({
+   'string.min': 'el nombre de la entidad debe tener al menos 2 caracteres',
+   'string.max': 'el nombre de la entidad no puede superar 255 caracteres',
+});
+const rut = Joi.string().trim().min(3).max(20).empty('').custom(validateRut, 'validacion matematica de rut chileno').messages({
+   'string.min': 'el RUT de la entidad es demasiado corto',
+   'string.max': 'el RUT de la entidad no puede superar 20 caracteres',
+});
 const stateId = Joi.number().integer().positive();
 const sort = Joi.string().valid('id', 'name', 'rut');
 const order = Joi.string().valid('asc', 'desc', 'ASC', 'DESC');
@@ -67,7 +73,9 @@ const createEntitySchema = Joi.object({
    rut: rut.optional(),
    tax_id: rut.optional(),
    state_id: stateId.optional(),
-}).or('name', 'legal_name').or('rut', 'tax_id');
+}).or('name', 'legal_name').or('rut', 'tax_id').messages({
+   'object.missing': 'ingresa el nombre y el RUT de la entidad',
+});
 
 const updateEntityParamsSchema = Joi.object({
    id: id.required(),
@@ -79,7 +87,9 @@ const updateEntitySchema = Joi.object({
    rut: rut.optional(),
    tax_id: rut.optional(),
    state_id: stateId.optional(),
-}).min(1);
+}).min(1).messages({
+   'object.min': 'ingresa al menos un dato para actualizar la entidad',
+});
 
 const deleteEntityParamsSchema = Joi.object({
    id: id.required(),

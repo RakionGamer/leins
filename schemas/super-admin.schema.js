@@ -63,6 +63,39 @@ const changeStateSchema = Joi.object({
    state_id: Joi.number().integer().required()
 });
 
+const entityAssignmentParamsSchema = Joi.object({
+   id: id.required(),
+});
+
+const entityAssignmentEntityParamsSchema = Joi.object({
+   id: id.required(),
+   entityId: id.required(),
+});
+
+const entityAssignmentSchema = Joi.object({
+   entity_id: id.optional(),
+   entityId: id.optional(),
+   can_create: Joi.boolean().optional(),
+   canCreate: Joi.boolean().optional(),
+   can_update: Joi.boolean().optional(),
+   canUpdate: Joi.boolean().optional(),
+   can_delete: Joi.boolean().optional(),
+   canDelete: Joi.boolean().optional(),
+   is_admin: Joi.boolean().optional(),
+   isAdmin: Joi.boolean().optional(),
+}).or('entity_id', 'entityId');
+
+const updateEntityAssignmentSchema = Joi.object({
+   can_create: Joi.boolean().optional(),
+   canCreate: Joi.boolean().optional(),
+   can_update: Joi.boolean().optional(),
+   canUpdate: Joi.boolean().optional(),
+   can_delete: Joi.boolean().optional(),
+   canDelete: Joi.boolean().optional(),
+   is_admin: Joi.boolean().optional(),
+   isAdmin: Joi.boolean().optional(),
+}).min(1);
+
 module.exports = {
    createSuperAdminSchema,
    updateSuperAdminSchema,
@@ -70,5 +103,9 @@ module.exports = {
    deleteSuperAdminSchema,
    updateThemeSchema,
    changePasswordSchema,
-   changeStateSchema
+   changeStateSchema,
+   entityAssignmentParamsSchema,
+   entityAssignmentEntityParamsSchema,
+   entityAssignmentSchema,
+   updateEntityAssignmentSchema
 };

@@ -9,7 +9,11 @@ const {
    getSuperAdminSchema,
    deleteSuperAdminSchema,
    changePasswordSchema,
-   changeStateSchema
+   changeStateSchema,
+   entityAssignmentParamsSchema,
+   entityAssignmentEntityParamsSchema,
+   entityAssignmentSchema,
+   updateEntityAssignmentSchema
 } = require('../schemas/super-admin.schema');
 
 const router = express.Router();
@@ -58,6 +62,35 @@ router.patch('/theme', superAdminController.changeTheme);
 
 // listar super admins (con paginacion y busqueda)
 router.get('/', superAdminController.listSuperAdmins);
+
+// listar entidades que el usuario actual puede asignar
+router.get('/entity-assignments/available', superAdminController.listAssignableEntities);
+
+// listar entidades asignadas a un administrador
+router.get('/:id/entities',
+   validatorHandler(entityAssignmentParamsSchema, 'params'),
+   superAdminController.listSuperAdminEntities
+);
+
+// asignar entidad a un administrador
+router.post('/:id/entities',
+   validatorHandler(entityAssignmentParamsSchema, 'params'),
+   validatorHandler(entityAssignmentSchema, 'body'),
+   superAdminController.assignEntityToSuperAdmin
+);
+
+// actualizar permisos de entidad asignada
+router.put('/:id/entities/:entityId',
+   validatorHandler(entityAssignmentEntityParamsSchema, 'params'),
+   validatorHandler(updateEntityAssignmentSchema, 'body'),
+   superAdminController.updateSuperAdminEntityAssignment
+);
+
+// quitar entidad asignada
+router.delete('/:id/entities/:entityId',
+   validatorHandler(entityAssignmentEntityParamsSchema, 'params'),
+   superAdminController.removeEntityFromSuperAdmin
+);
 
 // obtener un super admin por id
 router.get('/:id',

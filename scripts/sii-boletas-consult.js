@@ -219,7 +219,8 @@ const run = async ({ entityId = null, year: inYear = null, month: inMonth = null
                            entityId: creds.entity_id,
                            year,
                            month: mm,
-                           onlyTypes: [39, 41]
+                           onlyTypes: [39, 41],
+                           operationType: "INCOME"
                         });
 
                         console.log(`💾 BD: ${stats.totals.inserted} registros procesados.`);

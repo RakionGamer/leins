@@ -9,13 +9,21 @@ const {
 } = require('../schemas/sii-document.schema');
 
 const controller = require('../controllers/sii-document.controller');
+const {
+   requireEntityAccess,
+   requireSiiDocumentEntityAccess
+} = require('../middlewares/entity-access.handler');
+
+const ensureEntityAccess = requireEntityAccess();
+const ensureDocumentEntityAccess = requireSiiDocumentEntityAccess();
 
 // listado de documentos
-router.get('/', controller.listDocuments);
+router.get('/', ensureEntityAccess, controller.listDocuments);
 
 // creacion manual
 router.post('/manual',
    validatorHandler(createManualIncomeSchema, 'body'),
+   ensureEntityAccess,
    controller.createManualDocument
 );
 
@@ -23,12 +31,14 @@ router.post('/manual',
 router.patch('/:id',
    validatorHandler(getDocumentSchema, 'params'),
    validatorHandler(updateDocumentSchema, 'body'),
+   ensureDocumentEntityAccess,
    controller.updateDocument
 );
 
 // eliminacion
 router.delete('/:id',
    validatorHandler(getDocumentSchema, 'params'),
+   ensureDocumentEntityAccess,
    controller.deleteDocument
 );
 

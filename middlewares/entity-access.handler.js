@@ -135,6 +135,32 @@ function requireEntityAccess() {
    };
 }
 
+function requireSiiDocumentEntityAccess() {
+   const ensureEntityAccess = requireEntityAccess();
+
+   return async (req, res, next) => {
+      try {
+         const documentId = parsePositiveInt(req.params?.id, 'id documento');
+         const doc = await models.EntitySiiDocument.findByPk(documentId, {
+            attributes: ['id', 'entity_id'],
+            raw: true,
+         });
+
+         if (!doc) throw boom.notFound('documento no encontrado');
+
+         req.entityId = Number(doc.entity_id);
+         if (req.params && typeof req.params === 'object') {
+            req.params.entityId = String(doc.entity_id);
+         }
+
+         return ensureEntityAccess(req, res, next);
+      } catch (err) {
+         next(err);
+      }
+   };
+}
+
 module.exports = {
    requireEntityAccess,
+   requireSiiDocumentEntityAccess,
 };

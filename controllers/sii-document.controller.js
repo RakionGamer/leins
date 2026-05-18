@@ -30,7 +30,7 @@ const listDocuments = asyncHandler(async (req, res) => {
 
    // armar el payload para el servicio
    const payload = {
-      entity_id: q.entity_id ? Number(q.entity_id) : undefined,
+      entity_id: req.entityId ? Number(req.entityId) : (q.entity_id ? Number(q.entity_id) : undefined),
       type: typeCode,
       source: q.source ? String(q.source) : undefined,
       operation_type: q.operation_type ? String(q.operation_type).toUpperCase() : undefined,
