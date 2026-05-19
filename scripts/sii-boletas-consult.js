@@ -44,7 +44,7 @@ const run = async ({ entityId = null, year: inYear = null, month: inMonth = null
    const yearInput = inYear || getArgValue("year") || arg("year", now.toFormat("yyyy"));
    const monthInput = inMonth || getArgValue("month") || arg("month", now.toFormat("MM"));
 
-   const fullYear = !inMonth && (String(monthInput).toUpperCase() === "ALL" || process.argv.includes("--fullYear"));
+   const fullYear = String(monthInput).toUpperCase() === "ALL" || process.argv.includes("--fullYear");
 
    const { year, month } = getYearMonthPair(yearInput, fullYear ? "01" : monthInput);
 
@@ -81,7 +81,7 @@ const run = async ({ entityId = null, year: inYear = null, month: inMonth = null
    console.log("🔌 iniciando navegador...");
    const browser = await createBrowser();
 
-   const statsReport = { processed: 0, errors: [] };
+   const statsReport = { processed: 0, errors: [], details: [] };
 
    try {
       const processEntity = async (creds) => {
@@ -225,6 +225,7 @@ const run = async ({ entityId = null, year: inYear = null, month: inMonth = null
 
                         console.log(`💾 BD: ${stats.totals.inserted} registros procesados.`);
                         statsReport.processed += stats.totals.inserted;
+                        statsReport.details.push({ entityId: creds.entity_id, year, month: mm, totals: stats.totals });
 
                      } else {
                         console.warn("⚠️ timeout: archivo no aparecio en disco.");

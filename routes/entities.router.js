@@ -10,6 +10,8 @@ const {
    updateEntityParamsSchema,
    updateEntitySchema,
    deleteEntityParamsSchema,
+   entityIdParamsSchema,
+   listSiiSyncJobsQuerySchema,
 } = require('../schemas/entities.schema');
 const {
    entityCredentialParamsSchema,
@@ -69,8 +71,21 @@ router.post(
    credentialsController.revealCredential
 );
 
+router.get(
+   '/:entityId/sync-sii/jobs',
+   validatorHandler(entityIdParamsSchema, 'params'),
+   validatorHandler(listSiiSyncJobsQuerySchema, 'query'),
+   ensureEntityAccess,
+   entitiesController.listSiiSyncJobs
+);
+router.post(
+   '/:entityId/sync-sii',
+   validatorHandler(entityIdParamsSchema, 'params'),
+   ensureEntityAccess,
+   entitiesController.syncSii
+);
+
 router.put('/:id', isSuperAdmin, validatorHandler(updateEntityParamsSchema, 'params'), validatorHandler(updateEntitySchema, 'body'), entitiesController.updateEntity);
 router.delete('/:id', isSuperAdmin, validatorHandler(deleteEntityParamsSchema, 'params'), entitiesController.deleteEntity);
-router.post('/:entityId/sync-sii', ensureEntityAccess, entitiesController.syncSii);
 
 module.exports = router;

@@ -1,6 +1,7 @@
 const boom = require('@hapi/boom');
 const EntitiesService = require('../services/entities.service');
 const NotificationService = require('../services/notification.service');
+const SiiSyncJobService = require('../services/sii-sync-job.service');
 const dteScraper = require('../scripts/sii-dte-consult');
 const boletaScraper = require('../scripts/sii-boletas-consult');
 const salesInvoiceScraper = require('../scripts/sii-ventas-facturas-consult');
@@ -10,6 +11,7 @@ const { logInfo } = require('../utils/logger');
 // instanciamos los servicios
 const service = new EntitiesService();
 const notifService = new NotificationService();
+const siiSyncJobService = new SiiSyncJobService();
 
 // controlador para listar entidades
 const listEntities = asyncHandler(async (req, res) => {
@@ -116,11 +118,40 @@ const syncSii = asyncHandler(async (req, res) => {
       throw boom.badRequest('faltan parametros');
    }
 
+   const { job, duplicated, staleJobId } = await siiSyncJobService.create({
+      entityId,
+      requestedBy: userId,
+      syncType: type,
+      year,
+      month,
+   });
+
+   if (duplicated) {
+      logInfo('SII_SYNC_DUPLICATED', {
+         rid: req.rid,
+         userId,
+         entityId,
+         jobId: job.id,
+         year,
+         month,
+         type
+      });
+
+      return res.json({
+         ok: true,
+         duplicated: true,
+         jobId: job.id,
+         message: 'ya existe una sincronizacion en proceso para esta entidad, tipo y periodo.'
+      });
+   }
+
    // log de auditoria: inicio de sincronizacion sii
    logInfo('SII_SYNC_TRIGGERED', {
       rid: req.rid,
       userId,
       entityId,
+      jobId: job.id,
+      staleJobId,
       year,
       month,
       type
@@ -129,24 +160,34 @@ const syncSii = asyncHandler(async (req, res) => {
    // 1. responder inmediatamente al cliente
    res.json({
       ok: true,
+      jobId: job.id,
+      staleJobId,
       message: 'proceso iniciado en segundo plano. te avisaremos cuando termine.'
    });
 
    // 2. ejecutar proceso en segundo plano
    (async () => {
       try {
+         await siiSyncJobService.markRunning(job.id);
          console.log(`background sync: ${type} ${year}-${month} para entity ${entityId}`);
 
          const isFullYear = month === 'ALL';
          const targetMonth = isFullYear ? 'ALL' : month;
+         let result;
 
          if (type === 'sales-invoices') {
-            await salesInvoiceScraper.runManualSync(entityId, year, targetMonth);
+            result = await salesInvoiceScraper.runManualSync(entityId, year, targetMonth);
          } else if (type === 'invoices') {
-            await dteScraper.runManualSync(entityId, year, targetMonth);
+            result = await dteScraper.runManualSync(entityId, year, targetMonth);
          } else {
-            await boletaScraper.runManualSync(entityId, year, targetMonth);
+            result = await boletaScraper.runManualSync(entityId, year, targetMonth);
          }
+
+         if (result && result.ok === false) {
+            throw new Error(result.message || 'la sincronizacion SII no pudo completarse');
+         }
+
+         await siiSyncJobService.markSuccess(job.id, result);
 
          // verificamos antes de crear la notificacion
          if (notifService && typeof notifService.create === 'function') {
@@ -162,6 +203,9 @@ const syncSii = asyncHandler(async (req, res) => {
 
       } catch (err) {
          console.error('error en background sync:', err);
+         await siiSyncJobService.markFailed(job.id, err).catch((jobErr) => {
+            console.error('error actualizando job sii:', jobErr);
+         });
 
          if (notifService && typeof notifService.create === 'function') {
             await notifService.create({
@@ -175,10 +219,24 @@ const syncSii = asyncHandler(async (req, res) => {
    })();
 });
 
+const listSiiSyncJobs = asyncHandler(async (req, res) => {
+   const entityId = req.params.entityId || req.entityId;
+   const out = await siiSyncJobService.list({
+      entityId,
+      status: req.query.status || null,
+      syncType: req.query.type || null,
+      limit: req.query.limit,
+      offset: req.query.offset,
+   });
+
+   res.json(out);
+});
+
 module.exports = {
    listEntities,
    createEntity,
    updateEntity,
    deleteEntity,
-   syncSii
+   syncSii,
+   listSiiSyncJobs
 };

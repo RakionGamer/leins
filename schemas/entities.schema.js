@@ -95,10 +95,23 @@ const deleteEntityParamsSchema = Joi.object({
    id: id.required(),
 });
 
+const entityIdParamsSchema = Joi.object({
+   entityId: id.required(),
+});
+
+const listSiiSyncJobsQuerySchema = Joi.object({
+   status: Joi.string().valid('pending', 'running', 'success', 'failed').optional(),
+   type: Joi.string().valid('boletas', 'invoices', 'sales-invoices').optional(),
+   limit: Joi.number().integer().min(1).max(100).optional(),
+   offset: Joi.number().integer().min(0).optional(),
+});
+
 module.exports = {
    listEntitiesQuerySchema,
    createEntitySchema,
    updateEntityParamsSchema,
    updateEntitySchema,
    deleteEntityParamsSchema,
+   entityIdParamsSchema,
+   listSiiSyncJobsQuerySchema,
 };

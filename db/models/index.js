@@ -21,6 +21,7 @@ const { LoginLog, LoginLogSchema } = require('./login-log.model');
 const { ErrorLog, ErrorLogSchema } = require('./error-log.model');
 const { SiiDocumentType, SiiDocumentTypeSchema } = require('./sii-document-type.model');
 const { Notification, NotificationSchema } = require('./notification.model');
+const { SiiSyncJob, SiiSyncJobSchema } = require('./sii-sync-job.model');
 
 function setupModels(sequelize) {
    // 1) init
@@ -45,6 +46,7 @@ function setupModels(sequelize) {
    ErrorLog.init(ErrorLogSchema, ErrorLog.config(sequelize));
    SiiDocumentType.init(SiiDocumentTypeSchema, SiiDocumentType.config(sequelize));
    Notification.init(NotificationSchema, Notification.config(sequelize));
+   SiiSyncJob.init(SiiSyncJobSchema, SiiSyncJob.config(sequelize));
 
    // 2) associate
    if (State.associate) State.associate(sequelize.models);
@@ -67,6 +69,7 @@ function setupModels(sequelize) {
    if (LoginLog.associate) LoginLog.associate(sequelize.models);
    if (ErrorLog.associate) ErrorLog.associate(sequelize.models);
    if (SiiDocumentType.associate) SiiDocumentType.associate(sequelize.models);
+   if (SiiSyncJob.associate) SiiSyncJob.associate(sequelize.models);
 }
 
 module.exports = setupModels;

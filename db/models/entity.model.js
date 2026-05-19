@@ -13,6 +13,7 @@ class Entity extends Model {
     this.belongsTo(models.State, { as: 'state', foreignKey: 'state_id' });
     this.hasMany(models.EntityBankAccount, { as: 'bank_accounts', foreignKey: 'entity_id' });
     this.hasMany(models.EntitySiiDocument, { as: 'sii_documents', foreignKey: 'entity_id' });
+    this.hasMany(models.SiiSyncJob, { as: 'sii_sync_jobs', foreignKey: 'entity_id' });
     this.hasMany(models.EntityBankTransaction, { as: 'bank_transactions', foreignKey: 'entity_id' });
     this.hasMany(models.EntityCashFlowProjection, { as: 'cash_flow_projections', foreignKey: 'entity_id' });
     this.hasMany(models.Credential, { as: 'credentials', foreignKey: 'entity_id' });
@@ -23,4 +24,3 @@ class Entity extends Model {
   static config(sequelize) { return { sequelize, tableName: ENTITY_TABLE, modelName: 'Entity', timestamps: false }; }
 }
 module.exports = { ENTITY_TABLE, EntitySchema, Entity };
-

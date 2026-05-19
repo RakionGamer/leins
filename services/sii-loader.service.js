@@ -151,7 +151,7 @@ class SiiLoaderService {
     */
    async loadCsv(filePath, { entityId, year, month, onlyTypes = null, operationType = null, defaultDocType = null }, { chunkSize = 500 } = {}) {
       const raw = await parseCsvFile(filePath, { delimiter: ";" });
-      if (!raw.length) return { totals: { processed: 0, inserted: 0, updated: 0, skipped: 0 }, byType: {} };
+      if (!raw.length) return { totals: { read: 0, processed: 0, inserted: 0, updated: 0, skipped: 0, skipReasons: {} }, byType: {} };
 
       const byType = {};
       const records = [];
@@ -201,7 +201,7 @@ class SiiLoaderService {
       }
 
       if (!records.length) {
-         return { totals: { processed: 0, inserted: 0, updated: 0, skipped, skipReasons }, byType };
+         return { totals: { read: raw.length, processed: 0, inserted: 0, updated: 0, skipped, skipReasons }, byType };
       }
 
       let inserted = 0, updated = 0;
@@ -229,7 +229,7 @@ class SiiLoaderService {
          }
       });
 
-      return { totals: { processed: records.length, inserted, updated, skipped, skipReasons }, byType };
+      return { totals: { read: raw.length, processed: records.length, inserted, updated, skipped, skipReasons }, byType };
    }
 }
 

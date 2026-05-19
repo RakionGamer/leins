@@ -47,7 +47,7 @@ const run = async ({ entityId = null, year: inYear = null, month: inMonth = null
    const yearInput = inYear || getArgValue("year") || arg("year", now.toFormat("yyyy"));
    const monthInput = inMonth || getArgValue("month") || arg("month", now.toFormat("MM"));
 
-   const fullYear = !inMonth && (String(monthInput).toUpperCase() === "ALL" || process.argv.includes("--fullYear"));
+   const fullYear = String(monthInput).toUpperCase() === "ALL" || process.argv.includes("--fullYear");
 
    const { year, month } = getYearMonthPair(yearInput, fullYear ? "01" : monthInput);
 
@@ -158,6 +158,7 @@ const run = async ({ entityId = null, year: inYear = null, month: inMonth = null
                   });
                   console.log(`   ✅ [${year}-${mm}] Procesado: ${res.totals.inserted} nuevos.`);
                   statsReport.processed += res.totals.inserted;
+                  statsReport.details.push({ entityId: creds.entity_id, year, month: mm, totals: res.totals });
                } else {
                   console.log(`   ⚠️ [${year}-${mm}] No se descargo archivo.`);
                }

@@ -455,7 +455,7 @@ const run = async ({ entityId = null, year: inYear = null, month: inMonth = null
    const cliEntityId = entityId || getArgValue("entityId") || getArgValue("entity");
    const yearInput = inYear || getArgValue("year") || arg("year", now.toFormat("yyyy"));
    const monthInput = inMonth || getArgValue("month") || arg("month", now.toFormat("MM"));
-   const fullYear = !inMonth && (String(monthInput).toUpperCase() === "ALL" || process.argv.includes("--fullYear"));
+   const fullYear = String(monthInput).toUpperCase() === "ALL" || process.argv.includes("--fullYear");
    const onlyTypes = parseTypes(getArgValue("types") || arg("types", "")) || DEFAULT_TYPES;
 
    const { year, month } = getYearMonthPair(yearInput, fullYear ? "01" : monthInput);

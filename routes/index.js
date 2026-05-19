@@ -9,6 +9,7 @@ const siiDocumentsRouter = require('./sii-documents.router');
 const bankRouter = require('./bank.router');
 const entitiesRouter = require('./entities.router');
 const notificationsRouter = require('./notifications.router');
+const dashboardRouter = require('./dashboard.router');
 
 function routerApi(app) {
    const router = express.Router();
@@ -26,6 +27,7 @@ function routerApi(app) {
    router.use('/banks', jwtValidate, bankRouter);
    router.use('/entities', jwtValidate, entitiesRouter);
    router.use('/notifications', jwtValidate, notificationsRouter);
+   router.use('/dashboard', jwtValidate, dashboardRouter);
 }
 
 module.exports = routerApi;

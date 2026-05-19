@@ -15,6 +15,7 @@ const config = {
    tz: process.env.TZ || 'America/Santiago',
    maxActiveSessions: parseInt(process.env.MAX_ACTIVE_SESSIONS || '5', 10),
    mysqlAesKey: process.env.MYSQL_AES_KEY || 'dev_only_key_cambia_esto',
+   siiSyncStaleMinutes: parseInt(process.env.SII_SYNC_STALE_MINUTES || '120', 10),
    allowUnscopedSuperAdminEntityAccess:
       String(process.env.ALLOW_UNSCOPED_SUPERADMIN_ENTITY_ACCESS || 'false').toLowerCase() === 'true',
 }
