@@ -41,6 +41,7 @@ const listDocuments = asyncHandler(async (req, res) => {
       limit,
       sort,
       order,
+      pendingOnly: ['1', 'true', 'yes'].includes(String(q.pendingOnly || '').toLowerCase()),
    };
 
    const out = await service.list(payload);
@@ -116,8 +117,33 @@ const deleteDocument = asyncHandler(async (req, res) => {
    });
 });
 
+const dailySalesGroups = asyncHandler(async (req, res) => {
+   const q = req.query || {};
+   const isYYYYMMDD = (s) => /^\d{4}-\d{2}-\d{2}$/.test(String(s));
+
+   const from = q.from ? String(q.from) : null;
+   const to = q.to ? String(q.to) : null;
+
+   if (!from || !to) throw boom.badRequest('from y to son requeridos');
+   if (!isYYYYMMDD(from)) throw boom.badRequest('parametro "from" invalido; esperado yyyy-mm-dd');
+   if (!isYYYYMMDD(to)) throw boom.badRequest('parametro "to" invalido; esperado yyyy-mm-dd');
+   if (from > to) throw boom.badRequest('rango de fechas invalido: "from" debe ser menor o igual que "to"');
+
+   const out = await service.dailySalesGroups({
+      entity_id: req.entityId || q.entity_id || q.entityId,
+      from,
+      to,
+   });
+
+   res.status(200).json({
+      data: out,
+      total: out.length,
+   });
+});
+
 module.exports = {
    listDocuments,
+   dailySalesGroups,
    createManualDocument,
    updateDocument,
    deleteDocument

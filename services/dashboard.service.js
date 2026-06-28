@@ -283,6 +283,27 @@ function normalizeSyncJob(row = null, type, label) {
    };
 }
 
+function documentBucketCase(alias = '') {
+   const prefix = alias ? `${alias}.` : '';
+   return `
+      CASE
+         WHEN ${prefix}operation_type = 'INCOME'
+            OR (${prefix}operation_type IS NULL AND ${prefix}doc_type_code IN (39, 41))
+         THEN 'INCOME'
+         WHEN ${prefix}operation_type = 'EXPENSE'
+            OR (
+               ${prefix}operation_type IS NULL
+               AND (
+                  ${prefix}doc_type_code IS NULL
+                  OR ${prefix}doc_type_code NOT IN (39, 41)
+               )
+            )
+         THEN 'EXPENSE'
+         ELSE 'OTHER'
+      END
+   `;
+}
+
 function formatPercent(value) {
    return `${Math.abs(Number(value || 0)).toFixed(1).replace('.', ',')}%`;
 }
@@ -437,17 +458,7 @@ async function aggregateDocumentBuckets({ entityId, period }) {
    const rows = await sequelize.query(
       `
       SELECT
-         CASE
-            WHEN operation_type = 'INCOME' OR (operation_type IS NULL AND doc_type_code IN (39, 41)) THEN 'INCOME'
-            WHEN operation_type = 'EXPENSE' OR (
-               operation_type IS NULL
-               AND (
-                  doc_type_code IS NULL
-                  OR doc_type_code NOT IN (39, 41)
-               )
-            ) THEN 'EXPENSE'
-            ELSE 'OTHER'
-         END AS bucket,
+         ${documentBucketCase()} AS bucket,
          COUNT(*) AS count,
          COALESCE(SUM(total_amount), 0) AS total,
          COALESCE(SUM(amount_net), 0) AS net,
@@ -485,17 +496,7 @@ async function documentTypeComposition({ entityId, period, salesTotal, purchases
    const rows = await sequelize.query(
       `
       SELECT
-         CASE
-            WHEN d.operation_type = 'INCOME' OR (d.operation_type IS NULL AND d.doc_type_code IN (39, 41)) THEN 'INCOME'
-            WHEN d.operation_type = 'EXPENSE' OR (
-               d.operation_type IS NULL
-               AND (
-                  d.doc_type_code IS NULL
-                  OR d.doc_type_code NOT IN (39, 41)
-               )
-            ) THEN 'EXPENSE'
-            ELSE 'OTHER'
-         END AS bucket,
+         ${documentBucketCase('d')} AS bucket,
          d.doc_type_code,
          dt.name AS doc_type_name,
          COUNT(*) AS count,
@@ -527,6 +528,120 @@ async function documentTypeComposition({ entityId, period, salesTotal, purchases
    };
 }
 
+async function dataQualitySnapshot({ entityId, period }) {
+   const [documents] = await sequelize.query(
+      `
+      SELECT
+         COUNT(*) AS total_documents,
+         SUM(CASE WHEN operation_type IS NULL THEN 1 ELSE 0 END) AS missing_operation_type,
+         SUM(CASE WHEN ${documentBucketCase()} = 'OTHER' THEN 1 ELSE 0 END) AS unclassified_documents,
+         SUM(CASE
+            WHEN operation_type IS NULL
+             AND doc_type_code IN (33, 34)
+             AND received_date IS NULL
+             AND purchase_type IS NULL
+            THEN 1 ELSE 0
+         END) AS ambiguous_legacy_invoices,
+         SUM(CASE WHEN counterparty_rut IS NULL OR counterparty_rut = '' THEN 1 ELSE 0 END) AS missing_counterparty_rut,
+         SUM(CASE WHEN folio IS NULL OR folio = '' THEN 1 ELSE 0 END) AS missing_folio,
+         SUM(CASE
+            WHEN ABS(
+               COALESCE(total_amount, 0)
+               - (
+                  COALESCE(amount_net, 0)
+                  + COALESCE(amount_vat, 0)
+                  + COALESCE(amount_exempt, 0)
+                  + COALESCE(other_tax_value, 0)
+               )
+            ) > 1
+            THEN 1 ELSE 0
+         END) AS amount_mismatch_documents
+      FROM entity_sii_documents
+      WHERE entity_id = :entityId
+        AND issue_date >= :startDate
+        AND issue_date < :endDate
+      `,
+      {
+         type: QueryTypes.SELECT,
+         replacements: {
+            entityId,
+            startDate: period.start,
+            endDate: period.end,
+         },
+      }
+   );
+
+   const [bank] = await sequelize.query(
+      `
+      SELECT
+         COUNT(*) AS total_transactions,
+         SUM(CASE WHEN remaining_amount > 0 THEN 1 ELSE 0 END) AS pending_transactions,
+         COALESCE(SUM(CASE WHEN remaining_amount > 0 THEN remaining_amount ELSE 0 END), 0) AS pending_amount,
+         SUM(CASE WHEN type = 'income' AND remaining_amount > 0 THEN 1 ELSE 0 END) AS pending_income_transactions,
+         COALESCE(SUM(CASE WHEN type = 'income' AND remaining_amount > 0 THEN remaining_amount ELSE 0 END), 0) AS pending_income_amount,
+         SUM(CASE WHEN type = 'expense' AND remaining_amount > 0 THEN 1 ELSE 0 END) AS pending_expense_transactions,
+         COALESCE(SUM(CASE WHEN type = 'expense' AND remaining_amount > 0 THEN remaining_amount ELSE 0 END), 0) AS pending_expense_amount
+      FROM (
+         SELECT
+            bt.id,
+            bt.type,
+            GREATEST(bt.amount - COALESCE(SUM(btd.amount_applied), 0), 0) AS remaining_amount
+         FROM entity_bank_transactions bt
+         LEFT JOIN bank_transaction_documents btd
+            ON btd.entity_bank_transaction_id = bt.id
+         WHERE bt.entity_id = :entityId
+           AND bt.issued_at >= :startDate
+           AND bt.issued_at < :endDate
+         GROUP BY bt.id, bt.type, bt.amount
+      ) pending
+      `,
+      {
+         type: QueryTypes.SELECT,
+         replacements: {
+            entityId,
+            startDate: period.start,
+            endDate: period.end,
+         },
+      }
+   );
+
+   const docsTotal = toNumber(documents.total_documents);
+   const docIssues = [
+      toNumber(documents.missing_operation_type),
+      toNumber(documents.unclassified_documents),
+      toNumber(documents.ambiguous_legacy_invoices),
+      toNumber(documents.missing_counterparty_rut),
+      toNumber(documents.missing_folio),
+      toNumber(documents.amount_mismatch_documents),
+   ].reduce((sum, value) => sum + value, 0);
+   const bankTotal = toNumber(bank.total_transactions);
+   const pendingTransactions = toNumber(bank.pending_transactions);
+   const hasWarnings = docIssues > 0 || pendingTransactions > 0;
+
+   return {
+      status: hasWarnings ? 'review' : 'ok',
+      documents: {
+         total: docsTotal,
+         missingOperationType: toNumber(documents.missing_operation_type),
+         unclassified: toNumber(documents.unclassified_documents),
+         ambiguousLegacyInvoices: toNumber(documents.ambiguous_legacy_invoices),
+         missingCounterpartyRut: toNumber(documents.missing_counterparty_rut),
+         missingFolio: toNumber(documents.missing_folio),
+         amountMismatch: toNumber(documents.amount_mismatch_documents),
+      },
+      bank: {
+         totalTransactions: bankTotal,
+         pendingTransactions,
+         pendingAmount: toNumber(bank.pending_amount),
+         pendingIncomeTransactions: toNumber(bank.pending_income_transactions),
+         pendingIncomeAmount: toNumber(bank.pending_income_amount),
+         pendingExpenseTransactions: toNumber(bank.pending_expense_transactions),
+         pendingExpenseAmount: toNumber(bank.pending_expense_amount),
+         reconciledRatio: bankTotal > 0 ? ((bankTotal - pendingTransactions) / bankTotal) * 100 : null,
+      },
+   };
+}
+
 class DashboardService {
    async monthlySummary({ entityId, month, scope = 'month' }) {
       const parsedEntityId = Number(entityId);
@@ -545,6 +660,10 @@ class DashboardService {
          period,
          salesTotal: sales.total,
          purchasesTotal: purchases.total,
+      });
+      const quality = await dataQualitySnapshot({
+         entityId: parsedEntityId,
+         period,
       });
       const syncPeriodCondition = period.scope === 'year'
          ? 'AND period_month IS NULL'
@@ -585,20 +704,14 @@ class DashboardService {
             ${dateSelect},
             COALESCE(SUM(
                CASE
-                  WHEN operation_type = 'INCOME' OR (operation_type IS NULL AND doc_type_code IN (39, 41))
+                  WHEN ${documentBucketCase()} = 'INCOME'
                   THEN total_amount
                   ELSE 0
                END
             ), 0) AS sales,
             COALESCE(SUM(
                CASE
-                  WHEN operation_type = 'EXPENSE' OR (
-                     operation_type IS NULL
-                     AND (
-                        doc_type_code IS NULL
-                        OR doc_type_code NOT IN (39, 41)
-                     )
-                  )
+                  WHEN ${documentBucketCase()} = 'EXPENSE'
                   THEN total_amount
                   ELSE 0
                END
@@ -655,6 +768,7 @@ class DashboardService {
          },
          comparison,
          composition,
+         quality,
          daily: period.scope === 'year'
             ? buildMonthlySeries({
                year: period.year,

@@ -32,7 +32,55 @@ const {
 
 const aesKey = process.env.MYSQL_AES_KEY;
 const CL_TZ = process.env.SII_TZ || "America/Santiago";
-const DEFAULT_TYPES = [33];
+const SALES_DOCUMENTS = {
+   33: {
+      code: 33,
+      displayName: "Factura Electronica (33)",
+      nameHint: "FacturaElectronica",
+      summaryTexts: ["factura electronica (33)"],
+   },
+   34: {
+      code: 34,
+      displayName: "Factura No Afecta o Exenta Electronica (34)",
+      nameHint: "FacturaNoAfectaExentaElectronica",
+      summaryTexts: [
+         "factura no afecta o exenta electronica (34)",
+         "factura exenta electronica (34)",
+      ],
+   },
+};
+const DEFAULT_TYPES = [33, 34];
+
+function normalizeTypesInput(value) {
+   if (Array.isArray(value)) {
+      const arr = value.map(type => Number(type)).filter(Number.isFinite);
+      return arr.length ? arr : null;
+   }
+   return parseTypes(value || "");
+}
+
+function resolveSalesDocuments(types) {
+   const seen = new Set();
+   return types
+      .map(type => Number(type))
+      .filter(Number.isFinite)
+      .filter((type) => {
+         if (seen.has(type)) return false;
+         seen.add(type);
+         return true;
+      })
+      .map(type => SALES_DOCUMENTS[type])
+      .filter(Boolean);
+}
+
+function detailSelectorsForDoc(docTypeCode) {
+   return [
+      `a[href="#detalle/${docTypeCode}"]`,
+      `a[href="#/detalle/${docTypeCode}"]`,
+      `a[href*="detalle/${docTypeCode}"]`,
+      `a[ui-sref*="detalle"][href*="${docTypeCode}"]`,
+   ];
+}
 
 async function ensureWritableDir(dirPath) {
    const abs = path.isAbsolute(dirPath) ? dirPath : path.resolve(process.cwd(), dirPath);
@@ -114,8 +162,13 @@ async function saveDebugSnapshot(page, downloadDir, filename) {
    }
 }
 
-async function waitForVentasSummary(page, timeout = 45000) {
-   await page.waitForFunction(() => {
+async function waitForVentasSummary(page, documents = Object.values(SALES_DOCUMENTS), timeout = 45000) {
+   const targets = documents.map(doc => ({
+      code: doc.code,
+      summaryTexts: doc.summaryTexts.map(normalizeText),
+   }));
+
+   await page.waitForFunction((docs) => {
       const normalize = (value) => String(value || "")
          .normalize("NFD")
          .replace(/[\u0300-\u036f]/g, "")
@@ -123,12 +176,16 @@ async function waitForVentasSummary(page, timeout = 45000) {
          .trim()
          .toLowerCase();
 
-      const hasDetailLink = Boolean(
-         document.querySelector('a[href="#detalle/33"], a[href="#/detalle/33"], a[href*="detalle/33"]')
-      );
+      const hasDetailLink = docs.some(doc => Boolean(
+         document.querySelector(`a[href="#detalle/${doc.code}"], a[href="#/detalle/${doc.code}"], a[href*="detalle/${doc.code}"]`)
+      ));
       const text = normalize(document.body.innerText || "");
-      return hasDetailLink || text.includes("factura electronica (33)");
-   }, { timeout });
+      const hasDocumentText = docs.some(doc => doc.summaryTexts.some(pattern => text.includes(pattern)));
+      const looksLikeVentasSummary = text.includes("venta") && (
+         text.includes("tipo documento") || text.includes("resumen") || text.includes("total")
+      );
+      return hasDetailLink || hasDocumentText || looksLikeVentasSummary;
+   }, { timeout }, targets);
 }
 
 async function clickFirstVisibleByText(page, selectors, textPatterns, { timeout = 15000 } = {}) {
@@ -171,7 +228,7 @@ async function clickFirstVisibleByText(page, selectors, textPatterns, { timeout 
    return false;
 }
 
-async function clickVentasTab(page) {
+async function clickVentasTab(page, documents = Object.values(SALES_DOCUMENTS)) {
    await removeBlockingOverlays(page);
 
    const clickedByState = await page.evaluate(() => {
@@ -194,7 +251,7 @@ async function clickVentasTab(page) {
    }).catch(() => false);
 
    if (clickedByState) {
-      await waitForVentasSummary(page, 45000);
+      await waitForVentasSummary(page, documents, 45000);
       return true;
    }
 
@@ -206,28 +263,32 @@ async function clickVentasTab(page) {
    );
 
    if (clicked) {
-      await waitForVentasSummary(page, 45000);
+      await waitForVentasSummary(page, documents, 45000);
    }
    return clicked;
 }
 
-async function clickFacturaElectronicaDetail(page) {
+async function clickSalesDocumentDetail(page, documentDef) {
    await removeBlockingOverlays(page);
 
-   await page.waitForFunction(() => {
+   const targetTexts = documentDef.summaryTexts.map(normalizeText);
+
+   await page.waitForFunction(({ code, texts }) => {
+      const normalize = (value) => String(value || "")
+         .normalize("NFD")
+         .replace(/[\u0300-\u036f]/g, "")
+         .replace(/\s+/g, " ")
+         .trim()
+         .toLowerCase();
+
       const rows = Array.from(document.querySelectorAll("tr"));
       return rows.some(row => {
-         const text = String(row.innerText || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-         return text.includes("factura electronica") && text.includes("(33)");
+         const text = normalize(row.innerText || "");
+         return texts.some(pattern => text.includes(pattern)) || (text.includes(`(${code})`) && text.includes("factura"));
       });
-   }, { timeout: 30000 }).catch(() => {});
+   }, { timeout: 30000 }, { code: documentDef.code, texts: targetTexts }).catch(() => {});
 
-   const selectors = [
-      'a[href="#detalle/33"]',
-      'a[href="#/detalle/33"]',
-      'a[href*="detalle/33"]',
-      'a[ui-sref*="detalle"][href*="33"]',
-   ];
+   const selectors = detailSelectorsForDoc(documentDef.code);
 
    for (const selector of selectors) {
       try {
@@ -246,7 +307,7 @@ async function clickFacturaElectronicaDetail(page) {
       }
    }
 
-   const clickedByText = await page.evaluate(() => {
+   const clickedByText = await page.evaluate((doc) => {
       const normalize = (value) => String(value || "")
          .normalize("NFD")
          .replace(/[\u0300-\u036f]/g, "")
@@ -254,18 +315,20 @@ async function clickFacturaElectronicaDetail(page) {
          .trim()
          .toLowerCase();
 
+      const targetTexts = doc.summaryTexts.map(normalize);
       const links = Array.from(document.querySelectorAll("a"));
       const link = links.find((el) => {
          const text = normalize(el.innerText || el.textContent || "");
          const href = el.getAttribute("href") || "";
-         return href.includes("detalle/33") || text.includes("factura electronica (33)");
+         return href.includes(`detalle/${doc.code}`)
+            || targetTexts.some(pattern => text.includes(pattern));
       });
 
       if (!link) return false;
       link.scrollIntoView({ block: "center", inline: "center" });
       link.click();
       return true;
-   }).catch(() => false);
+   }, documentDef).catch(() => false);
 
    if (!clickedByText) return false;
 
@@ -373,20 +436,51 @@ async function gunzipIfNeeded(filePath) {
    return destPath;
 }
 
-async function downloadFacturaElectronica(page, downloadDir, { year, month }) {
-   const nameHint = `FacturaElectronica_${year}${month}`;
+async function returnToVentasSummary(page, documents) {
+   await removeBlockingOverlays(page);
+
+   const backSelectors = [
+      'button[ng-click*="doTheBack"]',
+      'button[ng-click*="volver"]',
+      'a[ng-click*="doTheBack"]',
+      'a[ng-click*="volver"]',
+   ];
+
+   for (const selector of backSelectors) {
+      try {
+         const backButton = await page.waitForSelector(selector, { visible: true, timeout: 3000 });
+         await backButton.evaluate(el => el.scrollIntoView({ block: "center", inline: "center" }));
+         await backButton.click({ delay: 40 });
+         await waitForVentasSummary(page, documents, 30000);
+         return true;
+      } catch (_) {
+         // Probar siguiente forma de volver.
+      }
+   }
+
+   try {
+      await page.goBack({ waitUntil: "networkidle0", timeout: 15000 });
+      await waitForVentasSummary(page, documents, 30000);
+      return true;
+   } catch (_) {
+      return false;
+   }
+}
+
+async function downloadSalesDocument(page, downloadDir, { year, month, documentDef }) {
+   const nameHint = `${documentDef.nameHint}_${year}${month}`;
 
    await cleanPendingDownloads(downloadDir, nameHint);
 
-   const clickedDetail = await clickFacturaElectronicaDetail(page);
+   const clickedDetail = await clickSalesDocumentDetail(page, documentDef);
 
    if (!clickedDetail) {
-      await saveDebugSnapshot(page, downloadDir, `debug-ventas-${year}${month}.html`);
-      throw new Error("No se encontro el link Factura Electronica (33) en la pestana Ventas");
+      console.log(`Sin detalle disponible para ${documentDef.displayName} en ${year}-${month}.`);
+      return null;
    }
 
    if (clickedDetail) {
-      console.log("Detalle Factura Electronica (33) abierto.");
+      console.log(`Detalle ${documentDef.displayName} abierto.`);
       const exportSelector = "button[ng-click*='bajarArchivo']";
       try {
          const exportButton = await page.waitForSelector(exportSelector, { visible: true, timeout: 30000 });
@@ -433,36 +527,43 @@ async function downloadFacturaElectronica(page, downloadDir, { year, month }) {
 
          if (downloaded) return gunzipIfNeeded(downloaded);
       } catch (err) {
-         console.warn(`No se pudo exportar CSV desde detalle 33: ${err.message}`);
+         console.warn(`No se pudo exportar CSV desde detalle ${documentDef.code}: ${err.message}`);
          try {
             const backButton = await page.waitForSelector('button[ng-click*="doTheBack"]', { visible: true, timeout: 5000 });
             await backButton.click({ delay: 40 });
-            await page.waitForSelector('a[href="#detalle/33"], a[href*="detalle/33"]', { visible: true, timeout: 15000 });
+            await page.waitForSelector(detailSelectorsForDoc(documentDef.code).join(","), { visible: true, timeout: 15000 });
          } catch (_) {
             // Si no vuelve al resumen, el fallback probablemente no estara disponible.
          }
       }
    }
 
-   await saveDebugSnapshot(page, downloadDir, `debug-exportar-csv-${year}${month}.html`);
-   throw new Error("No se pudo descargar el CSV desde el detalle Factura Electronica (33)");
+   await saveDebugSnapshot(page, downloadDir, `debug-exportar-csv-${documentDef.code}-${year}${month}.html`);
+   throw new Error(`No se pudo descargar el CSV desde el detalle ${documentDef.displayName}`);
 }
 
-const run = async ({ entityId = null, year: inYear = null, month: inMonth = null } = {}) => {
-   console.log("Iniciando servicio SII Ventas - Factura Electronica");
+const run = async ({ entityId = null, year: inYear = null, month: inMonth = null, types = null } = {}) => {
+   console.log("Iniciando servicio SII Ventas - Facturas Electronicas");
 
    const now = DateTime.now().setZone(CL_TZ);
    const cliEntityId = entityId || getArgValue("entityId") || getArgValue("entity");
    const yearInput = inYear || getArgValue("year") || arg("year", now.toFormat("yyyy"));
    const monthInput = inMonth || getArgValue("month") || arg("month", now.toFormat("MM"));
    const fullYear = String(monthInput).toUpperCase() === "ALL" || process.argv.includes("--fullYear");
-   const onlyTypes = parseTypes(getArgValue("types") || arg("types", "")) || DEFAULT_TYPES;
+   const requestedTypes = normalizeTypesInput(types) || parseTypes(getArgValue("types") || arg("types", "")) || DEFAULT_TYPES;
+   const salesDocuments = resolveSalesDocuments(requestedTypes);
+   const onlyTypes = salesDocuments.map(doc => doc.code);
 
    const { year, month } = getYearMonthPair(yearInput, fullYear ? "01" : monthInput);
 
    console.log(`Modo: ${fullYear ? "anual" : "mensual"}`);
    console.log(`Objetivo: ${fullYear ? `anio ${year}` : `${year}-${month}`}`);
    console.log(`Tipos documento: ${onlyTypes.join(", ")}`);
+
+   if (!salesDocuments.length) {
+      console.error(`No hay tipos de venta soportados en: ${requestedTypes.join(", ")}`);
+      return { ok: false, message: "Sin tipos de venta soportados" };
+   }
 
    if (!fullYear && isFuturePeriod(year, month, CL_TZ)) {
       console.warn(`Periodo futuro ${year}-${month}. Cancelando.`);
@@ -556,7 +657,7 @@ const run = async ({ entityId = null, year: inYear = null, month: inMonth = null
                   });
 
                   try {
-                     const salesTabClicked = await clickVentasTab(page);
+                     const salesTabClicked = await clickVentasTab(page, salesDocuments);
                      if (!salesTabClicked) {
                         await saveDebugSnapshot(page, downloadDir, `debug-sin-pestana-venta-${year}${mm}.html`);
                         throw new Error("No se encontro la pestana Ventas");
@@ -566,28 +667,51 @@ const run = async ({ entityId = null, year: inYear = null, month: inMonth = null
                      throw new Error(`No se pudo abrir la pestana Ventas: ${errVenta.message}`);
                   }
 
-                  const file = await downloadFacturaElectronica(page, downloadDir, { year, month: mm });
+                  for (let index = 0; index < salesDocuments.length; index++) {
+                     const documentDef = salesDocuments[index];
+                     const file = await downloadSalesDocument(page, downloadDir, { year, month: mm, documentDef });
 
-                  if (!file) {
-                     console.log(`No se descargo archivo para ${year}-${mm}.`);
-                     continue;
+                     if (!file) {
+                        console.log(`No se descargo archivo ${documentDef.displayName} para ${year}-${mm}.`);
+                        continue;
+                     }
+
+                     const stats = await loaderService.loadCsv(file, {
+                        entityId: creds.entity_id,
+                        year,
+                        month: mm,
+                        onlyTypes,
+                        operationType: "INCOME",
+                        defaultDocType: documentDef.code,
+                     });
+
+                     console.log(`BD ${documentDef.displayName}: ${stats.totals.processed} procesados, ${stats.totals.inserted} nuevos, ${stats.totals.updated} actualizados, ${stats.totals.skipped} omitidos.`);
+                     if (stats.totals.skipReasons && Object.keys(stats.totals.skipReasons).length) {
+                        console.log(`Omitidos por motivo: ${JSON.stringify(stats.totals.skipReasons)}`);
+                     }
+                     statsReport.processed += stats.totals.processed;
+                     statsReport.details.push({
+                        entityId: creds.entity_id,
+                        year,
+                        month: mm,
+                        docType: documentDef.code,
+                        totals: stats.totals,
+                     });
+
+                     if (index < salesDocuments.length - 1) {
+                        const backToSummary = await returnToVentasSummary(page, salesDocuments);
+                        if (!backToSummary) {
+                           await fillComprasVentasForm(page, {
+                              rut: `${creds.rut_sin_dv}-${creds.dv}`,
+                              mes: mm,
+                              anho: year,
+                              timeout: 60000,
+                           });
+                           const reopened = await clickVentasTab(page, salesDocuments);
+                           if (!reopened) throw new Error("No se pudo volver al resumen de Ventas");
+                        }
+                     }
                   }
-
-                  const stats = await loaderService.loadCsv(file, {
-                     entityId: creds.entity_id,
-                     year,
-                     month: mm,
-                     onlyTypes,
-                     operationType: "INCOME",
-                     defaultDocType: 33,
-                  });
-
-                  console.log(`BD: ${stats.totals.processed} procesados, ${stats.totals.inserted} nuevos, ${stats.totals.updated} actualizados, ${stats.totals.skipped} omitidos.`);
-                  if (stats.totals.skipReasons && Object.keys(stats.totals.skipReasons).length) {
-                     console.log(`Omitidos por motivo: ${JSON.stringify(stats.totals.skipReasons)}`);
-                  }
-                  statsReport.processed += stats.totals.processed;
-                  statsReport.details.push({ entityId: creds.entity_id, year, month: mm, totals: stats.totals });
                } catch (errStep) {
                   const pageText = await page.evaluate(() => document.body.innerText).catch(() => "");
                   if (pageText.includes("no existen movimientos")) {
@@ -624,5 +748,10 @@ if (require.main === module) {
 }
 
 module.exports = {
-   runManualSync: (entityId, year, month) => run({ entityId, year, month }),
+   runManualSync: (entityId, year, month, options = {}) => run({
+      entityId,
+      year,
+      month,
+      types: options.types || options.onlyTypes || null,
+   }),
 };

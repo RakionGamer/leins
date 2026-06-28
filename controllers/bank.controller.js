@@ -9,8 +9,11 @@ const service = new BankService();
 const reconcile = new ReconcileService();
 
 const downloadMovementsTemplate = asyncHandler(async (_req, res) => {
-   const filename = 'plantilla_movimientos_bancarios.xlsx';
-   const buffer = service.buildMovementsTemplateBuffer();
+   const amountColumnsMode = service.normalizeAmountColumnsMode(_req.query?.amountColumnsMode || _req.query?.mode);
+   const filename = amountColumnsMode === 'split'
+      ? 'plantilla_movimientos_bancarios_abonos_cargos.xlsx'
+      : 'plantilla_movimientos_bancarios.xlsx';
+   const buffer = service.buildMovementsTemplateBuffer({ amountColumnsMode });
 
    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
@@ -26,11 +29,15 @@ const uploadExcel = asyncHandler(async (req, res) => {
    const commit = String(req.body.commit || 'false').toLowerCase() === 'true';
    const entityId = Number(req.body?.entityId ?? 0) || null;
    const entityBankAccountId = Number(req.body?.accountId ?? 0) || null;
+   const amountColumnsMode = service.normalizeAmountColumnsMode(
+      req.body?.amountColumnsMode ||
+      (String(req.body?.splitDebitCredit || req.body?.separateDebitCredit || '').toLowerCase() === 'true' ? 'split' : null)
+   );
 
    try {
       const result = await service.importFromExcelBuffer(
          req.file.buffer,
-         { commit, entityId, entityBankAccountId, expectMovements: true }
+         { commit, entityId, entityBankAccountId, expectMovements: true, amountColumnsMode }
       );
 
       // log de auditoria: subida de cartola bancaria

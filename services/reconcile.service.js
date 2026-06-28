@@ -21,9 +21,9 @@ class ReconcileService {
 
       const whereDocsByType =
          type === "expense"
-            ? "AND d.doc_type_code IN (33,34) AND (d.received_date IS NOT NULL OR d.purchase_type IS NOT NULL)"
+            ? "AND (d.operation_type = 'EXPENSE' OR (d.operation_type IS NULL AND d.doc_type_code IN (33,34) AND (d.received_date IS NOT NULL OR d.purchase_type IS NOT NULL)))"
             : type === "income"
-               ? "AND (d.doc_type_code NOT IN (33,34) OR d.doc_type_code IS NULL)"
+               ? "AND (d.operation_type = 'INCOME' OR (d.operation_type IS NULL AND (d.doc_type_code NOT IN (33,34) OR d.doc_type_code IS NULL)))"
                : "";
 
       const params = {
@@ -110,9 +110,9 @@ class ReconcileService {
 
       const whereDocsByType =
          type === "expense"
-            ? "AND d.doc_type_code IN (33,34) AND (d.received_date IS NOT NULL OR d.purchase_type IS NOT NULL)"
+            ? "AND (d.operation_type = 'EXPENSE' OR (d.operation_type IS NULL AND d.doc_type_code IN (33,34) AND (d.received_date IS NOT NULL OR d.purchase_type IS NOT NULL)))"
             : type === "income"
-               ? "AND (d.doc_type_code NOT IN (33,34) OR d.doc_type_code IS NULL)"
+               ? "AND (d.operation_type = 'INCOME' OR (d.operation_type IS NULL AND (d.doc_type_code NOT IN (33,34) OR d.doc_type_code IS NULL)))"
                : "";
 
       const params = {
@@ -210,9 +210,9 @@ class ReconcileService {
       // para egresos (expense) solo compras recibidas: 33/34 y flag de recibido
       const whereDocsByType =
          type === "expense"
-            ? "AND d.doc_type_code IN (33,34) AND (d.received_date IS NOT NULL OR d.purchase_type IS NOT NULL)"
+            ? "AND (d.operation_type = 'EXPENSE' OR (d.operation_type IS NULL AND d.doc_type_code IN (33,34) AND (d.received_date IS NOT NULL OR d.purchase_type IS NOT NULL)))"
             : type === "income"
-               ? "AND (d.doc_type_code NOT IN (33,34) OR d.doc_type_code IS NULL)"
+               ? "AND (d.operation_type = 'INCOME' OR (d.operation_type IS NULL AND (d.doc_type_code NOT IN (33,34) OR d.doc_type_code IS NULL)))"
                : "";
 
       const whereSearch = search
@@ -519,5 +519,4 @@ class ReconcileService {
 }
 
 module.exports = ReconcileService;
-
 

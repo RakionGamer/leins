@@ -1,8 +1,8 @@
 "use strict";
 
-const { Op } = require('sequelize');
+const { Op, QueryTypes } = require('sequelize');
 const Boom = require('@hapi/boom');
-const { models } = require('../libs/sequelize');
+const { models, sequelize } = require('../libs/sequelize');
 
 const ALLOWED_EXPENSE_DOC_TYPES = new Set([33, 39]);
 
@@ -55,17 +55,17 @@ class SiiDocumentsService {
    async delete(id) {
       const doc = await models.EntitySiiDocument.findByPk(id);
       if (!doc) throw Boom.notFound('documento no encontrado');
-      
+
       if (doc.source !== 'MANUAL') {
          throw Boom.unauthorized('no esta permitido eliminar documentos oficiales del sii');
       }
-      
+
       await doc.destroy();
       return { id };
    }
 
    // listado general
-   async list({ entity_id, type, source, operation_type, month, from, to, page = 1, limit = 50, sort = 'issue_date', order = 'desc' }) {
+   async list({ entity_id, type, source, operation_type, month, from, to, page = 1, limit = 50, sort = 'issue_date', order = 'desc', pendingOnly = false }) {
       const where = {};
       const parsedEntityId = Number(entity_id);
       if (!Number.isInteger(parsedEntityId) || parsedEntityId <= 0) {
@@ -78,12 +78,12 @@ class SiiDocumentsService {
       if (operation_type) {
          const op = String(operation_type).toUpperCase();
          if (!where[Op.and]) where[Op.and] = [];
-         
+
          if (op === 'INCOME') {
             where[Op.and].push({
                [Op.or]: [
                   { operation_type: 'INCOME' },
-                  { operation_type: null, doc_type_code: [39, 41] } 
+                  { operation_type: null, doc_type_code: [39, 41] }
                ]
             });
          } else if (op === 'EXPENSE') {
@@ -91,12 +91,12 @@ class SiiDocumentsService {
                [Op.or]: [
                   { operation_type: 'EXPENSE' },
                   { operation_type: null, doc_type_code: { [Op.notIn]: [39, 41] } },
-                  { operation_type: null, doc_type_code: null } 
+                  { operation_type: null, doc_type_code: null }
                ]
             });
          }
       }
-      
+
       if (type) {
          if (type === 'null') {
             where.doc_type_code = null;
@@ -164,10 +164,25 @@ class SiiDocumentsService {
       const pageNum = Math.max(1, Number(page) || 1);
       const pageSize = Math.max(1, Math.min(200, Number(limit) || 50));
       const offset = (pageNum - 1) * pageSize;
+      const baseAlias = models.EntitySiiDocument.name || 'EntitySiiDocument';
+      const baseQuoted = `\`${baseAlias}\``;
+      const appliedSumSQL =
+         `(SELECT COALESCE(SUM(btd.amount_applied),0)
+         FROM bank_transaction_documents btd
+         WHERE btd.entity_sii_document_id = ${baseQuoted}.id)`;
+      const remainingSQL = `(COALESCE(${baseQuoted}.total_amount,0) - ${appliedSumSQL})`;
+
+      if (pendingOnly) {
+         if (!where[Op.and]) where[Op.and] = [];
+         where[Op.and].push(
+            sequelize.where(sequelize.literal(remainingSQL), { [Op.gt]: 0 })
+         );
+      }
 
       const attributes = [
          'id', 'entity_id', 'doc_type_code', 'counterparty_rut', 'counterparty_name', 'folio',
-         'issue_date', 'due_date', 'total_amount', 'created_at', 'updated_at', 'source', 'operation_type'
+         'issue_date', 'due_date', 'total_amount', 'created_at', 'updated_at', 'source', 'operation_type',
+         [sequelize.literal(remainingSQL), 'remaining_amount'],
       ];
 
       const { rows, count } = await models.EntitySiiDocument.findAndCountAll({
@@ -197,6 +212,7 @@ class SiiDocumentsService {
          issue_date: r.issue_date,
          due_date: r.due_date,
          total_amount: r.total_amount,
+         remaining_amount: Number(r.get?.('remaining_amount') ?? r.total_amount ?? 0),
          source: r.source,
          operation_type: r.operation_type,
          created_at: r.created_at,
@@ -204,6 +220,96 @@ class SiiDocumentsService {
       }));
 
       return { total: count, page: pageNum, pageSize, items };
+   }
+
+   async dailySalesGroups({ entity_id, from, to }) {
+      const parsedEntityId = Number(entity_id);
+      if (!Number.isInteger(parsedEntityId) || parsedEntityId <= 0) {
+         throw Boom.badRequest('entity_id es requerido');
+      }
+
+      if (!from || !to) {
+         throw Boom.badRequest('from y to son requeridos');
+      }
+
+      const rows = await sequelize.query(
+         `
+      SELECT
+         d.id,
+         d.doc_type_code,
+         d.folio,
+         d.issue_date,
+         d.counterparty_rut,
+         d.counterparty_name,
+         d.total_amount,
+         (
+            COALESCE(d.total_amount, 0) -
+            COALESCE((
+               SELECT SUM(btd.amount_applied)
+               FROM bank_transaction_documents btd
+               WHERE btd.entity_sii_document_id = d.id
+            ), 0)
+         ) AS remaining_amount
+      FROM entity_sii_documents d
+      WHERE d.entity_id = :entityId
+        AND d.doc_type_code IN (33, 34, 39, 41)
+        AND d.issue_date >= :from
+        AND d.issue_date < DATE_ADD(:to, INTERVAL 1 DAY)
+        AND (
+           d.operation_type = 'INCOME'
+           OR (
+              d.operation_type IS NULL
+              AND d.doc_type_code IN (39, 41)
+           )
+        )
+      HAVING remaining_amount > 0
+      ORDER BY d.issue_date ASC, d.doc_type_code ASC, d.folio ASC
+      `,
+         {
+            type: QueryTypes.SELECT,
+            replacements: {
+               entityId: parsedEntityId,
+               from,
+               to,
+            },
+         }
+      );
+
+      const grouped = new Map();
+
+      for (const row of rows) {
+         const date = String(row.issue_date).slice(0, 10);
+         const pending = Number(row.remaining_amount || 0);
+         if (!(pending > 0)) continue;
+
+         const current = grouped.get(date) || {
+            key: date,
+            date,
+            documents_count: 0,
+            total_amount: 0,
+            docs: [],
+         };
+
+         current.documents_count += 1;
+         current.total_amount += pending;
+         current.docs.push({
+            id: Number(row.id),
+            doc_type_code: Number(row.doc_type_code),
+            folio: row.folio,
+            issue_date: row.issue_date,
+            counterparty_rut: row.counterparty_rut,
+            counterparty_name: row.counterparty_name,
+            total_amount: Number(row.total_amount || 0),
+            remaining_amount: pending,
+         });
+
+         grouped.set(date, current);
+      }
+
+      return Array.from(grouped.values()).map((group) => ({
+         ...group,
+         total_amount: Math.round(group.total_amount),
+      }));
    }
 }
 

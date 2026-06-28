@@ -20,6 +20,9 @@ const ensureDocumentEntityAccess = requireSiiDocumentEntityAccess();
 // listado de documentos
 router.get('/', ensureEntityAccess, controller.listDocuments);
 
+// ventas pendientes agrupadas por dia
+router.get('/sales/daily-groups', ensureEntityAccess, controller.dailySalesGroups);
+
 // creacion manual
 router.post('/manual',
    validatorHandler(createManualIncomeSchema, 'body'),

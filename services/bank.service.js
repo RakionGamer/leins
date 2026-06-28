@@ -8,29 +8,59 @@ const { config } = require('../config/config');
 
 class BankService {
 
-   buildMovementsTemplateBuffer() {
-      const header = ['Fecha', 'Descripcion', 'Monto', 'Saldo', 'No Documento', 'Sucursal'];
+   normalizeAmountColumnsMode(value) {
+      const mode = String(value || '').trim().toLowerCase();
+      if (['split', 'separate', 'abonos_cargos', 'abonos-cargos', 'separate_debit_credit'].includes(mode)) return 'split';
+      return 'standard';
+   }
 
-      const sampleRows = [
-         ['01/03/2026', 'Transferencia a proveedor ACME', -125000, 980000, '0001234567', 'Casa Matriz'],
-         ['02/03/2026', 'Abono cliente factura 1024', 250000, 1230000, '001024', 'Web'],
-      ];
+   buildMovementsTemplateBuffer({ amountColumnsMode = 'standard' } = {}) {
+      const mode = this.normalizeAmountColumnsMode(amountColumnsMode);
+      const isSplit = mode === 'split';
+      const header = isSplit
+         ? ['Fecha', 'Descripcion', 'Abonos', 'Cargos', 'Saldo', 'No Documento', 'Sucursal']
+         : ['Fecha', 'Descripcion', 'Monto', 'Saldo', 'No Documento', 'Sucursal'];
+
+      const sampleRows = isSplit
+         ? [
+            ['01/03/2026', 'Abono cliente factura 1024', 250000, null, 1230000, '001024', 'Web'],
+            ['02/03/2026', 'Transferencia a proveedor ACME', null, 125000, 1105000, '0001234567', 'Casa Matriz'],
+         ]
+         : [
+            ['01/03/2026', 'Transferencia a proveedor ACME', -125000, 980000, '0001234567', 'Casa Matriz'],
+            ['02/03/2026', 'Abono cliente factura 1024', 250000, 1230000, '001024', 'Web'],
+         ];
 
       const wsMovements = xlsx.utils.aoa_to_sheet([header, ...sampleRows]);
-      wsMovements['!cols'] = [
+      wsMovements['!cols'] = (isSplit ? [
+         { wch: 14 },
+         { wch: 44 },
+         { wch: 14 },
+         { wch: 14 },
+         { wch: 14 },
+         { wch: 16 },
+         { wch: 20 },
+      ] : [
          { wch: 14 },
          { wch: 44 },
          { wch: 14 },
          { wch: 14 },
          { wch: 16 },
          { wch: 20 },
-      ];
+      ]);
 
       const wsGuide = xlsx.utils.aoa_to_sheet([
          ['Campo', 'Obligatorio', 'Formato', 'Descripcion'],
          ['Fecha', 'Si', 'DD/MM/YYYY o DD-MM-YYYY', 'Fecha del movimiento bancario'],
          ['Descripcion', 'Si', 'Texto', 'Descripcion del movimiento'],
-         ['Monto', 'Si', 'Numero con signo', 'Usa negativo para cargo y positivo para abono'],
+         ...(isSplit
+            ? [
+               ['Abonos', 'Si', 'Numero positivo', 'Monto de entrada. Debe venir vacio si la fila es cargo'],
+               ['Cargos', 'Si', 'Numero positivo', 'Monto de salida. Debe venir vacio si la fila es abono'],
+            ]
+            : [
+               ['Monto', 'Si', 'Numero con signo', 'Usa negativo para cargo y positivo para abono'],
+            ]),
          ['Saldo', 'No', 'Numero', 'Saldo disponible despues del movimiento'],
          ['No Documento', 'No', 'Texto', 'Referencia interna del banco'],
          ['Sucursal', 'No', 'Texto', 'Sucursal o canal del movimiento'],
@@ -51,10 +81,10 @@ class BankService {
    }
 
    // importa bancos o movimientos desde buffer de Excel
-   async importFromExcelBuffer(buffer, { commit = false, entityId, entityBankAccountId, expectMovements = false } = {}) {
+   async importFromExcelBuffer(buffer, { commit = false, entityId, entityBankAccountId, expectMovements = false, amountColumnsMode = 'standard' } = {}) {
       const wb = this.#readWorkbook(buffer);
-      const { sheetName, rows, _mode, headerRowIdx } = this.#sheetToRows(wb);
-      const movementModes = new Set(['template_movs']);
+      const { sheetName, rows, _mode, headerRowIdx } = this.#sheetToRows(wb, { amountColumnsMode });
+      const movementModes = new Set(['template_movs', 'template_movs_split']);
 
       // fila base para _rowNumber (opcional)
       const startRowExcel = (headerRowIdx >= 0 ? headerRowIdx + 2 : 2);
@@ -63,6 +93,7 @@ class BankService {
          // seleccionar mapeador según modo
          const mapper = {
             template_movs: (r) => this.#mapTemplateRow(r),
+            template_movs_split: (r) => this.#mapSplitTemplateRow(r),
          }[_mode];
 
          const mapped = rows.map((r, i) => ({ ...mapper(r), _rowNumber: startRowExcel + i }));
@@ -113,7 +144,7 @@ class BankService {
       }
 
       throw boom.badRequest(
-         'formato de movimientos no reconocido. descarga la plantilla y usa columnas: fecha, descripcion, monto, saldo, no documento, sucursal'
+         'formato de movimientos no reconocido. usa columnas: fecha, descripcion, monto, saldo, no documento, sucursal; o fecha, descripcion, abonos, cargos, saldo, no documento, sucursal'
       );
    }
 
@@ -157,8 +188,10 @@ class BankService {
             const issuedAt = new Date(`${m.movementDate}T00:00:00.000Z`);
             const description = m.detail || null;
             const balance = (m.balance != null) ? Number(m.balance) : null; // <- normaliza saldo
+            const documentRef = m.documentRef || null;
+            const branch = m.branch || null;
 
-            const where = {
+            const baseWhere = {
                entity_id: entityId,
                entity_bank_account_id: entityBankAccountId,
                issued_at: issuedAt,
@@ -166,9 +199,31 @@ class BankService {
                amount: amountAbs,
                description,
             };
+            const where = { ...baseWhere };
             if (balance != null) where.balance = balance; // <- usa saldo si viene
+            if (documentRef) where.document_ref = documentRef;
+            if (branch) where.branch = branch;
 
-            const exists = await models.EntityBankTransaction.findOne({ where, transaction: t });
+            let exists = await models.EntityBankTransaction.findOne({ where, transaction: t });
+            let enrichedExisting = false;
+
+            if (!exists && (documentRef || branch)) {
+               const metadataGapWhere = { ...baseWhere };
+               if (balance != null) metadataGapWhere.balance = balance;
+               metadataGapWhere[Op.and] = [
+                  { [Op.or]: [{ document_ref: null }, { document_ref: '' }] },
+                  { [Op.or]: [{ branch: null }, { branch: '' }] },
+               ];
+
+               exists = await models.EntityBankTransaction.findOne({ where: metadataGapWhere, transaction: t });
+               if (exists) {
+                  await exists.update({
+                     document_ref: documentRef || exists.document_ref || null,
+                     branch: branch || exists.branch || null,
+                  }, { transaction: t });
+                  enrichedExisting = true;
+               }
+            }
 
             if (exists) {
                if (collectSkipped) {
@@ -179,8 +234,9 @@ class BankService {
                      amount: amountAbs,
                      balance,              // <- muestra saldo en el detalle
                      description,
-                     documentRef: m.documentRef || null,
-                     branch: m.branch || null
+                     documentRef,
+                     branch,
+                     enrichedExisting
                   });
                }
                continue;
@@ -194,6 +250,8 @@ class BankService {
                description,
                issued_at: issuedAt,
                balance,                // <- guarda saldo
+               document_ref: documentRef,
+               branch,
                sii_document_id: null,
             }, { transaction: t });
 
@@ -210,11 +268,64 @@ class BankService {
          return input.toISOString().slice(0, 10);
       }
       const s = String(input || '').trim();
-      const m = /^(\d{2})[\/\-](\d{2})[\/\-](\d{4})$/.exec(s);
+      const monthNames = {
+         ene: '01',
+         enero: '01',
+         feb: '02',
+         febrero: '02',
+         mar: '03',
+         marzo: '03',
+         abr: '04',
+         abril: '04',
+         may: '05',
+         mayo: '05',
+         jun: '06',
+         junio: '06',
+         jul: '07',
+         julio: '07',
+         ago: '08',
+         agosto: '08',
+         sep: '09',
+         sept: '09',
+         septiembre: '09',
+         oct: '10',
+         octubre: '10',
+         nov: '11',
+         noviembre: '11',
+         dic: '12',
+         diciembre: '12',
+      };
+
+      const m = /^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/.exec(s);
       if (m) {
          const [_, dd, mm, yyyy] = m;
-         const d = new Date(`${yyyy}-${mm}-${dd}`);
+         const dateText = `${yyyy}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
+         const d = new Date(dateText);
          return isNaN(d) ? null : d.toISOString().slice(0, 10);
+      }
+
+      const shortNumeric = /^(\d{1,2})[\/\-](\d{1,2})$/.exec(s);
+      if (shortNumeric) {
+         const [_, dd, mm] = shortNumeric;
+         const yyyy = new Date().getFullYear();
+         const dateText = `${yyyy}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
+         const d = new Date(dateText);
+         return isNaN(d) ? null : d.toISOString().slice(0, 10);
+      }
+
+      const monthText = /^(\d{1,2})[\/\-\s]([^0-9\/\-\s]+)(?:[\/\-\s](\d{2,4}))?$/.exec(s);
+      if (monthText) {
+         const [, dd, rawMonth, rawYear] = monthText;
+         const monthKey = BankService.#normKey(rawMonth).replace(/\./g, '');
+         const mm = monthNames[monthKey];
+         const yyyy = rawYear
+            ? (String(rawYear).length === 2 ? `20${rawYear}` : String(rawYear))
+            : String(new Date().getFullYear());
+         if (mm) {
+            const dateText = `${yyyy}-${mm}-${String(dd).padStart(2, '0')}`;
+            const d = new Date(dateText);
+            return isNaN(d) ? null : d.toISOString().slice(0, 10);
+         }
       }
 
       const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
@@ -246,6 +357,9 @@ class BankService {
          const commaCount = (s.match(/,/g) || []).length;
          if (commaCount === 1 && /,\d{1,2}$/.test(s)) s = s.replace(',', '.'); // 1,23 -> 1.23
          else s = s.replace(/,/g, ''); // 15,000 -> 15000
+      } else if (hasDot && !hasComma) {
+         const dotCount = (s.match(/\./g) || []).length;
+         if (dotCount > 1 || /\.\d{3}$/.test(s)) s = s.replace(/\./g, ''); // 50.273 -> 50273
       }
       const n = parseFloat(s);
       return Number.isFinite(n) ? n : null;
@@ -284,6 +398,10 @@ class BankService {
       return null;
    }
 
+   static #hasCellValue(value) {
+      return value != null && String(value).trim() !== '';
+   }
+
    // === Plantilla LEINS: formato estandar para cualquier banco ===
    #mapTemplateRow(r) {
       const rawDate = BankService.#pickFromRow(r, 'Fecha');
@@ -293,12 +411,10 @@ class BankService {
       const rawDoc = BankService.#pickFromRow(r, 'No Documento', 'N Documento', 'Nro Documento', 'Numero Documento', 'Documento');
       const rawSuc = BankService.#pickFromRow(r, 'Sucursal');
 
-      const hasValue = (v) => v != null && String(v).trim() !== '';
-
       let amount = BankService.#parseAmount(rawMonto);
       let amountError = null;
 
-      if (!hasValue(rawMonto)) {
+      if (!BankService.#hasCellValue(rawMonto)) {
          amountError = 'monto requerido';
       } else if (!Number.isFinite(amount)) {
          amountError = 'monto invalido en columna monto';
@@ -315,6 +431,58 @@ class BankService {
          branch: rawSuc ? String(rawSuc).trim() : null,
          kind,
          _amountError: amountError,
+         _raw: r,
+      };
+   }
+
+   #mapSplitTemplateRow(r) {
+      const rawDate = BankService.#pickFromRow(r, 'Fecha');
+      const rawDesc = BankService.#pickFromRow(r, 'Descripcion', 'DescripciÃ³n');
+      const rawAbonos = BankService.#pickFromRow(r, 'Abonos', 'Abono', 'Haber', 'Depositos', 'Deposito');
+      const rawCargos = BankService.#pickFromRow(r, 'Cargos', 'Cargo', 'Debe', 'Retiros', 'Retiro');
+      const rawSaldo = BankService.#pickFromRow(r, 'Saldo');
+      const rawDoc = BankService.#pickFromRow(r, 'No Documento', 'N Documento', 'Nro Documento', 'Numero Documento', 'Documento');
+      const rawSuc = BankService.#pickFromRow(r, 'Sucursal');
+
+      const hasAbono = BankService.#hasCellValue(rawAbonos);
+      const hasCargo = BankService.#hasCellValue(rawCargos);
+      const abono = hasAbono ? BankService.#parseAmount(rawAbonos) : null;
+      const cargo = hasCargo ? BankService.#parseAmount(rawCargos) : null;
+      const amountErrors = [];
+
+      if (!hasAbono && !hasCargo) {
+         amountErrors.push('monto requerido en abonos o cargos');
+      }
+      if (hasAbono && !Number.isFinite(abono)) {
+         amountErrors.push('monto invalido en columna abonos');
+      }
+      if (hasCargo && !Number.isFinite(cargo)) {
+         amountErrors.push('monto invalido en columna cargos');
+      }
+
+      const abonoAbs = Number.isFinite(abono) ? Math.abs(abono) : 0;
+      const cargoAbs = Number.isFinite(cargo) ? Math.abs(cargo) : 0;
+      if (abonoAbs > 0 && cargoAbs > 0) {
+         amountErrors.push('usa solo abonos o cargos por fila');
+      }
+
+      let amount = null;
+      if (!amountErrors.length) {
+         if (abonoAbs > 0) amount = abonoAbs;
+         if (cargoAbs > 0) amount = -cargoAbs;
+      }
+
+      const kind = Number.isFinite(amount) ? (amount < 0 ? 'C' : 'A') : null;
+
+      return {
+         movementDate: BankService.#parseDDMMYYYY(rawDate),
+         detail: rawDesc ? String(rawDesc).trim() : null,
+         amount,
+         balance: BankService.#parseAmount(rawSaldo),
+         documentRef: rawDoc ? String(rawDoc).trim() : null,
+         branch: rawSuc ? String(rawSuc).trim() : null,
+         kind,
+         _amountError: amountErrors.length ? amountErrors.join('; ') : null,
          _raw: r,
       };
    }
@@ -342,15 +510,29 @@ class BankService {
       return { matched: ok, mode: 'template_movs', needsArray: true };
    }
 
+   static #detectSplitTemplate(headerSet) {
+      const hasFecha = headerSet.has('fecha');
+      const hasDesc = headerSet.has('descripcion') || Array.from(headerSet).some(k => k.startsWith('descripcion'));
+      const hasAbonos = headerSet.has('abonos') || headerSet.has('abono') || headerSet.has('haber') || headerSet.has('depositos') || headerSet.has('deposito');
+      const hasCargos = headerSet.has('cargos') || headerSet.has('cargo') || headerSet.has('debe') || headerSet.has('retiros') || headerSet.has('retiro');
+      const ok = hasFecha && hasDesc && hasAbonos && hasCargos;
+      return { matched: ok, mode: 'template_movs_split', needsArray: true };
+   }
+
    // Registro de detectores en orden de prioridad
    static #BANK_DETECTORS = [
+      BankService.#detectSplitTemplate,
       BankService.#detectTemplate,
    ];
 
    // extrae filas de la primera hoja del workbook
-   #sheetToRows(wb) {
+   #sheetToRows(wb, { amountColumnsMode = 'standard' } = {}) {
       const sheetName = wb.SheetNames[0];
       const ws = wb.Sheets[sheetName];
+      const mode = this.normalizeAmountColumnsMode(amountColumnsMode);
+      const detectors = mode === 'split'
+         ? [BankService.#detectSplitTemplate, BankService.#detectTemplate]
+         : BankService.#BANK_DETECTORS;
 
       // Leer como matriz para inspeccionar headers reales
       const rows2D = xlsx.utils.sheet_to_json(ws, { header: 1, defval: null, blankrows: false, raw: false });
@@ -362,7 +544,7 @@ class BankService {
          const row = rows2D[i] || [];
          const set = BankService.#normHeaderRow(row);
          // prueba cada detector
-         for (const det of BankService.#BANK_DETECTORS) {
+         for (const det of detectors) {
             const res = det(set);
             if (res.matched) {
                headerRowIdx = i;
@@ -844,10 +1026,11 @@ class BankService {
                return parts.length ? parts.join(' - ') : (r.entity_bank_account_id ?? null);
             })(),
 
-            documento: extractDoc(r.description),                   // opcional según descripcion real
+            documento: r.document_ref || extractDoc(r.description),
             descripcion: r.description || '',
             monto: sign * Number(r.amount || 0),
             balance: (r.balance != null) ? Number(r.balance) : null,
+            sucursal: r.branch || null,
             raw: {
                id: r.id,
                entity_id: r.entity_id,
@@ -855,6 +1038,8 @@ class BankService {
                type: r.type,
                amount: Number(r.amount || 0),
                balance: (r.balance != null) ? Number(r.balance) : null,
+               document_ref: r.document_ref || null,
+               branch: r.branch || null,
                issued_at: r.issued_at,
                sii_document_id: r.sii_document_id,
                applied_sum: Number(r.get?.('applied_sum') ?? 0),
@@ -980,19 +1165,34 @@ class BankService {
 
       const doc = await models.EntitySiiDocument.findOne({
          where: { id: document_id, entity_id: entityId },
-         attributes: ["id", "entity_id", "doc_type_code", "folio", "issue_date", "counterparty_rut", "total_amount", "received_date", "purchase_type"],
+         attributes: ["id", "entity_id", "doc_type_code", "folio", "issue_date", "counterparty_rut", "total_amount", "received_date", "purchase_type", "operation_type"],
          transaction: t,
          lock: t.LOCK.UPDATE,
       });
       if (!doc) throw boom.notFound("document not found for the given entity");
 
+
+
+      const docTypeCode = Number(doc.doc_type_code);
+      const docOperationType = String(
+doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.operation_type || doc.operationType || ""
+).toUpperCase();
+      const isLegacyPurchaseDoc = !docOperationType
+         && [33, 34].includes(docTypeCode)
+         && Boolean(doc.received_date || doc.purchase_type);
+      const isPurchaseDoc = docOperationType === "EXPENSE" || isLegacyPurchaseDoc;
+      const isIncomeDoc = docOperationType === "INCOME" || (!docOperationType && !isPurchaseDoc);
+
+
+
+
       if (bankTx.type === "expense") {
-         if (![33, 34].includes(Number(doc.doc_type_code))) {
-            throw boom.badRequest("only purchase documents (33,34) are allowed for expense transactions");
+         if (!isPurchaseDoc) {
+            throw boom.badRequest("only purchase documents are allowed for expense transactions");
          }
       } else if (bankTx.type === "income") {
-         if ([33, 34].includes(Number(doc.doc_type_code))) {
-            throw boom.badRequest("purchase documents (33,34) cannot be reconciled with income transactions");
+         if (!isIncomeDoc) {
+            throw boom.badRequest("purchase documents cannot be reconciled with income transactions");
          }
       }
 
@@ -1155,8 +1355,39 @@ class BankService {
 
       // 4) Reglas por tipo de documento (opcional; coméntalo si no aplica en tu dominio)
       const docTypeFilter = (bankTx.type === 'expense')
-         ? { doc_type_code: { [Op.in]: [33, 34] } }  // ejemplo: compras (factura/b. exento)
-         : { doc_type_code: { [Op.notIn]: [33, 34] } }; // ejemplo: ventas
+         ? {
+            [Op.or]: [
+               { operation_type: 'EXPENSE' },
+               {
+                  [Op.and]: [
+                     { operation_type: null },
+                     { doc_type_code: { [Op.in]: [33, 34] } },
+                     {
+                        [Op.or]: [
+                           { received_date: { [Op.ne]: null } },
+                           { purchase_type: { [Op.ne]: null } },
+                        ],
+                     },
+                  ],
+               },
+            ],
+         }
+         : {
+            [Op.or]: [
+               { operation_type: 'INCOME' },
+               {
+                  [Op.and]: [
+                     { operation_type: null },
+                     {
+                        [Op.or]: [
+                           { doc_type_code: { [Op.notIn]: [33, 34] } },
+                           { doc_type_code: null },
+                        ],
+                     },
+                  ],
+               },
+            ],
+         };
 
       // 5) Saldo pendiente > 0 (subselect como literal)
       const remainingLiteral = sequelize.literal(

@@ -111,7 +111,7 @@ const deleteEntity = asyncHandler(async (req, res) => {
 // controlador para sincronizacion sii en segundo plano
 const syncSii = asyncHandler(async (req, res) => {
    const entityId = req.params.entityId || req.params.id || req.entityId;
-   const { year, month, type } = req.body;
+   const { year, month, type, types, documentTypes } = req.body;
    const userId = req.superAdminId || req.user?.id;
 
    if (!year || !month || !type) {
@@ -176,7 +176,9 @@ const syncSii = asyncHandler(async (req, res) => {
          let result;
 
          if (type === 'sales-invoices') {
-            result = await salesInvoiceScraper.runManualSync(entityId, year, targetMonth);
+            result = await salesInvoiceScraper.runManualSync(entityId, year, targetMonth, {
+               types: types || documentTypes || null,
+            });
          } else if (type === 'invoices') {
             result = await dteScraper.runManualSync(entityId, year, targetMonth);
          } else {

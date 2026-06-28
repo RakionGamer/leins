@@ -10,6 +10,8 @@ const EntityBankTransactionSchema = {
   issued_at: { allowNull: false, type: DataTypes.DATE },
   sii_document_id: { allowNull: true, type: DataTypes.INTEGER },
   balance: { type: DataTypes.DECIMAL(18,2), allowNull: true },
+  document_ref: { type: DataTypes.STRING(100), allowNull: true },
+  branch: { type: DataTypes.STRING(120), allowNull: true },
   createdAt: { allowNull: false, type: DataTypes.DATE, field: 'created_at', defaultValue: Sequelize.NOW },
   updatedAt: { allowNull: true, type: DataTypes.DATE, field: 'updated_at' },
 };
@@ -23,4 +25,3 @@ class EntityBankTransaction extends Model {
   static config(sequelize) { return { sequelize, tableName: ENTITY_BANK_TRANSACTION_TABLE, modelName: 'EntityBankTransaction', timestamps: false }; }
 }
 module.exports = { ENTITY_BANK_TRANSACTION_TABLE, EntityBankTransactionSchema, EntityBankTransaction };
-

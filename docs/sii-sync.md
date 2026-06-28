@@ -15,7 +15,7 @@ Cada sincronizacion SII queda registrada en `sii_sync_jobs` para auditar:
 ## Tipos soportados
 
 - `boletas`: ventas SII tipo 39 y 41.
-- `sales-invoices`: ventas SII tipo 33, factura electronica.
+- `sales-invoices`: ventas SII tipo 33 y 34, facturas electronicas afectas y exentas.
 - `invoices`: compras/ventas desde el flujo historico de DTE.
 
 ## Migracion
@@ -42,7 +42,8 @@ Body:
 {
   "year": 2026,
   "month": "05",
-  "type": "sales-invoices"
+  "type": "sales-invoices",
+  "documentTypes": [33, 34]
 }
 ```
 
