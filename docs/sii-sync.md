@@ -17,6 +17,12 @@ Cada sincronizacion SII queda registrada en `sii_sync_jobs` para auditar:
 - `boletas`: ventas SII tipo 39 y 41.
 - `sales-invoices`: ventas SII tipo 33 y 34, facturas electronicas afectas y exentas.
 - `invoices`: compras/ventas desde el flujo historico de DTE.
+- `honorarios`: boletas de honorarios electronicas emitidas y recibidas.
+
+Las boletas de honorarios se guardan como:
+
+- `doc_type_code = 1001`, `operation_type = INCOME`: boleta de honorarios emitida.
+- `doc_type_code = 1002`, `operation_type = EXPENSE`: boleta de honorarios recibida.
 
 ## Migracion
 
@@ -57,6 +63,27 @@ Para anual:
 }
 ```
 
+Para boletas de honorarios emitidas y recibidas:
+
+```json
+{
+  "year": 2026,
+  "month": "05",
+  "type": "honorarios"
+}
+```
+
+Opcionalmente se puede limitar la direccion:
+
+```json
+{
+  "year": 2026,
+  "month": "05",
+  "type": "honorarios",
+  "directions": "received"
+}
+```
+
 Si ya existe una sincronizacion `pending` o `running` para la misma entidad, tipo y periodo, no se crea otro proceso. En ese caso la API responde con el job existente:
 
 ```json
@@ -81,7 +108,7 @@ Cuando el job fue iniciado por un super administrador, la respuesta incluye `req
 Filtros opcionales:
 
 - `status`: `pending`, `running`, `success`, `failed`
-- `type`: `boletas`, `sales-invoices`, `invoices`
+- `type`: `boletas`, `sales-invoices`, `invoices`, `honorarios`
 - `limit`: maximo 100
 - `offset`: paginacion
 

@@ -10,7 +10,9 @@ const { Credential, Entity } = models;
 // urls fijas del sii
 const SII_URLS = {
    login: "https://zeusr.sii.cl/AUT2000/InicioAutenticacion/IngresoRutClave.html?https://www4.sii.cl/consdcvinternetui/#/index",
-   comprasventas: "https://www4.sii.cl/consdcvinternetui/#/index"
+   comprasventas: "https://www4.sii.cl/consdcvinternetui/#/index",
+   honorariosEmitidas: "https://loa.sii.cl/cgi_IMT/TMBCOC_MenuConsultasContrib.cgi?dummy=1461943167534",
+   honorariosRecibidas: "https://loa.sii.cl/cgi_IMT/TMBCOC_MenuConsultasContribRec.cgi?dummy=1461943244650"
 };
 
 // url fijas bancos

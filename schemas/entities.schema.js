@@ -101,7 +101,7 @@ const entityIdParamsSchema = Joi.object({
 
 const listSiiSyncJobsQuerySchema = Joi.object({
    status: Joi.string().valid('pending', 'running', 'success', 'failed').optional(),
-   type: Joi.string().valid('boletas', 'invoices', 'sales-invoices').optional(),
+   type: Joi.string().valid('boletas', 'invoices', 'sales-invoices', 'honorarios').optional(),
    limit: Joi.number().integer().min(1).max(100).optional(),
    offset: Joi.number().integer().min(0).optional(),
 });

@@ -181,7 +181,8 @@ class SiiDocumentsService {
 
       const attributes = [
          'id', 'entity_id', 'doc_type_code', 'counterparty_rut', 'counterparty_name', 'folio',
-         'issue_date', 'due_date', 'total_amount', 'created_at', 'updated_at', 'source', 'operation_type',
+         'issue_date', 'due_date', 'total_amount', 'amount_net', 'amount_vat', 'amount_exempt',
+         'amount_tax_no_credit', 'created_at', 'updated_at', 'source', 'operation_type',
          [sequelize.literal(remainingSQL), 'remaining_amount'],
       ];
 
@@ -212,6 +213,10 @@ class SiiDocumentsService {
          issue_date: r.issue_date,
          due_date: r.due_date,
          total_amount: r.total_amount,
+         amount_net: r.amount_net,
+         amount_vat: r.amount_vat,
+         amount_exempt: r.amount_exempt,
+         amount_tax_no_credit: r.amount_tax_no_credit,
          remaining_amount: Number(r.get?.('remaining_amount') ?? r.total_amount ?? 0),
          source: r.source,
          operation_type: r.operation_type,

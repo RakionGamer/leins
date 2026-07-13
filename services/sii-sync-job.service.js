@@ -3,7 +3,7 @@ const { Op } = require('sequelize');
 const { models } = require('../libs/sequelize');
 const { config } = require('../config/config');
 
-const VALID_SYNC_TYPES = new Set(['boletas', 'invoices', 'sales-invoices']);
+const VALID_SYNC_TYPES = new Set(['boletas', 'invoices', 'sales-invoices', 'honorarios']);
 const VALID_STATUSES = new Set(['pending', 'running', 'success', 'failed']);
 
 function parsePeriodMonth(month) {

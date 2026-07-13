@@ -5,6 +5,7 @@ const SiiSyncJobService = require('../services/sii-sync-job.service');
 const dteScraper = require('../scripts/sii-dte-consult');
 const boletaScraper = require('../scripts/sii-boletas-consult');
 const salesInvoiceScraper = require('../scripts/sii-ventas-facturas-consult');
+const honorariosScraper = require('../scripts/sii-honorarios-consult');
 const asyncHandler = require('../utils/helpers/asyncHandler');
 const { logInfo } = require('../utils/logger');
 
@@ -111,7 +112,7 @@ const deleteEntity = asyncHandler(async (req, res) => {
 // controlador para sincronizacion sii en segundo plano
 const syncSii = asyncHandler(async (req, res) => {
    const entityId = req.params.entityId || req.params.id || req.entityId;
-   const { year, month, type, types, documentTypes } = req.body;
+   const { year, month, type, types, documentTypes, directions, direction } = req.body;
    const userId = req.superAdminId || req.user?.id;
 
    if (!year || !month || !type) {
@@ -179,6 +180,10 @@ const syncSii = asyncHandler(async (req, res) => {
             result = await salesInvoiceScraper.runManualSync(entityId, year, targetMonth, {
                types: types || documentTypes || null,
             });
+         } else if (type === 'honorarios') {
+            result = await honorariosScraper.runManualSync(entityId, year, targetMonth, {
+               directions: directions || direction || null,
+            });
          } else if (type === 'invoices') {
             result = await dteScraper.runManualSync(entityId, year, targetMonth);
          } else {
@@ -197,7 +202,7 @@ const syncSii = asyncHandler(async (req, res) => {
                userId,
                type: 'success',
                title: 'sincronizacion sii finalizada',
-               message: `la carga de ${type === 'sales-invoices' ? 'facturas de venta' : type === 'invoices' ? 'facturas' : 'boletas'} (${year}-${isFullYear ? 'completo' : month}) ha terminado exitosamente.`
+               message: `la carga de ${type === 'sales-invoices' ? 'facturas de venta' : type === 'invoices' ? 'facturas' : type === 'honorarios' ? 'boletas de honorarios' : 'boletas'} (${year}-${isFullYear ? 'completo' : month}) ha terminado exitosamente.`
             });
          } else {
             console.error('error: notifservice.create no esta disponible');

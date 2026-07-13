@@ -123,7 +123,33 @@ module.exports = {
       },
 
       // -----------------------------------------------------------------------
-      // 6. barrido diario dte (compras)
+      // 6. auditoria anual boletas de honorarios
+      // ejecucion: solo domingos a las 06:00 am
+      // objetivo: descarga masiva de boletas de honorarios emitidas y recibidas
+      // -----------------------------------------------------------------------
+      {
+         name: "sii-honorarios-audit",
+         script: "scripts/sii-honorarios-consult.js",
+         args: "--month ALL --directions=both",
+         exec_mode: "fork",
+         instances: 1,
+         watch: false,
+         autorestart: false,
+         time: true,
+         cron_restart: "0 6 * * 0",
+         max_memory_restart: "1G",
+         out_file: "logs/sii-honorarios-audit.log",
+         error_file: "logs/sii-honorarios-audit-err.log",
+         merge_logs: true,
+         env: {
+            NODE_ENV: "production",
+            TZ: "America/Santiago",
+            SII_DOWNLOAD_DIR: "/tmp/leins-sii-downloads"
+         }
+      },
+
+      // -----------------------------------------------------------------------
+      // 7. barrido diario dte (compras)
       // ejecucion: todos los dias a las 05:00 am
       // objetivo: traer solo lo del mes actual para el dia a dia
       // -----------------------------------------------------------------------
@@ -149,7 +175,7 @@ module.exports = {
       },
 
       // -----------------------------------------------------------------------
-      // 7. barrido diario facturas de venta
+      // 8. barrido diario facturas de venta
       // ejecucion: todos los dias a las 05:15 am (15 min despues de dte)
       // objetivo: traer facturas de venta afectas y exentas del mes actual
       // -----------------------------------------------------------------------
@@ -175,7 +201,7 @@ module.exports = {
       },
 
       // -----------------------------------------------------------------------
-      // 8. barrido diario boletas
+      // 9. barrido diario boletas
       // ejecucion: todos los dias a las 05:30 am (15 min despues de facturas)
       // objetivo: traer boletas del mes actual
       // -----------------------------------------------------------------------
@@ -192,6 +218,32 @@ module.exports = {
          max_memory_restart: "1G",
          out_file: "logs/sii-boletas-daily.log",
          error_file: "logs/sii-boletas-daily-err.log",
+         merge_logs: true,
+         env: {
+            NODE_ENV: "production",
+            TZ: "America/Santiago",
+            SII_DOWNLOAD_DIR: "/tmp/leins-sii-downloads"
+         }
+      },
+
+      // -----------------------------------------------------------------------
+      // 10. barrido diario boletas de honorarios
+      // ejecucion: todos los dias a las 05:45 am (15 min despues de boletas)
+      // objetivo: traer boletas de honorarios emitidas y recibidas del mes actual
+      // -----------------------------------------------------------------------
+      {
+         name: "sii-honorarios-daily",
+         script: "scripts/sii-honorarios-consult.js",
+         args: "--directions=both",
+         exec_mode: "fork",
+         instances: 1,
+         watch: false,
+         autorestart: false,
+         time: true,
+         cron_restart: "45 5 * * *",
+         max_memory_restart: "1G",
+         out_file: "logs/sii-honorarios-daily.log",
+         error_file: "logs/sii-honorarios-daily-err.log",
          merge_logs: true,
          env: {
             NODE_ENV: "production",
