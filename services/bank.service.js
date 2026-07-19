@@ -7,6 +7,33 @@ const { QueryTypes, Transaction, Op } = require("sequelize");
 const { config } = require('../config/config');
 
 class BankService {
+   static #normalizeRut(value) {
+      return String(value || "").toUpperCase().replace(/[^0-9K]/g, "");
+   }
+
+   static #rutParts(value) {
+      const clean = BankService.#normalizeRut(value);
+      if (clean.length < 2) return null;
+
+      const body = clean.slice(0, -1).replace(/^0+/, "");
+      const dv = clean.slice(-1);
+      const normalizedBody = body || "0";
+
+      return {
+         body: normalizedBody,
+         full: `${normalizedBody}${dv}`,
+      };
+   }
+
+   static #documentReconcileAmountSql(alias) {
+      return `CASE
+         WHEN ${alias}.doc_type_code IN (1001,1002)
+          AND COALESCE(${alias}.amount_net,0) > COALESCE(${alias}.amount_tax_no_credit,0)
+          AND COALESCE(${alias}.amount_tax_no_credit,0) > 0
+            THEN COALESCE(${alias}.amount_net,0) - COALESCE(${alias}.amount_tax_no_credit,0)
+         ELSE COALESCE(${alias}.total_amount,0)
+      END`;
+   }
 
    normalizeAmountColumnsMode(value) {
       const mode = String(value || '').trim().toLowerCase();
@@ -402,6 +429,13 @@ class BankService {
       return value != null && String(value).trim() !== '';
    }
 
+   static #normalizeDocumentRef(value) {
+      const text = String(value || '').trim();
+      if (!text) return null;
+      if (/^0+$/.test(text.replace(/\D/g, ''))) return null;
+      return text;
+   }
+
    // === Plantilla LEINS: formato estandar para cualquier banco ===
    #mapTemplateRow(r) {
       const rawDate = BankService.#pickFromRow(r, 'Fecha');
@@ -427,7 +461,7 @@ class BankService {
          detail: rawDesc ? String(rawDesc).trim() : null,
          amount,
          balance: BankService.#parseAmount(rawSaldo),
-         documentRef: rawDoc ? String(rawDoc).trim() : null,
+         documentRef: BankService.#normalizeDocumentRef(rawDoc),
          branch: rawSuc ? String(rawSuc).trim() : null,
          kind,
          _amountError: amountError,
@@ -479,7 +513,7 @@ class BankService {
          detail: rawDesc ? String(rawDesc).trim() : null,
          amount,
          balance: BankService.#parseAmount(rawSaldo),
-         documentRef: rawDoc ? String(rawDoc).trim() : null,
+         documentRef: BankService.#normalizeDocumentRef(rawDoc),
          branch: rawSuc ? String(rawSuc).trim() : null,
          kind,
          _amountError: amountErrors.length ? amountErrors.join('; ') : null,
@@ -999,7 +1033,7 @@ class BankService {
       // helper: intenta extraer un "documento" al inicio de la descripcion (p.ej. "0270747809 Transf...")
       const extractDoc = (s) => {
          const m = String(s || '').trim().match(/^([0-9A-Z]{8,12})\b/);
-         return m ? m[1] : null;
+         return m ? BankService.#normalizeDocumentRef(m[1]) : null;
       };
 
       const mapped = rows.map((r) => {
@@ -1026,7 +1060,7 @@ class BankService {
                return parts.length ? parts.join(' - ') : (r.entity_bank_account_id ?? null);
             })(),
 
-            documento: r.document_ref || extractDoc(r.description),
+            documento: BankService.#normalizeDocumentRef(r.document_ref) || extractDoc(r.description),
             descripcion: r.description || '',
             monto: sign * Number(r.amount || 0),
             balance: (r.balance != null) ? Number(r.balance) : null,
@@ -1038,7 +1072,7 @@ class BankService {
                type: r.type,
                amount: Number(r.amount || 0),
                balance: (r.balance != null) ? Number(r.balance) : null,
-               document_ref: r.document_ref || null,
+               document_ref: BankService.#normalizeDocumentRef(r.document_ref),
                branch: r.branch || null,
                issued_at: r.issued_at,
                sii_document_id: r.sii_document_id,
@@ -1180,8 +1214,17 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
       const isLegacyPurchaseDoc = !docOperationType
          && [33, 34].includes(docTypeCode)
          && Boolean(doc.received_date || doc.purchase_type);
-      const isPurchaseDoc = docOperationType === "EXPENSE" || isLegacyPurchaseDoc;
-      const isIncomeDoc = docOperationType === "INCOME" || (!docOperationType && !isPurchaseDoc);
+      const isLegacyIncomeDoc = !docOperationType && (
+         [39, 41, 1001].includes(docTypeCode)
+         || ([33, 34].includes(docTypeCode) && !doc.received_date && !doc.purchase_type)
+      );
+      const isLegacyExpenseDoc = !docOperationType && (
+         docTypeCode === 1002
+         || isLegacyPurchaseDoc
+         || doc.doc_type_code == null
+      );
+      const isPurchaseDoc = docOperationType === "EXPENSE" || isLegacyExpenseDoc;
+      const isIncomeDoc = docOperationType === "INCOME" || isLegacyIncomeDoc;
 
 
 
@@ -1196,13 +1239,15 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
          }
       }
 
+      const docReconcileAmount = BankService.#documentReconcileAmountSql("d");
+
       const [agg] = await sequelize.query(
          `
          SELECT
             bt.amount AS bank_amount,
             (bt.amount - IFNULL(SUM(btd1.amount_applied),0)) AS bank_remaining,
-            d.total_amount AS doc_amount,
-            (d.total_amount - IFNULL(SUM(btd2.amount_applied),0)) AS doc_remaining
+            ${docReconcileAmount} AS doc_amount,
+            (${docReconcileAmount} - IFNULL(SUM(btd2.amount_applied),0)) AS doc_remaining
          FROM entity_bank_transactions bt
          JOIN entity_sii_documents d ON d.id = :docId AND d.entity_id = :entityId
          LEFT JOIN bank_transaction_documents btd1 ON btd1.entity_bank_transaction_id = bt.id
@@ -1252,8 +1297,8 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
             bt.amount AS bank_amount,
             (bt.amount - IFNULL(SUM(btd1.amount_applied),0)) AS bank_remaining,
             d.id AS doc_id,
-            d.total_amount AS doc_amount,
-            (d.total_amount - IFNULL(SUM(btd2.amount_applied),0)) AS doc_remaining
+            ${docReconcileAmount} AS doc_amount,
+            (${docReconcileAmount} - IFNULL(SUM(btd2.amount_applied),0)) AS doc_remaining
          FROM entity_bank_transactions bt
          JOIN entity_sii_documents d ON d.id = :docId AND d.entity_id = :entityId
          LEFT JOIN bank_transaction_documents btd1 ON btd1.entity_bank_transaction_id = bt.id
@@ -1342,8 +1387,9 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
 
       // 1) monto objetivo (positivo, porque total_amount es positivo)
       const bankAmt = Math.abs(Number(bankTx.amount || 0));
+      const docReconcileAmount = BankService.#documentReconcileAmountSql("`EntitySiiDocument`");
       const absDiffLiteral = sequelize.literal(
-         `ABS(\`EntitySiiDocument\`.\`total_amount\` - ${bankAmt})`
+         `ABS((${docReconcileAmount}) - ${bankAmt})`
       );
 
       // 2) diferencia de días contra la fecha del movimiento
@@ -1358,6 +1404,18 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
          ? {
             [Op.or]: [
                { operation_type: 'EXPENSE' },
+               {
+                  [Op.and]: [
+                     { operation_type: null },
+                     { doc_type_code: 1002 },
+                  ],
+               },
+               {
+                  [Op.and]: [
+                     { operation_type: null },
+                     { doc_type_code: null },
+                  ],
+               },
                {
                   [Op.and]: [
                      { operation_type: null },
@@ -1378,12 +1436,15 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
                {
                   [Op.and]: [
                      { operation_type: null },
-                     {
-                        [Op.or]: [
-                           { doc_type_code: { [Op.notIn]: [33, 34] } },
-                           { doc_type_code: null },
-                        ],
-                     },
+                     { doc_type_code: { [Op.in]: [39, 41, 1001] } },
+                  ],
+               },
+               {
+                  [Op.and]: [
+                     { operation_type: null },
+                     { doc_type_code: { [Op.in]: [33, 34] } },
+                     { received_date: null },
+                     { purchase_type: null },
                   ],
                },
             ],
@@ -1391,7 +1452,7 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
 
       // 5) Saldo pendiente > 0 (subselect como literal)
       const remainingLiteral = sequelize.literal(
-         `(COALESCE(\`EntitySiiDocument\`.\`total_amount\`,0) - COALESCE((
+         `((${docReconcileAmount}) - COALESCE((
        SELECT SUM(btd.amount_applied)
        FROM bank_transaction_documents btd
        WHERE btd.entity_sii_document_id = \`EntitySiiDocument\`.\`id\`
@@ -1399,11 +1460,29 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
       );
 
       // 6) WHERE base: entity, tipo (opcional), rut (opcional) y saldo pendiente
+      const rutParts = BankService.#rutParts(rut);
+      const rutFilter = rutParts ? {
+         [Op.or]: [
+            sequelize.where(
+               sequelize.literal("REPLACE(REPLACE(UPPER(`EntitySiiDocument`.`counterparty_rut`),'.',''),'-','')"),
+               { [Op.like]: `%${rutParts.full}%` }
+            ),
+            sequelize.where(
+               sequelize.literal("REPLACE(REPLACE(UPPER(`EntitySiiDocument`.`counterparty_rut`),'.',''),'-','')"),
+               { [Op.like]: `%${rutParts.body}%` }
+            ),
+         ],
+      } : null;
+
+      const andFilters = [
+         docTypeFilter,
+         sequelize.where(remainingLiteral, { [Op.gt]: 0 }),
+      ];
+      if (rutFilter) andFilters.push(rutFilter);
+
       const where = {
          entity_id: entityId,
-         ...docTypeFilter,                         // quita esta línea si no quieres filtrar por tipo
-         ...(rut ? { counterparty_rut: { [Op.like]: `%${String(rut).trim()}%` } } : {}),
-         [Op.and]: [sequelize.where(remainingLiteral, { [Op.gt]: 0 })],
+         [Op.and]: andFilters,
       };
 
       // 7) Consulta: sin BETWEEN; ordenamos por cercanía de monto

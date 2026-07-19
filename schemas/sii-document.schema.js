@@ -40,10 +40,10 @@ const operation_type = joi.string().valid('INCOME', 'EXPENSE');
 
 const expenseDocType = joi.alternatives().try(
    joi.valid(null),
-   joi.number().integer().valid(33, 39)
+   joi.number().integer().valid(33, 39, 1002)
 ).messages({
-   'alternatives.match': 'para egresos solo se permite BOLETAS (39), FACTURA (33) o RECIBO (null)',
-   'any.only': 'para egresos solo se permite BOLETAS (39), FACTURA (33) o RECIBO (null)'
+   'alternatives.match': 'para egresos solo se permite BOLETAS (39), FACTURA (33), BOLETA DE HONORARIOS RECIBIDA (1002) o RECIBO (null)',
+   'any.only': 'para egresos solo se permite BOLETAS (39), FACTURA (33), BOLETA DE HONORARIOS RECIBIDA (1002) o RECIBO (null)'
 });
 
 // esquema para leer parametros de la url

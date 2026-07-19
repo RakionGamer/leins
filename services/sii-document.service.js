@@ -4,7 +4,17 @@ const { Op, QueryTypes } = require('sequelize');
 const Boom = require('@hapi/boom');
 const { models, sequelize } = require('../libs/sequelize');
 
-const ALLOWED_EXPENSE_DOC_TYPES = new Set([33, 39]);
+const ALLOWED_EXPENSE_DOC_TYPES = new Set([33, 39, 1002]);
+
+function documentReconcileAmountSql(alias) {
+   return `CASE
+      WHEN ${alias}.doc_type_code IN (1001,1002)
+       AND COALESCE(${alias}.amount_net,0) > COALESCE(${alias}.amount_tax_no_credit,0)
+       AND COALESCE(${alias}.amount_tax_no_credit,0) > 0
+         THEN COALESCE(${alias}.amount_net,0) - COALESCE(${alias}.amount_tax_no_credit,0)
+      ELSE COALESCE(${alias}.total_amount,0)
+   END`;
+}
 
 function assertExpenseDocType(payload = {}) {
    if (String(payload.operation_type || '').toUpperCase() !== 'EXPENSE') return;
@@ -14,7 +24,7 @@ function assertExpenseDocType(payload = {}) {
 
    const parsed = Number(raw);
    if (!Number.isInteger(parsed) || !ALLOWED_EXPENSE_DOC_TYPES.has(parsed)) {
-      throw Boom.badRequest('para egresos solo se permite BOLETAS (39), FACTURA (33) o RECIBO (null)');
+      throw Boom.badRequest('para egresos solo se permite BOLETAS (39), FACTURA (33), BOLETA DE HONORARIOS RECIBIDA (1002) o RECIBO (null)');
    }
 }
 
@@ -83,14 +93,14 @@ class SiiDocumentsService {
             where[Op.and].push({
                [Op.or]: [
                   { operation_type: 'INCOME' },
-                  { operation_type: null, doc_type_code: [39, 41] }
+                  { operation_type: null, doc_type_code: [39, 41, 1001] }
                ]
             });
          } else if (op === 'EXPENSE') {
             where[Op.and].push({
                [Op.or]: [
                   { operation_type: 'EXPENSE' },
-                  { operation_type: null, doc_type_code: { [Op.notIn]: [39, 41] } },
+                  { operation_type: null, doc_type_code: { [Op.notIn]: [39, 41, 1001] } },
                   { operation_type: null, doc_type_code: null }
                ]
             });
@@ -170,7 +180,8 @@ class SiiDocumentsService {
          `(SELECT COALESCE(SUM(btd.amount_applied),0)
          FROM bank_transaction_documents btd
          WHERE btd.entity_sii_document_id = ${baseQuoted}.id)`;
-      const remainingSQL = `(COALESCE(${baseQuoted}.total_amount,0) - ${appliedSumSQL})`;
+      const reconcileAmountSQL = documentReconcileAmountSql(baseQuoted);
+      const remainingSQL = `((${reconcileAmountSQL}) - ${appliedSumSQL})`;
 
       if (pendingOnly) {
          if (!where[Op.and]) where[Op.and] = [];
@@ -237,6 +248,7 @@ class SiiDocumentsService {
          throw Boom.badRequest('from y to son requeridos');
       }
 
+      const reconcileAmountSQL = documentReconcileAmountSql("d");
       const rows = await sequelize.query(
          `
       SELECT
@@ -248,7 +260,7 @@ class SiiDocumentsService {
          d.counterparty_name,
          d.total_amount,
          (
-            COALESCE(d.total_amount, 0) -
+            (${reconcileAmountSQL}) -
             COALESCE((
                SELECT SUM(btd.amount_applied)
                FROM bank_transaction_documents btd
@@ -257,14 +269,14 @@ class SiiDocumentsService {
          ) AS remaining_amount
       FROM entity_sii_documents d
       WHERE d.entity_id = :entityId
-        AND d.doc_type_code IN (33, 34, 39, 41)
+        AND d.doc_type_code IN (33, 34, 39, 41, 1001)
         AND d.issue_date >= :from
         AND d.issue_date < DATE_ADD(:to, INTERVAL 1 DAY)
         AND (
            d.operation_type = 'INCOME'
            OR (
               d.operation_type IS NULL
-              AND d.doc_type_code IN (39, 41)
+              AND d.doc_type_code IN (39, 41, 1001)
            )
         )
       HAVING remaining_amount > 0
