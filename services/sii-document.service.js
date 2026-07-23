@@ -75,7 +75,7 @@ class SiiDocumentsService {
    }
 
    // listado general
-   async list({ entity_id, type, source, operation_type, month, from, to, page = 1, limit = 50, sort = 'issue_date', order = 'desc', pendingOnly = false }) {
+   async list({ entity_id, type, q, folio, client, source, operation_type, month, from, to, page = 1, limit = 50, sort = 'issue_date', order = 'desc', pendingOnly = false }) {
       const where = {};
       const parsedEntityId = Number(entity_id);
       if (!Number.isInteger(parsedEntityId) || parsedEntityId <= 0) {
@@ -93,14 +93,28 @@ class SiiDocumentsService {
             where[Op.and].push({
                [Op.or]: [
                   { operation_type: 'INCOME' },
-                  { operation_type: null, doc_type_code: [39, 41, 1001] }
+                  { operation_type: null, doc_type_code: [39, 41, 1001] },
+                  {
+                     operation_type: null,
+                     doc_type_code: [33, 34],
+                     received_date: null,
+                     purchase_type: null,
+                  },
                ]
             });
          } else if (op === 'EXPENSE') {
             where[Op.and].push({
                [Op.or]: [
                   { operation_type: 'EXPENSE' },
-                  { operation_type: null, doc_type_code: { [Op.notIn]: [39, 41, 1001] } },
+                  { operation_type: null, doc_type_code: 1002 },
+                  {
+                     operation_type: null,
+                     doc_type_code: [33, 34],
+                     [Op.or]: [
+                        { received_date: { [Op.ne]: null } },
+                        { purchase_type: { [Op.ne]: null } },
+                     ],
+                  },
                   { operation_type: null, doc_type_code: null }
                ]
             });
@@ -115,6 +129,41 @@ class SiiDocumentsService {
          }
       }
 
+      const query = String(q || '').trim();
+      if (query) {
+         if (!where[Op.and]) where[Op.and] = [];
+         const like = `%${query}%`;
+         where[Op.and].push({
+            [Op.or]: [
+               { folio: { [Op.like]: like } },
+               { counterparty_rut: { [Op.like]: like } },
+               { counterparty_name: { [Op.like]: like } },
+            ],
+         });
+      }
+
+      const folioQuery = String(folio || '').trim();
+      if (folioQuery) {
+         if (!where[Op.and]) where[Op.and] = [];
+         where[Op.and].push(
+            sequelize.where(sequelize.literal('CAST(`EntitySiiDocument`.`folio` AS CHAR)'), {
+               [Op.like]: `%${folioQuery}%`,
+            })
+         );
+      }
+
+      const clientQuery = String(client || '').trim();
+      if (clientQuery) {
+         if (!where[Op.and]) where[Op.and] = [];
+         const like = `%${clientQuery}%`;
+         where[Op.and].push({
+            [Op.or]: [
+               { counterparty_rut: { [Op.like]: like } },
+               { counterparty_name: { [Op.like]: like } },
+            ],
+         });
+      }
+
       if (source) {
          where.source = String(source).toUpperCase();
       }
@@ -126,39 +175,58 @@ class SiiDocumentsService {
          return { y, m, d };
       };
 
-      const setRange = (startStr, endExclStr) => {
+      const setRange = (startStr, endStr) => {
          if (!where[Op.and]) where[Op.and] = [];
-         if (startStr) where[Op.and].push({ issue_date: { [Op.gte]: startStr } });
-         if (endExclStr) where[Op.and].push({ issue_date: { [Op.lt]: endExclStr } });
+         const op = String(operation_type || '').toUpperCase();
+         const dateFields = op === 'EXPENSE'
+            ? [
+               sequelize.literal('DATE(`EntitySiiDocument`.`issue_date`)'),
+               sequelize.literal('DATE(`EntitySiiDocument`.`received_date`)'),
+            ]
+            : [sequelize.literal('DATE(`EntitySiiDocument`.`issue_date`)')];
+
+         const makeDateCondition = (dateField) => {
+            if (startStr && endStr && startStr === endStr) {
+               return sequelize.where(dateField, startStr);
+            }
+
+            const range = {};
+            if (startStr) range[Op.gte] = startStr;
+            if (endStr) range[Op.lte] = endStr;
+            return sequelize.where(dateField, range);
+         };
+
+         if (!startStr && !endStr) return;
+
+         const conditions = dateFields.map(makeDateCondition);
+         if (startStr && endStr && startStr === endStr) {
+            where[Op.and].push(conditions.length > 1 ? { [Op.or]: conditions } : conditions[0]);
+            return;
+         }
+
+         where[Op.and].push(conditions.length > 1 ? { [Op.or]: conditions } : conditions[0]);
       };
 
       if (month) {
          const mm = parseYMD(`${month}-01`);
          if (!mm) throw Boom.badRequest('parametro "month" invalido; esperado yyyy-mm');
          const start = toYMD(mm.y, mm.m, 1);
-         const endExcl = (mm.m === 12) ? toYMD(mm.y + 1, 1, 1) : toYMD(mm.y, mm.m + 1, 1);
-         setRange(start, endExcl);
+         const monthEnd = new Date(Date.UTC(mm.y, mm.m, 0));
+         const end = toYMD(monthEnd.getUTCFullYear(), monthEnd.getUTCMonth() + 1, monthEnd.getUTCDate());
+         setRange(start, end);
       } else if (from || to) {
          const f = from ? parseYMD(from) : null;
          const t = to ? parseYMD(to) : null;
          if (from && !f) throw Boom.badRequest('parametro "from" invalido; esperado yyyy-mm-dd');
          if (to && !t) throw Boom.badRequest('parametro "to" invalido; esperado yyyy-mm-dd');
 
-         const plusOne = (y, m, d) => {
-            const tmp = new Date(Date.UTC(y, m - 1, d));
-            tmp.setUTCDate(tmp.getUTCDate() + 1);
-            return toYMD(tmp.getUTCFullYear(), tmp.getUTCMonth() + 1, tmp.getUTCDate());
-         };
-
          const startStr = f ? toYMD(f.y, f.m, f.d) : null;
-         let endExclStr = null;
-         if (t) endExclStr = plusOne(t.y, t.m, t.d);
-         else if (f) endExclStr = plusOne(f.y, f.m, f.d);
+         const endStr = t ? toYMD(t.y, t.m, t.d) : null;
 
-         if (startStr && endExclStr && startStr >= endExclStr) {
+         if (startStr && endStr && startStr > endStr) {
             throw Boom.badRequest('rango de fechas invalido: "from" debe ser menor o igual que "to"');
          }
-         setRange(startStr, endExclStr);
+         setRange(startStr, endStr);
       }
 
       const sortMap = {

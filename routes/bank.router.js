@@ -44,7 +44,9 @@ router.get('/reconcile/autofind', ensureEntityAccess, bankController.autoFindRec
 router.get('/reconcile/suggestions', ensureEntityAccess, bankController.getSuggestions);
 router.get('/reconcile/suggestions/fast', ensureEntityAccess, bankController.getSuggestionsFast);
 router.get('/reconcile/suggestions/count', ensureEntityAccess, bankController.countSuggestions);
+router.get('/reconcile/bank-candidates', ensureEntityAccess, bankController.searchBankReconcileCandidates);
 router.post('/reconcile', ensureEntityAccess, bankController.reconcileTransaction);
+router.post('/reconcile/bank', ensureEntityAccess, bankController.reconcileBankTransaction);
 router.post('/reconcile/bulk', ensureEntityAccess, bankController.bulkReconcile);
 router.delete('/reconcile/:id', ensureEntityAccess, bankController.unreconcileTransaction);
 router.get('/reconcile/list', ensureEntityAccess, bankController.listReconciliations);

@@ -35,6 +35,27 @@ class BankService {
       END`;
    }
 
+   static #bankDocumentAppliedSumSql(alias) {
+      return `(SELECT COALESCE(SUM(btd.amount_applied),0)
+        FROM bank_transaction_documents btd
+       WHERE btd.entity_bank_transaction_id = ${alias}.id)`;
+   }
+
+   static #bankPeerAppliedSumSql(alias) {
+      return `(SELECT COALESCE(SUM(btm.amount_applied),0)
+        FROM bank_transaction_matches btm
+       WHERE btm.source_bank_transaction_id = ${alias}.id
+          OR btm.target_bank_transaction_id = ${alias}.id)`;
+   }
+
+   static #bankAppliedSumSql(alias) {
+      return `(${BankService.#bankDocumentAppliedSumSql(alias)} + ${BankService.#bankPeerAppliedSumSql(alias)})`;
+   }
+
+   static #bankRemainingSql(alias) {
+      return `(${alias}.amount - ${BankService.#bankAppliedSumSql(alias)})`;
+   }
+
    normalizeAmountColumnsMode(value) {
       const mode = String(value || '').trim().toLowerCase();
       if (['split', 'separate', 'abonos_cargos', 'abonos-cargos', 'separate_debit_credit'].includes(mode)) return 'split';
@@ -226,30 +247,45 @@ class BankService {
                amount: amountAbs,
                description,
             };
-            const where = { ...baseWhere };
-            if (balance != null) where.balance = balance; // <- usa saldo si viene
-            if (documentRef) where.document_ref = documentRef;
-            if (branch) where.branch = branch;
-
-            let exists = await models.EntityBankTransaction.findOne({ where, transaction: t });
+            let exists = await models.EntityBankTransaction.findOne({ where: baseWhere, transaction: t });
             let enrichedExisting = false;
 
-            if (!exists && (documentRef || branch)) {
-               const metadataGapWhere = { ...baseWhere };
-               if (balance != null) metadataGapWhere.balance = balance;
-               metadataGapWhere[Op.and] = [
-                  { [Op.or]: [{ document_ref: null }, { document_ref: '' }] },
-                  { [Op.or]: [{ branch: null }, { branch: '' }] },
-               ];
-
-               exists = await models.EntityBankTransaction.findOne({ where: metadataGapWhere, transaction: t });
-               if (exists) {
-                  await exists.update({
-                     document_ref: documentRef || exists.document_ref || null,
-                     branch: branch || exists.branch || null,
-                  }, { transaction: t });
+            if (exists && (documentRef || branch || balance != null)) {
+               const updates = {};
+               if (documentRef && !exists.document_ref) updates.document_ref = documentRef;
+               if (branch && !exists.branch) updates.branch = branch;
+               if (balance != null && exists.balance == null) updates.balance = balance;
+               if (Object.keys(updates).length) {
+                  await exists.update(updates, { transaction: t });
                   enrichedExisting = true;
                }
+            }
+
+            const oppositeType = type === 'income' ? 'expense' : 'income';
+            const oppositeExists = !exists
+               ? await models.EntityBankTransaction.findOne({
+                  where: { ...baseWhere, type: oppositeType },
+                  transaction: t,
+               })
+               : null;
+
+            if (oppositeExists) {
+               if (collectSkipped) {
+                  skipped.push({
+                     rowNumber: m._rowNumber,
+                     date: m.movementDate,
+                     type,
+                     amount: amountAbs,
+                     balance,
+                     description,
+                     documentRef,
+                     branch,
+                     conflictExistingType: oppositeType,
+                     conflictExistingId: oppositeExists.id,
+                     skippedReason: 'posible duplicado con tipo opuesto'
+                  });
+               }
+               continue;
             }
 
             if (exists) {
@@ -981,13 +1017,8 @@ class BankService {
       const baseQuoted = `\`${baseAlias}\``; // MySQL quoting
 
       // Suma aplicada contra el movimiento (tabla de asociación many-to-many)
-      const appliedSumSQL =
-         `(SELECT COALESCE(SUM(btd.amount_applied),0)
-        FROM bank_transaction_documents btd
-       WHERE btd.entity_bank_transaction_id = ${baseQuoted}.id)`;
-
-      // Remanente del movimiento (= amount - suma aplicada)
-      const remainingSQL = `(${baseQuoted}.amount - ${appliedSumSQL})`;
+      const appliedSumSQL = BankService.#bankAppliedSumSql(baseQuoted);
+      const remainingSQL = BankService.#bankRemainingSql(baseQuoted);
 
       // Filtro "solo pendientes"
       if (soloPendientes) {
@@ -1104,6 +1135,202 @@ class BankService {
 
    }
 
+   async searchBankCounterparts({ entityId, bank_transaction_id, q = null, limit = 50 }) {
+      const parsedEntityId = Number(entityId);
+      const sourceId = Number(bank_transaction_id);
+      if (!Number.isInteger(parsedEntityId) || parsedEntityId <= 0) throw boom.badRequest("entityId is required");
+      if (!Number.isInteger(sourceId) || sourceId <= 0) throw boom.badRequest("bank_transaction_id is required");
+
+      const remainingSQL = BankService.#bankRemainingSql("bt");
+      const [source] = await sequelize.query(
+         `
+         SELECT bt.id, bt.type, bt.amount, bt.issued_at, ${remainingSQL} AS remaining_amount
+         FROM entity_bank_transactions bt
+         WHERE bt.id = :sourceId AND bt.entity_id = :entityId
+         LIMIT 1
+         `,
+         { replacements: { sourceId, entityId: parsedEntityId }, type: QueryTypes.SELECT }
+      );
+
+      if (!source) throw boom.notFound("bank transaction not found for the given entity");
+      const sourceRemaining = Number(source.remaining_amount || 0);
+      if (!(sourceRemaining > 0)) return { ok: true, rows: [], total: 0 };
+
+      const search = String(q || '').trim();
+      const searchClause = search
+         ? `AND (
+            bt.description LIKE :searchLike
+            OR bt.document_ref LIKE :searchLike
+            OR ba.bank_name LIKE :searchLike
+            OR CAST(bt.amount AS CHAR) LIKE :searchLike
+         )`
+         : '';
+
+      const rows = await sequelize.query(
+         `
+         SELECT
+            bt.id,
+            bt.entity_id,
+            bt.entity_bank_account_id,
+            bt.type,
+            bt.amount,
+            bt.description,
+            bt.document_ref,
+            bt.branch,
+            bt.issued_at,
+            ba.bank_name,
+            ba.account_number,
+            ba.currency,
+            ${remainingSQL} AS remaining_amount,
+            ABS(${remainingSQL} - :sourceRemaining) AS amount_distance,
+            ABS(DATEDIFF(DATE(bt.issued_at), DATE(:sourceIssuedAt))) AS date_distance
+         FROM entity_bank_transactions bt
+         JOIN entity_bank_accounts ba ON ba.id = bt.entity_bank_account_id
+         WHERE bt.entity_id = :entityId
+           AND bt.id <> :sourceId
+           AND bt.type <> :sourceType
+           ${searchClause}
+         HAVING remaining_amount > 0
+         ORDER BY amount_distance ASC, date_distance ASC, bt.issued_at DESC, bt.id DESC
+         LIMIT :limit
+         `,
+         {
+            replacements: {
+               entityId: parsedEntityId,
+               sourceId,
+               sourceType: source.type,
+               sourceRemaining,
+               sourceIssuedAt: source.issued_at,
+               searchLike: `%${search}%`,
+               limit: Math.min(Math.max(Number(limit) || 50, 1), 100),
+            },
+            type: QueryTypes.SELECT,
+         }
+      );
+
+      const mapped = rows.map((row) => {
+         const plain = BankService.#decryptAccountNumberFromStorage(row.account_number);
+         const masked = plain
+            ? BankService.#maskAccountNumber(plain)
+            : (() => {
+               const last4 = BankService.#extractLast4FromStorage(row.account_number);
+               return last4 ? `****${last4}` : '';
+            })();
+         const currencyLabel = row.currency === 'USD' ? 'DOLAR' : row.currency;
+
+         return {
+            id: Number(row.id),
+            target_kind: 'bank_transaction',
+            bank_type: row.type,
+            issue_date: row.issued_at?.toISOString?.().slice(0, 10) || String(row.issued_at || '').slice(0, 10),
+            description: row.description || '',
+            counterparty_name: row.description || '',
+            folio: BankService.#normalizeDocumentRef(row.document_ref) || `MOV-${row.id}`,
+            total_amount: Number(row.amount || 0),
+            remaining_amount: Number(row.remaining_amount || 0),
+            account_label: [row.bank_name, masked, currencyLabel].filter(Boolean).join(' - '),
+            document_ref: BankService.#normalizeDocumentRef(row.document_ref),
+         };
+      });
+
+      return { ok: true, rows: mapped, total: mapped.length };
+   }
+
+   async reconcileBankTransaction({ entityId, bank_transaction_id, target_bank_transaction_id, amount = null }) {
+      const parsedEntityId = Number(entityId);
+      const sourceId = Number(bank_transaction_id);
+      const targetId = Number(target_bank_transaction_id);
+      if (!Number.isInteger(parsedEntityId) || parsedEntityId <= 0) throw boom.badRequest("entityId is required");
+      if (!Number.isInteger(sourceId) || sourceId <= 0) throw boom.badRequest("bank_transaction_id is required");
+      if (!Number.isInteger(targetId) || targetId <= 0) throw boom.badRequest("target_bank_transaction_id is required");
+      if (sourceId === targetId) throw boom.badRequest("cannot reconcile a transaction with itself");
+      if (amount != null && !(Number(amount) > 0)) throw boom.badRequest("amount must be a positive number");
+
+      return await sequelize.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED }, async (t) => {
+         const remainingSQL = BankService.#bankRemainingSql("bt");
+         const loadTx = async (id) => {
+            const [row] = await sequelize.query(
+               `
+               SELECT bt.id, bt.entity_id, bt.type, bt.amount, bt.description, bt.issued_at,
+                      ${remainingSQL} AS remaining_amount
+               FROM entity_bank_transactions bt
+               WHERE bt.id = :id AND bt.entity_id = :entityId
+               LIMIT 1
+               FOR UPDATE
+               `,
+               { replacements: { id, entityId: parsedEntityId }, type: QueryTypes.SELECT, transaction: t }
+            );
+            return row;
+         };
+
+         const source = await loadTx(sourceId);
+         const target = await loadTx(targetId);
+         if (!source) throw boom.notFound("bank transaction not found for the given entity");
+         if (!target) throw boom.notFound("target bank transaction not found for the given entity");
+         if (source.type === target.type) throw boom.badRequest("bank transactions must have opposite types");
+
+         const sourceRemaining = Number(source.remaining_amount || 0);
+         const targetRemaining = Number(target.remaining_amount || 0);
+         if (sourceRemaining <= 0) throw boom.conflict("bank transaction has no remaining balance");
+         if (targetRemaining <= 0) throw boom.conflict("target bank transaction has no remaining balance");
+
+         let toApply = amount != null ? Number(amount) : Math.min(sourceRemaining, targetRemaining);
+         if (!Number.isFinite(toApply) || toApply <= 0) throw boom.badRequest("invalid amount to apply");
+         if (toApply > sourceRemaining + 1e-6) throw boom.conflict("amount exceeds bank transaction remaining balance");
+         if (toApply > targetRemaining + 1e-6) throw boom.conflict("amount exceeds target bank transaction remaining balance");
+
+         const dup = await models.BankTransactionMatch.findOne({
+            where: {
+               [Op.or]: [
+                  { source_bank_transaction_id: sourceId, target_bank_transaction_id: targetId, amount_applied: toApply },
+                  { source_bank_transaction_id: targetId, target_bank_transaction_id: sourceId, amount_applied: toApply },
+               ],
+            },
+            transaction: t,
+            lock: t.LOCK.UPDATE,
+         });
+         if (dup) throw boom.conflict("an identical bank reconciliation already exists for this pair and amount");
+
+         const link = await models.BankTransactionMatch.create({
+            source_bank_transaction_id: sourceId,
+            target_bank_transaction_id: targetId,
+            amount_applied: toApply,
+            method: 'manual',
+         }, { transaction: t });
+
+         const sourceAfter = await loadTx(sourceId);
+         const targetAfter = await loadTx(targetId);
+
+         return {
+            ok: true,
+            applied: {
+               id: link.id,
+               bank_transaction_id: sourceId,
+               target_bank_transaction_id: targetId,
+               amount_applied: toApply,
+            },
+            bank: {
+               id: sourceId,
+               type: source.type,
+               amount: Number(source.amount || 0),
+               remaining_before: sourceRemaining,
+               remaining_after: Number(sourceAfter.remaining_amount || 0),
+               description: source.description,
+               issued_at: source.issued_at,
+            },
+            target: {
+               id: targetId,
+               type: target.type,
+               amount: Number(target.amount || 0),
+               remaining_before: targetRemaining,
+               remaining_after: Number(targetAfter.remaining_amount || 0),
+               description: target.description,
+               issued_at: target.issued_at,
+            },
+         };
+      });
+   }
+
    async unreconcile({ id, entityId }) {
       if (!id || !entityId) throw boom.badRequest('id and entityId are required');
 
@@ -1178,7 +1405,48 @@ class BankService {
 
       const [{ total }] = await sequelize.query(sqlCount, { replacements: params, type: QueryTypes.SELECT });
       const rows = await sequelize.query(sql, { replacements: params, type: QueryTypes.SELECT });
-      return { total: Number(total || 0), rows };
+
+      let bankRows = [];
+      if (bank_transaction_id && !document_id) {
+         bankRows = await sequelize.query(
+            `
+            SELECT
+               btm.id,
+               'bank_transaction' AS kind,
+               :bt AS bank_transaction_id,
+               CASE
+                  WHEN btm.source_bank_transaction_id = :bt THEN btm.target_bank_transaction_id
+                  ELSE btm.source_bank_transaction_id
+               END AS target_bank_transaction_id,
+               btm.amount_applied,
+               otherbt.type AS target_bank_type,
+               otherbt.amount AS doc_amount,
+               otherbt.issued_at AS issue_date,
+               otherbt.description AS bank_description,
+               otherbt.document_ref AS folio,
+               NULL AS document_id,
+               NULL AS doc_type_code,
+               NULL AS counterparty_rut
+            FROM bank_transaction_matches btm
+            JOIN entity_bank_transactions selectedbt
+              ON selectedbt.id = :bt
+             AND selectedbt.entity_id = :e
+            JOIN entity_bank_transactions otherbt
+              ON otherbt.id = CASE
+                  WHEN btm.source_bank_transaction_id = :bt THEN btm.target_bank_transaction_id
+                  ELSE btm.source_bank_transaction_id
+               END
+             AND otherbt.entity_id = :e
+            WHERE btm.source_bank_transaction_id = :bt
+               OR btm.target_bank_transaction_id = :bt
+            ORDER BY btm.id DESC
+            LIMIT :limit OFFSET :offset
+            `,
+            { replacements: params, type: QueryTypes.SELECT }
+         );
+      }
+
+      return { total: Number(total || 0) + bankRows.length, rows: [...rows, ...bankRows] };
    }
 
    async #reconcileWithTx({ entityId, bank_transaction_id, document_id, amount = null, method = 'manual', t }) {
@@ -1240,17 +1508,17 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
       }
 
       const docReconcileAmount = BankService.#documentReconcileAmountSql("d");
+      const bankRemainingSql = BankService.#bankRemainingSql("bt");
 
       const [agg] = await sequelize.query(
          `
          SELECT
             bt.amount AS bank_amount,
-            (bt.amount - IFNULL(SUM(btd1.amount_applied),0)) AS bank_remaining,
+            ${bankRemainingSql} AS bank_remaining,
             ${docReconcileAmount} AS doc_amount,
             (${docReconcileAmount} - IFNULL(SUM(btd2.amount_applied),0)) AS doc_remaining
          FROM entity_bank_transactions bt
          JOIN entity_sii_documents d ON d.id = :docId AND d.entity_id = :entityId
-         LEFT JOIN bank_transaction_documents btd1 ON btd1.entity_bank_transaction_id = bt.id
          LEFT JOIN bank_transaction_documents btd2 ON btd2.entity_sii_document_id = d.id
          WHERE bt.id = :bankTxId AND bt.entity_id = :entityId
          GROUP BY bt.id, d.id
@@ -1295,13 +1563,12 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
          SELECT
             bt.id AS bank_tx_id,
             bt.amount AS bank_amount,
-            (bt.amount - IFNULL(SUM(btd1.amount_applied),0)) AS bank_remaining,
+            ${bankRemainingSql} AS bank_remaining,
             d.id AS doc_id,
             ${docReconcileAmount} AS doc_amount,
             (${docReconcileAmount} - IFNULL(SUM(btd2.amount_applied),0)) AS doc_remaining
          FROM entity_bank_transactions bt
          JOIN entity_sii_documents d ON d.id = :docId AND d.entity_id = :entityId
-         LEFT JOIN bank_transaction_documents btd1 ON btd1.entity_bank_transaction_id = bt.id
          LEFT JOIN bank_transaction_documents btd2 ON btd2.entity_sii_document_id = d.id
          WHERE bt.id = :bankTxId AND bt.entity_id = :entityId
          GROUP BY bt.id, d.id

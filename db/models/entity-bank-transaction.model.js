@@ -21,6 +21,8 @@ class EntityBankTransaction extends Model {
     this.belongsTo(models.EntityBankAccount, { as: 'bank_account', foreignKey: 'entity_bank_account_id' });
     this.belongsTo(models.EntitySiiDocument, { as: 'sii_document', foreignKey: 'sii_document_id' });
     this.belongsToMany(models.EntitySiiDocument, { as: 'documents', through: models.BankTransactionDocument, foreignKey: 'entity_bank_transaction_id', otherKey: 'entity_sii_document_id' });
+    this.hasMany(models.BankTransactionMatch, { as: 'source_matches', foreignKey: 'source_bank_transaction_id' });
+    this.hasMany(models.BankTransactionMatch, { as: 'target_matches', foreignKey: 'target_bank_transaction_id' });
   }
   static config(sequelize) { return { sequelize, tableName: ENTITY_BANK_TRANSACTION_TABLE, modelName: 'EntityBankTransaction', timestamps: false }; }
 }

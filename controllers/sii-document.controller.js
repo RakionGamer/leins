@@ -32,6 +32,9 @@ const listDocuments = asyncHandler(async (req, res) => {
    const payload = {
       entity_id: req.entityId ? Number(req.entityId) : (q.entity_id ? Number(q.entity_id) : undefined),
       type: typeCode,
+      q: q.q ? String(q.q) : (q.search ? String(q.search) : undefined),
+      folio: q.folio ? String(q.folio) : undefined,
+      client: q.client ? String(q.client) : undefined,
       source: q.source ? String(q.source) : undefined,
       operation_type: q.operation_type ? String(q.operation_type).toUpperCase() : undefined,
       month,

@@ -14,6 +14,7 @@ const { EntityBankAccount, EntityBankAccountSchema } = require('./entity-bank-ac
 const { EntitySiiDocument, EntitySiiDocumentSchema } = require('./entity-sii-document.model');
 const { EntityBankTransaction, EntityBankTransactionSchema } = require('./entity-bank-transaction.model');
 const { BankTransactionDocument, BankTransactionDocumentSchema } = require('./bank-transaction-document.model');
+const { BankTransactionMatch, BankTransactionMatchSchema } = require('./bank-transaction-match.model');
 const { EntityCashFlowProjection, EntityCashFlowProjectionSchema } = require('./entity-cash-flow-projection.model');
 const { RefreshTokenSuperAdmin, RefreshTokenSuperAdminSchema } = require('./refresh-token-super-admin.model');
 const { ActivityLog, ActivityLogSchema } = require('./activity-log.model');
@@ -39,6 +40,7 @@ function setupModels(sequelize) {
    EntitySiiDocument.init(EntitySiiDocumentSchema, EntitySiiDocument.config(sequelize));
    EntityBankTransaction.init(EntityBankTransactionSchema, EntityBankTransaction.config(sequelize));
    BankTransactionDocument.init(BankTransactionDocumentSchema, BankTransactionDocument.config(sequelize));
+   BankTransactionMatch.init(BankTransactionMatchSchema, BankTransactionMatch.config(sequelize));
    EntityCashFlowProjection.init(EntityCashFlowProjectionSchema, EntityCashFlowProjection.config(sequelize));
    RefreshTokenSuperAdmin.init(RefreshTokenSuperAdminSchema, RefreshTokenSuperAdmin.config(sequelize));
    ActivityLog.init(ActivityLogSchema, ActivityLog.config(sequelize));
@@ -63,6 +65,7 @@ function setupModels(sequelize) {
    if (EntitySiiDocument.associate) EntitySiiDocument.associate(sequelize.models);
    if (EntityBankTransaction.associate) EntityBankTransaction.associate(sequelize.models);
    if (BankTransactionDocument.associate) BankTransactionDocument.associate(sequelize.models);
+   if (BankTransactionMatch.associate) BankTransactionMatch.associate(sequelize.models);
    if (EntityCashFlowProjection.associate) EntityCashFlowProjection.associate(sequelize.models);
    if (RefreshTokenSuperAdmin.associate) RefreshTokenSuperAdmin.associate(sequelize.models);
    if (ActivityLog.associate) ActivityLog.associate(sequelize.models);

@@ -413,6 +413,48 @@ const reconcileTransaction = asyncHandler(async (req, res) => {
    res.json(out);
 });
 
+const searchBankReconcileCandidates = asyncHandler(async (req, res) => {
+   const { entityId, bank_transaction_id, q, limit = '50' } = req.query || {};
+
+   if (!entityId) throw boom.badRequest("entityid requerido");
+   if (!bank_transaction_id) throw boom.badRequest("bank_transaction_id requerido");
+
+   const out = await service.searchBankCounterparts({
+      entityId: Number(entityId),
+      bank_transaction_id: Number(bank_transaction_id),
+      q: q || null,
+      limit: Math.min(Math.max(Number(limit) || 50, 1), 100),
+   });
+
+   res.json(out);
+});
+
+const reconcileBankTransaction = asyncHandler(async (req, res) => {
+   const { entityId, bank_transaction_id, target_bank_transaction_id, amount } = req.body || {};
+
+   if (!entityId) throw boom.badRequest("entityid requerido");
+   if (!bank_transaction_id) throw boom.badRequest("bank_transaction_id requerido");
+   if (!target_bank_transaction_id) throw boom.badRequest("target_bank_transaction_id requerido");
+   if (amount != null && !(Number(amount) > 0)) throw boom.badRequest("amount debe ser numero positivo");
+
+   const out = await service.reconcileBankTransaction({
+      entityId: Number(entityId),
+      bank_transaction_id: Number(bank_transaction_id),
+      target_bank_transaction_id: Number(target_bank_transaction_id),
+      amount: amount != null ? Number(amount) : null,
+   });
+
+   logInfo('BANK_TRANSACTION_MATCH_RECONCILED', {
+      rid: req.rid,
+      userId: req.user?.sub,
+      entityId,
+      bank_transaction_id,
+      target_bank_transaction_id
+   });
+
+   res.json(out);
+});
+
 // controlador para conciliar de forma masiva
 const bulkReconcile = asyncHandler(async (req, res) => {
    const { entityId, pairs = [], method } = req.body || {};
@@ -489,6 +531,8 @@ module.exports = {
    getSuggestionsFast,
    countSuggestions,
    reconcileTransaction,
+   searchBankReconcileCandidates,
+   reconcileBankTransaction,
    bulkReconcile,
    unreconcileTransaction,
    listReconciliations
