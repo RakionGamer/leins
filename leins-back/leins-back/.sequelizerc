@@ -1,0 +1,12 @@
+// .sequelizerc
+const path = require('path');
+
+module.exports = {
+   // usa tu config del cli ubicada en libs/
+   'config': path.resolve('libs/sequelize-cli-config.js'),
+
+   // estas rutas deben coincidir con tus carpetas reales
+   'models-path': path.resolve('models'),
+   'migrations-path': path.resolve('migrations'),
+   'seeders-path': path.resolve('seeders')
+};

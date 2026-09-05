@@ -1,0 +1,34 @@
+@baseUrl = https://form.asesoriasspeed.cl/api/v1/auth
+@username = kllanquel
+@password = prueba
+
+### LOGIN
+POST {{baseUrl}}/login
+Content-Type: application/json
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+### REFRESH TOKEN
+POST {{baseUrl}}/refresh
+Content-Type: application/json
+
+{
+  "userId": 1,
+  "refreshToken": "59cd97eeda6c42b1b988c248e881648ca3aa02103a8d96a841f952b0804ceb740864a03212792dd05b3740e20a3486da24e575bfed09bc776ff86ab16c7c716a"
+}
+
+### LOGOUT
+POST {{baseUrl}}/logout
+Content-Type: application/json
+
+{
+  "userId": 1,
+  "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOjEsInVzZXJuYW1lIjoia2xsYW5xdWVsIiwiaWF0IjoxNzUzNTcwOTcwLCJleHAiOjE3NTM1NzE4NzB9.F9IzSY_dLZw7md7oS0oIK5HPk9uL6sM4rJZXzQ0k65Y"
+}
+
+### RUTA PROTEGIDA (EJEMPLO: /states)
+GET https://form.asesoriasspeed.cl/api/v1/states
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOjEsInVzZXJuYW1lIjoia2xsYW5xdWVsIiwiaWF0IjoxNzUzNTcxMTc5LCJleHAiOjE3NTM1NzIwNzl9.QeysmhmaH02ki_rK3uTdv7kWgRun1kl7bnq39Qm1qRY
