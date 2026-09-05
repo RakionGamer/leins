@@ -1,0 +1,59 @@
+/* src/styles/ui.css */
+@tailwind components; /* fuerza la existencia de la capa, por si se procesa por separado */
+
+@layer components {
+   .card {
+      @apply rounded-2xl border border-border-subtle/60 bg-bg-content p-6 shadow-soft;
+   }
+   .page {
+      @apply p-6;
+   }
+   .page-inner {
+      @apply mx-auto space-y-6;
+   }
+
+   .btn {
+      @apply inline-flex items-center justify-center rounded-xl h-10 px-4 transition;
+   }
+   .btn-primary {
+      @apply btn bg-brand text-white hover:bg-brand-strong;
+   }
+   .btn-ghost {
+      @apply btn ring-1 ring-border-subtle text-text-main hover:bg-text-main/5;
+   }
+
+   .input {
+      @apply h-10 rounded-xl border border-border-subtle/60 bg-transparent px-3 
+           text-text-main placeholder:text-text-soft 
+           focus:outline-none focus:ring-2 focus:ring-brand/50 focus:border-brand;
+   }
+   .input-disabled {
+      @apply input disabled:opacity-80;
+   }
+
+   .field {
+      @apply flex flex-col gap-1;
+   }
+   .field-label {
+      @apply text-xs uppercase tracking-wide opacity-70;
+   }
+   .grid-2col {
+      @apply grid grid-cols-1 md:grid-cols-2 gap-4;
+   }
+}
+
+@layer components {
+   /* normaliza los elementos nativos del plugin con tu paleta */
+   .form-input,
+   .form-textarea,
+   .form-select,
+   .form-multiselect {
+      @apply border-border-subtle/60 bg-transparent text-text-main
+           placeholder:text-text-soft rounded-xl
+           focus:ring-2 focus:ring-brand/50 focus:border-brand;
+   }
+   .form-checkbox,
+   .form-radio {
+      @apply text-brand focus:ring-brand/40 border-border-subtle/60;
+   }
+}
