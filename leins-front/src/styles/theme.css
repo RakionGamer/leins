@@ -1,0 +1,455 @@
+/* Animations */
+@keyframes fade-in {
+   from {
+      opacity: 0;
+      transform: translateY(20px);
+   }
+   to {
+      opacity: 1;
+      transform: translateY(0);
+   }
+}
+.animate-fade-in {
+   animation: fade-in 0.7s ease-out;
+}
+
+/* Typography / Smoothing */
+body {
+   margin: 0;
+   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto",
+      "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans",
+      "Helvetica Neue", sans-serif;
+   -webkit-font-smoothing: antialiased;
+   -moz-osx-font-smoothing: grayscale;
+}
+code {
+   font-family: source-code-pro, Menlo, Monaco, Consolas, "Courier New",
+      monospace;
+}
+
+/* Hints modo */
+:root {
+   color-scheme: light;
+}
+.dark {
+   color-scheme: dark;
+}
+
+/* ===== Paleta Light ===== */
+:root {
+   --brand: #2c9cb3;
+   --brand-rgb: 44 156 179;
+   --brand-strong: #0e7490;
+   --brand-strong-rgb: 14 116 144;
+   --brand-tint: #d8eff4;
+   --brand-tint-rgb: 216 239 244;
+
+   --bg-shell: #f4f8fa;
+   --bg-shell-rgb: 244 248 250;
+   --bg-content: #ffffff;
+   --bg-content-rgb: 255 255 255;
+   --surface-1: #fafcfd;
+   --surface-1-rgb: 250 252 253;
+   --surface-2: #eef4f6;
+   --surface-2-rgb: 238 244 246;
+
+   --text-main: #613f51;
+   --text-main-rgb: 97 63 81;
+   --text-soft: #7a5a6f;
+   --text-soft-rgb: 122 90 111;
+   --heading: #4a3342;
+   --heading-rgb: 74 51 66;
+
+   --border-subtle: #d8e7ee;
+   --border-subtle-rgb: 216 231 238;
+   --border-strong: #afc8d2;
+   --border-strong-rgb: 175 200 210;
+
+   --info: #0ea5e9;
+   --info-rgb: 14 165 233;
+   --info-bg: #e0f2fe;
+   --info-bg-rgb: 224 242 254;
+   --success: #16a34a;
+   --success-rgb: 22 163 74;
+   --success-bg: #dcfce7;
+   --success-bg-rgb: 220 252 231;
+   --warning: #f59e0b;
+   --warning-rgb: 245 158 11;
+   --warning-bg: #fef3c7;
+   --warning-bg-rgb: 254 243 199;
+   --danger: #dc2626;
+   --danger-rgb: 220 38 38;
+   --danger-bg: #fee2e2;
+   --danger-bg-rgb: 254 226 226;
+
+   --bg-sidebar: var(--brand-strong);
+   --bg-sidebar-rgb: var(--brand-strong-rgb);
+}
+
+.dark {
+   --brand: #0e7490;
+   --brand-rgb: 14 116 144;
+   --brand-strong: #094e60;
+   --brand-strong-rgb: 9 78 96;
+
+   --bg-shell: #1e2024; /* gris piedra */
+   --bg-shell-rgb: 30 32 36;
+   --bg-content: #23262b;
+   --bg-content-rgb: 35 38 43;
+   --surface-1: #2a2e34;
+   --surface-1-rgb: 42 46 52;
+   --surface-2: #32373f;
+   --surface-2-rgb: 50 55 63;
+
+   --text-main: #f2f4f7;
+   --text-main-rgb: 242 244 247;
+   --text-soft: #b3bac3;
+   --text-soft-rgb: 179 186 195;
+   --heading: #ffffff;
+   --heading-rgb: 255 255 255;
+
+   --border-subtle: #3a4048;
+   --border-subtle-rgb: 58 64 72;
+   --border-strong: #474f59;
+   --border-strong-rgb: 71 79 89;
+
+   --bg-sidebar: var(--brand-strong);
+   --bg-sidebar-rgb: var(--brand-strong-rgb);
+}
+
+/* Global base */
+body {
+   background: var(--bg-shell);
+   color: var(--text-main);
+}
+
+/* Selection */
+::selection {
+   background: var(--brand);
+   color: #fff;
+}
+@supports (background: color-mix(in oklab, white 50%, black)) {
+   ::selection {
+      background: color-mix(in oklab, var(--brand) 60%, transparent);
+      color: #fff;
+   }
+}
+
+/* Scrollbars (webkit) */
+*::-webkit-scrollbar {
+   width: 10px;
+   height: 10px;
+}
+*::-webkit-scrollbar-thumb {
+   background: color-mix(in oklab, var(--brand) 50%, #808080);
+   border-radius: 8px;
+}
+
+/* Título blanco con glow */
+@keyframes brand-glow {
+   0% {
+      text-shadow: 0 0 0 rgba(var(--brand-rgb), 0), 0 0 0 rgba(0, 0, 0, 0);
+      filter: drop-shadow(0 0 0 rgba(var(--brand-rgb), 0))
+         drop-shadow(0 0 0 rgba(0, 0, 0, 0));
+   }
+   50% {
+      text-shadow: 0 0 20px rgba(var(--brand-rgb), 0.8),
+         0 0 4px rgba(0, 0, 0, 0.25);
+      filter: drop-shadow(0 0 10px rgba(var(--brand-rgb), 0.45))
+         drop-shadow(0 0 4px rgba(0, 0, 0, 0.15));
+   }
+   100% {
+      text-shadow: 0 0 0 rgba(var(--brand-rgb), 0), 0 0 0 rgba(0, 0, 0, 0);
+      filter: drop-shadow(0 0 0 rgba(var(--brand-rgb), 0))
+         drop-shadow(0 0 0 rgba(0, 0, 0, 0));
+   }
+}
+.brand-title-white {
+   color: #fff;
+}
+.brand-title-glow {
+   display: inline-block;
+   animation: brand-glow 2.4s ease-in-out infinite;
+}
+.brand-title-outline {
+   -webkit-text-stroke: 0.5px rgba(0, 0, 0, 0.25);
+}
+.dark .brand-title-outline {
+   -webkit-text-stroke: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+   .brand-title-glow {
+      animation: none;
+   }
+}
+
+/* arregla el popup nativo del <select> en modo oscuro */
+select,
+select option,
+select optgroup {
+   background-color: var(--surface-2);
+   color: var(--heading);
+}
+
+/* opcional: mejor foco */
+select:focus {
+   outline: 2px solid var(--brand);
+   outline-offset: 0;
+}
+
+/* ===== helpers de tema (superficies, texto, bordes) ===== */
+.bg-surface {
+   background: var(--bg-content);
+}
+.bg-surface-1 {
+   background: var(--surface-1);
+}
+.bg-surface-2 {
+   background: var(--surface-2);
+}
+.text-main {
+   color: var(--text-main);
+}
+.text-soft {
+   color: var(--text-soft);
+}
+.border-subtle {
+   border-color: var(--border-subtle);
+}
+.border-strong {
+   border-color: var(--border-strong);
+}
+
+/* tabla: head respetando tema */
+.table-head {
+   background: var(--surface-2);
+}
+
+/* ===== badges/chips ===== */
+.badge {
+   display: inline-flex;
+   align-items: center;
+   font-size: 11px;
+   line-height: 1;
+   padding: 2px 8px;
+   border-radius: 999px;
+   border: 1px solid var(--border-subtle);
+   background: var(--surface-1);
+   color: var(--text-soft);
+}
+.badge-success {
+   background: var(--success-bg);
+   color: var(--text-main);
+}
+.badge-neutral {
+   background: var(--surface-1);
+}
+
+/* ===== botones ===== */
+.btn {
+   border-radius: 8px;
+   padding: 6px 12px;
+   border: 1px solid var(--border-subtle);
+   background: var(--surface-1);
+   color: var(--text-main);
+}
+.btn:disabled {
+   opacity: 0.5;
+   cursor: not-allowed;
+}
+.btn-primary {
+   background: var(--brand);
+   border-color: color-mix(
+      in oklab,
+      rgb(var(--brand-rgb)) 85%,
+      var(--border-strong)
+   );
+   color: #fff;
+}
+.btn-outline {
+   background: transparent;
+   border-color: var(--border-strong);
+}
+
+/* ===== tarjetas / contenedores suaves ===== */
+.card {
+   background: var(--bg-content);
+   border: 1px solid var(--border-subtle);
+   border-radius: 12px;
+}
+.card-soft {
+   background: var(--surface-1);
+   border: 1px solid var(--border-subtle);
+   border-radius: 8px;
+}
+
+/* resaltado “sugerencia principal” */
+.bg-success-soft {
+   background: var(--success-bg);
+   border-color: color-mix(
+      in oklab,
+      var(--success-bg) 60%,
+      var(--border-subtle)
+   );
+}
+
+/* inputs */
+.input {
+   background: var(--surface-1);
+   color: var(--text-main);
+   border: 1px solid var(--border-subtle);
+   border-radius: 6px;
+   padding: 6px 8px;
+}
+
+/* === contraste en dark para tarjetas de sugerencia (success) === */
+.dark .bg-success-soft {
+   /* verde mezclado con la superficie para que sea más oscuro en dark */
+   background: color-mix(in oklab, #16a34a 45%, var(--surface-1));
+   border-color: color-mix(in oklab, #16a34a 55%, var(--border-subtle));
+   color: var(--text-main); /* texto claro sobre fondo más oscuro */
+}
+
+/* chips dentro del success: que SE LEA en dark */
+.dark .bg-success-soft .badge {
+   background: transparent;
+   border-color: var(--border-strong);
+   color: var(--text-main);
+}
+
+/* tabla: head con más contraste en dark */
+.dark .table-head {
+   background: color-mix(in oklab, var(--surface-2) 70%, black);
+}
+
+.reconcile-group-card {
+   background: color-mix(in oklab, rgb(var(--brand-rgb)) 10%, var(--surface-1));
+   border-color: color-mix(in oklab, rgb(var(--brand-rgb)) 28%, var(--border-strong));
+   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.reconcile-group-card .badge-neutral {
+   background: color-mix(in oklab, var(--bg-content) 72%, rgb(var(--brand-rgb)));
+   border-color: color-mix(in oklab, rgb(var(--brand-rgb)) 22%, var(--border-subtle));
+   color: var(--text-main);
+}
+
+.reconcile-group-kind {
+   background: color-mix(in oklab, rgb(var(--brand-rgb)) 14%, var(--bg-content));
+   border-color: color-mix(in oklab, rgb(var(--brand-rgb)) 24%, var(--border-subtle));
+   color: var(--brand-strong);
+}
+
+.reconcile-group-rank {
+   background: color-mix(in oklab, #f59e0b 18%, var(--bg-content));
+   border-color: color-mix(in oklab, #f59e0b 34%, var(--border-subtle));
+   color: #92400e;
+}
+
+.reconcile-group-action {
+   background: color-mix(in oklab, rgb(var(--brand-rgb)) 12%, var(--bg-content));
+   border-color: color-mix(in oklab, rgb(var(--brand-rgb)) 45%, var(--border-strong));
+   color: var(--brand-strong);
+   font-weight: 700;
+}
+
+.reconcile-group-action:hover:not(:disabled) {
+   background: var(--brand);
+   border-color: var(--brand);
+   color: #fff;
+}
+
+.dark .reconcile-group-card {
+   background: linear-gradient(
+      180deg,
+      color-mix(in oklab, rgb(var(--brand-rgb)) 24%, var(--surface-2)),
+      color-mix(in oklab, rgb(var(--brand-rgb)) 12%, var(--surface-1))
+   );
+   border-color: color-mix(in oklab, rgb(var(--brand-rgb)) 42%, var(--border-strong));
+   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 10px 24px rgba(0, 0, 0, 0.22);
+}
+
+.dark .reconcile-group-card .badge-neutral {
+   background: rgba(255, 255, 255, 0.08);
+   border-color: rgba(255, 255, 255, 0.14);
+   color: var(--text-main);
+}
+
+.dark .reconcile-group-kind {
+   background: rgba(255, 255, 255, 0.1);
+   border-color: rgba(255, 255, 255, 0.16);
+   color: #f8fafc;
+}
+
+.dark .reconcile-group-rank {
+   background: rgba(245, 158, 11, 0.16);
+   border-color: rgba(245, 158, 11, 0.3);
+   color: #fde68a;
+}
+
+.dark .reconcile-group-action {
+   background: rgba(255, 255, 255, 0.1);
+   border-color: color-mix(in oklab, rgb(var(--brand-rgb)) 55%, var(--border-strong));
+   color: #dbeafe;
+}
+
+.dark .reconcile-group-action:hover:not(:disabled) {
+   background: color-mix(in oklab, rgb(var(--brand-rgb)) 70%, #111827);
+   border-color: color-mix(in oklab, rgb(var(--brand-rgb)) 70%, #dbeafe);
+   color: #fff;
+}
+
+@keyframes fadeInUp {
+   from {
+      opacity: 0;
+      transform: translateY(8px);
+   }
+   to {
+      opacity: 1;
+      transform: translateY(0);
+   }
+}
+
+@keyframes suggestion-glow {
+   0% {
+      box-shadow: 0 0 0 rgba(22, 163, 74, 0.05);
+   }
+   50% {
+      box-shadow: 0 10px 24px rgba(22, 163, 74, 0.15);
+   }
+   100% {
+      box-shadow: 0 0 0 rgba(22, 163, 74, 0.05);
+   }
+}
+
+@keyframes suggestion-sheen {
+   0% {
+      background-position: -160% 0;
+   }
+   100% {
+      background-position: 180% 0;
+   }
+}
+
+.suggestion-principal-card {
+   position: relative;
+   overflow: visible;
+   animation: suggestion-glow 4.8s ease-in-out infinite;
+}
+
+.suggestion-principal-card::after {
+   content: "";
+   position: absolute;
+   inset: 0;
+   border-radius: inherit;
+   background: linear-gradient(
+      115deg,
+      rgba(255, 255, 255, 0) 32%,
+      rgba(255, 255, 255, 0.28) 50%,
+      rgba(255, 255, 255, 0) 68%
+   );
+   background-size: 240% 100%;
+   background-position: -160% 0;
+   pointer-events: none;
+   animation: suggestion-sheen 7s ease-in-out infinite;
+}
