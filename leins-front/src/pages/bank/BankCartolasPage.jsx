@@ -1919,7 +1919,9 @@ export default function BankCartolasPage() {
                                                       })()}
                                                    </td>
                                                    <td className="px-3 py-2">
-                                                      <div className="truncate max-w-[320px]">{d.counterparty_name || d.description || "—"}</div>
+                                                      <div className="truncate max-w-[320px]">
+                                                         {d.counterparty_rut || d.counterparty_tax_id || d.rut ? `${d.counterparty_rut || d.counterparty_tax_id || d.rut} - ` : ''}{d.counterparty_name || d.description || "—"}
+                                                      </div>
                                                       {d.account_label && <div className="text-[10px] text-[var(--text-soft)] truncate max-w-[320px]">{d.account_label}</div>}
                                                    </td>
                                                    <td className="px-3 py-2 text-right">
@@ -2013,7 +2015,11 @@ export default function BankCartolasPage() {
                                              ) : <span title={getSiiDocumentTypeLabel(selectedDoc?.doc_type_code)} className="inline-flex items-center px-2 h-5 rounded-full text-[10px] font-semibold" style={{ background: solid, color: '#fff' }}>{tag.abbr}</span>;
                                           })()}
                                        </div>
-                                       <div className="mt-1 font-semibold text-[13px] md:text-[14px] text-[var(--bankcard-text)] truncate">{hasMultipleSelectedDocuments ? `${selectedDocuments.length} documentos seleccionados` : selectedDoc?.counterparty_name || selectedDoc?.description || selectedDoc?.descripcion || "(sin descripcion)"}</div>
+                                       <div className="mt-1 font-semibold text-[13px] md:text-[14px] text-[var(--bankcard-text)] truncate">
+                                          {hasMultipleSelectedDocuments
+                                             ? `${selectedDocuments.length} documentos seleccionados`
+                                             : `${selectedDoc?.counterparty_rut || selectedDoc?.counterparty_tax_id || selectedDoc?.rut ? `${selectedDoc.counterparty_rut || selectedDoc.counterparty_tax_id || selectedDoc.rut} - ` : ''}${selectedDoc?.counterparty_name || selectedDoc?.description || selectedDoc?.descripcion || "(sin descripcion)"}`}
+                                       </div>
                                     </div>
                                     <div className="shrink-0 text-right flex flex-col items-end gap-2">
                                        <button onClick={() => { setSelectedDocId(null); setSelectedDocIds([]); }} className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-[var(--surface-2)] hover:bg-[var(--surface-1)] border border-[var(--border-subtle)] text-[var(--text-soft)]">×</button>
