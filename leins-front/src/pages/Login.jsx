@@ -84,7 +84,7 @@ export default function Login() {
                         <p className="text-sm text-text-soft">
                            ¿Olvidaste tu contraseña?{' '}
                            <Link to="/forgot-password" className="font-medium underline text-brand-strong hover:text-brand transition-colors">
-                              Recuperar acceso
+                              Recuperar accesos
                            </Link>
                         </p>
                      </div>
