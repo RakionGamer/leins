@@ -138,7 +138,7 @@ class SiiDocumentsService {
          const like = `%${query}%`;
          where[Op.and].push({
             [Op.or]: [
-               { folio: { [Op.like]: like } },
+               sequelize.where(sequelize.literal('CAST(`EntitySiiDocument`.`folio` AS CHAR)'), { [Op.like]: like }),
                { counterparty_rut: { [Op.like]: like } },
                { counterparty_name: { [Op.like]: like } },
             ],
@@ -385,6 +385,12 @@ class SiiDocumentsService {
            OR (
               d.operation_type IS NULL
               AND d.doc_type_code IN (39, 41, 1001)
+           )
+           OR (
+              d.operation_type IS NULL
+              AND d.doc_type_code IN (33, 34)
+              AND d.received_date IS NULL
+              AND d.purchase_type IS NULL
            )
         )
       HAVING remaining_amount > 0
