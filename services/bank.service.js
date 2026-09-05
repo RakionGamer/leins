@@ -259,6 +259,7 @@ class BankService {
 
       let saved = 0;
       const skipped = [];
+      const localBatchCounts = {};
 
       await sequelize.transaction(async (t) => {
          for (const m of valid) {
@@ -278,27 +279,48 @@ class BankService {
                amount: amountAbs,
                description,
             };
-            let exists = await models.EntityBankTransaction.findOne({ where: baseWhere, transaction: t });
+
+            const batchKey = `${issuedAt.getTime()}_${type}_${amountAbs}_${description}`;
+            localBatchCounts[batchKey] = (localBatchCounts[batchKey] || 0) + 1;
+            const currentOccurrence = localBatchCounts[batchKey];
+
+            const existingRows = await models.EntityBankTransaction.findAll({
+               where: baseWhere,
+               order: [['id', 'ASC']],
+               transaction: t
+            });
+
+            const dbCount = existingRows.length;
+            let exists = null;
             let enrichedExisting = false;
 
-            if (exists && (documentRef || branch || balance != null)) {
-               const updates = {};
-               if (documentRef && !exists.document_ref) updates.document_ref = documentRef;
-               if (branch && !exists.branch) updates.branch = branch;
-               if (balance != null && exists.balance == null) updates.balance = balance;
-               if (Object.keys(updates).length) {
-                  await exists.update(updates, { transaction: t });
-                  enrichedExisting = true;
+            if (dbCount >= currentOccurrence) {
+               exists = existingRows[currentOccurrence - 1];
+               if (exists && (documentRef || branch || balance != null)) {
+                  const updates = {};
+                  if (documentRef && !exists.document_ref) updates.document_ref = documentRef;
+                  if (branch && !exists.branch) updates.branch = branch;
+                  if (balance != null && exists.balance == null) updates.balance = balance;
+                  if (Object.keys(updates).length) {
+                     await exists.update(updates, { transaction: t });
+                     enrichedExisting = true;
+                  }
                }
             }
 
             const oppositeType = type === 'income' ? 'expense' : 'income';
-            const oppositeExists = !exists
-               ? await models.EntityBankTransaction.findOne({
+            let oppositeExists = null;
+
+            if (!exists) {
+               const existingOppositeRows = await models.EntityBankTransaction.findAll({
                   where: { ...baseWhere, type: oppositeType },
-                  transaction: t,
-               })
-               : null;
+                  order: [['id', 'ASC']],
+                  transaction: t
+               });
+               if (existingOppositeRows.length >= currentOccurrence) {
+                  oppositeExists = existingOppositeRows[currentOccurrence - 1];
+               }
+            }
 
             if (oppositeExists) {
                if (collectSkipped) {
