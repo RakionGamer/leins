@@ -1117,7 +1117,7 @@ export default function BankCartolasPage() {
    }, [modalQuery]);
 
    useEffect(() => {
-      if (selectedTargetKind !== 'document' || !reconcileTx || !entityId || debouncedQuery.length < 2) {
+      if (selectedTargetKind !== 'document' || !reconcileTx || !entityId) {
          setSearchCandidates([]);
          setDocumentSearchError('');
          setLoadingDocumentSearch(false);
@@ -1946,7 +1946,7 @@ export default function BankCartolasPage() {
                                        </tbody>
                                     </table>
                                  </div>
-                                 {selectedTargetKind === 'document' && debouncedQuery.length >= 2 && modalTotalPages > 1 && (
+                                 {selectedTargetKind === 'document' && modalTotalPages > 1 && (
                                     <div className="flex items-center justify-between px-4 py-3 bg-[var(--surface-2)] border-t border-[var(--border-subtle)] text-sm text-[var(--text-soft)]">
                                        <div>Página {modalPage} de {modalTotalPages}</div>
                                        <div className="flex gap-2">
