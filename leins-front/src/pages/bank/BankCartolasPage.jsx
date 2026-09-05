@@ -1102,8 +1102,15 @@ export default function BankCartolasPage() {
    // filtros locales para el modal de resultados
    const [modalQuery, setModalQuery] = useState('');
    const [modalTipo, setModalTipo] = useState('');
+   const [modalPage, setModalPage] = useState(1);
+   const [modalTotalPages, setModalTotalPages] = useState(1);
    const [modalSortDate, setModalSortDate] = useState('none');
    const [debouncedQuery, setDebouncedQuery] = useState('');
+   
+   useEffect(() => {
+      setModalPage(1);
+   }, [debouncedQuery, modalTipo]);
+
    useEffect(() => {
       const t = setTimeout(() => setDebouncedQuery(modalQuery.trim().toLowerCase()), 250);
       return () => clearTimeout(t);
@@ -1114,6 +1121,7 @@ export default function BankCartolasPage() {
          setSearchCandidates([]);
          setDocumentSearchError('');
          setLoadingDocumentSearch(false);
+         setModalTotalPages(1);
          return undefined;
       }
 
@@ -1129,7 +1137,7 @@ export default function BankCartolasPage() {
                type: modalTipo || undefined,
                q: debouncedQuery,
                pendingOnly: true,
-               page: 1,
+               page: modalPage,
                limit: 50,
                sort: 'issue_date',
                order: 'desc',
@@ -1137,10 +1145,12 @@ export default function BankCartolasPage() {
             });
 
             setSearchCandidates(out.rows || []);
+            setModalTotalPages(out.totalPages || 1);
          } catch (err) {
             if (err?.name !== 'AbortError') {
                setDocumentSearchError(err.message || 'No se pudieron buscar documentos');
                setSearchCandidates([]);
+               setModalTotalPages(1);
             }
          } finally {
             setLoadingDocumentSearch(false);
@@ -1148,7 +1158,7 @@ export default function BankCartolasPage() {
       })();
 
       return () => controller.abort();
-   }, [debouncedQuery, entityId, modalTipo, reconcileDocumentSide, reconcileTx, selectedTargetKind]);
+   }, [debouncedQuery, entityId, modalTipo, reconcileDocumentSide, reconcileTx, selectedTargetKind, modalPage]);
 
    useEffect(() => {
       if (selectedTargetKind !== 'bank_transaction' || !reconcileTx || !entityId) {
@@ -1936,6 +1946,27 @@ export default function BankCartolasPage() {
                                        </tbody>
                                     </table>
                                  </div>
+                                 {selectedTargetKind === 'document' && debouncedQuery.length >= 2 && modalTotalPages > 1 && (
+                                    <div className="flex items-center justify-between px-4 py-3 bg-[var(--surface-2)] border-t border-[var(--border-subtle)] text-sm text-[var(--text-soft)]">
+                                       <div>Página {modalPage} de {modalTotalPages}</div>
+                                       <div className="flex gap-2">
+                                          <button 
+                                             className="px-2 py-1 rounded border border-[var(--border-subtle)] hover:bg-[var(--surface-3)] disabled:opacity-50"
+                                             disabled={modalPage <= 1}
+                                             onClick={() => setModalPage(p => Math.max(1, p - 1))}
+                                          >
+                                             Anterior
+                                          </button>
+                                          <button 
+                                             className="px-2 py-1 rounded border border-[var(--border-subtle)] hover:bg-[var(--surface-3)] disabled:opacity-50"
+                                             disabled={modalPage >= modalTotalPages}
+                                             onClick={() => setModalPage(p => Math.min(modalTotalPages, p + 1))}
+                                          >
+                                             Siguiente
+                                          </button>
+                                       </div>
+                                    </div>
+                                 )}
                               </div>
                            </section>
                         </div>
