@@ -249,8 +249,96 @@ const removeEntityFromSuperAdmin = asyncHandler(async (req, res) => {
    res.status(200).json(out);
 });
 
+// crea una cuenta cliente (users) y la vincula a una entidad
+const createClientUser = asyncHandler(async (req, res) => {
+   const actorId = req.user?.sub || req.user?.id;
+   const { username, email, password, name, last_name, lastName, entityId, entity_id, read_only, readOnly } = req.body || {};
+
+   const out = await service.createClientUser({
+      actorId,
+      username,
+      email,
+      password,
+      name,
+      lastName: lastName ?? last_name,
+      entityId: entityId ?? entity_id,
+      readOnly: readOnly ?? read_only ?? true,
+   });
+
+   logInfo('CLIENT_USER_CREATED', {
+      rid: req.rid,
+      author: actorId,
+      newUserId: out.row?.id,
+      entityId: out.row?.entity_id
+   });
+
+   res.status(201).json(out);
+});
+
+// lista clientes vinculados a una entidad
+const listClientUsers = asyncHandler(async (req, res) => {
+   const actorId = req.user?.sub || req.user?.id;
+   const entityId = req.query?.entityId || req.query?.entity_id;
+
+   const out = await service.listClientUsers({ actorId, entityId });
+   res.status(200).json(out);
+});
+
+// cambia el permiso read_only de un cliente sobre una entidad
+const updateClientUserEntityAccess = asyncHandler(async (req, res) => {
+   const actorId = req.user?.sub || req.user?.id;
+   const { userId, entityId } = req.params;
+   const { read_only, readOnly } = req.body || {};
+
+   const out = await service.updateClientUserEntityAccess({
+      actorId,
+      userId,
+      entityId,
+      readOnly: readOnly ?? read_only,
+   });
+
+   logInfo('CLIENT_USER_ENTITY_ACCESS_UPDATED', {
+      rid: req.rid,
+      author: actorId,
+      userId: Number(userId),
+      entityId: Number(entityId),
+      read_only: out.read_only
+   });
+
+   res.status(200).json(out);
+});
+
+// edita username/nombre/apellido de un cliente - solo super_admin
+const updateClientUser = asyncHandler(async (req, res) => {
+   const actorId = req.user?.sub || req.user?.id;
+   const { userId } = req.params;
+   const { username, name, last_name, lastName, entityId, entity_id } = req.body || {};
+
+   const out = await service.updateClientUser({
+      actorId,
+      userId,
+      entityId: entityId ?? entity_id,
+      username,
+      name,
+      lastName: lastName ?? last_name,
+   });
+
+   logInfo('CLIENT_USER_UPDATED', {
+      rid: req.rid,
+      author: actorId,
+      userId: Number(userId),
+      entityId: out.row?.entity_id
+   });
+
+   res.status(200).json(out);
+});
+
 module.exports = {
    createSuperAdmin,
+   createClientUser,
+   listClientUsers,
+   updateClientUser,
+   updateClientUserEntityAccess,
    getProfile,
    changePassword,
    updateProfile,

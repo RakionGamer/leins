@@ -20,6 +20,9 @@ const ensureDocumentEntityAccess = requireSiiDocumentEntityAccess();
 // listado de documentos
 router.get('/', ensureEntityAccess, controller.listDocuments);
 
+// exportacion csv del listado filtrado
+router.get('/export', ensureEntityAccess, controller.exportDocumentsCsv);
+
 // ventas pendientes agrupadas por dia
 router.get('/sales/daily-groups', ensureEntityAccess, controller.dailySalesGroups);
 

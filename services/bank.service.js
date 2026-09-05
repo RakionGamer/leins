@@ -56,6 +56,37 @@ class BankService {
       return `(${alias}.amount - ${BankService.#bankAppliedSumSql(alias)})`;
    }
 
+   static #bankAccountInitialBalanceSql(alias) {
+      return `(SELECT ba.initial_balance FROM entity_bank_accounts ba WHERE ba.id = ${alias}.entity_bank_account_id)`;
+   }
+
+   static #bankAccountInitialBalanceDateSql(alias) {
+      return `(SELECT ba.initial_balance_date FROM entity_bank_accounts ba WHERE ba.id = ${alias}.entity_bank_account_id)`;
+   }
+
+   // saldo corriente de la cuenta: saldo inicial + acumulado de abonos/cargos hasta este movimiento,
+   // en el mismo orden en que quedaron guardados (fecha y, en caso de empate, id de carga)
+   static #bankRunningBalanceSql(alias) {
+      const initialBalance = BankService.#bankAccountInitialBalanceSql(alias);
+      const initialBalanceDate = BankService.#bankAccountInitialBalanceDateSql(alias);
+
+      return `(
+         CASE
+            WHEN ${initialBalanceDate} IS NOT NULL AND ${alias}.issued_at < ${initialBalanceDate} THEN NULL
+            ELSE ${initialBalance} + COALESCE((
+               SELECT SUM(CASE WHEN t2.type = 'income' THEN t2.amount ELSE -t2.amount END)
+               FROM entity_bank_transactions t2
+               WHERE t2.entity_bank_account_id = ${alias}.entity_bank_account_id
+                 AND (${initialBalanceDate} IS NULL OR t2.issued_at >= ${initialBalanceDate})
+                 AND (
+                    t2.issued_at < ${alias}.issued_at
+                    OR (t2.issued_at = ${alias}.issued_at AND t2.id <= ${alias}.id)
+                 )
+            ), 0)
+         END
+      )`;
+   }
+
    normalizeAmountColumnsMode(value) {
       const mode = String(value || '').trim().toLowerCase();
       if (['split', 'separate', 'abonos_cargos', 'abonos-cargos', 'separate_debit_credit'].includes(mode)) return 'split';
@@ -751,9 +782,34 @@ class BankService {
          currency: account.currency,
          currency_label: currencyLabel,
          label: [account.bank_name, masked, currencyLabel].filter(Boolean).join(' - '),
+         initial_balance: account.initial_balance != null ? Number(account.initial_balance) : 0,
+         initial_balance_date: account.initial_balance_date || null,
          created_at: account.createdAt || null,
          updated_at: account.updatedAt || null,
       };
+   }
+
+   // valida y normaliza saldo inicial + fecha de referencia para el calculo de saldo corriente
+   static #normalizeInitialBalancePayload({ initialBalance, initialBalanceDate }) {
+      const result = {};
+
+      if (initialBalance !== undefined) {
+         const parsed = initialBalance === null || initialBalance === '' ? 0 : Number(initialBalance);
+         if (!Number.isFinite(parsed)) throw boom.badRequest('initialBalance debe ser un numero');
+         result.initial_balance = parsed;
+      }
+
+      if (initialBalanceDate !== undefined) {
+         if (initialBalanceDate === null || initialBalanceDate === '') {
+            result.initial_balance_date = null;
+         } else if (!/^\d{4}-\d{2}-\d{2}$/.test(String(initialBalanceDate))) {
+            throw boom.badRequest('initialBalanceDate invalida; esperado yyyy-mm-dd');
+         } else {
+            result.initial_balance_date = initialBalanceDate;
+         }
+      }
+
+      return result;
    }
 
    async listBankAccounts({ entityId } = {}) {
@@ -764,7 +820,7 @@ class BankService {
 
       const rows = await models.EntityBankAccount.findAll({
          where: { entity_id: parsedEntityId },
-         attributes: ['id', 'entity_id', 'bank_name', 'account_number', 'currency', 'createdAt', 'updatedAt'],
+         attributes: ['id', 'entity_id', 'bank_name', 'account_number', 'currency', 'initial_balance', 'initial_balance_date', 'createdAt', 'updatedAt'],
          order: [['bank_name', 'ASC'], ['id', 'ASC']]
       });
 
@@ -776,7 +832,7 @@ class BankService {
       };
    }
 
-   async createBankAccount({ entityId, bankName, accountNumber, currency } = {}) {
+   async createBankAccount({ entityId, bankName, accountNumber, currency, initialBalance, initialBalanceDate } = {}) {
       const parsedEntityId = Number(entityId);
       if (!Number.isInteger(parsedEntityId) || parsedEntityId <= 0) {
          throw boom.badRequest('entityId invalido');
@@ -789,6 +845,7 @@ class BankService {
          requireAccountNumber: true
       });
       const accountNumberStored = BankService.#formatAccountNumberForStorage(payload.account_number_plain);
+      const initialBalancePayload = BankService.#normalizeInitialBalancePayload({ initialBalance, initialBalanceDate });
 
       const duplicate = await models.EntityBankAccount.findOne({
          attributes: ['id'],
@@ -807,7 +864,8 @@ class BankService {
          entity_id: parsedEntityId,
          bank_name: payload.bank_name,
          account_number: accountNumberStored,
-         currency: payload.currency
+         currency: payload.currency,
+         ...initialBalancePayload
       });
 
       return {
@@ -816,7 +874,7 @@ class BankService {
       };
    }
 
-   async updateBankAccount({ entityId, accountId, bankName, accountNumber, currency } = {}) {
+   async updateBankAccount({ entityId, accountId, bankName, accountNumber, currency, initialBalance, initialBalanceDate } = {}) {
       const parsedEntityId = Number(entityId);
       const parsedAccountId = Number(accountId);
 
@@ -833,6 +891,7 @@ class BankService {
          currency,
          requireAccountNumber: false
       });
+      const initialBalancePayload = BankService.#normalizeInitialBalancePayload({ initialBalance, initialBalanceDate });
 
       const account = await models.EntityBankAccount.findOne({
          where: {
@@ -864,7 +923,8 @@ class BankService {
       await account.update({
          bank_name: payload.bank_name,
          account_number: accountNumberStored,
-         currency: payload.currency
+         currency: payload.currency,
+         ...initialBalancePayload
       });
 
       return {
@@ -908,6 +968,44 @@ class BankService {
          ok: true,
          removed: parsedAccountId
       };
+   }
+
+   // elimina un movimiento bancario individual (solo si no esta conciliado)
+   async deleteTransaction({ entityId, id } = {}) {
+      const parsedEntityId = Number(entityId);
+      const parsedId = Number(id);
+
+      if (!Number.isInteger(parsedEntityId) || parsedEntityId <= 0) {
+         throw boom.badRequest('entityId invalido');
+      }
+      if (!Number.isInteger(parsedId) || parsedId <= 0) {
+         throw boom.badRequest('id de movimiento invalido');
+      }
+
+      const tx = await models.EntityBankTransaction.findOne({
+         where: { id: parsedId, entity_id: parsedEntityId }
+      });
+      if (!tx) throw boom.notFound('movimiento bancario no encontrado para la entidad');
+
+      const [docLinkCount, matchLinkCount] = await Promise.all([
+         models.BankTransactionDocument.count({ where: { entity_bank_transaction_id: parsedId } }),
+         models.BankTransactionMatch.count({
+            where: {
+               [Op.or]: [
+                  { source_bank_transaction_id: parsedId },
+                  { target_bank_transaction_id: parsedId }
+               ]
+            }
+         })
+      ]);
+
+      if (docLinkCount > 0 || matchLinkCount > 0) {
+         throw boom.conflict('el movimiento esta conciliado, debes deshacer la conciliacion antes de eliminarlo');
+      }
+
+      await tx.destroy();
+
+      return { ok: true, removed: parsedId };
    }
 
    async revealBankAccountNumber({ entityId, accountId } = {}) {
@@ -1019,6 +1117,7 @@ class BankService {
       // Suma aplicada contra el movimiento (tabla de asociación many-to-many)
       const appliedSumSQL = BankService.#bankAppliedSumSql(baseQuoted);
       const remainingSQL = BankService.#bankRemainingSql(baseQuoted);
+      const runningBalanceSQL = BankService.#bankRunningBalanceSql(baseQuoted);
 
       // Filtro "solo pendientes"
       if (soloPendientes) {
@@ -1055,7 +1154,8 @@ class BankService {
          attributes: {
             include: [
                [sequelize.literal(appliedSumSQL), 'applied_sum'],
-               [sequelize.literal(remainingSQL), 'remaining_amount']
+               [sequelize.literal(remainingSQL), 'remaining_amount'],
+               [sequelize.literal(runningBalanceSQL), 'running_balance']
             ]
          },
          include: [includeBankAccount]
@@ -1072,6 +1172,10 @@ class BankService {
          const remaining = typeof r.get === 'function'
             ? Number(r.get('remaining_amount') ?? 0)
             : Number(r.remaining_amount ?? 0);
+         const runningBalanceRaw = typeof r.get === 'function'
+            ? r.get('running_balance')
+            : r.running_balance;
+         const runningBalance = runningBalanceRaw != null ? Number(runningBalanceRaw) : null;
          return {
             _id: `tx-${r.id}`,
             source: 'bank',
@@ -1094,7 +1198,7 @@ class BankService {
             documento: BankService.#normalizeDocumentRef(r.document_ref) || extractDoc(r.description),
             descripcion: r.description || '',
             monto: sign * Number(r.amount || 0),
-            balance: (r.balance != null) ? Number(r.balance) : null,
+            balance: runningBalance,
             sucursal: r.branch || null,
             raw: {
                id: r.id,
@@ -1102,7 +1206,7 @@ class BankService {
                entity_bank_account_id: r.entity_bank_account_id,
                type: r.type,
                amount: Number(r.amount || 0),
-               balance: (r.balance != null) ? Number(r.balance) : null,
+               balance: runningBalance,
                document_ref: BankService.#normalizeDocumentRef(r.document_ref),
                branch: r.branch || null,
                issued_at: r.issued_at,
@@ -1331,8 +1435,35 @@ class BankService {
       });
    }
 
-   async unreconcile({ id, entityId }) {
+   async unreconcile({ id, entityId, kind = 'document' }) {
       if (!id || !entityId) throw boom.badRequest('id and entityId are required');
+
+      if (kind === 'bank_transaction') {
+         return await sequelize.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED }, async (t) => {
+            const link = await models.BankTransactionMatch.findOne({
+               where: { id },
+               transaction: t,
+               lock: t.LOCK.UPDATE,
+            });
+            if (!link) throw boom.notFound('reconciliation not found');
+
+            // validacion de pertenencia: join para verificar entity_id en ambos extremos del cruce
+            const [own] = await sequelize.query(`
+            SELECT 1
+            FROM bank_transaction_matches btm
+            JOIN entity_bank_transactions src ON src.id = btm.source_bank_transaction_id AND src.entity_id = :e
+            JOIN entity_bank_transactions tgt ON tgt.id = btm.target_bank_transaction_id AND tgt.entity_id = :e
+            WHERE btm.id = :id
+            LIMIT 1
+            `, { type: QueryTypes.SELECT, transaction: t, replacements: { id, e: entityId } });
+
+            if (!own) throw boom.forbidden('reconciliation does not belong to the given entity');
+
+            await link.destroy({ transaction: t });
+
+            return { ok: true, removed: id };
+         });
+      }
 
       return await sequelize.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED }, async (t) => {
          const link = await sequelize.models.BankTransactionDocument.findOne({

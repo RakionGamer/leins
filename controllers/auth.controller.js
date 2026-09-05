@@ -14,8 +14,7 @@ const tryDecodeAccessToken = (req) => {
    const [type, token] = authHeader.split(' ');
    if (type === 'Bearer' && token) {
       try {
-         const payload = jwt.verify(token, config.jwtAccessSecret, { ignoreExpiration: true });
-         return payload.sub;
+         return jwt.verify(token, config.jwtAccessSecret, { ignoreExpiration: true });
       } catch (e) {
          return null;
       }
@@ -66,26 +65,48 @@ const login = asyncHandler(async (req, res) => {
    });
 });
 
+// login de clientes (tabla `users`), independiente del login de super_admin
+const clientLogin = asyncHandler(async (req, res) => {
+   const { username, password } = req.body;
+   const meta = { rid: req.rid, ip: req.ip, userAgent: req.get('user-agent') || '-' };
+
+   const { accessToken, refreshToken, user } = await service.loginClient(username, password, meta);
+   logInfo('AUTH_CLIENT_LOGIN_OK', { rid: req.rid, userId: user.id, ip: meta.ip, ua: meta.userAgent });
+
+   return res.status(200).json({
+      message: 'Login successful',
+      data: { accessToken, refreshToken, user }
+   });
+});
+
 const refresh = asyncHandler(async (req, res) => {
-   const { refreshToken, userId } = req.body || {};
+   const { refreshToken, userId, role } = req.body || {};
    if (!refreshToken) {
       throw boom.badRequest('refreshToken is required', { code: 'REFRESH_REQUIRED' });
    }
 
-   const effectiveUserId = userId || tryDecodeAccessToken(req);
+   // el rol se toma del access token (aunque este expirado) y si no viene, del body;
+   // ausencia total de rol = super_admin, para no romper sesiones ya emitidas
+   const decoded = tryDecodeAccessToken(req);
+   const effectiveUserId = userId || decoded?.sub;
    if (!effectiveUserId) throw boom.badRequest('userId is required', { code: 'USER_ID_REQUIRED' });
 
+   const isClient = (decoded?.role || role) === 'user';
    const meta = { rid: req.rid, ip: req.ip, userAgent: req.get('user-agent') || '-' };
-   const { accessToken, refreshToken: newRefreshToken, user } = await service.refresh(effectiveUserId, refreshToken, meta);
+   const { accessToken, refreshToken: newRefreshToken, user } = isClient
+      ? await service.refreshClient(effectiveUserId, refreshToken, meta)
+      : await service.refresh(effectiveUserId, refreshToken, meta);
 
-   logInfo('AUTH_REFRESH_OK', { rid: req.rid, userId: user.id, ip: meta.ip, ua: meta.userAgent });
+   logInfo('AUTH_REFRESH_OK', { rid: req.rid, userId: user.id, ip: meta.ip, ua: meta.userAgent, role: isClient ? 'user' : 'super_admin' });
 
    return res.status(200).json({
       message: 'Tokens refreshed',
       data: {
          accessToken,
          refreshToken: newRefreshToken,
-         user: { id: user.id, username: user.username, email: user.email, lastLogin: user.lastLogin }
+         user: isClient
+            ? { id: user.id, username: user.username, email: user.email, name: user.name, last_name: user.last_name }
+            : { id: user.id, username: user.username, email: user.email, lastLogin: user.lastLogin }
       }
    });
 });
@@ -103,13 +124,20 @@ const resetPassword = asyncHandler(async (req, res) => {
 });
 
 const logout = asyncHandler(async (req, res) => {
-   const { refreshToken, userId } = req.body || {};
+   const { refreshToken, userId, role } = req.body || {};
    if (!refreshToken || !userId) {
       throw boom.badRequest('userId and refreshToken are required', { code: 'BAD_REQUEST' });
    }
 
-   await service.logout(userId, refreshToken, { rid: req.rid });
-   logInfo('AUTH_LOGOUT_OK', { rid: req.rid, userId, ip: req.ip, ua: req.get('user-agent') || '-' });
+   const decoded = tryDecodeAccessToken(req);
+   const isClient = (decoded?.role || role) === 'user';
+
+   if (isClient) {
+      await service.logoutClient(userId, refreshToken, { rid: req.rid });
+   } else {
+      await service.logout(userId, refreshToken, { rid: req.rid });
+   }
+   logInfo('AUTH_LOGOUT_OK', { rid: req.rid, userId, ip: req.ip, ua: req.get('user-agent') || '-', role: isClient ? 'user' : 'super_admin' });
 
    return res.status(200).json({ message: 'Logged out', data: { revoked: true } });
 });
@@ -214,6 +242,7 @@ const verify2FALogin = asyncHandler(async (req, res) => {
 
 module.exports = {
    login,
+   clientLogin,
    refresh,
    recovery,
    resetPassword,

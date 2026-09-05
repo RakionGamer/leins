@@ -74,8 +74,8 @@ class SiiDocumentsService {
       return { id };
    }
 
-   // listado general
-   async list({ entity_id, type, q, folio, client, source, operation_type, month, from, to, page = 1, limit = 50, sort = 'issue_date', order = 'desc', pendingOnly = false }) {
+   // construye where/attributes/order compartidos entre listado paginado y exportacion csv
+   _buildListQuery({ entity_id, type, q, folio, client, source, operation_type, month, from, to, sort = 'issue_date', order = 'desc', pendingOnly = false, status }) {
       const where = {};
       const parsedEntityId = Number(entity_id);
       if (!Number.isInteger(parsedEntityId) || parsedEntityId <= 0) {
@@ -124,6 +124,9 @@ class SiiDocumentsService {
       if (type) {
          if (type === 'null') {
             where.doc_type_code = null;
+         } else if (String(type).includes(',')) {
+            const codes = String(type).split(',').map((s) => Number(s.trim())).filter(Number.isInteger);
+            where.doc_type_code = { [Op.in]: codes };
          } else {
             where.doc_type_code = Number(type);
          }
@@ -239,9 +242,6 @@ class SiiDocumentsService {
       const sortCol = sortMap[sort] || 'issue_date';
       const dir = String(order).toLowerCase() === 'asc' ? 'ASC' : 'DESC';
 
-      const pageNum = Math.max(1, Number(page) || 1);
-      const pageSize = Math.max(1, Math.min(200, Number(limit) || 50));
-      const offset = (pageNum - 1) * pageSize;
       const baseAlias = models.EntitySiiDocument.name || 'EntitySiiDocument';
       const baseQuoted = `\`${baseAlias}\``;
       const appliedSumSQL =
@@ -251,7 +251,13 @@ class SiiDocumentsService {
       const reconcileAmountSQL = documentReconcileAmountSql(baseQuoted);
       const remainingSQL = `((${reconcileAmountSQL}) - ${appliedSumSQL})`;
 
-      if (pendingOnly) {
+      const statusFilter = String(status || '').toLowerCase();
+      if (statusFilter === 'paid') {
+         if (!where[Op.and]) where[Op.and] = [];
+         where[Op.and].push(
+            sequelize.where(sequelize.literal(remainingSQL), { [Op.lte]: 0 })
+         );
+      } else if (statusFilter === 'pending' || pendingOnly) {
          if (!where[Op.and]) where[Op.and] = [];
          where[Op.and].push(
             sequelize.where(sequelize.literal(remainingSQL), { [Op.gt]: 0 })
@@ -265,20 +271,23 @@ class SiiDocumentsService {
          [sequelize.literal(remainingSQL), 'remaining_amount'],
       ];
 
-      const { rows, count } = await models.EntitySiiDocument.findAndCountAll({
+      const orderClause = sort === 'remaining_amount'
+         ? [[sequelize.literal(remainingSQL), dir], ['id', dir]]
+         : [[sortCol, dir], ['id', dir]];
+
+      return {
          where,
          attributes,
+         order: orderClause,
          include: [
             { model: models.Entity, as: 'entity', attributes: ['legal_name', 'tax_id'] },
             { model: models.SiiDocumentType, as: 'docType', attributes: ['code', 'slug', 'name'] },
          ],
-         order: [[sortCol, dir], ['id', dir]],
-         limit: pageSize,
-         offset,
-         distinct: true,
-      });
+      };
+   }
 
-      const items = rows.map((r) => ({
+   _mapListRow(r) {
+      return {
          id: r.id,
          entity_id: r.entity_id,
          legal_name: r.entity?.legal_name || null,
@@ -301,9 +310,40 @@ class SiiDocumentsService {
          operation_type: r.operation_type,
          created_at: r.created_at,
          updated_at: r.updated_at,
-      }));
+      };
+   }
 
-      return { total: count, page: pageNum, pageSize, items };
+   // listado paginado
+   async list(payload) {
+      const { page = 1, limit = 50 } = payload;
+      const query = this._buildListQuery(payload);
+
+      const pageNum = Math.max(1, Number(page) || 1);
+      const pageSize = Math.max(1, Math.min(200, Number(limit) || 50));
+      const offset = (pageNum - 1) * pageSize;
+
+      const { rows, count } = await models.EntitySiiDocument.findAndCountAll({
+         ...query,
+         limit: pageSize,
+         offset,
+         distinct: true,
+      });
+
+      return { total: count, page: pageNum, pageSize, items: rows.map((r) => this._mapListRow(r)) };
+   }
+
+   // exportacion sin paginar, para descarga csv (con tope de seguridad)
+   async exportAll(payload) {
+      const EXPORT_LIMIT = 20000;
+      const query = this._buildListQuery(payload);
+
+      const rows = await models.EntitySiiDocument.findAll({
+         ...query,
+         limit: EXPORT_LIMIT,
+         subQuery: false,
+      });
+
+      return rows.map((r) => this._mapListRow(r));
    }
 
    async dailySalesGroups({ entity_id, from, to }) {

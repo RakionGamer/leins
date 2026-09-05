@@ -103,6 +103,30 @@ const listTransactions = asyncHandler(async (req, res) => {
    res.json(result);
 });
 
+// controlador para eliminar un movimiento bancario individual
+const deleteTransaction = asyncHandler(async (req, res) => {
+   const entityId = Number(req.query?.entityId || req.body?.entityId || req.entityId || 0);
+   const id = Number(req.params.id);
+
+   if (!Number.isInteger(entityId) || entityId <= 0) {
+      throw boom.badRequest('entityId requerido');
+   }
+   if (!Number.isInteger(id) || id <= 0) {
+      throw boom.badRequest('id de movimiento invalido');
+   }
+
+   const out = await service.deleteTransaction({ entityId, id });
+
+   logInfo('BANK_TRANSACTION_DELETED', {
+      rid: req.rid,
+      userId: req.user?.sub,
+      entityId,
+      transactionId: id
+   });
+
+   res.json(out);
+});
+
 // controlador para listar cuentas bancarias de la entidad
 const listBankAccounts = asyncHandler(async (req, res) => {
    const entityId = Number(req.query?.entityId || req.body?.entityId || req.entityId || 0);
@@ -116,7 +140,7 @@ const listBankAccounts = asyncHandler(async (req, res) => {
 
 // controlador para crear cuenta bancaria
 const createBankAccount = asyncHandler(async (req, res) => {
-   const { entityId, bankName, accountNumber, currency } = req.body || {};
+   const { entityId, bankName, accountNumber, currency, initialBalance, initialBalanceDate } = req.body || {};
    const parsedEntityId = Number(entityId || req.entityId || 0);
 
    if (!Number.isInteger(parsedEntityId) || parsedEntityId <= 0) {
@@ -127,7 +151,9 @@ const createBankAccount = asyncHandler(async (req, res) => {
       entityId: parsedEntityId,
       bankName,
       accountNumber,
-      currency
+      currency,
+      initialBalance,
+      initialBalanceDate
    });
 
    logInfo('BANK_ACCOUNT_CREATED', {
@@ -142,7 +168,7 @@ const createBankAccount = asyncHandler(async (req, res) => {
 
 // controlador para actualizar cuenta bancaria
 const updateBankAccount = asyncHandler(async (req, res) => {
-   const { entityId, bankName, accountNumber, currency } = req.body || {};
+   const { entityId, bankName, accountNumber, currency, initialBalance, initialBalanceDate } = req.body || {};
    const parsedEntityId = Number(entityId || req.entityId || 0);
    const accountId = Number(req.params.id);
 
@@ -158,7 +184,9 @@ const updateBankAccount = asyncHandler(async (req, res) => {
       accountId,
       bankName,
       accountNumber,
-      currency
+      currency,
+      initialBalance,
+      initialBalanceDate
    });
 
    logInfo('BANK_ACCOUNT_UPDATED', {
@@ -483,11 +511,15 @@ const bulkReconcile = asyncHandler(async (req, res) => {
 // controlador para deshacer una conciliacion
 const unreconcileTransaction = asyncHandler(async (req, res) => {
    const id = Number(req.params.id);
-   const { entityId } = req.query;
+   const { entityId, kind } = req.query;
 
    if (!entityId || !id) throw boom.badRequest("entityid and id are required");
 
-   const out = await service.unreconcile({ id, entityId: Number(entityId) });
+   const out = await service.unreconcile({
+      id,
+      entityId: Number(entityId),
+      kind: kind === 'bank_transaction' ? 'bank_transaction' : 'document',
+   });
 
    // log de auditoria: desconciliacion
    logInfo('BANK_TRANSACTION_UNRECONCILED', {
@@ -520,6 +552,7 @@ const listReconciliations = asyncHandler(async (req, res) => {
 module.exports = {
    downloadMovementsTemplate,
    uploadExcel,
+   deleteTransaction,
    listBankAccounts,
    createBankAccount,
    updateBankAccount,

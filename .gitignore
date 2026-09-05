@@ -1,1 +1,11 @@
 node_modules
+.env
+.env.*
+!.env.example
+
+.vscode/
+logs/
+scripts/downloads/
+*.sql
+*.sql.gz
+*.bak-*

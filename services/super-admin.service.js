@@ -139,7 +139,9 @@ class SuperAdminService {
       return Boolean(row);
    }
 
-   async canActorManageEntity({ actorId, entityId, transaction } = {}) {
+   // action: null (existencia), 'delete' (requiere can_delete o is_admin),
+   // 'manage_admins' (requiere is_admin - delegar la entidad a otros admins)
+   async canActorManageEntity({ actorId, entityId, action = null, transaction } = {}) {
       const parsedActorId = Number(actorId);
       const parsedEntityId = Number(entityId);
       if (!Number.isInteger(parsedActorId) || parsedActorId <= 0) return false;
@@ -149,7 +151,7 @@ class SuperAdminService {
       if (!hasScope) return true;
 
       const row = await models.AdminEntity.findOne({
-         attributes: ['id'],
+         attributes: ['id', 'can_delete', 'is_admin'],
          where: { entity_id: parsedEntityId },
          include: [{
             model: models.Admin,
@@ -162,7 +164,10 @@ class SuperAdminService {
          transaction
       });
 
-      return Boolean(row);
+      if (!row) return false;
+      if (action === 'delete') return Boolean(row.is_admin || row.can_delete);
+      if (action === 'manage_admins') return Boolean(row.is_admin);
+      return true;
    }
 
    normalizeAssignmentFlags(payload = {}) {
@@ -220,7 +225,7 @@ class SuperAdminService {
 
       const mappedRows = await Promise.all(rows.map(async (row) => {
          const canManage = actorId
-            ? await this.canActorManageEntity({ actorId, entityId: row.entity_id })
+            ? await this.canActorManageEntity({ actorId, entityId: row.entity_id, action: 'manage_admins' })
             : false;
 
          return this.mapAssignmentRow(row, { can_manage: canManage });
@@ -249,6 +254,7 @@ class SuperAdminService {
          ];
       }
 
+      // solo entidades donde el actor puede delegar (is_admin=true en admin_entities)
       const include = hasScope
          ? [{
             model: models.Admin,
@@ -256,7 +262,7 @@ class SuperAdminService {
             attributes: [],
             required: true,
             where: { super_admin_id: parsedActorId },
-            through: { attributes: [] }
+            through: { attributes: [], where: { is_admin: true } }
          }]
          : [];
 
@@ -296,8 +302,8 @@ class SuperAdminService {
          });
          if (!entity) throw boom.notFound('entidad no encontrada');
 
-         const canManage = await this.canActorManageEntity({ actorId, entityId, transaction });
-         if (!canManage) throw boom.forbidden('no puedes asignar una entidad que no administras');
+         const canManage = await this.canActorManageEntity({ actorId, entityId, action: 'manage_admins', transaction });
+         if (!canManage) throw boom.forbidden('no puedes asignar una entidad que no administras (se requiere ser administrador de la entidad)');
 
          const admin = await this.getOrCreateScopedAdmin(superAdminId, { transaction });
          const payload = this.normalizeAssignmentFlags(flags);
@@ -329,8 +335,8 @@ class SuperAdminService {
 
    async removeEntityAssignment({ superAdminId, entityId, actorId } = {}) {
       return await sequelize.transaction(async (transaction) => {
-         const canManage = await this.canActorManageEntity({ actorId, entityId, transaction });
-         if (!canManage) throw boom.forbidden('no puedes quitar una entidad que no administras');
+         const canManage = await this.canActorManageEntity({ actorId, entityId, action: 'manage_admins', transaction });
+         if (!canManage) throw boom.forbidden('no puedes quitar una entidad que no administras (se requiere ser administrador de la entidad)');
 
          const admin = await models.Admin.findOne({
             where: { super_admin_id: Number(superAdminId) },
@@ -347,6 +353,186 @@ class SuperAdminService {
          await row.destroy({ transaction });
          return { ok: true, entity_id: Number(entityId), removed: true };
       });
+   }
+
+   // ==========================================
+   //  clientes (tabla `users`): cuentas de autogestion para entidades
+   // ==========================================
+
+   mapClientUserRow(row) {
+      return {
+         id: Number(row.id),
+         username: row.username,
+         email: row.email,
+         name: row.name || null,
+         last_name: row.last_name || null,
+         entity_id: Number(row.entity_id),
+         read_only: Boolean(row.read_only),
+         created_at: row.created_at || row.createdAt || null,
+      };
+   }
+
+   // crea una cuenta cliente (users) y la vincula a una entidad via user_entities
+   async createClientUser({ actorId, username, email, password, name = null, lastName = null, entityId, readOnly = true } = {}) {
+      if (!username || !email || !password) {
+         throw boom.badRequest('username, email y password son obligatorios');
+      }
+
+      const parsedEntityId = Number(entityId);
+      if (!Number.isInteger(parsedEntityId) || parsedEntityId <= 0) {
+         throw boom.badRequest('entityId invalido');
+      }
+
+      return await sequelize.transaction(async (transaction) => {
+         const entity = await models.Entity.findByPk(parsedEntityId, { attributes: ['id'], transaction });
+         if (!entity) throw boom.notFound('entidad no encontrada');
+
+         const canManage = await this.canActorManageEntity({ actorId, entityId: parsedEntityId, action: 'create', transaction });
+         if (!canManage) throw boom.forbidden('no tienes permiso para crear clientes en esta entidad');
+
+         const existsUsername = await models.User.findOne({ where: { username }, transaction });
+         if (existsUsername) throw boom.conflict('ya existe un usuario con ese username');
+
+         const existsEmail = await models.User.findOne({ where: { email }, transaction });
+         if (existsEmail) throw boom.conflict('ya existe un usuario con ese email');
+
+         const password_hash = await bcrypt.hash(password, 10);
+
+         const user = await models.User.create({
+            username,
+            email,
+            password_hash,
+            name: name || null,
+            last_name: lastName || null,
+            state_id: 1,
+         }, { transaction });
+
+         const link = await models.UserEntity.create({
+            user_id: user.id,
+            entity_id: parsedEntityId,
+            read_only: Boolean(readOnly),
+         }, { transaction });
+
+         return {
+            ok: true,
+            row: this.mapClientUserRow({
+               id: user.id,
+               username: user.username,
+               email: user.email,
+               name: user.name,
+               last_name: user.last_name,
+               entity_id: link.entity_id,
+               read_only: link.read_only,
+               created_at: user.createdAt,
+            }),
+         };
+      });
+   }
+
+   // lista clientes (users) vinculados a una entidad
+   async listClientUsers({ actorId, entityId } = {}) {
+      const parsedEntityId = Number(entityId);
+      if (!Number.isInteger(parsedEntityId) || parsedEntityId <= 0) {
+         throw boom.badRequest('entityId invalido');
+      }
+
+      const canManage = await this.canActorManageEntity({ actorId, entityId: parsedEntityId });
+      if (!canManage) throw boom.forbidden('no puedes ver clientes de una entidad que no administras');
+
+      const rows = await models.UserEntity.findAll({
+         where: { entity_id: parsedEntityId },
+         include: [{ model: models.User, as: 'user', attributes: ['id', 'username', 'email', 'name', 'last_name'] }],
+         order: [['id', 'DESC']],
+      });
+
+      return {
+         ok: true,
+         rows: rows.map((row) => this.mapClientUserRow({
+            id: row.user.id,
+            username: row.user.username,
+            email: row.user.email,
+            name: row.user.name,
+            last_name: row.user.last_name,
+            entity_id: row.entity_id,
+            read_only: row.read_only,
+            created_at: row.createdAt,
+         })),
+      };
+   }
+
+   // edita datos de perfil de un cliente (username, nombre, apellido) - solo super_admin
+   async updateClientUser({ actorId, userId, entityId, username, name, lastName } = {}) {
+      const parsedUserId = Number(userId);
+      const parsedEntityId = Number(entityId);
+      if (!Number.isInteger(parsedUserId) || parsedUserId <= 0) throw boom.badRequest('userId invalido');
+      if (!Number.isInteger(parsedEntityId) || parsedEntityId <= 0) throw boom.badRequest('entityId invalido');
+
+      const canManage = await this.canActorManageEntity({ actorId, entityId: parsedEntityId, action: 'update' });
+      if (!canManage) throw boom.forbidden('no tienes permiso para editar clientes de esta entidad');
+
+      return await sequelize.transaction(async (transaction) => {
+         const link = await models.UserEntity.findOne({
+            where: { user_id: parsedUserId, entity_id: parsedEntityId },
+            transaction,
+         });
+         if (!link) throw boom.notFound('el cliente no esta vinculado a esta entidad');
+
+         const user = await models.User.findByPk(parsedUserId, { transaction });
+         if (!user) throw boom.notFound('cliente no encontrado');
+
+         const changes = {};
+
+         if (username !== undefined && username !== user.username) {
+            const existsUsername = await models.User.findOne({
+               where: { username, id: { [Op.ne]: parsedUserId } },
+               transaction,
+            });
+            if (existsUsername) throw boom.conflict('ya existe un usuario con ese username');
+            changes.username = username;
+         }
+
+         if (name !== undefined) changes.name = name || null;
+         if (lastName !== undefined) changes.last_name = lastName || null;
+
+         if (Object.keys(changes).length) {
+            await user.update(changes, { transaction });
+         }
+
+         return {
+            ok: true,
+            row: this.mapClientUserRow({
+               id: user.id,
+               username: user.username,
+               email: user.email,
+               name: user.name,
+               last_name: user.last_name,
+               entity_id: parsedEntityId,
+               read_only: link.read_only,
+               created_at: user.createdAt,
+            }),
+         };
+      });
+   }
+
+   // cambia el permiso read_only de un cliente sobre una entidad puntual
+   async updateClientUserEntityAccess({ actorId, userId, entityId, readOnly } = {}) {
+      const parsedUserId = Number(userId);
+      const parsedEntityId = Number(entityId);
+      if (!Number.isInteger(parsedUserId) || parsedUserId <= 0) throw boom.badRequest('userId invalido');
+      if (!Number.isInteger(parsedEntityId) || parsedEntityId <= 0) throw boom.badRequest('entityId invalido');
+
+      const canManage = await this.canActorManageEntity({ actorId, entityId: parsedEntityId, action: 'update' });
+      if (!canManage) throw boom.forbidden('no tienes permiso para editar clientes de esta entidad');
+
+      const link = await models.UserEntity.findOne({
+         where: { user_id: parsedUserId, entity_id: parsedEntityId },
+      });
+      if (!link) throw boom.notFound('el cliente no esta vinculado a esta entidad');
+
+      link.read_only = Boolean(readOnly);
+      await link.save();
+
+      return { ok: true, user_id: parsedUserId, entity_id: parsedEntityId, read_only: link.read_only };
    }
 
    // crea un super admin

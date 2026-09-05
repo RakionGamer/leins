@@ -1,6 +1,7 @@
 const express = require('express');
 const { uploadImage } = require('../middlewares/uploadImage');
 const validatorHandler = require('../middlewares/validator.handler');
+const { isSuperAdmin } = require('../middlewares/auth.handler');
 const superAdminController = require('../controllers/super-admin.controller');
 
 const {
@@ -13,7 +14,13 @@ const {
    entityAssignmentParamsSchema,
    entityAssignmentEntityParamsSchema,
    entityAssignmentSchema,
-   updateEntityAssignmentSchema
+   updateEntityAssignmentSchema,
+   createClientUserSchema,
+   listClientUsersQuerySchema,
+   clientUserEntityParamsSchema,
+   updateClientUserEntityAccessSchema,
+   clientUserParamsSchema,
+   updateClientUserSchema
 } = require('../schemas/super-admin.schema');
 
 const router = express.Router();
@@ -90,6 +97,41 @@ router.put('/:id/entities/:entityId',
 router.delete('/:id/entities/:entityId',
    validatorHandler(entityAssignmentEntityParamsSchema, 'params'),
    superAdminController.removeEntityFromSuperAdmin
+);
+
+// ==========================================
+//  clientes (cuentas de autogestion por entidad)
+//  deben ir antes de "/:id" para que express no las confunda con un id
+// ==========================================
+
+// crea una cuenta cliente y la vincula a una entidad
+router.post('/clients',
+   isSuperAdmin,
+   validatorHandler(createClientUserSchema, 'body'),
+   superAdminController.createClientUser
+);
+
+// lista clientes vinculados a una entidad
+router.get('/clients',
+   isSuperAdmin,
+   validatorHandler(listClientUsersQuerySchema, 'query'),
+   superAdminController.listClientUsers
+);
+
+// cambia el permiso read_only de un cliente sobre una entidad
+router.patch('/clients/:userId/entities/:entityId',
+   isSuperAdmin,
+   validatorHandler(clientUserEntityParamsSchema, 'params'),
+   validatorHandler(updateClientUserEntityAccessSchema, 'body'),
+   superAdminController.updateClientUserEntityAccess
+);
+
+// edita username/nombre/apellido de un cliente
+router.patch('/clients/:userId',
+   isSuperAdmin,
+   validatorHandler(clientUserParamsSchema, 'params'),
+   validatorHandler(updateClientUserSchema, 'body'),
+   superAdminController.updateClientUser
 );
 
 // obtener un super admin por id

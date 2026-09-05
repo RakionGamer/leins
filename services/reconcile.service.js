@@ -69,6 +69,38 @@ class ReconcileService {
       END`;
    }
 
+   // tope de tiempo para las consultas de emparejamiento (bt x docs): si una entidad
+   // acumula mucho historial sin conciliar, la busqueda puede degenerar en un escaneo
+   // carisimo; el hint MAX_EXECUTION_TIME esta incrustado directamente en cada SQL
+   // (debe ir en el SELECT externo, no en los de los CTE) para que falle rapido con un
+   // mensaje claro en vez de quedar corriendo por horas
+   static SUGGESTIONS_MAX_EXECUTION_TIME_MS = 20000;
+
+   // si el usuario no filtra por fecha, el cruce de pendientes puede terminar
+   // comparando todo el historial sin conciliar de la entidad; acotamos por defecto
+   // a los ultimos N meses (el usuario puede pedir un rango mas antiguo a proposito
+   // pasando dateFrom explicitamente, eso no se toca)
+   static SUGGESTIONS_DEFAULT_WINDOW_MONTHS = 12;
+
+   #resolveDefaultDateFrom(dateFrom) {
+      if (dateFrom) return dateFrom;
+      const d = new Date();
+      d.setMonth(d.getMonth() - ReconcileService.SUGGESTIONS_DEFAULT_WINDOW_MONTHS);
+      return d.toISOString().slice(0, 10);
+   }
+
+   async #runQuery(sql, options) {
+      try {
+         return await sequelize.query(sql, options);
+      } catch (err) {
+         const isTimeout = err?.original?.errno === 3024 || err?.original?.code === 'ER_QUERY_TIMEOUT';
+         if (isTimeout) {
+            throw boom.serverUnavailable('la busqueda de conciliacion demoro demasiado; prueba acotar el rango de fechas o filtrar por cuenta bancaria');
+         }
+         throw err;
+      }
+   }
+
    #normalizeRut(value) {
       return String(value || "").toUpperCase().replace(/[^0-9K]/g, "");
    }
@@ -397,20 +429,25 @@ class ReconcileService {
       const docMatchesBankType = this.#docMatchesBankType("d", "bt");
       const doc2MatchesBankType = this.#docMatchesBankType("d2", "bt");
       const docReconcileAmount = this.#documentReconcileAmountSql("d");
+      const resolvedDateFrom = this.#resolveDefaultDateFrom(dateFrom);
+      const parsedDaysWindow = Number(daysWindow) || 3;
 
       const params = {
          entityId,
          accountId,
-         dateFrom,
+         dateFrom: resolvedDateFrom,
          dateTo,
          amountTolerance: Number(amountTolerance),
-         daysWindow: Number(daysWindow),
+         daysWindow: parsedDaysWindow,
          search: search ? `%${search}%` : null,
       };
       if (type) params.typeParam = type;
 
       // usamos exists para cortar la busqueda al primer match
       // esto evita el producto cartesiano que causaba la demora de 2 minutos
+      // ademas acotamos bt y docs por fecha (dateFrom siempre viene resuelto, con
+      // default de N meses) para no cruzar todo el historial sin conciliar cuando
+      // el usuario no filtra por fecha
       const sqlCount = `
          WITH bt AS (
             SELECT
@@ -426,7 +463,7 @@ class ReconcileService {
             WHERE t.entity_id = :entityId
             ${accountId ? "AND t.entity_bank_account_id = :accountId" : ""}
             ${type ? "AND t.type = :typeParam" : ""}
-            ${dateFrom ? "AND t.issued_at >= :dateFrom" : ""}
+            AND t.issued_at >= :dateFrom
             ${dateTo ? "AND t.issued_at <  DATE_ADD(:dateTo, INTERVAL 1 DAY)" : ""}
             GROUP BY t.id
             HAVING remaining_amount > 0
@@ -447,10 +484,12 @@ class ReconcileService {
             ON btd.entity_sii_document_id = d.id
             WHERE d.entity_id = :entityId
             ${whereDocsByType}
+            AND d.issue_date >= DATE_SUB(:dateFrom, INTERVAL ${parsedDaysWindow} DAY)
+            ${dateTo ? `AND d.issue_date <= DATE_ADD(:dateTo, INTERVAL ${parsedDaysWindow} DAY)` : ""}
             GROUP BY d.id
             HAVING remaining_amount > 0
          )
-         SELECT COUNT(*) AS total
+         SELECT /*+ MAX_EXECUTION_TIME(${ReconcileService.SUGGESTIONS_MAX_EXECUTION_TIME_MS}) */ COUNT(*) AS total
          FROM bt
          WHERE EXISTS (
             SELECT 1 FROM docs d
@@ -472,7 +511,7 @@ class ReconcileService {
          )
       `;
 
-      const [{ total }] = await sequelize.query(sqlCount, {
+      const [{ total }] = await this.#runQuery(sqlCount, {
          replacements: params,
          type: QueryTypes.SELECT,
       });
@@ -498,6 +537,9 @@ class ReconcileService {
 
       // Reutilizamos el mismo motor rapido del panel para evitar que el badge
       // dependa de un SQL paralelo que pueda desalinearse con las sugerencias reales.
+      // countOnly evita traer el detalle de candidatos (no lo necesitamos para el badge)
+      // y acota cuantos movimientos pendientes se examinan, para que el conteo nunca
+      // dependa del volumen total de pendientes de la entidad.
       const out = await this.suggestions({
          entityId,
          accountId,
@@ -511,6 +553,11 @@ class ReconcileService {
          offset: 0,
          includeTotal: false,
          withHasMore: true,
+         countOnly: true,
+         // ambos lados (bt y docs) quedan acotados a este mismo pool: el costo del
+         // cruce escala con el cuadrado de este numero, asi que lo dejamos chico
+         // a proposito (el badge solo necesita saber si hay "mas de N", no el detalle)
+         maxCandidates: Math.max(150, parsedCap * 3),
       });
 
       const probeTotal = Math.max(
@@ -537,10 +584,16 @@ class ReconcileService {
       search = null,
       includeTotal = true,
       withHasMore = false,
+      // countOnly: para el badge/conteo capado, donde no necesitamos el detalle
+      // de candidatos (pasos 2 y 2b) ni escanear todo el pendiente de la entidad:
+      // basta con saber si hay al menos N+1 movimientos con match
+      countOnly = false,
+      maxCandidates = null,
    }) {
 
       if (!entityId) throw boom.badRequest("entityId is required");
       const parsedDaysWindow = Math.max(1, Number(daysWindow) || 3);
+      const resolvedMaxCandidates = countOnly ? Math.max(1, Number(maxCandidates) || 500) : null;
 
       // mapeo ventas/compras
       // para egresos (expense) solo compras recibidas: 33/34 y flag de recibido
@@ -560,11 +613,12 @@ class ReconcileService {
       const parsedLimit = Math.min(Math.max(Number(limit) || 50, 1), 200);
       const parsedOffset = Math.max(Number(offset) || 0, 0);
       const queryLimit = withHasMore ? parsedLimit + 1 : parsedLimit;
+      const resolvedDateFrom = this.#resolveDefaultDateFrom(dateFrom);
 
       const params = {
          entityId,
          accountId,
-         dateFrom,
+         dateFrom: resolvedDateFrom,
          dateTo,
          amountTolerance: Number(amountTolerance),
          daysWindow: parsedDaysWindow,
@@ -573,9 +627,20 @@ class ReconcileService {
          search: search ? `%${search}%` : null,
       };
       if (type) params.typeParam = type;
+      if (resolvedMaxCandidates) params.maxCandidates = resolvedMaxCandidates;
 
       // 1) paginacion por movimiento (no por candidato)
-      const sqlPageMovements = `
+      // dateFrom siempre viene resuelto (default de N meses si el usuario no filtra)
+      // para no cruzar todo el historial sin conciliar de la entidad
+      // en modo countOnly acotamos ademas cuantos movimientos pendientes se examinan
+      // (los mas recientes primero), para que el badge nunca dependa del volumen total
+      //
+      // fuera de countOnly (listado real del panel) NO exigimos que el movimiento ya
+      // tenga un match (eso es justo el cruce carisimo que no escala con miles de
+      // pendientes de cada lado): paginamos simple por fecha y los candidatos/grupos
+      // se calculan despues solo para esa pagina (pasos 2 y 2b). El frontend ya filtra
+      // los movimientos sin candidatos, asi que el resultado visible no cambia.
+      const btCte = `
          WITH bt AS (
             SELECT
             t.id,
@@ -592,11 +657,16 @@ class ReconcileService {
             WHERE t.entity_id = :entityId
             ${accountId ? "AND t.entity_bank_account_id = :accountId" : ""}
             ${type ? "AND t.type = :typeParam" : ""}
-            ${dateFrom ? "AND t.issued_at >= :dateFrom" : ""}
+            AND t.issued_at >= :dateFrom
             ${dateTo ? "AND t.issued_at <  DATE_ADD(:dateTo, INTERVAL 1 DAY)" : ""}
             GROUP BY t.id
             HAVING remaining_amount > 0
-         ),
+            ${resolvedMaxCandidates ? "ORDER BY t.issued_at DESC LIMIT :maxCandidates" : ""}
+         )
+      `;
+
+      const sqlPageMovements = countOnly ? `
+         ${btCte},
          docs AS (
             SELECT
             d.id,
@@ -615,10 +685,16 @@ class ReconcileService {
             ON btd.entity_sii_document_id = d.id
             WHERE d.entity_id = :entityId
             ${whereDocsByType}
+            -- acotado al rango real de bt (ya limitado a maxCandidates), no a los
+            -- documentos mas recientes: si las cartolas se suben con menos frecuencia
+            -- que la sincronizacion SII, "los mas recientes de cada lado" pueden caer
+            -- en fechas distintas y el cruce nunca se encuentra
+            AND d.issue_date >= DATE_SUB((SELECT MIN(bt2.issued_at) FROM bt bt2), INTERVAL ${parsedDaysWindow} DAY)
+            AND d.issue_date <= DATE_ADD((SELECT MAX(bt2.issued_at) FROM bt bt2), INTERVAL ${parsedDaysWindow} DAY)
             GROUP BY d.id
             HAVING remaining_amount > 0
          )
-         SELECT
+         SELECT /*+ MAX_EXECUTION_TIME(${ReconcileService.SUGGESTIONS_MAX_EXECUTION_TIME_MS}) */
             bt.id                       AS bank_tx_id,
             bt.entity_bank_account_id,
             bt.type,
@@ -648,9 +724,23 @@ class ReconcileService {
          )
          ORDER BY bt.issued_at DESC, bt.id DESC
          LIMIT :limit OFFSET :offset
+      ` : `
+         ${btCte}
+         SELECT /*+ MAX_EXECUTION_TIME(${ReconcileService.SUGGESTIONS_MAX_EXECUTION_TIME_MS}) */
+            bt.id                       AS bank_tx_id,
+            bt.entity_bank_account_id,
+            bt.type,
+            bt.amount,
+            bt.issued_at,
+            bt.description,
+            bt.remaining_amount         AS bank_remaining
+         FROM bt
+         ${search ? "WHERE bt.description LIKE :search" : ""}
+         ORDER BY bt.issued_at DESC, bt.id DESC
+         LIMIT :limit OFFSET :offset
       `;
 
-      const pagedMovementRowsRaw = await sequelize.query(sqlPageMovements, {
+      const pagedMovementRowsRaw = await this.#runQuery(sqlPageMovements, {
          replacements: params,
          type: QueryTypes.SELECT,
       });
@@ -661,6 +751,21 @@ class ReconcileService {
 
       const hasMore = withHasMore && pagedMovementRowsRaw.length > parsedLimit;
       const pagedMovementRows = hasMore ? pagedMovementRowsRaw.slice(0, parsedLimit) : pagedMovementRowsRaw;
+
+      // acotamos el rango de documentos a revisar (pasos 2 y 2b) a las fechas reales
+      // de ESTA pagina +/- la ventana de dias, en vez de todo el rango dateFrom/dateTo
+      // (que puede ser 12 meses): normalmente una pagina de movimientos cae en pocos
+      // dias, asi que esto reduce muchisimo el trabajo sin perder ningun match posible
+      if (pagedMovementRows.length > 0) {
+         const pageDates = pagedMovementRows.map((mv) => new Date(mv.issued_at).getTime());
+         const pageMinDate = new Date(Math.min(...pageDates));
+         const pageMaxDate = new Date(Math.max(...pageDates));
+         params.pageDateFrom = pageMinDate.toISOString().slice(0, 10);
+         params.pageDateTo = pageMaxDate.toISOString().slice(0, 10);
+      } else {
+         params.pageDateFrom = params.dateFrom;
+         params.pageDateTo = params.dateTo || null;
+      }
 
       // prearmamos salida por movimiento para mantener orden de pagina
       const byTx = new Map();
@@ -680,7 +785,8 @@ class ReconcileService {
       }
 
       // 2) para esos movimientos de la pagina, traemos candidatos y dejamos top 3 por score
-      if (pagedMovementRows.length > 0) {
+      // (se salta en countOnly: el badge no necesita el detalle, solo el conteo/hasMore)
+      if (!countOnly && pagedMovementRows.length > 0) {
          const txIdsCsv = pagedMovementRows
             .map((r) => Number(r.bank_tx_id))
             .filter((id) => Number.isInteger(id) && id > 0)
@@ -704,7 +810,7 @@ class ReconcileService {
                   WHERE t.entity_id = :entityId
                   ${accountId ? "AND t.entity_bank_account_id = :accountId" : ""}
                   ${type ? "AND t.type = :typeParam" : ""}
-                  ${dateFrom ? "AND t.issued_at >= :dateFrom" : ""}
+                  AND t.issued_at >= :dateFrom
                   ${dateTo ? "AND t.issued_at <  DATE_ADD(:dateTo, INTERVAL 1 DAY)" : ""}
                   GROUP BY t.id
                   HAVING remaining_amount > 0
@@ -723,6 +829,10 @@ class ReconcileService {
                   d.purchase_type,
                   d.total_amount,
                   (
+                     -- se calcula por documento (el CTE ya viene acotado a la fecha
+                     -- de esta pagina, ~pocas decenas de filas) en vez de por cada
+                     -- combinacion (movimiento, documento) resultante del join, que
+                     -- puede ser mucho mayor
                      SELECT COUNT(*)
                      FROM bank_transaction_documents hbtd
                      JOIN entity_bank_transactions hbt
@@ -741,10 +851,12 @@ class ReconcileService {
                   ON btd.entity_sii_document_id = d.id
                   WHERE d.entity_id = :entityId
                   ${whereDocsByType}
+                  AND d.issue_date >= DATE_SUB(:pageDateFrom, INTERVAL ${parsedDaysWindow} DAY)
+                  AND d.issue_date <= DATE_ADD(:pageDateTo, INTERVAL ${parsedDaysWindow} DAY)
                   GROUP BY d.id
                   HAVING remaining_amount > 0
                )
-               SELECT
+               SELECT /*+ MAX_EXECUTION_TIME(${ReconcileService.SUGGESTIONS_MAX_EXECUTION_TIME_MS}) */
                   bt.id                       AS bank_tx_id,
                   bt.entity_bank_account_id,
                   bt.type,
@@ -772,7 +884,7 @@ class ReconcileService {
                ORDER BY bt.issued_at DESC, bt.id DESC
             `;
 
-            const candidateRows = await sequelize.query(sqlCandidates, {
+            const candidateRows = await this.#runQuery(sqlCandidates, {
                replacements: params,
                type: QueryTypes.SELECT,
             });
@@ -840,7 +952,7 @@ class ReconcileService {
       }
 
       // 2b) sugerencias de grupos: varios documentos contra el mismo movimiento.
-      if (pagedMovementRows.length > 0) {
+      if (!countOnly && pagedMovementRows.length > 0) {
          const txIdsCsv = pagedMovementRows
             .map((r) => Number(r.bank_tx_id))
             .filter((id) => Number.isInteger(id) && id > 0)
@@ -864,7 +976,7 @@ class ReconcileService {
                   WHERE t.entity_id = :entityId
                   ${accountId ? "AND t.entity_bank_account_id = :accountId" : ""}
                   ${type ? "AND t.type = :typeParam" : ""}
-                  ${dateFrom ? "AND t.issued_at >= :dateFrom" : ""}
+                  AND t.issued_at >= :dateFrom
                   ${dateTo ? "AND t.issued_at <  DATE_ADD(:dateTo, INTERVAL 1 DAY)" : ""}
                   GROUP BY t.id
                   HAVING remaining_amount > 0
@@ -883,6 +995,11 @@ class ReconcileService {
                   d.purchase_type,
                   d.total_amount,
                   (
+                     -- se calcula por documento (el CTE ya viene acotado a la fecha
+                     -- de esta pagina): el paso 2b usa un match "suelto" (documento
+                     -- <= saldo del movimiento) que genera muchas mas combinaciones
+                     -- que el paso 2, asi que aqui es aun mas importante no repetir
+                     -- este calculo por cada combinacion resultante
                      SELECT COUNT(*)
                      FROM bank_transaction_documents hbtd
                      JOIN entity_bank_transactions hbt
@@ -901,10 +1018,12 @@ class ReconcileService {
                   ON btd.entity_sii_document_id = d.id
                   WHERE d.entity_id = :entityId
                   ${whereDocsByType}
+                  AND d.issue_date >= DATE_SUB(:pageDateFrom, INTERVAL ${parsedDaysWindow} DAY)
+                  AND d.issue_date <= DATE_ADD(:pageDateTo, INTERVAL ${parsedDaysWindow} DAY)
                   GROUP BY d.id
                   HAVING remaining_amount > 0
                )
-               SELECT
+               SELECT /*+ MAX_EXECUTION_TIME(${ReconcileService.SUGGESTIONS_MAX_EXECUTION_TIME_MS}) */
                   bt.id                       AS bank_tx_id,
                   bt.amount,
                   bt.issued_at,
@@ -930,7 +1049,7 @@ class ReconcileService {
                ORDER BY bt.id DESC, d.issue_date ASC, d.remaining_amount DESC
             `;
 
-            const groupRows = await sequelize.query(sqlGroupCandidates, {
+            const groupRows = await this.#runQuery(sqlGroupCandidates, {
                replacements: params,
                type: QueryTypes.SELECT,
             });

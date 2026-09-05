@@ -49,6 +49,12 @@ router.post('/login',
    authController.login
 );
 
+router.post('/client/login',
+   loginLimiter,
+   validatorHandler(loginSchema, 'body'),
+   authController.clientLogin
+);
+
 router.post('/refresh',
    refreshLimiter,
    authController.refresh

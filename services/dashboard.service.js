@@ -283,6 +283,13 @@ function normalizeSyncJob(row = null, type, label) {
    };
 }
 
+// las notas de credito (61) anulan/rebajan una venta o compra ya emitida: se restan
+// del monto del documento que corrigen en vez de sumarse como un documento mas
+function signedAmountExpr(column, alias = '') {
+   const prefix = alias ? `${alias}.` : '';
+   return `(${prefix}${column} * CASE WHEN ${prefix}doc_type_code = 61 THEN -1 ELSE 1 END)`;
+}
+
 function documentBucketCase(alias = '') {
    const prefix = alias ? `${alias}.` : '';
    return `
@@ -361,7 +368,7 @@ function addCompositionAlerts(alerts, composition) {
    const topSales = salesItems[0];
    const topPurchases = purchasesItems[0];
 
-   if (salesCreditNotes && Number(salesCreditNotes.share || 0) >= 15) {
+   if (salesCreditNotes && Math.abs(Number(salesCreditNotes.share || 0)) >= 15) {
       alerts.push({
          type: 'sales_credit_notes_weight',
          severity: 'warning',
@@ -370,7 +377,7 @@ function addCompositionAlerts(alerts, composition) {
       });
    }
 
-   if (purchasesCreditNotes && Number(purchasesCreditNotes.share || 0) >= 15) {
+   if (purchasesCreditNotes && Math.abs(Number(purchasesCreditNotes.share || 0)) >= 15) {
       alerts.push({
          type: 'purchase_credit_notes_weight',
          severity: 'warning',
@@ -460,10 +467,10 @@ async function aggregateDocumentBuckets({ entityId, period }) {
       SELECT
          ${documentBucketCase()} AS bucket,
          COUNT(*) AS count,
-         COALESCE(SUM(total_amount), 0) AS total,
-         COALESCE(SUM(amount_net), 0) AS net,
-         COALESCE(SUM(amount_vat), 0) AS vat,
-         COALESCE(SUM(amount_exempt), 0) AS exempt
+         COALESCE(SUM(${signedAmountExpr('total_amount')}), 0) AS total,
+         COALESCE(SUM(${signedAmountExpr('amount_net')}), 0) AS net,
+         COALESCE(SUM(${signedAmountExpr('amount_vat')}), 0) AS vat,
+         COALESCE(SUM(${signedAmountExpr('amount_exempt')}), 0) AS exempt
       FROM entity_sii_documents
       WHERE entity_id = :entityId
         AND issue_date >= :startDate
@@ -500,10 +507,10 @@ async function documentTypeComposition({ entityId, period, salesTotal, purchases
          d.doc_type_code,
          dt.name AS doc_type_name,
          COUNT(*) AS count,
-         COALESCE(SUM(d.total_amount), 0) AS total,
-         COALESCE(SUM(d.amount_net), 0) AS net,
-         COALESCE(SUM(d.amount_vat), 0) AS vat,
-         COALESCE(SUM(d.amount_exempt), 0) AS exempt
+         COALESCE(SUM(${signedAmountExpr('total_amount', 'd')}), 0) AS total,
+         COALESCE(SUM(${signedAmountExpr('amount_net', 'd')}), 0) AS net,
+         COALESCE(SUM(${signedAmountExpr('amount_vat', 'd')}), 0) AS vat,
+         COALESCE(SUM(${signedAmountExpr('amount_exempt', 'd')}), 0) AS exempt
       FROM entity_sii_documents d
       LEFT JOIN sii_document_types dt ON dt.code = d.doc_type_code
       WHERE d.entity_id = :entityId
@@ -705,14 +712,14 @@ class DashboardService {
             COALESCE(SUM(
                CASE
                   WHEN ${documentBucketCase()} = 'INCOME'
-                  THEN total_amount
+                  THEN ${signedAmountExpr('total_amount')}
                   ELSE 0
                END
             ), 0) AS sales,
             COALESCE(SUM(
                CASE
                   WHEN ${documentBucketCase()} = 'EXPENSE'
-                  THEN total_amount
+                  THEN ${signedAmountExpr('total_amount')}
                   ELSE 0
                END
             ), 0) AS purchases

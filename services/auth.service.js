@@ -211,6 +211,241 @@ class AuthService {
    }
 
    // ==========================================
+   //  autenticacion de clientes (tabla `users`)
+   //  independiente del flujo de super_admin: no se toca nada de lo anterior
+   // ==========================================
+
+   generateClientAccessToken(user) {
+      const payload = { sub: user.id, username: user.username, role: 'user' };
+      return jwt.sign(payload, config.jwtAccessSecret, { expiresIn: config.jwtAccessExpires });
+   }
+
+   async generateAndStoreClientRefreshToken(userId, meta = {}) {
+      const tokenPlain = crypto.randomBytes(64).toString('hex');
+      const token_hash = await bcrypt.hash(tokenPlain, 10);
+      const expires_at = new Date(Date.now() + this.parseMs(config.jwtRefreshExpires));
+      const clean = this.sanitizeMeta(meta);
+
+      const created = await models.RefreshTokenUser.create({
+         token_hash,
+         user_id: userId,
+         expires_at,
+         ip: clean.ip,
+         user_agent: clean.userAgent,
+         last_used_at: new Date(),
+      }, {
+         validate: false
+      });
+
+      return { tokenPlain, tokenRecord: created };
+   }
+
+   async verifyClientRefreshToken(userId, refreshTokenPlain, meta = {}) {
+      const now = new Date();
+      const clean = this.sanitizeMeta(meta);
+
+      const actives = await models.RefreshTokenUser.findAll({
+         where: {
+            user_id: userId,
+            revoked_at: { [Op.is]: null },
+            expires_at: { [Op.gt]: now }
+         },
+         order: [['createdAt', 'DESC']],
+         limit: 10
+      });
+
+      for (const rec of actives) {
+         const ok = await bcrypt.compare(refreshTokenPlain, rec.token_hash);
+         if (ok) {
+            rec.last_used_at = new Date();
+            if (clean.ip !== null) rec.ip = clean.ip;
+            if (clean.userAgent !== null) rec.user_agent = clean.userAgent;
+            await rec.save({ validate: false });
+            return rec;
+         }
+      }
+
+      await this.detectClientReplayAndHandle(userId, refreshTokenPlain);
+
+      const err = boom.unauthorized('Invalid or expired refresh token');
+      err.data = { code: 'REFRESH_INVALID' };
+      throw err;
+   }
+
+   async pruneActiveClientSessions(userId, keepIds = []) {
+      try {
+         const cap = config.maxActiveSessions || 2;
+         if (!Number.isFinite(cap) || cap <= 0) return;
+
+         const actives = await models.RefreshTokenUser.findAll({
+            where: {
+               user_id: userId,
+               revoked_at: { [Op.is]: null },
+               expires_at: { [Op.gt]: new Date() }
+            },
+            order: [['createdAt', 'DESC']],
+            attributes: ['id'],
+            raw: true
+         });
+
+         const explicit = new Set(keepIds);
+         const toKeep = new Set([...actives.slice(0, cap).map(r => r.id), ...explicit]);
+         const toRevoke = actives.filter(r => !toKeep.has(r.id)).map(r => r.id);
+
+         if (toRevoke.length) {
+            await models.RefreshTokenUser.update(
+               { revoked_at: new Date() },
+               { where: { id: toRevoke } }
+            );
+         }
+      } catch (err) {
+         // error no bloqueante
+      }
+   }
+
+   async revokeClientChainFrom(startTokenId) {
+      if (!startTokenId) return;
+      const RT = models.RefreshTokenUser;
+      let currentId = startTokenId;
+      const now = new Date();
+      while (currentId) {
+         const t = await RT.findByPk(currentId);
+         if (!t) break;
+         if (!t.revoked_at) {
+            t.revoked_at = now;
+            await t.save({ validate: false });
+         }
+         currentId = t.replaced_by_token_id;
+      }
+   }
+
+   async detectClientReplayAndHandle(userId, refreshTokenPlain) {
+      const lookbackDays = parseInt(process.env.REFRESH_REPLAY_LOOKBACK_DAYS || '30', 10);
+      const cutoff = new Date(Date.now() - (lookbackDays * 24 * 60 * 60 * 1000));
+
+      const revokedRecent = await models.RefreshTokenUser.findAll({
+         where: {
+            user_id: userId,
+            revoked_at: { [Op.not]: null, [Op.gt]: cutoff },
+         },
+         order: [['revoked_at', 'DESC']],
+         limit: 30
+      });
+
+      for (const tok of revokedRecent) {
+         const match = await bcrypt.compare(refreshTokenPlain, tok.token_hash);
+         if (match) {
+            await this.revokeClientChainFrom(tok.replaced_by_token_id);
+
+            logError('CLIENT_REFRESH_REPLAY_DETECTED', {
+               userId, tokenId: tok.id, lookbackDays
+            });
+
+            const err = boom.unauthorized('Refresh token replay detected');
+            err.data = { code: 'REFRESH_REPLAY' };
+            throw err;
+         }
+      }
+   }
+
+   // login de un usuario cliente (tabla `users`, sin 2fa por ahora)
+   async loginClient(username, password, meta = {}) {
+      try {
+         const user = await models.User.findOne({ where: { username } });
+         if (!user) {
+            const err = boom.unauthorized('Credenciales inválidas');
+            err.data = { code: 'INVALID_CREDENTIALS' };
+            throw err;
+         }
+
+         const isMatch = await bcrypt.compare(password, user.password_hash);
+         if (!isMatch) {
+            const err = boom.unauthorized('Credenciales inválidas');
+            err.data = { code: 'INVALID_CREDENTIALS' };
+            throw err;
+         }
+
+         if (user.state_id !== 1) {
+            throw boom.unauthorized('Tu cuenta está suspendida o inactiva. Contacta al administrador.');
+         }
+
+         const accessToken = this.generateClientAccessToken(user);
+         const { tokenPlain: refreshToken, tokenRecord } = await this.generateAndStoreClientRefreshToken(user.id, meta);
+
+         await this.pruneActiveClientSessions(user.id, [tokenRecord.id]);
+
+         return {
+            accessToken,
+            refreshToken,
+            user: {
+               id: user.id,
+               username: user.username,
+               email: user.email,
+               name: user.name,
+               last_name: user.last_name,
+            },
+            refreshTokenId: tokenRecord.id
+         };
+      } catch (err) {
+         logError('AUTH_CLIENT_LOGIN_ERR', {
+            rid: meta.rid || '-',
+            code: err?.data?.code || 'UNKNOWN',
+            ip: meta.ip || '-',
+            ua: meta.userAgent || '-'
+         });
+         throw err;
+      }
+   }
+
+   async refreshClient(userId, refreshTokenPlain, meta = {}) {
+      try {
+         const user = await models.User.findByPk(userId);
+         if (!user) {
+            const e = boom.unauthorized('User not found');
+            e.data = { code: 'USER_NOT_FOUND' };
+            throw e;
+         }
+
+         const oldTokenRecord = await this.verifyClientRefreshToken(userId, refreshTokenPlain, meta);
+
+         const accessToken = this.generateClientAccessToken(user);
+         const { tokenPlain: newRefreshToken, tokenRecord: newRecord } =
+            await this.generateAndStoreClientRefreshToken(user.id, meta);
+
+         await this.revokeRefreshToken(oldTokenRecord, newRecord.id);
+         await this.pruneActiveClientSessions(user.id, [newRecord.id]);
+
+         return {
+            accessToken,
+            refreshToken: newRefreshToken,
+            user: { id: user.id, username: user.username, email: user.email, name: user.name, last_name: user.last_name }
+         };
+      } catch (err) {
+         logError('AUTH_CLIENT_REFRESH_ERR', {
+            rid: meta.rid || '-',
+            userId,
+            code: err?.data?.code || 'UNKNOWN'
+         });
+         throw err;
+      }
+   }
+
+   async logoutClient(userId, refreshTokenPlain, meta = {}) {
+      try {
+         const tokenRecord = await this.verifyClientRefreshToken(userId, refreshTokenPlain, meta);
+         await this.revokeRefreshToken(tokenRecord);
+         return { revoked: true };
+      } catch (err) {
+         logError('AUTH_CLIENT_LOGOUT_ERR', {
+            rid: meta.rid || '-',
+            userId,
+            code: err?.data?.code || 'UNKNOWN'
+         });
+         throw err;
+      }
+   }
+
+   // ==========================================
    //  logica principal de autenticacion (login)
    // ==========================================
 

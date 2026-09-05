@@ -78,7 +78,8 @@ const updateEntity = asyncHandler(async (req, res) => {
    const row = await service.update(id, {
       name: name ?? legal_name,
       rut: rut ?? tax_id,
-      stateId: state_id
+      stateId: state_id,
+      actorId: req.user?.sub || req.user?.id
    });
 
    logInfo('ENTITY_UPDATED', {
@@ -95,7 +96,8 @@ const deleteEntity = asyncHandler(async (req, res) => {
    if (!req.isSuperAdmin) throw boom.forbidden('solo super admin');
 
    const { id } = req.params;
-   const out = await service.delete(id);
+   const actorId = req.user?.sub || req.user?.id;
+   const out = await service.delete(id, { actorId });
 
    logInfo(out.deleted ? 'ENTITY_DELETED' : 'ENTITY_DEACTIVATED', {
       rid: req.rid,

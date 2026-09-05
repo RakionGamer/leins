@@ -23,6 +23,9 @@ const {
 
 const router = express.Router();
 const ensureEntityAccess = requireEntityAccess();
+const ensureEntityDeleteAccess = requireEntityAccess('delete');
+const ensureEntityCreateAccess = requireEntityAccess('create');
+const ensureEntityUpdateAccess = requireEntityAccess('update');
 
 // siempre calculamos contexto de rol para que GET pueda distinguir superadmin vs usuario normal
 router.use(setSuperAdminContext);
@@ -35,39 +38,39 @@ router.get(
    '/:entityId/credentials',
    validatorHandler(entityCredentialParamsSchema, 'params'),
    validatorHandler(listCredentialsQuerySchema, 'query'),
-   ensureEntityAccess,
+   ensureEntityUpdateAccess,
    credentialsController.listCredentials
 );
 router.post(
    '/:entityId/credentials',
    validatorHandler(entityCredentialParamsSchema, 'params'),
    validatorHandler(createCredentialSchema, 'body'),
-   ensureEntityAccess,
+   ensureEntityCreateAccess,
    credentialsController.createCredential
 );
 router.get(
    '/:entityId/credentials/:credentialId',
    validatorHandler(credentialParamsSchema, 'params'),
-   ensureEntityAccess,
+   ensureEntityUpdateAccess,
    credentialsController.getCredential
 );
 router.put(
    '/:entityId/credentials/:credentialId',
    validatorHandler(credentialParamsSchema, 'params'),
    validatorHandler(updateCredentialSchema, 'body'),
-   ensureEntityAccess,
+   ensureEntityUpdateAccess,
    credentialsController.updateCredential
 );
 router.delete(
    '/:entityId/credentials/:credentialId',
    validatorHandler(credentialParamsSchema, 'params'),
-   ensureEntityAccess,
+   ensureEntityDeleteAccess,
    credentialsController.deleteCredential
 );
 router.post(
    '/:entityId/credentials/:credentialId/reveal',
    validatorHandler(credentialParamsSchema, 'params'),
-   ensureEntityAccess,
+   ensureEntityUpdateAccess,
    credentialsController.revealCredential
 );
 
@@ -81,7 +84,7 @@ router.get(
 router.post(
    '/:entityId/sync-sii',
    validatorHandler(entityIdParamsSchema, 'params'),
-   ensureEntityAccess,
+   ensureEntityCreateAccess,
    entitiesController.syncSii
 );
 

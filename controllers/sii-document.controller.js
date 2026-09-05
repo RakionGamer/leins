@@ -2,11 +2,12 @@ const boom = require('@hapi/boom');
 const SiiDocumentsService = require('../services/sii-document.service');
 const asyncHandler = require('../utils/helpers/asyncHandler');
 const { logInfo } = require('../utils/logger');
+const { toCsv } = require('../utils/toCsv');
 
 const service = new SiiDocumentsService();
 
-// controlador para listar documentos
-const listDocuments = asyncHandler(async (req, res) => {
+// construye el payload de filtros/orden/paginacion compartido entre listado y exportacion csv
+function buildListPayload(req) {
    const q = req.query || {};
 
    // validaciones basicas de formato
@@ -28,8 +29,7 @@ const listDocuments = asyncHandler(async (req, res) => {
    const order = q.order ? String(q.order) : 'desc';
    const typeCode = q.type !== undefined ? String(q.type) : undefined;
 
-   // armar el payload para el servicio
-   const payload = {
+   return {
       entity_id: req.entityId ? Number(req.entityId) : (q.entity_id ? Number(q.entity_id) : undefined),
       type: typeCode,
       q: q.q ? String(q.q) : (q.search ? String(q.search) : undefined),
@@ -45,8 +45,13 @@ const listDocuments = asyncHandler(async (req, res) => {
       sort,
       order,
       pendingOnly: ['1', 'true', 'yes'].includes(String(q.pendingOnly || '').toLowerCase()),
+      status: q.status ? String(q.status).toLowerCase() : undefined,
    };
+}
 
+// controlador para listar documentos
+const listDocuments = asyncHandler(async (req, res) => {
+   const payload = buildListPayload(req);
    const out = await service.list(payload);
    const totalPages = Math.max(1, Math.ceil(out.total / out.pageSize));
 
@@ -60,6 +65,42 @@ const listDocuments = asyncHandler(async (req, res) => {
       hasNext: out.page < totalPages,
       totalPages,
    });
+});
+
+const CSV_COLUMNS = [
+   { header: 'Fecha Emision', value: (r) => (r.issue_date ? String(r.issue_date).slice(0, 10) : '') },
+   { header: 'Folio', value: (r) => r.folio ?? '' },
+   { header: 'Tipo Documento', value: (r) => r.doc_type_name || r.doc_type_code || '' },
+   { header: 'RUT Contraparte', value: (r) => r.counterparty_rut ?? '' },
+   { header: 'Razon Social', value: (r) => r.counterparty_name ?? '' },
+   { header: 'Fecha Vencimiento', value: (r) => (r.due_date ? String(r.due_date).slice(0, 10) : '') },
+   { header: 'Monto Neto', value: (r) => r.amount_net ?? 0 },
+   { header: 'Monto IVA', value: (r) => r.amount_vat ?? 0 },
+   { header: 'Monto Exento', value: (r) => r.amount_exempt ?? 0 },
+   { header: 'Monto Total', value: (r) => r.total_amount ?? 0 },
+   { header: 'Saldo Pendiente', value: (r) => r.remaining_amount ?? 0 },
+   { header: 'Origen', value: (r) => r.source ?? '' },
+];
+
+// controlador para exportar el listado filtrado a csv
+const exportDocumentsCsv = asyncHandler(async (req, res) => {
+   const payload = buildListPayload(req);
+   const items = await service.exportAll(payload);
+   const csv = toCsv(items, CSV_COLUMNS);
+
+   logInfo('SII_DOCUMENTS_EXPORTED_CSV', {
+      rid: req.rid,
+      userId: req.user?.sub,
+      entityId: payload.entity_id,
+      operationType: payload.operation_type,
+      rows: items.length,
+   });
+
+   const filename = `documentos_${payload.operation_type ? payload.operation_type.toLowerCase() + '_' : ''}${new Date().toISOString().slice(0, 10)}.csv`;
+   res.status(200)
+      .set('Content-Type', 'text/csv; charset=utf-8')
+      .set('Content-Disposition', `attachment; filename="${filename}"`)
+      .send(csv);
 });
 
 // controlador para crear ingreso o gasto manual
@@ -146,6 +187,7 @@ const dailySalesGroups = asyncHandler(async (req, res) => {
 
 module.exports = {
    listDocuments,
+   exportDocumentsCsv,
    dailySalesGroups,
    createManualDocument,
    updateDocument,

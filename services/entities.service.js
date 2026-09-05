@@ -1,6 +1,9 @@
 const boom = require('@hapi/boom');
 const { sequelize, models } = require('../libs/sequelize');
 const { Op, QueryTypes } = require('sequelize');
+const SuperAdminService = require('./super-admin.service');
+
+const superAdminService = new SuperAdminService();
 
 const SORT_COLUMNS = {
    id: 'e.id',
@@ -8,6 +11,9 @@ const SORT_COLUMNS = {
    rut: 'e.tax_id',
 };
 
+// nota: AdminEntity y UserEntity NO estan aqui a proposito: son solo vinculos de
+// permiso/acceso (no datos de negocio), asi que se limpian automaticamente al
+// eliminar la entidad en vez de bloquear el borrado (ver metodo delete()).
 const ENTITY_RELATION_CHECKS = [
    { modelKey: 'EntityBankAccount', foreignKey: 'entity_id', label: 'cuentas bancarias' },
    { modelKey: 'EntitySiiDocument', foreignKey: 'entity_id', label: 'documentos SII' },
@@ -15,8 +21,6 @@ const ENTITY_RELATION_CHECKS = [
    { modelKey: 'EntityCashFlowProjection', foreignKey: 'entity_id', label: 'proyecciones de flujo de caja' },
    { modelKey: 'Credential', foreignKey: 'entity_id', label: 'credenciales' },
    { modelKey: 'EntityModule', foreignKey: 'entity_id', label: 'modulos asociados' },
-   { modelKey: 'AdminEntity', foreignKey: 'entity_id', label: 'vinculos con administradores' },
-   { modelKey: 'UserEntity', foreignKey: 'entity_id', label: 'vinculos con usuarios' },
 ];
 
 function normalizeOrder(value) {
@@ -137,6 +141,14 @@ function mapEntityRow(row) {
       rut: row.rut || row.tax_id,
       legal_name: row.legal_name || row.name || null,
       state_id: Number(row.state_id || 0),
+      // permisos del actor que pidio el listado sobre esta entidad puntual
+      // (vienen de admin_entities para super_admin, o de user_entities.read_only para clientes)
+      permissions: {
+         can_create: row.can_create == null ? true : Boolean(row.can_create),
+         can_update: row.can_update == null ? true : Boolean(row.can_update),
+         can_delete: row.can_delete == null ? true : Boolean(row.can_delete),
+         is_admin: Boolean(row.is_admin),
+      },
    };
 }
 
@@ -204,7 +216,8 @@ class EntitiesService {
          ${filters.whereSql}
       `;
       const sql = `
-         SELECT e.id, e.legal_name AS name, e.legal_name, e.tax_id AS rut, e.tax_id, e.state_id
+         SELECT e.id, e.legal_name AS name, e.legal_name, e.tax_id AS rut, e.tax_id, e.state_id,
+                1 AS can_create, 1 AS can_update, (NOT ue.read_only) AS can_delete, 0 AS is_admin
          ${baseJoin}
          ORDER BY ${sortColumn} ${sortOrder}
          LIMIT :limit OFFSET :offset
@@ -267,7 +280,8 @@ class EntitiesService {
          ${filters.whereSql}
       `;
       const sql = `
-         SELECT DISTINCT e.id, e.legal_name AS name, e.legal_name, e.tax_id AS rut, e.tax_id, e.state_id
+         SELECT DISTINCT e.id, e.legal_name AS name, e.legal_name, e.tax_id AS rut, e.tax_id, e.state_id,
+                ae.can_create, ae.can_update, ae.can_delete, ae.is_admin
          ${baseJoin}
          ORDER BY ${sortColumn} ${sortOrder}
          LIMIT :limit OFFSET :offset
@@ -319,7 +333,7 @@ class EntitiesService {
       });
    }
 
-   async update(id, { name, rut, stateId } = {}) {
+   async update(id, { name, rut, stateId, actorId = null } = {}) {
       const entityId = Number(id);
       if (!Number.isInteger(entityId) || entityId <= 0) {
          throw boom.badRequest('id de entidad invalido');
@@ -327,6 +341,9 @@ class EntitiesService {
 
       const entity = await models.Entity.findByPk(entityId);
       if (!entity) throw boom.notFound('entidad no encontrada');
+
+      const canManage = await superAdminService.canActorManageEntity({ actorId, entityId, action: 'update' });
+      if (!canManage) throw boom.forbidden('no tienes permiso para editar esta entidad');
 
       const changes = {};
       if (name !== undefined) {
@@ -424,7 +441,21 @@ class EntitiesService {
       return counts.filter((item) => item.count > 0);
    }
 
-   async delete(id) {
+   // cuenta clientes (users) activos vinculados a la entidad, para bloquear el borrado
+   async countActiveClientUsers(entityId) {
+      return models.UserEntity.count({
+         where: { entity_id: entityId },
+         include: [{
+            model: models.User,
+            as: 'user',
+            attributes: [],
+            required: true,
+            where: { state_id: Number(process.env.ACTIVE_STATE_ID || 1) },
+         }],
+      });
+   }
+
+   async delete(id, { actorId = null } = {}) {
       const entityId = Number(id);
       if (!Number.isInteger(entityId) || entityId <= 0) {
          throw boom.badRequest('id de entidad invalido');
@@ -432,6 +463,16 @@ class EntitiesService {
 
       const entity = await models.Entity.findByPk(entityId);
       if (!entity) throw boom.notFound('entidad no encontrada');
+
+      const canManage = await superAdminService.canActorManageEntity({ actorId, entityId, action: 'delete' });
+      if (!canManage) throw boom.forbidden('no tienes permiso para eliminar esta entidad (se requiere permiso de eliminar o ser administrador de la entidad)');
+
+      const activeClients = await this.countActiveClientUsers(entityId);
+      if (activeClients > 0) {
+         throw boom.conflict(
+            `no puedes eliminar esta entidad: tiene ${activeClients} cliente(s) activo(s) vinculado(s). Desactiva o remueve esos clientes primero.`
+         );
+      }
 
       const relatedRecords = await this.countRelatedRecords(entityId);
       if (relatedRecords.length > 0) {
@@ -457,7 +498,16 @@ class EntitiesService {
          };
       }
 
-      await entity.destroy();
+      // AdminEntity/UserEntity son solo vinculos de acceso (no datos de negocio):
+      // se limpian junto con la entidad en vez de bloquear el borrado.
+      // OJO: esto borra el VINCULO, no la cuenta Admin/User en si - esa cuenta
+      // puede seguir usandose para administrar otras entidades.
+      await sequelize.transaction(async (transaction) => {
+         await models.AdminEntity.destroy({ where: { entity_id: entityId }, transaction });
+         await models.UserEntity.destroy({ where: { entity_id: entityId }, transaction });
+         await entity.destroy({ transaction });
+      });
+
       return {
          id: entityId,
          deleted: true,
