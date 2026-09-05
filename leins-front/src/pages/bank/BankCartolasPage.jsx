@@ -1920,7 +1920,7 @@ export default function BankCartolasPage() {
                                                    </td>
                                                    <td className="px-3 py-2">
                                                       <div className="truncate max-w-[320px]">
-                                                         {d.counterparty_rut ? `${d.counterparty_rut} - ` : ''}{d.counterparty_name || d.description || "—"}
+                                                         {d.counterparty_rut || d.counterparty_tax_id || d.rut ? `${d.counterparty_rut || d.counterparty_tax_id || d.rut} - ` : ''}{d.counterparty_name || d.description || "—"}
                                                       </div>
                                                       {d.account_label && <div className="text-[10px] text-[var(--text-soft)] truncate max-w-[320px]">{d.account_label}</div>}
                                                    </td>
