@@ -12,6 +12,8 @@ function documentReconcileAmountSql(alias) {
        AND COALESCE(${alias}.amount_net,0) > COALESCE(${alias}.amount_tax_no_credit,0)
        AND COALESCE(${alias}.amount_tax_no_credit,0) > 0
          THEN COALESCE(${alias}.amount_net,0) - COALESCE(${alias}.amount_tax_no_credit,0)
+      WHEN COALESCE(${alias}.total_amount, 0) = 0
+         THEN COALESCE(${alias}.amount_exempt, 0) + COALESCE(${alias}.amount_net, 0) + COALESCE(${alias}.amount_vat, 0)
       ELSE COALESCE(${alias}.total_amount,0)
    END`;
 }
@@ -92,12 +94,15 @@ class SiiDocumentsService {
          if (op === 'INCOME') {
             where[Op.and].push({
                [Op.or]: [
-                  { operation_type: 'INCOME' },
-                  { operation_type: 'income' },
-                  { operation_type: 'VENTA' },
-                  { operation_type: null, doc_type_code: [39, 41, 1001] },
+                  { operationType: 'INCOME' },
+                  { operationType: 'income' },
+                  { operationType: 'VENTA' },
+                  { operationType: 'VENTAS' },
+                  { operationType: 'venta' },
+                  { operationType: 'ventas' },
+                  { operationType: null, doc_type_code: [39, 41, 1001] },
                   {
-                     operation_type: null,
+                     operationType: null,
                      doc_type_code: [33, 34],
                      received_date: null,
                      purchase_type: null,
@@ -107,19 +112,22 @@ class SiiDocumentsService {
          } else if (op === 'EXPENSE') {
             where[Op.and].push({
                [Op.or]: [
-                  { operation_type: 'EXPENSE' },
-                  { operation_type: 'expense' },
-                  { operation_type: 'COMPRA' },
-                  { operation_type: null, doc_type_code: 1002 },
+                  { operationType: 'EXPENSE' },
+                  { operationType: 'expense' },
+                  { operationType: 'COMPRA' },
+                  { operationType: 'COMPRAS' },
+                  { operationType: 'compra' },
+                  { operationType: 'compras' },
+                  { operationType: null, doc_type_code: 1002 },
                   {
-                     operation_type: null,
+                     operationType: null,
                      doc_type_code: [33, 34],
                      [Op.or]: [
                         { received_date: { [Op.ne]: null } },
                         { purchase_type: { [Op.ne]: null } },
                      ],
                   },
-                  { operation_type: null, doc_type_code: null }
+                  { operationType: null, doc_type_code: null }
                ]
             });
          }

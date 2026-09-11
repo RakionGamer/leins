@@ -55,7 +55,8 @@ const EntitySiiDocumentSchema = {
    other_tax_code: { allowNull: true, type: DataTypes.STRING(10) },
    other_tax_value: { allowNull: false, type: DataTypes.DECIMAL(15, 2), defaultValue: 0 },
    other_tax_rate: { allowNull: false, type: DataTypes.DECIMAL(8, 4), defaultValue: 0 },
-   operation_type: {
+   operationType: {
+      field: 'operation_type',
       type: DataTypes.STRING(20),
       allowNull: true,
    },
