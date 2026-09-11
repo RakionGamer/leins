@@ -93,6 +93,8 @@ class SiiDocumentsService {
             where[Op.and].push({
                [Op.or]: [
                   { operation_type: 'INCOME' },
+                  { operation_type: 'income' },
+                  { operation_type: 'VENTA' },
                   { operation_type: null, doc_type_code: [39, 41, 1001] },
                   {
                      operation_type: null,
@@ -106,6 +108,8 @@ class SiiDocumentsService {
             where[Op.and].push({
                [Op.or]: [
                   { operation_type: 'EXPENSE' },
+                  { operation_type: 'expense' },
+                  { operation_type: 'COMPRA' },
                   { operation_type: null, doc_type_code: 1002 },
                   {
                      operation_type: null,
@@ -136,9 +140,16 @@ class SiiDocumentsService {
       if (query) {
          if (!where[Op.and]) where[Op.and] = [];
          const like = `%${query}%`;
+         const queryNum = Number(query);
+         const folioConditions = [
+            sequelize.where(sequelize.literal('CAST(`EntitySiiDocument`.`folio` AS CHAR)'), { [Op.like]: like }),
+         ];
+         if (Number.isInteger(queryNum)) {
+            folioConditions.push({ folio: queryNum });
+         }
          where[Op.and].push({
             [Op.or]: [
-               sequelize.where(sequelize.literal('CAST(`EntitySiiDocument`.`folio` AS CHAR)'), { [Op.like]: like }),
+               ...folioConditions,
                { counterparty_rut: { [Op.like]: like } },
                { counterparty_name: { [Op.like]: like } },
             ],
@@ -148,11 +159,16 @@ class SiiDocumentsService {
       const folioQuery = String(folio || '').trim();
       if (folioQuery) {
          if (!where[Op.and]) where[Op.and] = [];
-         where[Op.and].push(
+         const folioNum = Number(folioQuery);
+         const conds = [
             sequelize.where(sequelize.literal('CAST(`EntitySiiDocument`.`folio` AS CHAR)'), {
                [Op.like]: `%${folioQuery}%`,
-            })
-         );
+            }),
+         ];
+         if (Number.isInteger(folioNum)) {
+            conds.push({ folio: folioNum });
+         }
+         where[Op.and].push(conds.length > 1 ? { [Op.or]: conds } : conds[0]);
       }
 
       const clientQuery = String(client || '').trim();
@@ -307,7 +323,7 @@ class SiiDocumentsService {
          amount_tax_no_credit: r.amount_tax_no_credit,
          remaining_amount: Number(r.get?.('remaining_amount') ?? r.total_amount ?? 0),
          source: r.source,
-         operation_type: r.operation_type,
+         operation_type: r.operation_type ?? r.operationType ?? null,
          created_at: r.created_at,
          updated_at: r.updated_at,
       };

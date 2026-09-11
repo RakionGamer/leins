@@ -1203,9 +1203,17 @@ export default function BankCartolasPage() {
          rows = rows.filter(d => String(d.doc_type_code ?? '') === String(modalTipo));
       }
       if (debouncedQuery) {
+         const cleanQuery = debouncedQuery.replace(/[\.\-\s]/g, '').toLowerCase();
          rows = rows.filter(d => {
-            const text = `${d.folio ?? ''} ${d.counterparty_rut ?? ''} ${d.counterparty_name ?? ''} ${d.description ?? ''} ${d.account_label ?? ''} ${d.issue_date ?? ''}`.toLowerCase();
-            const matchesText = text.includes(debouncedQuery);
+            const folioStr = String(d.folio ?? '').toLowerCase();
+            const rutStr = String(d.counterparty_rut ?? d.counterparty_tax_id ?? d.rut ?? '').toLowerCase();
+            const cleanRut = rutStr.replace(/[\.\-\s]/g, '');
+            const nameStr = String(d.counterparty_name ?? d.description ?? '').toLowerCase();
+            const accountStr = String(d.account_label ?? '').toLowerCase();
+            const dateStr = String(d.issue_date ?? '').toLowerCase();
+            const text = `${folioStr} ${rutStr} ${nameStr} ${accountStr} ${dateStr}`;
+            
+            const matchesText = text.includes(debouncedQuery) || (cleanQuery.length > 0 && (cleanRut.includes(cleanQuery) || folioStr.includes(cleanQuery)));
             const matchesMonto = !Number.isNaN(Number(debouncedQuery)) && (String(Math.round(Number(d.total_amount || 0))).includes(debouncedQuery) || String(Math.round(Number(d.remaining_amount || 0))).includes(debouncedQuery));
             return matchesText || matchesMonto;
          });
