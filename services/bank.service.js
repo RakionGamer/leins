@@ -280,7 +280,14 @@ class BankService {
                description,
             };
 
-            const batchKey = `${issuedAt.getTime()}_${type}_${amountAbs}_${description}`;
+            if (documentRef) {
+               baseWhere.document_ref = { [Op.or]: [documentRef, null] };
+            }
+            if (balance != null) {
+               baseWhere.balance = { [Op.or]: [balance, null] };
+            }
+
+            const batchKey = `${issuedAt.getTime()}_${type}_${amountAbs}_${description}_${documentRef || 'null'}_${balance != null ? balance : 'null'}`;
             localBatchCounts[batchKey] = (localBatchCounts[batchKey] || 0) + 1;
             const currentOccurrence = localBatchCounts[batchKey];
 
