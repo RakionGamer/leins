@@ -2,7 +2,7 @@ const boom = require('@hapi/boom');
 const BankService = require('../services/bank.service');
 const ReconcileService = require('../services/reconcile.service');
 const asyncHandler = require('../utils/helpers/asyncHandler');
-const { logInfo } = require('../utils/logger');
+const { logInfo, logError } = require('../utils/logger');
 
 // instanciamos los servicios
 const service = new BankService();
@@ -47,7 +47,13 @@ const uploadExcel = asyncHandler(async (req, res) => {
             userId: req.user?.sub,
             entityId,
             accountId: entityBankAccountId,
-            filename: req.file.originalname
+            filename: req.file.originalname,
+            total_rows: result.total_rows,
+            valid_rows: result.valid_rows,
+            invalid_rows: result.invalid_rows,
+            saved_rows: result.saved_rows,
+            skipped_rows: result.skipped_rows,
+            skipped_details: result.skipped_details
          });
       }
 
@@ -59,6 +65,16 @@ const uploadExcel = asyncHandler(async (req, res) => {
    } catch (err) {
       if (err?.code === 'LIMIT_FILE_SIZE') throw boom.entityTooLarge('archivo demasiado grande (max 10mb)');
       if (err?.code === 'LIMIT_UNEXPECTED_FILE') throw boom.badRequest('campo de archivo inesperado');
+      if (commit) {
+         logError('BANK_EXCEL_UPLOAD_FAILED', {
+            rid: req.rid,
+            userId: req.user?.sub,
+            entityId,
+            accountId: entityBankAccountId,
+            filename: req.file.originalname,
+            message: err?.message
+         });
+      }
       throw err;
    }
 });

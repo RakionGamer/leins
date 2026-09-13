@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const { models, sequelize } = require('../libs/sequelize');
 const { QueryTypes, Transaction, Op } = require("sequelize");
 const { config } = require('../config/config');
+const { logInfo, logWarn, logError } = require('../utils/logger');
 
 class BankService {
    static #normalizeRut(value) {
@@ -249,6 +250,8 @@ class BankService {
          if (!wb.SheetNames?.length) throw boom.badRequest('The Excel file contains no sheets.');
          return wb;
       } catch (e) {
+         if (e.isBoom) throw e;
+         logError('BANK_EXCEL_READ_FAILED', { message: e.message, stack: e.stack });
          throw boom.badRequest('Invalid or corrupted Excel file.');
       }
    }
@@ -330,6 +333,10 @@ class BankService {
             }
 
             if (oppositeExists) {
+               logWarn('BANK_TX_ROW_DECISION', {
+                  rowNumber: m._rowNumber, decision: 'skipped-opposite', baseWhere, currentOccurrence,
+                  conflictExistingType: oppositeType, conflictExistingId: oppositeExists.id
+               });
                if (collectSkipped) {
                   skipped.push({
                      rowNumber: m._rowNumber,
@@ -349,6 +356,10 @@ class BankService {
             }
 
             if (exists) {
+               logWarn('BANK_TX_ROW_DECISION', {
+                  rowNumber: m._rowNumber, decision: 'skipped-exists', baseWhere, currentOccurrence,
+                  existingId: exists.id, enrichedExisting
+               });
                if (collectSkipped) {
                   skipped.push({
                      rowNumber: m._rowNumber,
@@ -365,7 +376,7 @@ class BankService {
                continue;
             }
 
-            await models.EntityBankTransaction.create({
+            const createdRow = await models.EntityBankTransaction.create({
                entity_id: entityId,
                entity_bank_account_id: entityBankAccountId,
                type,
@@ -378,6 +389,8 @@ class BankService {
                sii_document_id: null,
             }, { transaction: t });
 
+            logInfo('BANK_TX_ROW_DECISION', { rowNumber: m._rowNumber, decision: 'created', createdId: createdRow.id });
+
             saved++;
          }
       });
@@ -389,6 +402,12 @@ class BankService {
    static #parseDDMMYYYY(input) {
       if (input instanceof Date && !isNaN(input)) {
          return input.toISOString().slice(0, 10);
+      }
+      // fecha nativa de excel leida con raw:true (numero de serie, ej. 46276)
+      if (typeof input === 'number' && Number.isFinite(input)) {
+         const dc = xlsx.SSF.parse_date_code(input);
+         if (dc) return `${dc.y}-${String(dc.m).padStart(2, '0')}-${String(dc.d).padStart(2, '0')}`;
+         return null;
       }
       const s = String(input || '').trim();
       const monthNames = {
@@ -495,7 +514,10 @@ class BankService {
       const isSummary = (txt = '') => /saldo\s+(inicial|final)/i.test(txt);
 
       for (const it of items) {
-         if (it.detail && isSummary(it.detail)) continue; // descarta filas de resumen
+         if (it.detail && isSummary(it.detail)) {
+            logWarn('BANK_EXCEL_ROW_SKIPPED_SUMMARY', { rowNumber: it._rowNumber, detail: it.detail });
+            continue; // descarta filas de resumen
+         }
 
          const reasons = [];
          if (it._amountError) reasons.push(it._amountError);
@@ -504,8 +526,12 @@ class BankService {
          if (!Number.isFinite(Number(it.amount))) reasons.push('monto inválido');
          if (Number(it.amount) === 0) reasons.push('monto no puede ser 0');
 
-         if (reasons.length) invalid.push({ ...it, _errors: reasons });
-         else valid.push(it);
+         if (reasons.length) {
+            logWarn('BANK_EXCEL_ROW_INVALID', { rowNumber: it._rowNumber, reasons, raw: it._raw });
+            invalid.push({ ...it, _errors: reasons });
+         } else {
+            valid.push(it);
+         }
       }
       return { valid, invalid };
    }
@@ -665,7 +691,10 @@ class BankService {
          : BankService.#BANK_DETECTORS;
 
       // Leer como matriz para inspeccionar headers reales
-      const rows2D = xlsx.utils.sheet_to_json(ws, { header: 1, defval: null, blankrows: false, raw: false });
+      // raw:true evita que SheetJS formatee montos/fechas segun el numFmt de la celda
+      // (con raw:false, una fecha nativa de excel se devuelve como texto ya formateado,
+      // p.ej. "9/11/26", que #parseDDMMYYYY no reconoce por el año de 2 digitos)
+      const rows2D = xlsx.utils.sheet_to_json(ws, { header: 1, defval: null, blankrows: false, raw: true });
       if (!rows2D.length) throw boom.badRequest('el excel no contiene hojas');
 
       // Encuentra la fila que luce como encabezado (más robusto: busca palabras clave)
