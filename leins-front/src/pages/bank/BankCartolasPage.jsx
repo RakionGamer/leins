@@ -216,6 +216,7 @@ const DEFAULT_FILTERS = {
    descripcion: "",
    cuenta: "",
    nroDocumento: "",
+   folioConciliado: "",
 };
 
 function parseDateToYmd(value) {
@@ -367,6 +368,7 @@ export default function BankCartolasPage() {
    const [descripcion, setDescripcion] = useState("");
    const [cuenta, setCuenta] = useState("");
    const [nroDocumento, setNroDocumento] = useState("");
+   const [folioConciliado, setFolioConciliado] = useState("");
    const [reconciliationDetailTxId, setReconciliationDetailTxId] = useState(null);
    const [reconciliationDetailTxAmount, setReconciliationDetailTxAmount] = useState(0);
    const [undoingReconciliationId, setUndoingReconciliationId] = useState(null);
@@ -1033,7 +1035,7 @@ export default function BankCartolasPage() {
    // handlers de ui y atajos
    // ===========================
    const applyAndFetch = () => {
-      setApplied({ tipo, fechaIni, fechaFin, montoFiltro, ctaCorriente, descripcion, cuenta, nroDocumento });
+      setApplied({ tipo, fechaIni, fechaFin, montoFiltro, ctaCorriente, descripcion, cuenta, nroDocumento, folioConciliado });
       setPage(0);
       setMostrarFiltros(true);
    };
@@ -1041,7 +1043,7 @@ export default function BankCartolasPage() {
    const resetAll = useCallback(() => {
       setTab('todos');
       setMostrarFiltros(true);
-      setTipo("Todos"); setFechaIni(""); setFechaFin(""); setMontoFiltro(""); setCtaCorriente(""); setDescripcion(""); setCuenta(""); setNroDocumento("");
+      setTipo("Todos"); setFechaIni(""); setFechaFin(""); setMontoFiltro(""); setCtaCorriente(""); setDescripcion(""); setCuenta(""); setNroDocumento(""); setFolioConciliado("");
       setApplied(DEFAULT_FILTERS);
       setSoloPorConciliar(false);
       setPage(0);
@@ -1052,7 +1054,7 @@ export default function BankCartolasPage() {
       if (nextTab === 'abonos' || nextTab === 'cargos') setSoloPorConciliar(true);
       else setSoloPorConciliar(false);
 
-      setTipo("Todos"); setFechaIni(""); setFechaFin(""); setMontoFiltro(""); setCtaCorriente(""); setDescripcion(""); setCuenta(""); setNroDocumento("");
+      setTipo("Todos"); setFechaIni(""); setFechaFin(""); setMontoFiltro(""); setCtaCorriente(""); setDescripcion(""); setCuenta(""); setNroDocumento(""); setFolioConciliado("");
       setApplied(DEFAULT_FILTERS);
       setPage(0);
    }, []);
@@ -1408,6 +1410,11 @@ export default function BankCartolasPage() {
                <div className="flex flex-col gap-1">
                   <label htmlFor="f-doc" className="text-[12px] text-[var(--text-soft)]">Número documento</label>
                   <input id="f-doc" type="text" className="border border-[var(--border-subtle)] bg-[var(--surface-1)] rounded-lg p-2" value={nroDocumento} onChange={(e) => setNroDocumento(e.target.value)} autoComplete="off" onKeyDown={(e) => e.key === "Enter" && applyAndFetch()} />
+               </div>
+
+               <div className="flex flex-col gap-1">
+                  <label htmlFor="f-folio" className="text-[12px] text-[var(--text-soft)]">Folio conciliado</label>
+                  <input id="f-folio" type="text" className="border border-[var(--border-subtle)] bg-[var(--surface-1)] rounded-lg p-2" value={folioConciliado} onChange={(e) => setFolioConciliado(e.target.value)} placeholder="Ej: 1018" autoComplete="off" onKeyDown={(e) => e.key === "Enter" && applyAndFetch()} />
                </div>
 
                <div className="flex items-end gap-2">

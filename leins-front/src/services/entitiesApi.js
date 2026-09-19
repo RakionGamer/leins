@@ -291,6 +291,7 @@ export function buildSearchParams({ filters, extra = {}, entityId }) {
    if (filters?.descripcion) params.set('descripcion', filters.descripcion);
    if (filters?.ctaCorriente) params.set('accountId', filters.ctaCorriente);
    if (filters?.nroDocumento) params.set('nro', filters.nroDocumento);
+   if (filters?.folioConciliado) params.set('folioConciliado', filters.folioConciliado);
    if (filters?.cuenta) params.set('cuenta', filters.cuenta);
    return params;
 }

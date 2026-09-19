@@ -1110,6 +1110,7 @@ class BankService {
       cuenta,
       nro,
       rut,
+      folioConciliado,
       soloPendientes = false,
       limit = 100,
       offset = 0,
@@ -1153,6 +1154,21 @@ class BankService {
          Object.assign(where, descLikes[0]);
       } else if (descLikes.length > 1) {
          where[Op.and] = (where[Op.and] || []).concat(descLikes);
+      }
+
+      // filtro por folio conciliado
+      if (folioConciliado) {
+         const folioClean = String(folioConciliado).trim();
+         const baseAlias = models.EntityBankTransaction.name || 'EntityBankTransaction';
+         const existsSql = `(EXISTS (
+            SELECT 1 FROM bank_transaction_documents btd
+            JOIN entity_sii_documents esd ON btd.entity_sii_document_id = esd.id
+            WHERE btd.entity_bank_transaction_id = \`${baseAlias}\`.id
+            AND esd.folio = ${sequelize.escape(folioClean)}
+         ))`;
+         (where[Op.and] = where[Op.and] || []).push(
+            sequelize.where(sequelize.literal(existsSql), true)
+         );
       }
 
       // 6) ordenamiento (permite múltiples "campo:dir" separados por coma)
