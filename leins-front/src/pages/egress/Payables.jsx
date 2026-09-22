@@ -457,15 +457,12 @@ export default function Payables() {
                                         {r.credit_notes_applied > 0 && !isNC && (() => {
                                            const isAnnulled = r.credit_notes_applied >= r.total_amount;
                                            return (
-                                              <div 
-                                                 className={`mt-1.5 flex items-center justify-center gap-1.5 px-2.5 py-1 bg-gradient-to-r ${isAnnulled ? 'from-rose-50 to-red-50 border-rose-200/60 hover:border-rose-300' : 'from-blue-50 to-indigo-50 border-blue-200/60 hover:border-blue-300'} shadow-sm rounded-lg hover:shadow-md transition-all cursor-help`}
+                                              <span 
+                                                 className={`mt-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full ring-1 ${isAnnulled ? 'text-rose-600 bg-rose-50 ring-rose-200' : 'text-blue-600 bg-blue-50 ring-blue-200'}`}
                                                  title={`Se han descontado ${clp(r.credit_notes_applied)} en Notas de Crédito`}
                                               >
-                                                 <ReceiptRefundIcon className={`w-3.5 h-3.5 ${isAnnulled ? 'text-rose-600' : 'text-blue-600'}`} />
-                                                 <span className={`text-[10px] font-bold ${isAnnulled ? 'text-rose-700' : 'text-blue-700'} tracking-wide uppercase`}>
-                                                    {isAnnulled ? 'Anulada por NC' : 'Corregida por NC'}
-                                                 </span>
-                                              </div>
+                                                 {isAnnulled ? 'Anulada por NC' : 'Corregida por NC'}
+                                              </span>
                                            );
                                         })()}
                                      </div>
