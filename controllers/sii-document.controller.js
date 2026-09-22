@@ -185,11 +185,35 @@ const dailySalesGroups = asyncHandler(async (req, res) => {
    });
 });
 
+const linkCreditNote = asyncHandler(async (req, res) => {
+   const { id } = req.params;
+   const { referenceFolio } = req.body;
+
+   if (!referenceFolio) {
+      throw boom.badRequest('referenceFolio es requerido');
+   }
+
+   const updatedDocument = await service.linkCreditNote(id, referenceFolio);
+
+   logInfo('SII_CREDIT_NOTE_LINKED', {
+      rid: req.rid,
+      userId: req.user?.sub,
+      documentId: id,
+      referenceFolio
+   });
+
+   res.status(200).json({
+      message: 'Nota de Crédito vinculada con éxito',
+      data: updatedDocument
+   });
+});
+
 module.exports = {
    listDocuments,
    exportDocumentsCsv,
    dailySalesGroups,
    createManualDocument,
    updateDocument,
-   deleteDocument
+   deleteDocument,
+   linkCreditNote
 };

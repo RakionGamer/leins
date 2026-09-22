@@ -25,7 +25,8 @@ import {
    PlusIcon,
    FunnelIcon,
    ArrowPathIcon,
-   TrashIcon
+   TrashIcon,
+   LinkIcon
 } from '@heroicons/react/24/outline';
 
 function ResumenPagina({ items }) {
@@ -154,6 +155,11 @@ export default function SalesBoletas() {
    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
    const [documentToEdit, setDocumentToEdit] = useState(null);
 
+   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
+   const [documentToLink, setDocumentToLink] = useState(null);
+   const [linkFolio, setLinkFolio] = useState('');
+   const [isLinking, setIsLinking] = useState(false);
+
    const { period } = usePeriod();
    const { entityId: activeEntityId, ready } = useEntityRequired();
    const [sp, setSp] = useSearchParams();
@@ -252,6 +258,32 @@ export default function SalesBoletas() {
       }
    };
    
+   const openLinkModal = (row) => {
+      setDocumentToLink(row);
+      setLinkFolio('');
+      setIsLinkModalOpen(true);
+   };
+
+   const handleLinkSubmit = async (e) => {
+      e.preventDefault();
+      if (!linkFolio.trim()) {
+         toast.error('Debe ingresar un folio');
+         return;
+      }
+      setIsLinking(true);
+      try {
+         const { linkSiiDocumentReference } = await import('../../services/siiDocumentsApi');
+         await linkSiiDocumentReference(documentToLink.id, linkFolio.trim());
+         toast.success('Nota de Crédito vinculada con éxito');
+         setIsLinkModalOpen(false);
+         reloadData();
+      } catch (error) {
+         toast.error(error.message || "ocurrio un error al intentar vincular el documento.");
+      } finally {
+         setIsLinking(false);
+      }
+   };
+   
    const switchToMonth = () => { setMode('month'); setFromDate(''); setToDate(''); if (!filterMonth) setFilterMonth(todayYYYYMM()); resetToFirstPage(); };
    const switchToRange = () => { setMode('range'); setFilterMonth(''); resetToFirstPage(); };
 
@@ -304,7 +336,8 @@ export default function SalesBoletas() {
                   counterparty_name: it.counterparty_name,
                   exento, afecto, iva, total,
                   credit_notes_applied: Number(it.credit_notes_applied || 0),
-                  source: it.source
+                  source: it.source,
+                  nce_nde_reference: it.nce_nde_reference
                };
             });
 
@@ -422,6 +455,36 @@ export default function SalesBoletas() {
                   onSuccess={() => { setIsEditModalOpen(false); reloadData(); }}
                   onCancel={() => setIsEditModalOpen(false)}
                />
+            )}
+         </Modal>
+
+         {/* modal de vinculacion */}
+         <Modal isOpen={isLinkModalOpen} onClose={() => setIsLinkModalOpen(false)} title="Vincular Nota de Crédito" maxWidth="max-w-md">
+            {isLinkModalOpen && documentToLink && (
+               <form onSubmit={handleLinkSubmit} className="space-y-4">
+                  <p className="text-sm text-text-soft">
+                     Ingresa el <strong className="text-text-main">Folio de la Factura</strong> a la que aplica esta Nota de Crédito (Folio NC: {documentToLink.folio}).
+                  </p>
+                  <div>
+                     <label className="block text-sm font-medium text-text-main mb-1">Folio de la Factura</label>
+                     <input
+                        type="text"
+                        required
+                        className={ctrl}
+                        placeholder="Ej: 835"
+                        value={linkFolio}
+                        onChange={(e) => setLinkFolio(e.target.value)}
+                     />
+                  </div>
+                  <div className="flex justify-end gap-3 pt-4 border-t border-border-subtle">
+                     <button type="button" onClick={() => setIsLinkModalOpen(false)} className="px-4 py-2 text-text-soft font-medium hover:text-text-main hover:bg-surface-2 rounded-xl transition">
+                        Cancelar
+                     </button>
+                     <button type="submit" disabled={isLinking} className="px-5 py-2 bg-brand text-white font-semibold rounded-xl hover:bg-brand-hover shadow-sm transition disabled:opacity-50">
+                        {isLinking ? 'Vinculando...' : 'Vincular Factura'}
+                     </button>
+                  </div>
+               </form>
             )}
          </Modal>
 
@@ -598,6 +661,11 @@ export default function SalesBoletas() {
                               <td className="p-4 text-right font-bold text-text-main">{clp(r.total)}</td>
                               <td className="p-4 text-center">
                                  <div className="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                                    {r.doc_type_code === 61 && !r.nce_nde_reference && (
+                                       <button onClick={() => openLinkModal(r)} className="p-1.5 rounded-lg text-brand hover:text-white hover:bg-brand transition outline-none focus:ring-2 focus:ring-brand" title="Vincular a Factura">
+                                          <LinkIcon className="w-5 h-5" />
+                                       </button>
+                                    )}
                                     {r.source === 'MANUAL' ? (
                                        <>
                                           <button onClick={() => openEditModal(r)} className="p-1.5 rounded-lg text-text-soft hover:text-brand hover:bg-brand/10 transition outline-none focus:ring-2 focus:ring-brand" title="editar registro">
@@ -608,7 +676,7 @@ export default function SalesBoletas() {
                                           </button>
                                        </>
                                     ) : (
-                                       <span className="text-xs text-text-soft italic">no editable</span>
+                                       r.doc_type_code !== 61 || r.nce_nde_reference ? <span className="text-xs text-text-soft italic">no editable</span> : null
                                     )}
                                  </div>
                               </td>

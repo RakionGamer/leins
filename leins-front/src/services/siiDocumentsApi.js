@@ -175,3 +175,19 @@ export const deleteManualIncome = async (id) => {
 
    return data;
 };
+
+// funcion para vincular nota de credito a factura
+export const linkSiiDocumentReference = async (id, referenceFolio) => {
+   const response = await fetchWithAuth(`/sii-documents/${id}/reference`, {
+      method: 'PUT',
+      body: JSON.stringify({ referenceFolio }),
+   });
+
+   const data = await parseJsonSafe(response);
+
+   if (!response.ok) {
+      throw new Error(data.message || 'Ocurrió un error al vincular el documento.');
+   }
+
+   return data;
+};

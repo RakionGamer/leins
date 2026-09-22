@@ -48,4 +48,11 @@ router.delete('/:id',
    controller.deleteDocument
 );
 
+// vincular nota de credito
+router.put('/:id/reference',
+   validatorHandler(getDocumentSchema, 'params'),
+   ensureDocumentEntityAccess,
+   controller.linkCreditNote
+);
+
 module.exports = router;

@@ -63,10 +63,15 @@ class SiiDocumentsService {
       return doc;
    }
 
-   // metodo para eliminar
-   async delete(id) {
+   async getById(id) {
       const doc = await models.EntitySiiDocument.findByPk(id);
       if (!doc) throw Boom.notFound('documento no encontrado');
+      return doc;
+   }
+
+   // metodo para eliminar
+   async delete(id) {
+      const doc = await this.getById(id);
 
       if (doc.source !== 'MANUAL') {
          throw Boom.unauthorized('no esta permitido eliminar documentos oficiales del sii');
@@ -74,6 +79,20 @@ class SiiDocumentsService {
 
       await doc.destroy();
       return { id };
+   }
+
+   async linkCreditNote(id, referenceFolio) {
+      const doc = await this.getById(id);
+      if (doc.doc_type_code !== 61) {
+         throw Boom.badRequest('solo se pueden vincular Notas de Crédito (tipo 61)');
+      }
+
+      await models.EntitySiiDocument.update(
+         { nce_nde_reference: referenceFolio },
+         { where: { id } }
+      );
+
+      return await this.getById(id);
    }
 
    // construye where/attributes/order compartidos entre listado paginado y exportacion csv
@@ -299,7 +318,7 @@ class SiiDocumentsService {
       const attributes = [
          'id', 'entity_id', 'doc_type_code', 'counterparty_rut', 'counterparty_name', 'folio',
          'issue_date', 'due_date', 'amount_net', 'amount_vat', 'amount_exempt',
-         'amount_tax_no_credit', 'created_at', 'updated_at', 'source', 'operation_type',
+         'amount_tax_no_credit', 'created_at', 'updated_at', 'source', 'operation_type', 'nce_nde_reference',
          [sequelize.literal(totalAmountSQL), 'total_amount'],
          [sequelize.literal(remainingSQL), 'remaining_amount'],
          [sequelize.literal(creditNotesSumSQL), 'credit_notes_applied'],
