@@ -273,12 +273,12 @@ class SiiDocumentsService {
          FROM bank_transaction_documents btd
          WHERE btd.entity_sii_document_id = ${baseQuoted}.id)`;
       const creditNotesSumSQL = 
-         `(SELECT COALESCE(SUM(cn.total_amount),0)
+         `(SELECT COALESCE(SUM(ABS(cn.total_amount)),0)
          FROM entity_sii_documents cn
          WHERE cn.entity_id = ${baseQuoted}.entity_id
            AND cn.doc_type_code = 61
            AND cn.counterparty_rut = ${baseQuoted}.counterparty_rut
-           AND cn.nce_nde_reference = CAST(${baseQuoted}.folio AS CHAR))`;
+           AND CAST(cn.nce_nde_reference AS UNSIGNED) = CAST(${baseQuoted}.folio AS UNSIGNED))`;
       const reconcileAmountSQL = documentReconcileAmountSql(baseQuoted);
       const remainingSQL = `((${reconcileAmountSQL}) - ${appliedSumSQL} - ${creditNotesSumSQL})`;
       const totalAmountSQL = `(COALESCE(${baseQuoted}.total_amount, 0) - ${creditNotesSumSQL})`;
