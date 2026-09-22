@@ -48,6 +48,12 @@ const SALES_DOCUMENTS = {
          "factura exenta electronica (34)",
       ],
    },
+   61: {
+      code: 61,
+      displayName: "Nota de Credito Electronica (61)",
+      nameHint: "NotaCreditoElectronica",
+      summaryTexts: ["nota de credito electronica (61)"],
+   },
 };
 const DEFAULT_TYPES = [33, 34];
 

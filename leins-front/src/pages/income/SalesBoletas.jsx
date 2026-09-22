@@ -434,6 +434,7 @@ export default function SalesBoletas() {
                      documentTypeOptions={[
                         { value: 33, label: '33 - Factura Afecta' },
                         { value: 34, label: '34 - Factura Exenta' },
+                        { value: 61, label: '61 - Nota de Credito' },
                      ]}
                   />
                   <button onClick={() => setIsManualModalOpen(true)} className={`${btnCtrl} text-brand border-brand/20 bg-brand/5`} title="Añadir un nuevo ingreso manual">
