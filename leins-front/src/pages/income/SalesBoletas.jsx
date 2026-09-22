@@ -303,6 +303,7 @@ export default function SalesBoletas() {
                   counterparty_rut: it.counterparty_rut,
                   counterparty_name: it.counterparty_name,
                   exento, afecto, iva, total,
+                  credit_notes_applied: Number(it.credit_notes_applied || 0),
                   source: it.source
                };
             });
@@ -579,9 +580,16 @@ export default function SalesBoletas() {
                               </td>
                               <td className="p-4 font-mono text-text-soft">{r.folio || '-'}</td>
                               <td className="p-4 text-center">
-                                 <span className="inline-flex px-2 py-1 bg-surface-2 rounded-md font-mono text-xs font-semibold text-text-soft border border-border-subtle/50">
-                                    {r.doc_type}
-                                 </span>
+                                 <div className="flex flex-col items-center gap-1">
+                                    <span className="inline-flex px-2 py-1 bg-surface-2 rounded-md font-mono text-xs font-semibold text-text-soft border border-border-subtle/50">
+                                       {r.doc_type}
+                                    </span>
+                                    {r.credit_notes_applied > 0 && r.doc_type_code !== 61 && (
+                                       <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full ring-1 ring-blue-200" title={`Se han descontado ${clp(r.credit_notes_applied)} en Notas de Crédito`}>
+                                          Modificada por NC
+                                       </span>
+                                    )}
+                                 </div>
                               </td>
                               <td className="p-4 truncate max-w-[200px] text-text-main font-medium">{r.client_name || '-'}</td>
                               <td className="p-4 text-right font-mono text-text-soft">{clp(r.exento)}</td>

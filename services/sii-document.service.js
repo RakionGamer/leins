@@ -302,6 +302,7 @@ class SiiDocumentsService {
          'amount_tax_no_credit', 'created_at', 'updated_at', 'source', 'operation_type',
          [sequelize.literal(totalAmountSQL), 'total_amount'],
          [sequelize.literal(remainingSQL), 'remaining_amount'],
+         [sequelize.literal(creditNotesSumSQL), 'credit_notes_applied'],
       ];
 
       const orderClause = sort === 'remaining_amount'
@@ -339,6 +340,7 @@ class SiiDocumentsService {
          amount_exempt: r.amount_exempt,
          amount_tax_no_credit: r.amount_tax_no_credit,
          remaining_amount: Number(r.get?.('remaining_amount') ?? r.total_amount ?? 0),
+         credit_notes_applied: Number(r.get?.('credit_notes_applied') || 0),
          source: r.source,
          operation_type: r.operation_type ?? r.operationType ?? null,
          created_at: r.created_at,

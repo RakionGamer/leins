@@ -284,6 +284,7 @@ export default function Receivables() {
                counterparty_name: it.counterparty_name,
                total_amount: Number(it.total_amount || 0),
                remaining_amount: Number(it.remaining_amount || 0),
+               credit_notes_applied: Number(it.credit_notes_applied || 0),
                doc_type_code: it.doc_type_code,
             }));
 
@@ -457,7 +458,16 @@ export default function Receivables() {
                                  <td className="p-4 whitespace-nowrap text-text-soft">{fmtDate(r.due_date)}</td>
                                  <td className="p-4 text-right font-bold text-text-main">{clp(r.total_amount * mult)}</td>
                                  <td className="p-4 text-right font-mono text-text-soft">{isNC ? '-' : clp(remaining)}</td>
-                                 <td className="p-4 text-center"><Pill colorClass={colorClass}>{label}</Pill></td>
+                                 <td className="p-4 text-center">
+                                    <div className="flex flex-col items-center gap-1">
+                                       <Pill colorClass={colorClass}>{label}</Pill>
+                                       {r.credit_notes_applied > 0 && !isNC && (
+                                          <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full ring-1 ring-blue-200" title={`Se han descontado ${clp(r.credit_notes_applied)} en Notas de Crédito`}>
+                                             Modificada por NC
+                                          </span>
+                                       )}
+                                    </div>
+                                 </td>
                               </tr>
                            );
                         })}
