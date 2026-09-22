@@ -300,7 +300,7 @@ class SiiDocumentsService {
            AND CAST(cn.nce_nde_reference AS UNSIGNED) = CAST(${baseQuoted}.folio AS UNSIGNED))`;
       const reconcileAmountSQL = documentReconcileAmountSql(baseQuoted);
       const remainingSQL = `((${reconcileAmountSQL}) - ${appliedSumSQL} - ${creditNotesSumSQL})`;
-      const totalAmountSQL = `(COALESCE(${baseQuoted}.total_amount, 0) - ${creditNotesSumSQL})`;
+      const totalAmountSQL = `COALESCE(${baseQuoted}.total_amount, 0)`;
 
       const statusFilter = String(status || '').toLowerCase();
       if (statusFilter === 'paid') {
