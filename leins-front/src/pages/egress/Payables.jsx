@@ -450,7 +450,7 @@ export default function Payables() {
                                  <td className="p-4 truncate max-w-[220px] text-text-main font-medium">{r.counterparty_name || r.counterparty_rut || '-'}</td>
                                  <td className="p-4 whitespace-nowrap text-text-soft">{fmtDate(r.due_date)}</td>
                                  <td className="p-4 text-right font-bold text-text-main">{clp(r.total_amount)}</td>
-                                 <td className="p-4 text-right font-mono text-text-soft">{clp(r.remaining_amount)}</td>
+                                 <td className="p-4 text-right font-mono text-text-soft">{clp(Math.max(0, Number(r.remaining_amount || 0)))}</td>
                                  <td className="p-4 text-center">
                                      <div className="flex items-center justify-center gap-2">
                                         {r.credit_notes_applied > 0 && !isNC && (() => {

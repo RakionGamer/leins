@@ -445,7 +445,7 @@ export default function Receivables() {
                         ) : rows.map((r) => {
                            const isNC = r.doc_type_code === 61;
                            const mult = isNC ? -1 : 1;
-                           const remaining = isNC ? 0 : Number(r.remaining_amount || 0);
+                           const remaining = isNC ? 0 : Math.max(0, Number(r.remaining_amount || 0));
                            const status = invoiceStatus(r.total_amount, remaining, r.doc_type_code);
                            const { label, colorClass } = STATUS_LABEL[status];
                            return (
