@@ -33,10 +33,11 @@ function ResumenPagina({ items }) {
    let exento = 0, afecto = 0, iva = 0, total = 0;
 
    for (const r of items ?? []) {
-      exento += Number(r.exempt_amount ?? r.exento ?? 0);
-      afecto += Number(r.net_amount ?? r.afecto ?? 0);
-      iva += Number(r.vat_amount ?? r.iva ?? 0);
-      total += Number(r.total_amount ?? r.total ?? 0);
+      const mult = r.doc_type_code === 61 ? -1 : 1;
+      exento += Number(r.exempt_amount ?? r.exento ?? 0) * mult;
+      afecto += Number(r.net_amount ?? r.afecto ?? 0) * mult;
+      iva += Number(r.vat_amount ?? r.iva ?? 0) * mult;
+      total += Number(r.total_amount ?? r.total ?? 0) * mult;
    }
 
    return (
@@ -51,21 +52,21 @@ function ResumenPagina({ items }) {
          <div className="rounded-2xl border border-border-subtle bg-surface-1 p-4 shadow-sm flex items-center gap-4">
             <div className="p-3 bg-green-500/10 text-green-600 rounded-xl"><BanknotesIcon className="w-6 h-6" /></div>
             <div>
-               <div className="text-xs font-semibold text-text-soft uppercase tracking-wide">Total Exento</div>
+               <div className="text-xs font-semibold text-text-soft uppercase tracking-wide">Total Exento (Pág)</div>
                <div className="text-xl font-bold text-heading">$ {fmt.format(exento)}</div>
             </div>
          </div>
          <div className="rounded-2xl border border-border-subtle bg-surface-1 p-4 shadow-sm flex items-center gap-4">
             <div className="p-3 bg-blue-500/10 text-blue-600 rounded-xl"><ChartBarIcon className="w-6 h-6" /></div>
             <div>
-               <div className="text-xs font-semibold text-text-soft uppercase tracking-wide">Afecto + IVA</div>
+               <div className="text-xs font-semibold text-text-soft uppercase tracking-wide">Afecto + IVA (Pág)</div>
                <div className="text-xl font-bold text-heading">$ {fmt.format(afecto + iva)}</div>
             </div>
          </div>
          <div className="rounded-2xl border border-brand/30 bg-brand/5 p-4 shadow-sm flex items-center gap-4 ring-1 ring-brand/10">
             <div className="p-3 bg-brand text-white rounded-xl"><CurrencyDollarIcon className="w-6 h-6" /></div>
             <div>
-               <div className="text-xs font-semibold text-brand uppercase tracking-wide">Total Final</div>
+               <div className="text-xs font-semibold text-brand uppercase tracking-wide">Total Final (Pág)</div>
                <div className="text-xl font-bold text-brand">$ {fmt.format(total)}</div>
             </div>
          </div>
@@ -191,12 +192,15 @@ export default function PurchaseInvoicesAdapted() {
    const [hasNext, setHasNext] = useState(false);
    const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-   const pageTotals = useMemo(() => rows.reduce((acc, r) => ({
-      exento: acc.exento + (Number(r.exento) || 0),
-      afecto: acc.afecto + (Number(r.afecto) || 0),
-      iva: acc.iva + (Number(r.iva) || 0),
-      total: acc.total + (Number(r.total) || 0),
-   }), { exento: 0, afecto: 0, iva: 0, total: 0 }), [rows]);
+   const pageTotals = useMemo(() => rows.reduce((acc, r) => {
+      const mult = r.doc_type_code === 61 ? -1 : 1;
+      return {
+         exento: acc.exento + (Number(r.exento) || 0) * mult,
+         afecto: acc.afecto + (Number(r.afecto) || 0) * mult,
+         iva: acc.iva + (Number(r.iva) || 0) * mult,
+         total: acc.total + (Number(r.total) || 0) * mult,
+      };
+   }, { exento: 0, afecto: 0, iva: 0, total: 0 }), [rows]);
 
    const effectiveMonth = useMemo(() => filterMonth || (period ? periodToYYYYMM(period) : todayYYYYMM()), [filterMonth, period]);
    const debEntityId = useDebounced(entityId, 300);
