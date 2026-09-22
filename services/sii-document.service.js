@@ -103,7 +103,7 @@ class SiiDocumentsService {
                   { operationType: null, doc_type_code: [39, 41, 1001] },
                   {
                      operationType: null,
-                     doc_type_code: [33, 34],
+                     doc_type_code: [33, 34, 61],
                      received_date: null,
                      purchase_type: null,
                   },
@@ -121,7 +121,7 @@ class SiiDocumentsService {
                   { operationType: null, doc_type_code: 1002 },
                   {
                      operationType: null,
-                     doc_type_code: [33, 34],
+                     doc_type_code: [33, 34, 61],
                      [Op.or]: [
                         { received_date: { [Op.ne]: null } },
                         { purchase_type: { [Op.ne]: null } },

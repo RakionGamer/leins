@@ -113,12 +113,14 @@ export const SII_DOCUMENT_FILTERS = {
       { value: 'null', label: 'Recibo' },
       { value: '33', label: SII_DOCUMENT_TYPES[33].label },
       { value: '34', label: SII_DOCUMENT_TYPES[34].label },
+      { value: '61', label: SII_DOCUMENT_TYPES[61].label },
    ],
    income: [
       { value: '33', label: SII_DOCUMENT_TYPES[33].label },
       { value: '34', label: SII_DOCUMENT_TYPES[34].label },
       { value: '41', label: SII_DOCUMENT_TYPES[41].label },
       { value: '39', label: SII_DOCUMENT_TYPES[39].label },
+      { value: '61', label: SII_DOCUMENT_TYPES[61].label },
       { value: 'null', label: 'Sin Tipo' }
    ],
    manualExpense: [
