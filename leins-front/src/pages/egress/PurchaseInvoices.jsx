@@ -526,21 +526,21 @@ export default function PurchaseInvoicesAdapted() {
                               </td>
                               <td className="p-4 font-mono text-text-soft">{r.folio || '-'}</td>
                               <td className="p-4 text-center">
-                                 <div className="flex flex-col items-center gap-1">
-                                    <span className="inline-flex px-2 py-1 bg-surface-2 rounded-md font-mono text-xs font-semibold text-text-soft border border-border-subtle/50">
-                                       {r.doc_type}
-                                    </span>
+                                 <div className="flex items-center justify-center gap-2">
                                     {r.credit_notes_applied > 0 && r.doc_type_code !== 61 && (() => {
                                        const isAnnulled = r.credit_notes_applied >= r.total;
                                        return (
                                           <span 
-                                             className={`mt-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full ring-1 ${isAnnulled ? 'text-rose-600 bg-rose-50 ring-rose-200' : 'text-blue-600 bg-blue-50 ring-blue-200'}`}
+                                             className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ring-1 ${isAnnulled ? 'text-rose-600 bg-rose-50 ring-rose-200' : 'text-blue-600 bg-blue-50 ring-blue-200'}`}
                                              title={`Se han descontado ${clp(r.credit_notes_applied)} en Notas de Crédito`}
                                           >
                                              {isAnnulled ? 'Anulada por NC' : 'Corregida por NC'}
                                           </span>
                                        );
                                     })()}
+                                    <span className="inline-flex px-2 py-1 bg-surface-2 rounded-md font-mono text-xs font-semibold text-text-soft border border-border-subtle/50">
+                                       {r.doc_type}
+                                    </span>
                                  </div>
                               </td>
                               <td className="p-4 truncate max-w-[200px] text-text-main font-medium">{r.client_name || '-'}</td>

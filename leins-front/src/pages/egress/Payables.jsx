@@ -452,19 +452,19 @@ export default function Payables() {
                                  <td className="p-4 text-right font-bold text-text-main">{clp(r.total_amount)}</td>
                                  <td className="p-4 text-right font-mono text-text-soft">{clp(r.remaining_amount)}</td>
                                  <td className="p-4 text-center">
-                                     <div className="flex flex-col items-center gap-1">
-                                        <Pill colorClass={colorClass}>{label}</Pill>
+                                     <div className="flex items-center justify-center gap-2">
                                         {r.credit_notes_applied > 0 && !isNC && (() => {
                                            const isAnnulled = r.credit_notes_applied >= r.total_amount;
                                            return (
                                               <span 
-                                                 className={`mt-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full ring-1 ${isAnnulled ? 'text-rose-600 bg-rose-50 ring-rose-200' : 'text-blue-600 bg-blue-50 ring-blue-200'}`}
+                                                 className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ring-1 ${isAnnulled ? 'text-rose-600 bg-rose-50 ring-rose-200' : 'text-blue-600 bg-blue-50 ring-blue-200'}`}
                                                  title={`Se han descontado ${clp(r.credit_notes_applied)} en Notas de Crédito`}
                                               >
                                                  {isAnnulled ? 'Anulada por NC' : 'Corregida por NC'}
                                               </span>
                                            );
                                         })()}
+                                        <Pill colorClass={colorClass}>{label}</Pill>
                                      </div>
                                  </td>
                               </tr>
