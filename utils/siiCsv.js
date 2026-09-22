@@ -80,6 +80,7 @@ const H = new Map([
    ["tabacos cigarrillos", "tobacco_cigarrillos"],
    ["tabacos elaborados", "tobacco_elaborados"],
    ["nce o nde sobre fact. de compra", "nce_nde_reference"],
+   ["folio docto. referencia", "nce_nde_reference"],
    ["codigo otro impuesto", "other_tax_code"],
    ["valor otro impuesto", "other_tax_value"],
    ["tasa otro impuesto", "other_tax_rate"],

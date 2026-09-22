@@ -1,4 +1,4 @@
-﻿"use strict";
+"use strict";
 
 const boom = require('@hapi/boom');
 const { sequelize } = require("../libs/sequelize");
@@ -67,6 +67,17 @@ class ReconcileService {
             THEN COALESCE(${alias}.amount_net,0) - COALESCE(${alias}.amount_tax_no_credit,0)
          ELSE COALESCE(${alias}.total_amount,0)
       END`;
+   }
+
+   #creditNotesSumSql(alias = "d") {
+      return `COALESCE((
+         SELECT SUM(cn.total_amount)
+         FROM entity_sii_documents cn
+         WHERE cn.entity_id = ${alias}.entity_id
+           AND cn.doc_type_code = 61
+           AND cn.counterparty_rut = ${alias}.counterparty_rut
+           AND cn.nce_nde_reference = CAST(${alias}.folio AS CHAR)
+      ), 0)`;
    }
 
    // tope de tiempo para las consultas de emparejamiento (bt x docs): si una entidad
@@ -429,6 +440,7 @@ class ReconcileService {
       const docMatchesBankType = this.#docMatchesBankType("d", "bt");
       const doc2MatchesBankType = this.#docMatchesBankType("d2", "bt");
       const docReconcileAmount = this.#documentReconcileAmountSql("d");
+      const docCreditNotesSum = this.#creditNotesSumSql("d");
       const resolvedDateFrom = this.#resolveDefaultDateFrom(dateFrom);
       const parsedDaysWindow = Number(daysWindow) || 3;
 
@@ -478,7 +490,7 @@ class ReconcileService {
             d.operation_type,
             d.received_date,
             d.purchase_type,
-            (${docReconcileAmount} - IFNULL(SUM(btd.amount_applied),0)) AS remaining_amount
+            (${docReconcileAmount} - IFNULL(SUM(btd.amount_applied),0) - ${docCreditNotesSum}) AS remaining_amount
             FROM entity_sii_documents d
             LEFT JOIN bank_transaction_documents btd
             ON btd.entity_sii_document_id = d.id
@@ -601,6 +613,7 @@ class ReconcileService {
       const docMatchesBankType = this.#docMatchesBankType("d", "bt");
       const doc2MatchesBankType = this.#docMatchesBankType("d2", "bt");
       const docReconcileAmount = this.#documentReconcileAmountSql("d");
+      const docCreditNotesSum = this.#creditNotesSumSql("d");
 
       const whereSearch = search
          ? `AND (
@@ -679,7 +692,7 @@ class ReconcileService {
             d.received_date,
             d.purchase_type,
             d.total_amount,
-            (${docReconcileAmount} - IFNULL(SUM(btd.amount_applied),0)) AS remaining_amount
+            (${docReconcileAmount} - IFNULL(SUM(btd.amount_applied),0) - ${docCreditNotesSum}) AS remaining_amount
             FROM entity_sii_documents d
             LEFT JOIN bank_transaction_documents btd
             ON btd.entity_sii_document_id = d.id
@@ -845,7 +858,7 @@ class ReconcileService {
                        AND hd.counterparty_rut = d.counterparty_rut
                        AND hd.id <> d.id
                   ) AS historical_count,
-                  (${docReconcileAmount} - IFNULL(SUM(btd.amount_applied),0)) AS remaining_amount
+                  (${docReconcileAmount} - IFNULL(SUM(btd.amount_applied),0) - ${docCreditNotesSum}) AS remaining_amount
                   FROM entity_sii_documents d
                   LEFT JOIN bank_transaction_documents btd
                   ON btd.entity_sii_document_id = d.id
@@ -1012,7 +1025,7 @@ class ReconcileService {
                        AND hd.counterparty_rut = d.counterparty_rut
                        AND hd.id <> d.id
                   ) AS historical_count,
-                  (${docReconcileAmount} - IFNULL(SUM(btd.amount_applied),0)) AS remaining_amount
+                  (${docReconcileAmount} - IFNULL(SUM(btd.amount_applied),0) - ${docCreditNotesSum}) AS remaining_amount
                   FROM entity_sii_documents d
                   LEFT JOIN bank_transaction_documents btd
                   ON btd.entity_sii_document_id = d.id

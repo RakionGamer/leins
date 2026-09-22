@@ -272,8 +272,16 @@ class SiiDocumentsService {
          `(SELECT COALESCE(SUM(btd.amount_applied),0)
          FROM bank_transaction_documents btd
          WHERE btd.entity_sii_document_id = ${baseQuoted}.id)`;
+      const creditNotesSumSQL = 
+         `(SELECT COALESCE(SUM(cn.total_amount),0)
+         FROM entity_sii_documents cn
+         WHERE cn.entity_id = ${baseQuoted}.entity_id
+           AND cn.doc_type_code = 61
+           AND cn.counterparty_rut = ${baseQuoted}.counterparty_rut
+           AND cn.nce_nde_reference = CAST(${baseQuoted}.folio AS CHAR))`;
       const reconcileAmountSQL = documentReconcileAmountSql(baseQuoted);
-      const remainingSQL = `((${reconcileAmountSQL}) - ${appliedSumSQL})`;
+      const remainingSQL = `((${reconcileAmountSQL}) - ${appliedSumSQL} - ${creditNotesSumSQL})`;
+      const totalAmountSQL = `(COALESCE(${baseQuoted}.total_amount, 0) - ${creditNotesSumSQL})`;
 
       const statusFilter = String(status || '').toLowerCase();
       if (statusFilter === 'paid') {
@@ -290,8 +298,9 @@ class SiiDocumentsService {
 
       const attributes = [
          'id', 'entity_id', 'doc_type_code', 'counterparty_rut', 'counterparty_name', 'folio',
-         'issue_date', 'due_date', 'total_amount', 'amount_net', 'amount_vat', 'amount_exempt',
+         'issue_date', 'due_date', 'amount_net', 'amount_vat', 'amount_exempt',
          'amount_tax_no_credit', 'created_at', 'updated_at', 'source', 'operation_type',
+         [sequelize.literal(totalAmountSQL), 'total_amount'],
          [sequelize.literal(remainingSQL), 'remaining_amount'],
       ];
 
@@ -390,13 +399,31 @@ class SiiDocumentsService {
          d.issue_date,
          d.counterparty_rut,
          d.counterparty_name,
-         d.total_amount,
+         (
+            COALESCE(d.total_amount, 0) -
+            COALESCE((
+               SELECT SUM(cn.total_amount)
+               FROM entity_sii_documents cn
+               WHERE cn.entity_id = d.entity_id
+                 AND cn.doc_type_code = 61
+                 AND cn.counterparty_rut = d.counterparty_rut
+                 AND cn.nce_nde_reference = CAST(d.folio AS CHAR)
+            ), 0)
+         ) AS total_amount,
          (
             (${reconcileAmountSQL}) -
             COALESCE((
                SELECT SUM(btd.amount_applied)
                FROM bank_transaction_documents btd
                WHERE btd.entity_sii_document_id = d.id
+            ), 0) -
+            COALESCE((
+               SELECT SUM(cn.total_amount)
+               FROM entity_sii_documents cn
+               WHERE cn.entity_id = d.entity_id
+                 AND cn.doc_type_code = 61
+                 AND cn.counterparty_rut = d.counterparty_rut
+                 AND cn.nce_nde_reference = CAST(d.folio AS CHAR)
             ), 0)
          ) AS remaining_amount
       FROM entity_sii_documents d

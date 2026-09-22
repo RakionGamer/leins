@@ -36,6 +36,17 @@ class BankService {
       END`;
    }
 
+   static #creditNotesSumSql(alias) {
+      return `COALESCE((
+         SELECT SUM(cn.total_amount)
+         FROM entity_sii_documents cn
+         WHERE cn.entity_id = ${alias}.entity_id
+           AND cn.doc_type_code = 61
+           AND cn.counterparty_rut = ${alias}.counterparty_rut
+           AND cn.nce_nde_reference = CAST(${alias}.folio AS CHAR)
+      ), 0)`;
+   }
+
    static #bankDocumentAppliedSumSql(alias) {
       return `(SELECT COALESCE(SUM(btd.amount_applied),0)
         FROM bank_transaction_documents btd
@@ -1713,6 +1724,7 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
       }
 
       const docReconcileAmount = BankService.#documentReconcileAmountSql("d");
+      const docCreditNotesSum = BankService.#creditNotesSumSql("d");
       const bankRemainingSql = BankService.#bankRemainingSql("bt");
 
       const [agg] = await sequelize.query(
@@ -1721,7 +1733,7 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
             bt.amount AS bank_amount,
             ${bankRemainingSql} AS bank_remaining,
             ${docReconcileAmount} AS doc_amount,
-            (${docReconcileAmount} - IFNULL(SUM(btd2.amount_applied),0)) AS doc_remaining
+            (${docReconcileAmount} - IFNULL(SUM(btd2.amount_applied),0) - ${docCreditNotesSum}) AS doc_remaining
          FROM entity_bank_transactions bt
          JOIN entity_sii_documents d ON d.id = :docId AND d.entity_id = :entityId
          LEFT JOIN bank_transaction_documents btd2 ON btd2.entity_sii_document_id = d.id
@@ -1771,7 +1783,7 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
             ${bankRemainingSql} AS bank_remaining,
             d.id AS doc_id,
             ${docReconcileAmount} AS doc_amount,
-            (${docReconcileAmount} - IFNULL(SUM(btd2.amount_applied),0)) AS doc_remaining
+            (${docReconcileAmount} - IFNULL(SUM(btd2.amount_applied),0) - ${docCreditNotesSum}) AS doc_remaining
          FROM entity_bank_transactions bt
          JOIN entity_sii_documents d ON d.id = :docId AND d.entity_id = :entityId
          LEFT JOIN bank_transaction_documents btd2 ON btd2.entity_sii_document_id = d.id
@@ -1860,6 +1872,7 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
       // 1) monto objetivo (positivo, porque total_amount es positivo)
       const bankAmt = Math.abs(Number(bankTx.amount || 0));
       const docReconcileAmount = BankService.#documentReconcileAmountSql("`EntitySiiDocument`");
+      const docCreditNotesSum = BankService.#creditNotesSumSql("`EntitySiiDocument`");
       const absDiffLiteral = sequelize.literal(
          `ABS((${docReconcileAmount}) - ${bankAmt})`
       );
@@ -1928,7 +1941,7 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
        SELECT SUM(btd.amount_applied)
        FROM bank_transaction_documents btd
        WHERE btd.entity_sii_document_id = \`EntitySiiDocument\`.\`id\`
-     ),0))`
+     ),0) - ${docCreditNotesSum})`
       );
 
       // 6) WHERE base: entity, tipo (opcional), rut (opcional) y saldo pendiente
