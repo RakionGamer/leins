@@ -99,6 +99,7 @@ export default function Sidebar({ onLogout, onClose, collapsed, setCollapsed }) 
             children: [
                { label: 'Compras', to: '/expenses/purchases' },
                { label: 'Boletas de honorarios', to: '/expenses/honorarium-receipts' },
+               { label: 'Cuentas por pagar', to: '/expenses/payables' },
             ],
          },
 

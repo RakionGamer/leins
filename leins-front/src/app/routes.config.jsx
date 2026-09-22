@@ -11,6 +11,7 @@ const PurchaseInvoices = lazy(() => import('../pages/egress/PurchaseInvoices'));
 const SalesHonorariumReceipts = lazy(() => import('../pages/income/SalesHonorariumReceipts'));
 const SalesBoletas = lazy(() => import('../pages/income/SalesBoletas'));
 const Receivables = lazy(() => import('../pages/income/Receivables'));
+const Payables = lazy(() => import('../pages/egress/Payables'));
 const Profile = lazy(() => import('../pages/profile/Profile'));
 const ProfileEdit = lazy(() => import('../pages/profile/ProfileEdit'));
 const ForgotPassword = lazy(() => import('../pages/auth/ForgotPassword'));
@@ -43,6 +44,7 @@ export const routesConfig = [
          { path: 'bank/cartolas', element: <BankCartolasPage /> },
          { path: 'bank/accounts', element: <BankAccountsPage /> },
          { path: 'expenses/purchases', element: <PurchaseInvoices /> },
+         { path: 'expenses/payables', element: <Payables /> },
          { path: 'expenses/honorarium-receipts', element: <SalesHonorariumReceipts /> },
          { path: 'income/sales-honorarium-receipts', element: <SalesHonorariumReceipts /> },
          { path: 'income/sales-boletas', element: <SalesBoletas /> },
@@ -70,6 +72,7 @@ export const entityScopedPaths = new Set([
    '/bank/cartolas',
    '/bank/accounts',
    '/expenses/purchases',
+   '/expenses/payables',
    '/expenses/honorarium-receipts',
    '/income/sales-boletas',
    '/income/receivables',
