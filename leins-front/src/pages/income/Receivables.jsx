@@ -66,7 +66,8 @@ function ResumenPagina({ items }) {
    for (const r of items ?? []) {
       const mult = r.doc_type_code === 61 ? -1 : 1;
       const total = Number(r.total_amount || 0) * mult;
-      const remaining = Number(r.remaining_amount || 0) * mult;
+      // Las Notas de Crédito no tienen "saldo por cobrar", su valor ya se descontó de la factura original en el backend.
+      const remaining = r.doc_type_code === 61 ? 0 : Number(r.remaining_amount || 0);
       invoiced += total;
       collected += total - remaining;
       pending += remaining;
@@ -440,20 +441,22 @@ export default function Receivables() {
                         {rows.length === 0 ? (
                            <tr><td colSpan={7} className="p-10 text-center text-text-soft italic">no se encontraron facturas para los filtros aplicados.</td></tr>
                         ) : rows.map((r) => {
-                           const status = invoiceStatus(r.total_amount, r.remaining_amount, r.doc_type_code);
+                           const isNC = r.doc_type_code === 61;
+                           const mult = isNC ? -1 : 1;
+                           const remaining = isNC ? 0 : Number(r.remaining_amount || 0);
+                           const status = invoiceStatus(r.total_amount, remaining, r.doc_type_code);
                            const { label, colorClass } = STATUS_LABEL[status];
-                           const mult = r.doc_type_code === 61 ? -1 : 1;
                            return (
                               <tr key={r.id} className="hover:bg-brand/5 transition-colors">
                                  <td className="p-4 whitespace-nowrap font-medium text-text-main">{fmtDate(r.issue_date)}</td>
                                  <td className="p-4 font-mono text-text-soft">{r.folio || '-'}</td>
                                  <td className="p-4 truncate max-w-[220px] text-text-main font-medium">
                                     {r.counterparty_name || r.counterparty_rut || '-'}
-                                    {r.doc_type_code === 61 && <span className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700 ring-1 ring-blue-200">NC</span>}
+                                    {isNC && <span className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700 ring-1 ring-blue-200">NC</span>}
                                  </td>
                                  <td className="p-4 whitespace-nowrap text-text-soft">{fmtDate(r.due_date)}</td>
                                  <td className="p-4 text-right font-bold text-text-main">{clp(r.total_amount * mult)}</td>
-                                 <td className="p-4 text-right font-mono text-text-soft">{clp(r.remaining_amount * mult)}</td>
+                                 <td className="p-4 text-right font-mono text-text-soft">{isNC ? '-' : clp(remaining)}</td>
                                  <td className="p-4 text-center"><Pill colorClass={colorClass}>{label}</Pill></td>
                               </tr>
                            );
