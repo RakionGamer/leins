@@ -454,15 +454,20 @@ export default function Payables() {
                                  <td className="p-4 text-center">
                                      <div className="flex flex-col items-center gap-1">
                                         <Pill colorClass={colorClass}>{label}</Pill>
-                                        {r.credit_notes_applied > 0 && !isNC && (
-                                           <div 
-                                              className="mt-1.5 flex items-center justify-center gap-1.5 px-2.5 py-1 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200/60 shadow-sm rounded-lg hover:shadow-md hover:border-blue-300 transition-all cursor-help"
-                                              title={`Se han descontado ${clp(r.credit_notes_applied)} en Notas de Crédito`}
-                                           >
-                                              <ReceiptRefundIcon className="w-3.5 h-3.5 text-blue-600" />
-                                              <span className="text-[10px] font-bold text-blue-700 tracking-wide uppercase">Aplica N.C.</span>
-                                           </div>
-                                        )}
+                                        {r.credit_notes_applied > 0 && !isNC && (() => {
+                                           const isAnnulled = r.credit_notes_applied >= r.total_amount;
+                                           return (
+                                              <div 
+                                                 className={`mt-1.5 flex items-center justify-center gap-1.5 px-2.5 py-1 bg-gradient-to-r ${isAnnulled ? 'from-rose-50 to-red-50 border-rose-200/60 hover:border-rose-300' : 'from-blue-50 to-indigo-50 border-blue-200/60 hover:border-blue-300'} shadow-sm rounded-lg hover:shadow-md transition-all cursor-help`}
+                                                 title={`Se han descontado ${clp(r.credit_notes_applied)} en Notas de Crédito`}
+                                              >
+                                                 <ReceiptRefundIcon className={`w-3.5 h-3.5 ${isAnnulled ? 'text-rose-600' : 'text-blue-600'}`} />
+                                                 <span className={`text-[10px] font-bold ${isAnnulled ? 'text-rose-700' : 'text-blue-700'} tracking-wide uppercase`}>
+                                                    {isAnnulled ? 'Anulada por NC' : 'Corregida por NC'}
+                                                 </span>
+                                              </div>
+                                           );
+                                        })()}
                                      </div>
                                  </td>
                               </tr>
