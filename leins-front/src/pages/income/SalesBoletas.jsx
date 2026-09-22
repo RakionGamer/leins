@@ -26,7 +26,8 @@ import {
    FunnelIcon,
    ArrowPathIcon,
    TrashIcon,
-   LinkIcon
+   LinkIcon,
+   ReceiptRefundIcon
 } from '@heroicons/react/24/outline';
 
 function ResumenPagina({ items }) {
@@ -647,11 +648,15 @@ export default function SalesBoletas() {
                                     <span className="inline-flex px-2 py-1 bg-surface-2 rounded-md font-mono text-xs font-semibold text-text-soft border border-border-subtle/50">
                                        {r.doc_type}
                                     </span>
-                                    {r.credit_notes_applied > 0 && r.doc_type_code !== 61 && (
-                                       <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full ring-1 ring-blue-200" title={`Se han descontado ${clp(r.credit_notes_applied)} en Notas de Crédito`}>
-                                          Modificada por NC
-                                       </span>
-                                    )}
+                                     {r.credit_notes_applied > 0 && r.doc_type_code !== 61 && (
+                                        <div 
+                                           className="mt-1.5 flex items-center justify-center gap-1.5 px-2.5 py-1 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200/60 shadow-sm rounded-lg hover:shadow-md hover:border-blue-300 transition-all cursor-help"
+                                           title={`Se han descontado ${clp(r.credit_notes_applied)} en Notas de Crédito`}
+                                        >
+                                           <ReceiptRefundIcon className="w-3.5 h-3.5 text-blue-600" />
+                                           <span className="text-[10px] font-bold text-blue-700 tracking-wide uppercase">Aplica N.C.</span>
+                                        </div>
+                                     )}
                                  </div>
                               </td>
                               <td className="p-4 truncate max-w-[200px] text-text-main font-medium">{r.client_name || '-'}</td>

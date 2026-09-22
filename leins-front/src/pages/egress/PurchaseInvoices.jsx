@@ -25,7 +25,8 @@ import {
    PlusIcon,
    FunnelIcon,
    ArrowPathIcon,
-   TrashIcon
+   TrashIcon,
+   ReceiptRefundIcon
 } from '@heroicons/react/24/outline';
 
 function ResumenPagina({ items }) {
@@ -530,9 +531,13 @@ export default function PurchaseInvoicesAdapted() {
                                        {r.doc_type}
                                     </span>
                                     {r.credit_notes_applied > 0 && r.doc_type_code !== 61 && (
-                                       <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full ring-1 ring-blue-200" title={`Se han descontado ${clp(r.credit_notes_applied)} en Notas de Crédito`}>
-                                          Modificada por NC
-                                       </span>
+                                       <div 
+                                          className="mt-1.5 flex items-center justify-center gap-1.5 px-2.5 py-1 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200/60 shadow-sm rounded-lg hover:shadow-md hover:border-blue-300 transition-all cursor-help"
+                                          title={`Se han descontado ${clp(r.credit_notes_applied)} en Notas de Crédito`}
+                                       >
+                                          <ReceiptRefundIcon className="w-3.5 h-3.5 text-blue-600" />
+                                          <span className="text-[10px] font-bold text-blue-700 tracking-wide uppercase">Aplica N.C.</span>
+                                       </div>
                                     )}
                                  </div>
                               </td>

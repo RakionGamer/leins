@@ -362,6 +362,7 @@ class SiiDocumentsService {
          credit_notes_applied: Number(r.get?.('credit_notes_applied') || 0),
          source: r.source,
          operation_type: r.operation_type ?? r.operationType ?? null,
+         nce_nde_reference: r.nce_nde_reference ?? null,
          created_at: r.created_at,
          updated_at: r.updated_at,
       };
