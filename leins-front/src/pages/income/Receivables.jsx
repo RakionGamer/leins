@@ -58,7 +58,7 @@ const STATUS_LABEL = {
    paid: { label: 'Pagada', colorClass: 'bg-emerald-100 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-300 dark:ring-emerald-500/30' },
    partial: { label: 'Parcial', colorClass: 'bg-amber-100 text-amber-700 ring-amber-200 dark:bg-amber-500/20 dark:text-amber-300 dark:ring-amber-500/30' },
    pending: { label: 'Pendiente', colorClass: 'bg-red-100 text-red-700 ring-red-200 dark:bg-red-500/20 dark:text-red-300 dark:ring-red-500/30' },
-   credit_note: { label: 'Nota Crédito', colorClass: 'bg-slate-800 text-slate-100 ring-slate-700 dark:bg-slate-700 dark:text-slate-100 dark:ring-slate-600' },
+   credit_note: { label: 'Nota Crédito', colorClass: 'bg-slate-700 text-slate-100 ring-slate-700 dark:bg-slate-700 dark:text-slate-100 dark:ring-slate-600' },
 };
 
 function ResumenPagina({ items }) {
@@ -454,7 +454,7 @@ export default function Receivables() {
                                  <td className="p-4 font-mono text-text-soft">{r.folio || '-'}</td>
                                  <td className="p-4 truncate max-w-[220px] text-text-main font-medium">
                                     {r.counterparty_name || r.counterparty_rut || '-'}
-                                    {isNC && <span className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700 ring-1 ring-blue-200">NC</span>}
+                                    {isNC && <span className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700 ring-1 ring-blue-200 dark:bg-blue-500/20 dark:text-blue-300 dark:ring-blue-500/30">NC</span>}
                                  </td>
                                  <td className="p-4 whitespace-nowrap text-text-soft">{fmtDate(r.due_date)}</td>
                                  <td className="p-4 text-right font-bold text-text-main">{clp(r.total_amount * mult)}</td>
@@ -464,7 +464,7 @@ export default function Receivables() {
                                        {r.credit_notes_applied > 0 && !isNC && (() => {
                                           const isAnnulled = r.credit_notes_applied >= r.total_amount;
                                           return (
-                                             <span 
+                                             <span
                                                 className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ring-1 ${isAnnulled ? 'text-rose-600 bg-rose-50 ring-rose-200' : 'text-blue-600 bg-blue-50 ring-blue-200'}`}
                                                 title={`Se han descontado ${clp(r.credit_notes_applied)} en Notas de Crédito`}
                                              >
