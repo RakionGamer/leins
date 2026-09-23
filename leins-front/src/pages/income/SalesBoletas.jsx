@@ -63,14 +63,14 @@ function ResumenPagina({ items }) {
          <div className="rounded-2xl border border-border-subtle bg-surface-1 p-4 shadow-sm flex items-center gap-4">
             <div className="p-3 bg-green-500/10 text-green-600 rounded-xl"><BanknotesIcon className="w-6 h-6" /></div>
             <div>
-               <div className="text-[10px] sm:text-xs font-semibold text-text-soft uppercase tracking-wide">Exento Bruto</div>
+               <div className="text-[10px] sm:text-xs font-semibold text-text-soft uppercase tracking-wide">Exento Total</div>
                <div className="text-lg sm:text-xl font-bold text-heading">$ {fmt.format(exentoBruto)}</div>
             </div>
          </div>
          <div className="rounded-2xl border border-border-subtle bg-surface-1 p-4 shadow-sm flex items-center gap-4">
             <div className="p-3 bg-blue-500/10 text-blue-600 rounded-xl"><ChartBarIcon className="w-6 h-6" /></div>
             <div>
-               <div className="text-[10px] sm:text-xs font-semibold text-text-soft uppercase tracking-wide">Afecto+IVA Bruto</div>
+               <div className="text-[10px] sm:text-xs font-semibold text-text-soft uppercase tracking-wide">Afecto+IVA Total</div>
                <div className="text-lg sm:text-xl font-bold text-heading">$ {fmt.format(afectoIvaBruto)}</div>
             </div>
          </div>
@@ -274,7 +274,7 @@ export default function SalesBoletas() {
          toast.error(error.message || "ocurrio un error al intentar eliminar el registro.");
       }
    };
-   
+
    const openLinkModal = (row) => {
       setDocumentToLink(row);
       setLinkFolio('');
@@ -300,7 +300,7 @@ export default function SalesBoletas() {
          setIsLinking(false);
       }
    };
-   
+
    const switchToMonth = () => { setMode('month'); setFromDate(''); setToDate(''); if (!filterMonth) setFilterMonth(todayYYYYMM()); resetToFirstPage(); };
    const switchToRange = () => { setMode('range'); setFilterMonth(''); resetToFirstPage(); };
 
@@ -661,17 +661,17 @@ export default function SalesBoletas() {
                               <td className="p-4 font-mono text-text-soft">{r.folio || '-'}</td>
                               <td className="p-4 text-center">
                                  <div className="flex items-center justify-center gap-2">
-                                     {r.credit_notes_applied > 0 && r.doc_type_code !== 61 && (() => {
-                                        const isAnnulled = r.credit_notes_applied >= r.total;
-                                        return (
-                                           <span 
-                                              className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ring-1 ${isAnnulled ? 'text-rose-600 bg-rose-50 ring-rose-200' : 'text-blue-600 bg-blue-50 ring-blue-200'}`}
-                                              title={`Se han descontado ${clp(r.credit_notes_applied)} en Notas de Crédito`}
-                                           >
-                                              {isAnnulled ? 'Anulada por NC' : 'Corregida por NC'}
-                                           </span>
-                                        );
-                                     })()}
+                                    {r.credit_notes_applied > 0 && r.doc_type_code !== 61 && (() => {
+                                       const isAnnulled = r.credit_notes_applied >= r.total;
+                                       return (
+                                          <span
+                                             className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ring-1 ${isAnnulled ? 'text-rose-600 bg-rose-50 ring-rose-200' : 'text-blue-600 bg-blue-50 ring-blue-200'}`}
+                                             title={`Se han descontado ${clp(r.credit_notes_applied)} en Notas de Crédito`}
+                                          >
+                                             {isAnnulled ? 'Anulada por NC' : 'Corregida por NC'}
+                                          </span>
+                                       );
+                                    })()}
                                     <span className="inline-flex px-2 py-1 bg-surface-2 rounded-md font-mono text-xs font-semibold text-text-soft border border-border-subtle/50">
                                        {r.doc_type}
                                     </span>
