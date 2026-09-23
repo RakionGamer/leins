@@ -170,6 +170,7 @@ class SiiDocumentsService {
          const queryNum = Number(query);
          const folioConditions = [
             sequelize.where(sequelize.literal('CAST(`EntitySiiDocument`.`folio` AS CHAR)'), { [Op.like]: like }),
+            sequelize.where(sequelize.literal('CAST(`EntitySiiDocument`.`nce_nde_reference` AS CHAR)'), { [Op.like]: like }),
          ];
          if (Number.isInteger(queryNum)) {
             folioConditions.push({ folio: queryNum });
@@ -189,6 +190,9 @@ class SiiDocumentsService {
          const folioNum = Number(folioQuery);
          const conds = [
             sequelize.where(sequelize.literal('CAST(`EntitySiiDocument`.`folio` AS CHAR)'), {
+               [Op.like]: `%${folioQuery}%`,
+            }),
+            sequelize.where(sequelize.literal('CAST(`EntitySiiDocument`.`nce_nde_reference` AS CHAR)'), {
                [Op.like]: `%${folioQuery}%`,
             }),
          ];
