@@ -788,7 +788,7 @@ export default function BankCartolasPage() {
       setSelectedTargetKind('document');
       setModalQuery('');
       setModalTipo('');
-      setModalSortDate('none');
+      setModalSortConfig({ key: 'issue_date', dir: 'none' });
       setSearchCandidates([]);
       setDocumentSearchError('');
       setBankCandidates([]);
@@ -1106,7 +1106,7 @@ export default function BankCartolasPage() {
    const [modalTipo, setModalTipo] = useState('');
    const [modalPage, setModalPage] = useState(1);
    const [modalTotalPages, setModalTotalPages] = useState(1);
-   const [modalSortDate, setModalSortDate] = useState('none');
+   const [modalSortConfig, setModalSortConfig] = useState({ key: 'issue_date', dir: 'none' });
    const [debouncedQuery, setDebouncedQuery] = useState('');
    
    useEffect(() => {
@@ -1221,22 +1221,42 @@ export default function BankCartolasPage() {
          });
       }
 
-      if (modalSortDate === 'asc') {
+      if (modalSortConfig.dir !== 'none') {
+         const { key, dir } = modalSortConfig;
+         const mult = dir === 'asc' ? 1 : -1;
+         
          rows.sort((a, b) => {
-            const da = a.issue_date ? new Date(a.issue_date).getTime() : 0;
-            const db = b.issue_date ? new Date(b.issue_date).getTime() : 0;
-            return da - db;
-         });
-      } else if (modalSortDate === 'desc') {
-         rows.sort((a, b) => {
-            const da = a.issue_date ? new Date(a.issue_date).getTime() : 0;
-            const db = b.issue_date ? new Date(b.issue_date).getTime() : 0;
-            return db - da;
+            if (key === 'issue_date') {
+               const da = a.issue_date ? new Date(a.issue_date).getTime() : 0;
+               const db = b.issue_date ? new Date(b.issue_date).getTime() : 0;
+               return (da - db) * mult;
+            }
+            if (key === 'remaining_amount') {
+               const ra = Number(a.remaining_amount || 0);
+               const rb = Number(b.remaining_amount || 0);
+               return (ra - rb) * mult;
+            }
+            if (key === 'total_amount') {
+               const ta = Number(a.total_amount || 0);
+               const tb = Number(b.total_amount || 0);
+               return (ta - tb) * mult;
+            }
+            if (key === 'type') {
+               const typeA = (a.target_kind || selectedTargetKind) === 'bank_transaction' ? (a.bank_type === 'expense' ? 'Cargo' : 'Abono') : getSiiDocumentTypeLabel(a.doc_type_code);
+               const typeB = (b.target_kind || selectedTargetKind) === 'bank_transaction' ? (b.bank_type === 'expense' ? 'Cargo' : 'Abono') : getSiiDocumentTypeLabel(b.doc_type_code);
+               return String(typeA || '').localeCompare(String(typeB || '')) * mult;
+            }
+            if (key === 'description') {
+               const descA = a.counterparty_name || a.description || "";
+               const descB = b.counterparty_name || b.description || "";
+               return String(descA || '').localeCompare(String(descB || '')) * mult;
+            }
+            return 0;
          });
       }
 
       return rows;
-   }, [debouncedQuery, modalTipo, selectedTargetKind, targetCandidates, modalSortDate]);
+   }, [debouncedQuery, modalTipo, selectedTargetKind, targetCandidates, modalSortConfig]);
 
    const modalTypeOptions = useMemo(() => (
       reconcileDocumentSide === 'income'
@@ -1892,17 +1912,25 @@ export default function BankCartolasPage() {
                                     <table className="min-w-full text-sm table-fixed border-collapse">
                                        <thead className="sticky top-0 text-[var(--heading)] z-[1]">
                                           <tr className="border-b border-[var(--border-subtle)] bg-[var(--surface-1)]">
-                                             <th className="px-3 py-2 text-left">Saldo por Asignar</th>
-                                             <th className="px-3 py-2 text-left">Monto</th>
+                                             <th className="px-3 py-2 text-left cursor-pointer hover:bg-[var(--surface-2)] select-none transition-colors" onClick={() => setModalSortConfig(s => ({ key: 'remaining_amount', dir: s.key === 'remaining_amount' ? (s.dir === 'none' ? 'desc' : (s.dir === 'desc' ? 'asc' : 'none')) : 'desc' }))} title="Ordenar por saldo">
+                                                Saldo por Asignar {modalSortConfig.key === 'remaining_amount' ? (modalSortConfig.dir === 'asc' ? '↑' : modalSortConfig.dir === 'desc' ? '↓' : '') : ''}
+                                             </th>
+                                             <th className="px-3 py-2 text-left cursor-pointer hover:bg-[var(--surface-2)] select-none transition-colors" onClick={() => setModalSortConfig(s => ({ key: 'total_amount', dir: s.key === 'total_amount' ? (s.dir === 'none' ? 'desc' : (s.dir === 'desc' ? 'asc' : 'none')) : 'desc' }))} title="Ordenar por monto">
+                                                Monto {modalSortConfig.key === 'total_amount' ? (modalSortConfig.dir === 'asc' ? '↑' : modalSortConfig.dir === 'desc' ? '↓' : '') : ''}
+                                             </th>
                                              <th
                                                 className="pl-3 pr-1 py-2 text-left w-[120px] cursor-pointer hover:bg-[var(--surface-2)] select-none transition-colors"
-                                                onClick={() => setModalSortDate(s => s === 'none' ? 'desc' : (s === 'desc' ? 'asc' : 'none'))}
+                                                onClick={() => setModalSortConfig(s => ({ key: 'issue_date', dir: s.key === 'issue_date' ? (s.dir === 'none' ? 'desc' : (s.dir === 'desc' ? 'asc' : 'none')) : 'desc' }))}
                                                 title="Ordenar por fecha"
                                              >
-                                                Fecha {modalSortDate === 'asc' ? '↑' : modalSortDate === 'desc' ? '↓' : ''}
+                                                Fecha {modalSortConfig.key === 'issue_date' ? (modalSortConfig.dir === 'asc' ? '↑' : modalSortConfig.dir === 'desc' ? '↓' : '') : ''}
                                              </th>
-                                             <th className="pl-1 pr-3 py-2 text-left w-[110px]">Tipo</th>
-                                             <th className="px-3 py-2 text-left">Descripción</th>
+                                             <th className="pl-1 pr-3 py-2 text-left w-[110px] cursor-pointer hover:bg-[var(--surface-2)] select-none transition-colors" onClick={() => setModalSortConfig(s => ({ key: 'type', dir: s.key === 'type' ? (s.dir === 'none' ? 'desc' : (s.dir === 'desc' ? 'asc' : 'none')) : 'desc' }))} title="Ordenar por tipo">
+                                                Tipo {modalSortConfig.key === 'type' ? (modalSortConfig.dir === 'asc' ? '↑' : modalSortConfig.dir === 'desc' ? '↓' : '') : ''}
+                                             </th>
+                                             <th className="px-3 py-2 text-left cursor-pointer hover:bg-[var(--surface-2)] select-none transition-colors" onClick={() => setModalSortConfig(s => ({ key: 'description', dir: s.key === 'description' ? (s.dir === 'none' ? 'desc' : (s.dir === 'desc' ? 'asc' : 'none')) : 'desc' }))} title="Ordenar por descripción">
+                                                Descripción {modalSortConfig.key === 'description' ? (modalSortConfig.dir === 'asc' ? '↑' : modalSortConfig.dir === 'desc' ? '↓' : '') : ''}
+                                             </th>
                                              <th className="px-3 py-2 text-right"></th>
                                           </tr>
                                        </thead>

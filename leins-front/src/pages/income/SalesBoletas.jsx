@@ -32,18 +32,27 @@ import {
 
 function ResumenPagina({ items }) {
    const fmt = new Intl.NumberFormat('es-CL');
-   let exento = 0, afecto = 0, iva = 0, total = 0;
+   let exentoBruto = 0, afectoIvaBruto = 0, notasCredito = 0, total = 0;
 
    for (const r of items ?? []) {
-      const mult = r.doc_type_code === 61 ? -1 : 1;
-      exento += Number(r.exempt_amount ?? r.exento ?? 0) * mult;
-      afecto += Number(r.net_amount ?? r.afecto ?? 0) * mult;
-      iva += Number(r.vat_amount ?? r.iva ?? 0) * mult;
-      total += Number(r.total_amount ?? r.total ?? 0) * mult;
+      const isNc = r.doc_type_code === 61;
+      const exento = Number(r.exempt_amount ?? r.exento ?? 0);
+      const afecto = Number(r.net_amount ?? r.afecto ?? 0);
+      const iva = Number(r.vat_amount ?? r.iva ?? 0);
+      const t = Number(r.total_amount ?? r.total ?? 0);
+
+      if (isNc) {
+         notasCredito += t;
+         total -= t;
+      } else {
+         exentoBruto += exento;
+         afectoIvaBruto += (afecto + iva);
+         total += t;
+      }
    }
 
    return (
-      <div className="mb-5 grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <div className="mb-5 grid grid-cols-2 gap-4 xl:grid-cols-5">
          <div className="rounded-2xl border border-border-subtle bg-surface-1 p-4 shadow-sm flex items-center gap-4">
             <div className="p-3 bg-brand/10 text-brand rounded-xl"><DocumentDuplicateIcon className="w-6 h-6" /></div>
             <div>
@@ -54,21 +63,28 @@ function ResumenPagina({ items }) {
          <div className="rounded-2xl border border-border-subtle bg-surface-1 p-4 shadow-sm flex items-center gap-4">
             <div className="p-3 bg-green-500/10 text-green-600 rounded-xl"><BanknotesIcon className="w-6 h-6" /></div>
             <div>
-               <div className="text-xs font-semibold text-text-soft uppercase tracking-wide">Total Exento (Pág)</div>
-               <div className="text-xl font-bold text-heading">$ {fmt.format(exento)}</div>
+               <div className="text-[10px] sm:text-xs font-semibold text-text-soft uppercase tracking-wide">Exento Bruto</div>
+               <div className="text-lg sm:text-xl font-bold text-heading">$ {fmt.format(exentoBruto)}</div>
             </div>
          </div>
          <div className="rounded-2xl border border-border-subtle bg-surface-1 p-4 shadow-sm flex items-center gap-4">
             <div className="p-3 bg-blue-500/10 text-blue-600 rounded-xl"><ChartBarIcon className="w-6 h-6" /></div>
             <div>
-               <div className="text-xs font-semibold text-text-soft uppercase tracking-wide">Afecto + IVA (Pág)</div>
-               <div className="text-xl font-bold text-heading">$ {fmt.format(afecto + iva)}</div>
+               <div className="text-[10px] sm:text-xs font-semibold text-text-soft uppercase tracking-wide">Afecto+IVA Bruto</div>
+               <div className="text-lg sm:text-xl font-bold text-heading">$ {fmt.format(afectoIvaBruto)}</div>
             </div>
          </div>
-         <div className="rounded-2xl border border-brand/30 bg-brand/5 p-4 shadow-sm flex items-center gap-4 ring-1 ring-brand/10">
+         <div className="rounded-2xl border border-border-subtle bg-surface-1 p-4 shadow-sm flex items-center gap-4">
+            <div className="p-3 bg-rose-500/10 text-rose-600 rounded-xl"><ReceiptRefundIcon className="w-6 h-6" /></div>
+            <div>
+               <div className="text-[10px] sm:text-xs font-semibold text-text-soft uppercase tracking-wide">Notas de Crédito</div>
+               <div className="text-lg sm:text-xl font-bold text-rose-600">-$ {fmt.format(notasCredito)}</div>
+            </div>
+         </div>
+         <div className="col-span-2 xl:col-span-1 rounded-2xl border border-brand/30 bg-brand/5 p-4 shadow-sm flex items-center gap-4 ring-1 ring-brand/10">
             <div className="p-3 bg-brand text-white rounded-xl"><CurrencyDollarIcon className="w-6 h-6" /></div>
             <div>
-               <div className="text-xs font-semibold text-brand uppercase tracking-wide">Total Final (Pág)</div>
+               <div className="text-xs font-semibold text-brand uppercase tracking-wide">Total Final</div>
                <div className="text-xl font-bold text-brand">$ {fmt.format(total)}</div>
             </div>
          </div>
