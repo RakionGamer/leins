@@ -310,9 +310,16 @@ class SiiDocumentsService {
       if (statusFilter === 'paid') {
          if (!where[Op.and]) where[Op.and] = [];
          where[Op.and].push(
-            sequelize.where(sequelize.literal(remainingSQL), { [Op.lte]: 0 })
+            sequelize.where(sequelize.literal(remainingSQL), { [Op.lte]: 0 }),
+            { doc_type_code: { [Op.ne]: 61 } }
          );
-      } else if (statusFilter === 'pending' || pendingOnly) {
+      } else if (statusFilter === 'pending') {
+         if (!where[Op.and]) where[Op.and] = [];
+         where[Op.and].push(
+            sequelize.where(sequelize.literal(remainingSQL), { [Op.gt]: 0 }),
+            { doc_type_code: { [Op.ne]: 61 } }
+         );
+      } else if (pendingOnly) {
          if (!where[Op.and]) where[Op.and] = [];
          where[Op.and].push(
             sequelize.where(sequelize.literal(remainingSQL), { [Op.gt]: 0 })
