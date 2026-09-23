@@ -665,7 +665,7 @@ export default function SalesBoletas() {
                                        const isAnnulled = r.credit_notes_applied >= r.total;
                                        return (
                                           <span
-                                             className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ring-1 ${isAnnulled ? 'text-rose-600 bg-rose-50 ring-rose-200' : 'text-blue-600 bg-blue-50 ring-blue-200'}`}
+                                             className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ring-1 ${isAnnulled ? 'text-rose-700 bg-rose-100 ring-rose-200 dark:bg-rose-500/20 dark:text-rose-300 dark:ring-rose-500/30' : 'text-blue-700 bg-blue-100 ring-blue-200 dark:bg-blue-500/20 dark:text-blue-300 dark:ring-blue-500/30'}`}
                                              title={`Se han descontado ${clp(r.credit_notes_applied)} en Notas de Crédito`}
                                           >
                                              {isAnnulled ? 'Anulada por NC' : 'Corregida por NC'}

@@ -58,7 +58,7 @@ const STATUS_LABEL = {
    paid: { label: 'Pagada', colorClass: 'bg-emerald-100 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-300 dark:ring-emerald-500/30' },
    partial: { label: 'Parcial', colorClass: 'bg-amber-100 text-amber-700 ring-amber-200 dark:bg-amber-500/20 dark:text-amber-300 dark:ring-amber-500/30' },
    pending: { label: 'Pendiente', colorClass: 'bg-red-100 text-red-700 ring-red-200 dark:bg-red-500/20 dark:text-red-300 dark:ring-red-500/30' },
-   credit_note: { label: 'Nota Crédito', colorClass: 'bg-slate-700 text-slate-100 ring-slate-700 dark:bg-slate-700 dark:text-slate-100 dark:ring-slate-600' },
+   credit_note: { label: 'Nota Crédito', colorClass: 'bg-blue-100 text-blue-700 ring-blue-200 dark:bg-blue-500/20 dark:text-blue-300 dark:ring-blue-500/30' },
 };
 
 function ResumenPagina({ items }) {
@@ -465,7 +465,7 @@ export default function Receivables() {
                                           const isAnnulled = r.credit_notes_applied >= r.total_amount;
                                           return (
                                              <span
-                                                className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ring-1 ${isAnnulled ? 'text-rose-600 bg-rose-50 ring-rose-200' : 'text-blue-600 bg-blue-50 ring-blue-200'}`}
+                                                className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ring-1 ${isAnnulled ? 'text-rose-700 bg-rose-100 ring-rose-200 dark:bg-rose-500/20 dark:text-rose-300 dark:ring-rose-500/30' : 'text-blue-700 bg-blue-100 ring-blue-200 dark:bg-blue-500/20 dark:text-blue-300 dark:ring-blue-500/30'}`}
                                                 title={`Se han descontado ${clp(r.credit_notes_applied)} en Notas de Crédito`}
                                              >
                                                 {isAnnulled ? 'Anulada por NC' : 'Corregida por NC'}
