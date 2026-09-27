@@ -265,8 +265,12 @@ export default function AccountingEntries() {
          return;
       }
       try {
-         const { autofindCandidates } = await import('../../services/reconcileApi');
-         const response = await autofindCandidates({ entityId, bank_transaction_id: txId, limit: 1 });
+         const { autofindCandidates, listReconciliations } = await import('../../services/reconcileApi');
+         
+         const [response, recons] = await Promise.all([
+             autofindCandidates({ entityId, bank_transaction_id: txId, limit: 1 }),
+             listReconciliations({ entityId, bank_transaction_id: txId, limit: 1 }).catch(() => null)
+         ]);
          
          if (!response || !response.bank) {
              toast.error("No se encontró el movimiento con ese ID.");
@@ -280,13 +284,20 @@ export default function AccountingEntries() {
          const absAmount = Math.abs(amount);
          const date = tx.issued_at ? tx.issued_at.substring(0, 10) : new Date().toISOString().substring(0, 10);
          
+         let rut = '';
+         if (recons?.rows?.[0]?.document?.counterparty_rut) {
+             rut = recons.rows[0].document.counterparty_rut;
+         } else if (response.best?.counterparty_rut) {
+             rut = response.best.counterparty_rut;
+         }
+         
          setFormData({
              ...formData,
              entry_date: date,
              concept: `Importado: ${tx.description || ''}`,
              items: [
-                 { account_id: '', description: tx.description || '', debit: type === 'income' ? absAmount : '', credit: type === 'expense' ? absAmount : '', counterparty_rut: '', cost_center: '' },
-                 { account_id: '', description: 'Contrapartida', debit: type === 'expense' ? absAmount : '', credit: type === 'income' ? absAmount : '', counterparty_rut: '', cost_center: '' },
+                 { account_id: '', description: tx.description || '', debit: type === 'income' ? absAmount : '', credit: type === 'expense' ? absAmount : '', counterparty_rut: rut, cost_center: '' },
+                 { account_id: '', description: 'Contrapartida', debit: type === 'expense' ? absAmount : '', credit: type === 'income' ? absAmount : '', counterparty_rut: rut, cost_center: '' },
              ]
          });
          toast.success("Datos importados del banco.");
