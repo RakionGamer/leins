@@ -1775,6 +1775,74 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
          { transaction: t }
       );
 
+      // Generación del Asiento Contable del movimiento bancario (Pago / Cobro)
+      try {
+         const AccountingService = require('./accounting.service');
+         const accountingService = new AccountingService();
+         await accountingService.ensureDefaultPlan(entityId);
+         const accounts = await models.AccountingAccount.findAll({ where: { entity_id: entityId } });
+         const bankAcc = accounts.find(a => a.code === '1.1.2' || a.name.includes('Banco'));
+         const clientesAcc = accounts.find(a => a.code === '1.1.6' || a.name.includes('Clientes'));
+         const proveedoresAcc = accounts.find(a => a.code === '2.1' || a.name.includes('Proveedores'));
+
+         const rut = (doc.counterparty_rut || '').toUpperCase();
+         const name = doc.counterparty_name || '';
+
+         if (bankTx.type === 'expense' && bankAcc && proveedoresAcc) {
+            await accountingService.createEntry(entityId, {
+               entry_date: bankTx.issued_at || doc.issue_date,
+               concept: `Pago Banco Folio ${doc.folio || '-'} - ${name || rut}`,
+               source_type: 'BANK_MOVEMENT',
+               source_id: bankTx.id,
+               items: [
+                  {
+                     account_id: proveedoresAcc.id,
+                     description: `Pago Proveedor Folio ${doc.folio || '-'}`,
+                     debit: toApply,
+                     credit: 0,
+                     counterparty_rut: rut,
+                     counterparty_name: name,
+                  },
+                  {
+                     account_id: bankAcc.id,
+                     description: `Egreso Banco ${bankTx.description || ''}`,
+                     debit: 0,
+                     credit: toApply,
+                     counterparty_rut: rut,
+                     counterparty_name: name,
+                  }
+               ]
+            });
+         } else if (bankTx.type === 'income' && bankAcc && clientesAcc) {
+            await accountingService.createEntry(entityId, {
+               entry_date: bankTx.issued_at || doc.issue_date,
+               concept: `Cobro Banco Folio ${doc.folio || '-'} - ${name || rut || 'Cliente'}`,
+               source_type: 'BANK_MOVEMENT',
+               source_id: bankTx.id,
+               items: [
+                  {
+                     account_id: bankAcc.id,
+                     description: `Ingreso Banco ${bankTx.description || ''}`,
+                     debit: toApply,
+                     credit: 0,
+                     counterparty_rut: rut,
+                     counterparty_name: name,
+                  },
+                  {
+                     account_id: clientesAcc.id,
+                     description: `Abono Cliente Folio ${doc.folio || '-'}`,
+                     debit: 0,
+                     credit: toApply,
+                     counterparty_rut: rut,
+                     counterparty_name: name,
+                  }
+               ]
+            });
+         }
+      } catch (accErr) {
+         console.warn("⚠️ No se pudo auto-generar el asiento contable del movimiento bancario:", accErr.message);
+      }
+
       const [after] = await sequelize.query(
          `
          SELECT

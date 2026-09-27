@@ -23,6 +23,10 @@ const { ErrorLog, ErrorLogSchema } = require('./error-log.model');
 const { SiiDocumentType, SiiDocumentTypeSchema } = require('./sii-document-type.model');
 const { Notification, NotificationSchema } = require('./notification.model');
 const { SiiSyncJob, SiiSyncJobSchema } = require('./sii-sync-job.model');
+const { AccountingAccount, AccountingAccountSchema } = require('./accounting-account.model');
+const { AccountingRule, AccountingRuleSchema } = require('./accounting-rule.model');
+const { AccountingEntry, AccountingEntrySchema } = require('./accounting-entry.model');
+const { AccountingEntryItem, AccountingEntryItemSchema } = require('./accounting-entry-item.model');
 
 function setupModels(sequelize) {
    // 1) init
@@ -49,6 +53,10 @@ function setupModels(sequelize) {
    SiiDocumentType.init(SiiDocumentTypeSchema, SiiDocumentType.config(sequelize));
    Notification.init(NotificationSchema, Notification.config(sequelize));
    SiiSyncJob.init(SiiSyncJobSchema, SiiSyncJob.config(sequelize));
+   AccountingAccount.init(AccountingAccountSchema, AccountingAccount.config(sequelize));
+   AccountingRule.init(AccountingRuleSchema, AccountingRule.config(sequelize));
+   AccountingEntry.init(AccountingEntrySchema, AccountingEntry.config(sequelize));
+   AccountingEntryItem.init(AccountingEntryItemSchema, AccountingEntryItem.config(sequelize));
 
    // 2) associate
    if (State.associate) State.associate(sequelize.models);
@@ -73,6 +81,10 @@ function setupModels(sequelize) {
    if (ErrorLog.associate) ErrorLog.associate(sequelize.models);
    if (SiiDocumentType.associate) SiiDocumentType.associate(sequelize.models);
    if (SiiSyncJob.associate) SiiSyncJob.associate(sequelize.models);
+   if (AccountingAccount.associate) AccountingAccount.associate(sequelize.models);
+   if (AccountingRule.associate) AccountingRule.associate(sequelize.models);
+   if (AccountingEntry.associate) AccountingEntry.associate(sequelize.models);
+   if (AccountingEntryItem.associate) AccountingEntryItem.associate(sequelize.models);
 }
 
 module.exports = setupModels;

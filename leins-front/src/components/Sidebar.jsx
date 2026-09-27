@@ -4,6 +4,7 @@ import {
    ArrowTrendingDownIcon,
    ArrowTrendingUpIcon,
    BanknotesIcon,
+   BookOpenIcon,
    XMarkIcon,
    UserIcon,
    UserGroupIcon,
@@ -110,6 +111,17 @@ export default function Sidebar({ onLogout, onClose, collapsed, setCollapsed }) 
                { label: 'Movimientos bancarios', to: '/bank/cartolas' },
                // la gestion de cuentas bancarias queda reservada al administrador
                ...(isClient ? [] : [{ label: 'Cuentas bancarias', to: '/bank/accounts' }]),
+            ],
+         },
+
+         {
+            label: 'Contabilidad',
+            icon: BookOpenIcon,
+            children: [
+               { label: 'Asientos contables', to: '/accounting/entries' },
+               { label: 'Plan de cuentas', to: '/accounting/accounts' },
+               { label: 'Asociación proveedores', to: '/accounting/rules' },
+               { label: 'Saldos por RUT', to: '/accounting/balances' },
             ],
          },
          ];

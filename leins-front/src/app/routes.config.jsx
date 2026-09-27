@@ -19,6 +19,10 @@ const ResetPassword = lazy(() => import('../pages/auth/ResetPassword'));
 const SuperAdminList = lazy(() => import('../pages/superAdmin/SuperAdminList'));
 const SuperAdminCreate = lazy(() => import('../pages/superAdmin/SuperAdminCreate'));
 const SuperAdminEdit = lazy(() => import('../pages/superAdmin/SuperAdminEdit'));
+const AccountingAccounts = lazy(() => import('../pages/accounting/AccountingAccounts'));
+const AccountingEntries = lazy(() => import('../pages/accounting/AccountingEntries'));
+const AccountingRules = lazy(() => import('../pages/accounting/AccountingRules'));
+const AccountingBalances = lazy(() => import('../pages/accounting/AccountingBalances'));
 
 // layout y fallback
 const DashboardLayout = lazy(() => import('../layouts/DashboardLayout'));
@@ -49,6 +53,10 @@ export const routesConfig = [
          { path: 'income/sales-honorarium-receipts', element: <SalesHonorariumReceipts /> },
          { path: 'income/sales-boletas', element: <SalesBoletas /> },
          { path: 'income/receivables', element: <Receivables /> },
+         { path: 'accounting/entries', element: <AccountingEntries /> },
+         { path: 'accounting/accounts', element: <AccountingAccounts /> },
+         { path: 'accounting/rules', element: <AccountingRules /> },
+         { path: 'accounting/balances', element: <AccountingBalances /> },
          { path: 'profile', element: <Profile /> },
          { path: 'profile/edit', element: <ProfileEdit /> },
          { path: '*', element: <Stub title="No encontrado" /> },
@@ -77,4 +85,8 @@ export const entityScopedPaths = new Set([
    '/income/sales-boletas',
    '/income/receivables',
    '/income/sales-honorarium-receipts',
+   '/accounting/entries',
+   '/accounting/accounts',
+   '/accounting/rules',
+   '/accounting/balances',
 ]);

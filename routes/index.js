@@ -10,6 +10,7 @@ const bankRouter = require('./bank.router');
 const entitiesRouter = require('./entities.router');
 const notificationsRouter = require('./notifications.router');
 const dashboardRouter = require('./dashboard.router');
+const accountingRouter = require('./accounting.router');
 
 function routerApi(app) {
    const router = express.Router();
@@ -28,6 +29,7 @@ function routerApi(app) {
    router.use('/entities', jwtValidate, entitiesRouter);
    router.use('/notifications', jwtValidate, notificationsRouter);
    router.use('/dashboard', jwtValidate, dashboardRouter);
+   router.use('/accounting', jwtValidate, accountingRouter);
 }
 
 module.exports = routerApi;
