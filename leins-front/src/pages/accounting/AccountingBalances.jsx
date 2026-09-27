@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useEntityRequired } from '../../hooks/useEntityRequired';
 import EntityRequiredNotice from '../../components/EntityRequiredNotice';
+import { toast } from '../../components/Toaster';
 import { getBalances } from '../../services/accountingApi';
 import {
    ScaleIcon,
@@ -11,14 +12,88 @@ import {
    CurrencyDollarIcon,
    BuildingStorefrontIcon,
    UserIcon,
+   FunnelIcon,
 } from '@heroicons/react/24/outline';
 
 const clp = (n) =>
    new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(Number(n || 0));
 
-const ctrl =
-   'w-full h-11 px-3 text-sm rounded-2xl border border-border-subtle bg-bg-content text-text-main placeholder-text-soft/70 focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition shadow-sm';
+const ctrl = 'w-full h-11 px-3 text-sm rounded-2xl border border-border-subtle bg-bg-content text-text-main placeholder-text-soft/70 focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition shadow-sm';
 const selectCtrl = ctrl + ' appearance-none cursor-pointer';
+const btnCtrl = 'h-11 flex items-center justify-center gap-2 px-4 rounded-2xl border border-border-subtle bg-bg-content text-text-main text-sm font-medium transition shadow-sm hover:bg-surface-2 hover:text-brand focus:outline-none focus:ring-2 focus:ring-brand';
+
+function Pill({ children, colorClass = 'bg-brand/10 text-brand ring-brand/20' }) {
+   return (
+      <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ring-1 ${colorClass}`}>
+         {children}
+      </span>
+   );
+}
+
+function BalancesSummary({ balances }) {
+   const summaryStats = useMemo(() => {
+      let totalReceivable = 0;
+      let totalPayable = 0;
+      let countReceivable = 0;
+      let countPayable = 0;
+
+      balances.forEach((b) => {
+         if (b.account_type === 'CLIENTE') {
+            totalReceivable += b.balance;
+            if (b.balance > 0) countReceivable++;
+         } else {
+            totalPayable += b.balance;
+            if (b.balance > 0) countPayable++;
+         }
+      });
+
+      return { totalReceivable, totalPayable, countReceivable, countPayable };
+   }, [balances]);
+
+   return (
+      <div className="mb-5 grid grid-cols-2 gap-4 xl:grid-cols-4">
+         <div className="rounded-2xl border border-border-subtle bg-surface-1 p-4 shadow-sm flex items-center gap-4">
+            <div className="p-3 bg-emerald-500/10 text-emerald-600 rounded-xl">
+               <CurrencyDollarIcon className="w-6 h-6" />
+            </div>
+            <div>
+               <div className="text-[10px] sm:text-xs font-semibold text-text-soft uppercase tracking-wide">Saldos por Cobrar</div>
+               <div className="text-lg sm:text-xl font-bold text-emerald-600">{clp(summaryStats.totalReceivable)}</div>
+            </div>
+         </div>
+
+         <div className="rounded-2xl border border-border-subtle bg-surface-1 p-4 shadow-sm flex items-center gap-4">
+            <div className="p-3 bg-amber-500/10 text-amber-600 rounded-xl">
+               <ClockIcon className="w-6 h-6" />
+            </div>
+            <div>
+               <div className="text-[10px] sm:text-xs font-semibold text-text-soft uppercase tracking-wide">Clientes Pendientes</div>
+               <div className="text-lg sm:text-xl font-bold text-heading">{summaryStats.countReceivable} RUTs</div>
+            </div>
+         </div>
+
+         <div className="rounded-2xl border border-border-subtle bg-surface-1 p-4 shadow-sm flex items-center gap-4">
+            <div className="p-3 bg-rose-500/10 text-rose-600 rounded-xl">
+               <BanknotesIcon className="w-6 h-6" />
+            </div>
+            <div>
+               <div className="text-[10px] sm:text-xs font-semibold text-text-soft uppercase tracking-wide">Saldos por Pagar</div>
+               <div className="text-lg sm:text-xl font-bold text-rose-600">{clp(summaryStats.totalPayable)}</div>
+            </div>
+         </div>
+
+         <div className="rounded-2xl border border-brand/30 bg-brand/5 p-4 shadow-sm flex items-center gap-4 ring-1 ring-brand/10">
+            <div className="p-3 bg-brand text-white rounded-xl">
+               <BuildingStorefrontIcon className="w-6 h-6" />
+            </div>
+            <div>
+               <div className="text-xs font-semibold text-brand uppercase tracking-wide">Proveedores Pendientes</div>
+               <div className="text-xl font-bold text-brand">{summaryStats.countPayable} RUTs</div>
+            </div>
+         </div>
+      </div>
+   );
+}
 
 export default function AccountingBalances() {
    const { entityId, ready } = useEntityRequired();
@@ -50,121 +125,85 @@ export default function AccountingBalances() {
       }
    }, [ready, entityId, loadBalances]);
 
-   const summaryStats = useMemo(() => {
-      let totalReceivable = 0;
-      let totalPayable = 0;
-      let countReceivable = 0;
-      let countPayable = 0;
-
-      balances.forEach((b) => {
-         if (b.account_type === 'CLIENTE') {
-            totalReceivable += b.balance;
-            if (b.balance > 0) countReceivable++;
-         } else {
-            totalPayable += b.balance;
-            if (b.balance > 0) countPayable++;
-         }
-      });
-
-      return { totalReceivable, totalPayable, countReceivable, countPayable };
-   }, [balances]);
+   const handleClearFilters = () => {
+      setSearch('');
+      setTypeFilter('ALL');
+   };
 
    if (!ready) return <EntityRequiredNotice />;
 
    return (
       <div className="space-y-6">
-         {/* Encabezado */}
+         {/* Top Header Card */}
          <div className="bg-bg-content rounded-3xl p-5 border border-border-subtle shadow-sm">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-5 border-b border-border-subtle">
-               <div className="flex items-center gap-3">
-                  <div className="p-3 bg-brand/10 text-brand rounded-2xl">
-                     <ScaleIcon className="w-7 h-7" />
-                  </div>
-                  <div>
-                     <h2 className="text-2xl font-bold text-heading tracking-tight">Saldos Contables por RUT</h2>
-                     <p className="text-sm text-text-soft mt-0.5">
-                        Consolidado de Cuentas por Cobrar (Clientes) y Cuentas por Pagar (Proveedores) según asientos contables.
-                     </p>
-                  </div>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 pb-5 border-b border-border-subtle">
+               <div>
+                  <h2 className="text-2xl font-bold text-heading tracking-tight">Saldos Contables por RUT</h2>
+                  <p className="text-sm text-text-soft mt-1">
+                     Consolidado de Cuentas por Cobrar (Clientes) y Cuentas por Pagar (Proveedores) recalculado según asientos contables.
+                  </p>
                </div>
 
                <button
-                  onClick={loadBalances}
-                  className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-brand bg-brand/10 hover:bg-brand hover:text-white rounded-2xl transition"
+                  onClick={() => {
+                     loadBalances();
+                     toast.success('Saldos contables actualizados');
+                  }}
+                  className={`${btnCtrl} text-brand border-brand/20 bg-brand/5`}
                >
-                  <ArrowPathIcon className="w-4 h-4" /> Actualizar Saldos
+                  <ArrowPathIcon className="w-5 h-5 stroke-2" />
+                  <span>Actualizar Saldos</span>
                </button>
             </div>
 
-            {/* Filtros */}
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-4 mt-5">
-               <div className="md:col-span-8 relative">
-                  <MagnifyingGlassIcon className="w-5 h-5 absolute left-3.5 top-3 text-text-soft" />
-                  <input
-                     type="text"
-                     placeholder="Buscar por RUT o razón social..."
-                     className={`${ctrl} pl-10`}
-                     value={search}
-                     onChange={(e) => setSearch(e.target.value)}
-                  />
+            {/* Filter Section */}
+            <div className="space-y-4">
+               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-text-main">
+                     <FunnelIcon className="w-5 h-5 text-brand" /> Filtros de Búsqueda
+                  </div>
+                  <button
+                     onClick={handleClearFilters}
+                     disabled={loading}
+                     className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-text-soft hover:text-danger hover:bg-danger/10 rounded-xl transition-colors disabled:opacity-50"
+                  >
+                     <ArrowPathIcon className="w-4 h-4" /> Limpiar Filtros
+                  </button>
                </div>
-               <div className="md:col-span-4">
-                  <select className={selectCtrl} value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
-                     <option value="ALL">Todos (Clientes y Proveedores)</option>
-                     <option value="RECEIVABLE">Solo Clientes (Cuentas por Cobrar)</option>
-                     <option value="PAYABLE">Solo Proveedores (Cuentas por Pagar)</option>
-                  </select>
+
+               <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start bg-surface-1 p-4 rounded-2xl border border-border-subtle/50">
+                  <div className="space-y-1.5 md:col-span-8 relative">
+                     <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider">Buscar por RUT o Nombre</label>
+                     <div className="relative">
+                        <MagnifyingGlassIcon className="w-5 h-5 absolute left-3.5 top-3 text-text-soft" />
+                        <input
+                           type="text"
+                           placeholder="Buscar por RUT o razón social..."
+                           className={`${ctrl} pl-10`}
+                           value={search}
+                           onChange={(e) => setSearch(e.target.value)}
+                        />
+                     </div>
+                  </div>
+                  <div className="space-y-1.5 md:col-span-4">
+                     <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider">Tipo de Cuenta</label>
+                     <select className={selectCtrl} value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
+                        <option value="ALL">Todos (Clientes y Proveedores)</option>
+                        <option value="RECEIVABLE">Solo Clientes (Cuentas por Cobrar)</option>
+                        <option value="PAYABLE">Solo Proveedores (Cuentas por Pagar)</option>
+                     </select>
+                  </div>
                </div>
             </div>
          </div>
 
-         {/* Tarjetas resumen */}
-         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="rounded-2xl border border-border-subtle bg-bg-content p-4 shadow-sm flex items-center gap-4">
-               <div className="p-3 bg-emerald-500/10 text-emerald-600 rounded-xl">
-                  <CurrencyDollarIcon className="w-6 h-6" />
-               </div>
-               <div>
-                  <div className="text-xs font-semibold text-text-soft uppercase tracking-wide">Saldos por Cobrar</div>
-                  <div className="text-xl font-bold text-emerald-600">{clp(summaryStats.totalReceivable)}</div>
-               </div>
-            </div>
+         {/* Summary Cards */}
+         <BalancesSummary balances={balances} />
 
-            <div className="rounded-2xl border border-border-subtle bg-bg-content p-4 shadow-sm flex items-center gap-4">
-               <div className="p-3 bg-amber-500/10 text-amber-600 rounded-xl">
-                  <ClockIcon className="w-6 h-6" />
-               </div>
-               <div>
-                  <div className="text-xs font-semibold text-text-soft uppercase tracking-wide">Clientes Pendientes</div>
-                  <div className="text-xl font-bold text-heading">{summaryStats.countReceivable} RUTs</div>
-               </div>
-            </div>
+         {/* Error Notice */}
+         {err && <div className="p-4 bg-danger/10 text-danger rounded-2xl border border-danger/20 text-sm font-medium">Error: {err}</div>}
 
-            <div className="rounded-2xl border border-border-subtle bg-bg-content p-4 shadow-sm flex items-center gap-4">
-               <div className="p-3 bg-rose-500/10 text-rose-600 rounded-xl">
-                  <BanknotesIcon className="w-6 h-6" />
-               </div>
-               <div>
-                  <div className="text-xs font-semibold text-text-soft uppercase tracking-wide">Saldos por Pagar</div>
-                  <div className="text-xl font-bold text-rose-600">{clp(summaryStats.totalPayable)}</div>
-               </div>
-            </div>
-
-            <div className="rounded-2xl border border-border-subtle bg-bg-content p-4 shadow-sm flex items-center gap-4">
-               <div className="p-3 bg-purple-500/10 text-purple-600 rounded-xl">
-                  <BuildingStorefrontIcon className="w-6 h-6" />
-               </div>
-               <div>
-                  <div className="text-xs font-semibold text-text-soft uppercase tracking-wide">Proveedores Pendientes</div>
-                  <div className="text-xl font-bold text-heading">{summaryStats.countPayable} RUTs</div>
-               </div>
-            </div>
-         </div>
-
-         {/* Alertas */}
-         {err && <div className="p-4 bg-rose-50 text-rose-700 rounded-2xl border border-rose-200 text-sm font-medium">{err}</div>}
-
-         {/* Tabla de Saldos por RUT */}
+         {/* Balances Table */}
          <div className="bg-bg-content rounded-3xl border border-border-subtle shadow-sm overflow-hidden">
             {loading ? (
                <div className="p-10 text-center text-brand font-medium animate-pulse flex items-center justify-center gap-2">
@@ -179,7 +218,7 @@ export default function AccountingBalances() {
             ) : (
                <div className="overflow-x-auto">
                   <table className="min-w-full text-sm text-left">
-                     <thead className="bg-surface-2 border-b border-border-subtle text-text-soft text-xs uppercase font-semibold">
+                     <thead className="bg-surface-2 border-b border-border-subtle text-text-soft font-semibold">
                         <tr>
                            <th className="p-4">RUT</th>
                            <th className="p-4">Razón Social / Nombre</th>
@@ -199,20 +238,20 @@ export default function AccountingBalances() {
                            const isPartial = row.balance > 0 && row.balance < totalDoc;
 
                            return (
-                              <tr key={row.rut} className="hover:bg-brand/5 transition">
+                              <tr key={row.rut} className="hover:bg-brand/5 transition-colors group">
                                  <td className="p-4 font-mono font-bold text-brand">{row.rut}</td>
                                  <td className="p-4 font-medium text-heading">{row.name}</td>
                                  <td className="p-4">
-                                    <span
-                                       className={`text-xs px-2.5 py-0.5 rounded-full font-semibold flex items-center w-fit gap-1 ${
+                                    <Pill
+                                       colorClass={
                                           isClient
-                                             ? 'bg-blue-100 text-blue-700'
-                                             : 'bg-purple-100 text-purple-700'
-                                       }`}
+                                             ? 'bg-blue-500/10 text-blue-600 ring-blue-500/20'
+                                             : 'bg-purple-500/10 text-purple-600 ring-purple-500/20'
+                                       }
                                     >
                                        {isClient ? <UserIcon className="w-3.5 h-3.5" /> : <BuildingStorefrontIcon className="w-3.5 h-3.5" />}
                                        {isClient ? 'CLIENTE' : 'PROVEEDOR'}
-                                    </span>
+                                    </Pill>
                                  </td>
                                  <td className="p-4 text-right font-mono font-semibold text-text-main">{clp(totalDoc)}</td>
                                  <td className="p-4 text-right font-mono text-text-soft">{clp(paidDoc)}</td>
@@ -224,17 +263,17 @@ export default function AccountingBalances() {
                                     {clp(row.balance)}
                                  </td>
                                  <td className="p-4 text-center">
-                                    <span
-                                       className={`text-xs px-2.5 py-0.5 rounded-full font-bold ${
+                                    <Pill
+                                       colorClass={
                                           isPaid
-                                             ? 'bg-emerald-100 text-emerald-700'
+                                             ? 'bg-emerald-500/10 text-emerald-600 ring-emerald-500/20'
                                              : isPartial
-                                             ? 'bg-amber-100 text-amber-700'
-                                             : 'bg-rose-100 text-rose-700'
-                                       }`}
+                                             ? 'bg-amber-500/10 text-amber-600 ring-amber-500/20'
+                                             : 'bg-rose-500/10 text-rose-600 ring-rose-500/20'
+                                       }
                                     >
                                        {row.status}
-                                    </span>
+                                    </Pill>
                                  </td>
                               </tr>
                            );
@@ -247,3 +286,4 @@ export default function AccountingBalances() {
       </div>
    );
 }
+

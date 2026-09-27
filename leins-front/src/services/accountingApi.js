@@ -4,19 +4,87 @@ const parseJsonSafe = async (response) => response.json().catch(() => ({}));
 
 // --- DATOS HARDCODEADOS PARA DEMO DE CLIENTE ---
 export const DEMO_ACCOUNTS = [
+   // 1.1 Activo Corriente
    { id: 1, code: "1.1.1", name: "Caja", type: "ACTIVO", nature: "DEUDORA", cost_center_requirement: "NONE", is_system: true },
-   { id: 2, code: "1.1.2", name: "Banco Santander Cta Cte", type: "ACTIVO", nature: "DEUDORA", cost_center_requirement: "NONE", is_system: true },
-   { id: 3, code: "1.1.6", name: "Clientes por Cobrar", type: "ACTIVO", nature: "DEUDORA", cost_center_requirement: "NONE", is_system: true },
-   { id: 4, code: "1.1.9", name: "IVA Crédito Fiscal", type: "ACTIVO", nature: "DEUDORA", cost_center_requirement: "NONE", is_system: true },
-   { id: 5, code: "2.1", name: "Proveedores Nacionales", type: "PASIVO", nature: "ACREEDORA", cost_center_requirement: "NONE", is_system: true },
-   { id: 6, code: "2.6", name: "IVA Débito Fiscal", type: "PASIVO", nature: "ACREEDORA", cost_center_requirement: "NONE", is_system: true },
-   { id: 7, code: "3.1", name: "Capital Social", type: "PATRIMONIO", nature: "ACREEDORA", cost_center_requirement: "NONE", is_system: true },
-   { id: 8, code: "4.1", name: "Ingresos por Ventas Afectas", type: "INGRESOS", nature: "ACREEDORA", cost_center_requirement: "NONE", is_system: true },
-   { id: 9, code: "5.2.1", name: "Gastos Administrativos", type: "GASTOS", nature: "DEUDORA", cost_center_requirement: "OPTIONAL", is_system: true },
-   { id: 10, code: "6.1", name: "Arriendos", type: "GASTOS", nature: "DEUDORA", cost_center_requirement: "OPTIONAL", is_system: true },
-   { id: 11, code: "6.2", name: "Servicios Básicos", type: "GASTOS", nature: "DEUDORA", cost_center_requirement: "NONE", is_system: true },
-   { id: 12, code: "6.4", name: "Honorarios Profesionales", type: "GASTOS", nature: "DEUDORA", cost_center_requirement: "NONE", is_system: true },
-   { id: 13, code: "6.11", name: "Software y Suscripciones", type: "GASTOS", nature: "DEUDORA", cost_center_requirement: "OPTIONAL", is_system: true },
+   { id: 2, code: "1.1.2", name: "Banco Cuenta Corriente 1", type: "ACTIVO", nature: "DEUDORA", cost_center_requirement: "NONE", is_system: true },
+   { id: 3, code: "1.1.3", name: "Banco Cuenta Corriente 2", type: "ACTIVO", nature: "DEUDORA", cost_center_requirement: "NONE", is_system: true },
+   { id: 4, code: "1.1.4", name: "Fondos por Rendir", type: "ACTIVO", nature: "DEUDORA", cost_center_requirement: "NONE", is_system: true },
+   { id: 5, code: "1.1.5", name: "Depósitos a Plazo (CP)", type: "ACTIVO", nature: "DEUDORA", cost_center_requirement: "NONE", is_system: true },
+   { id: 6, code: "1.1.6", name: "Clientes por Cobrar", type: "ACTIVO", nature: "DEUDORA", cost_center_requirement: "NONE", is_system: true },
+   { id: 7, code: "1.1.7", name: "Documentos por Cobrar", type: "ACTIVO", nature: "DEUDORA", cost_center_requirement: "NONE", is_system: true },
+   { id: 8, code: "1.1.8", name: "Anticipo a Proveedores", type: "ACTIVO", nature: "DEUDORA", cost_center_requirement: "NONE", is_system: true },
+   { id: 9, code: "1.1.9", name: "IVA Crédito Fiscal", type: "ACTIVO", nature: "DEUDORA", cost_center_requirement: "NONE", is_system: true },
+   { id: 10, code: "1.1.10", name: "IVA Crédito Activo Fijo", type: "ACTIVO", nature: "DEUDORA", cost_center_requirement: "NONE", is_system: true },
+   { id: 11, code: "1.1.11", name: "PPM por Recuperar", type: "ACTIVO", nature: "DEUDORA", cost_center_requirement: "NONE", is_system: true },
+   { id: 12, code: "1.1.12", name: "Inventario Mercaderías", type: "ACTIVO", nature: "DEUDORA", cost_center_requirement: "NONE", is_system: true },
+   { id: 13, code: "1.1.13", name: "Materias Primas", type: "ACTIVO", nature: "DEUDORA", cost_center_requirement: "NONE", is_system: true },
+   { id: 14, code: "1.1.14", name: "Productos en Proceso", type: "ACTIVO", nature: "DEUDORA", cost_center_requirement: "NONE", is_system: true },
+   { id: 15, code: "1.1.15", name: "Productos Terminados", type: "ACTIVO", nature: "DEUDORA", cost_center_requirement: "NONE", is_system: true },
+
+   // 1.2 Activo No Corriente
+   { id: 16, code: "1.2.1", name: "Terrenos", type: "ACTIVO", nature: "DEUDORA", cost_center_requirement: "NONE", is_system: true },
+   { id: 17, code: "1.2.2", name: "Edificios", type: "ACTIVO", nature: "DEUDORA", cost_center_requirement: "NONE", is_system: true },
+   { id: 18, code: "1.2.3", name: "Maquinarias", type: "ACTIVO", nature: "DEUDORA", cost_center_requirement: "NONE", is_system: true },
+   { id: 19, code: "1.2.4", name: "Equipos Computacionales", type: "ACTIVO", nature: "DEUDORA", cost_center_requirement: "NONE", is_system: true },
+   { id: 20, code: "1.2.5", name: "Muebles y Útiles", type: "ACTIVO", nature: "DEUDORA", cost_center_requirement: "NONE", is_system: true },
+   { id: 21, code: "1.2.6", name: "Vehículos", type: "ACTIVO", nature: "DEUDORA", cost_center_requirement: "NONE", is_system: true },
+   { id: 22, code: "1.2.7", name: "Activos Intangibles", type: "ACTIVO", nature: "DEUDORA", cost_center_requirement: "NONE", is_system: true },
+   { id: 23, code: "1.2.8", name: "Depreciación Acumulada", type: "ACTIVO", nature: "ACREEDORA", cost_center_requirement: "NONE", is_system: true },
+
+   // 2 PASIVO
+   { id: 24, code: "2.1", name: "Proveedores Nacionales", type: "PASIVO", nature: "ACREEDORA", cost_center_requirement: "NONE", is_system: true },
+   { id: 25, code: "2.2", name: "Proveedores Extranjeros", type: "PASIVO", nature: "ACREEDORA", cost_center_requirement: "NONE", is_system: true },
+   { id: 26, code: "2.3", name: "Honorarios por Pagar", type: "PASIVO", nature: "ACREEDORA", cost_center_requirement: "NONE", is_system: true },
+   { id: 27, code: "2.4", name: "Crédito Bancario CP", type: "PASIVO", nature: "ACREEDORA", cost_center_requirement: "NONE", is_system: true },
+   { id: 28, code: "2.5", name: "Línea de Crédito", type: "PASIVO", nature: "ACREEDORA", cost_center_requirement: "NONE", is_system: true },
+   { id: 29, code: "2.6", name: "IVA Débito Fiscal", type: "PASIVO", nature: "ACREEDORA", cost_center_requirement: "NONE", is_system: true },
+   { id: 30, code: "2.7", name: "IVA por Pagar", type: "PASIVO", nature: "ACREEDORA", cost_center_requirement: "NONE", is_system: true },
+   { id: 31, code: "2.8", name: "PPM por Pagar", type: "PASIVO", nature: "ACREEDORA", cost_center_requirement: "NONE", is_system: true },
+   { id: 32, code: "2.9", name: "Retenciones Honorarios", type: "PASIVO", nature: "ACREEDORA", cost_center_requirement: "NONE", is_system: true },
+   { id: 33, code: "2.10", name: "Sueldos por Pagar", type: "PASIVO", nature: "ACREEDORA", cost_center_requirement: "NONE", is_system: true },
+   { id: 34, code: "2.11", name: "Cotizaciones por Pagar", type: "PASIVO", nature: "ACREEDORA", cost_center_requirement: "NONE", is_system: true },
+   { id: 35, code: "2.12", name: "Crédito Bancario LP", type: "PASIVO", nature: "ACREEDORA", cost_center_requirement: "NONE", is_system: true },
+   { id: 36, code: "2.13", name: "Leasing LP", type: "PASIVO", nature: "ACREEDORA", cost_center_requirement: "NONE", is_system: true },
+
+   // 3 PATRIMONIO
+   { id: 37, code: "3.1", name: "Capital Social", type: "PATRIMONIO", nature: "ACREEDORA", cost_center_requirement: "NONE", is_system: true },
+   { id: 38, code: "3.2", name: "Utilidades Retenidas", type: "PATRIMONIO", nature: "ACREEDORA", cost_center_requirement: "NONE", is_system: true },
+   { id: 39, code: "3.3", name: "Resultado del Ejercicio", type: "PATRIMONIO", nature: "ACREEDORA", cost_center_requirement: "NONE", is_system: true },
+
+   // 4 INGRESOS
+   { id: 40, code: "4.1", name: "Ingresos por Ventas Afectas", type: "INGRESOS", nature: "ACREEDORA", cost_center_requirement: "NONE", is_system: true },
+   { id: 41, code: "4.2", name: "Ingresos por Servicios", type: "INGRESOS", nature: "ACREEDORA", cost_center_requirement: "NONE", is_system: true },
+   { id: 42, code: "4.3", name: "Otros Ingresos Operacionales", type: "INGRESOS", nature: "ACREEDORA", cost_center_requirement: "NONE", is_system: true },
+   { id: 43, code: "4.4", name: "Ingresos Financieros", type: "INGRESOS", nature: "ACREEDORA", cost_center_requirement: "NONE", is_system: true },
+
+   // 5 COSTOS
+   { id: 44, code: "5.1", name: "Costo de Ventas", type: "COSTOS", nature: "DEUDORA", cost_center_requirement: "NONE", is_system: true },
+   { id: 45, code: "5.2", name: "Consumo Materia Prima", type: "COSTOS", nature: "DEUDORA", cost_center_requirement: "NONE", is_system: true },
+   { id: 46, code: "5.3", name: "Mano de Obra Directa", type: "COSTOS", nature: "DEUDORA", cost_center_requirement: "NONE", is_system: true },
+   { id: 47, code: "5.4", name: "Costos Indirectos de Fabricación", type: "COSTOS", nature: "DEUDORA", cost_center_requirement: "NONE", is_system: true },
+   { id: 48, code: "5.5", name: "Variación de Inventario", type: "COSTOS", nature: "DEUDORA", cost_center_requirement: "NONE", is_system: true },
+
+   // 6 GASTOS
+   { id: 49, code: "5.2.1", name: "Gastos Administrativos", type: "GASTOS", nature: "DEUDORA", cost_center_requirement: "OPTIONAL", is_system: true },
+   { id: 50, code: "6.1", name: "Arriendos", type: "GASTOS", nature: "DEUDORA", cost_center_requirement: "OPTIONAL", is_system: true },
+   { id: 51, code: "6.2", name: "Servicios Básicos", type: "GASTOS", nature: "DEUDORA", cost_center_requirement: "NONE", is_system: true },
+   { id: 52, code: "6.3", name: "Gastos Bancarios", type: "GASTOS", nature: "DEUDORA", cost_center_requirement: "NONE", is_system: true },
+   { id: 53, code: "6.4", name: "Honorarios Profesionales", type: "GASTOS", nature: "DEUDORA", cost_center_requirement: "NONE", is_system: true },
+   { id: 54, code: "6.5", name: "Remuneraciones", type: "GASTOS", nature: "DEUDORA", cost_center_requirement: "OPTIONAL", is_system: true },
+   { id: 55, code: "6.6", name: "Gratificaciones", type: "GASTOS", nature: "DEUDORA", cost_center_requirement: "NONE", is_system: true },
+   { id: 56, code: "6.7", name: "Bonificaciones", type: "GASTOS", nature: "DEUDORA", cost_center_requirement: "NONE", is_system: true },
+   { id: 57, code: "6.8", name: "Gastos Patronales", type: "GASTOS", nature: "DEUDORA", cost_center_requirement: "NONE", is_system: true },
+   { id: 58, code: "6.9", name: "Gastos Notariales", type: "GASTOS", nature: "DEUDORA", cost_center_requirement: "NONE", is_system: true },
+   { id: 59, code: "6.10", name: "Gastos de Oficina", type: "GASTOS", nature: "DEUDORA", cost_center_requirement: "OPTIONAL", is_system: true },
+   { id: 60, code: "6.11", name: "Software y Suscripciones", type: "GASTOS", nature: "DEUDORA", cost_center_requirement: "OPTIONAL", is_system: true },
+   { id: 61, code: "6.12", name: "Seguros", type: "GASTOS", nature: "DEUDORA", cost_center_requirement: "NONE", is_system: true },
+   { id: 62, code: "6.13", name: "Depreciación", type: "GASTOS", nature: "DEUDORA", cost_center_requirement: "NONE", is_system: true },
+   { id: 63, code: "6.14", name: "Publicidad", type: "GASTOS", nature: "DEUDORA", cost_center_requirement: "NONE", is_system: true },
+   { id: 64, code: "6.15", name: "Marketing Digital", type: "GASTOS", nature: "DEUDORA", cost_center_requirement: "OPTIONAL", is_system: true },
+   { id: 65, code: "6.16", name: "Comisiones por Venta", type: "GASTOS", nature: "DEUDORA", cost_center_requirement: "NONE", is_system: true },
+   { id: 66, code: "6.17", name: "Fletes y Distribución", type: "GASTOS", nature: "DEUDORA", cost_center_requirement: "NONE", is_system: true },
+   { id: 67, code: "6.18", name: "Intereses Bancarios", type: "GASTOS", nature: "DEUDORA", cost_center_requirement: "NONE", is_system: true },
+   { id: 68, code: "6.19", name: "Multas e Intereses Tributarios", type: "GASTOS", nature: "DEUDORA", cost_center_requirement: "NONE", is_system: true },
 ];
 
 export const DEMO_ENTRIES = [

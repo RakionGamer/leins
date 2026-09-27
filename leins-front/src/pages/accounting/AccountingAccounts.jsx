@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useEntityRequired } from '../../hooks/useEntityRequired';
 import EntityRequiredNotice from '../../components/EntityRequiredNotice';
+import Modal from '../../components/Modal';
+import { toast } from '../../components/Toaster';
 import {
    getAccounts,
    createAccount,
@@ -11,27 +13,102 @@ import {
 import {
    BookOpenIcon,
    PlusIcon,
-   MagnifyingGlassIcon,
-   ArrowPathIcon,
    SparklesIcon,
    PencilSquareIcon,
    TrashIcon,
-   XMarkIcon,
-   CheckCircleIcon,
+   ArrowPathIcon,
+   FunnelIcon,
+   MagnifyingGlassIcon,
+   DocumentDuplicateIcon,
+   BanknotesIcon,
+   ChartBarIcon,
+   TagIcon,
 } from '@heroicons/react/24/outline';
 
-const ctrl =
-   'w-full h-11 px-3 text-sm rounded-2xl border border-border-subtle bg-bg-content text-text-main placeholder-text-soft/70 focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition shadow-sm';
+const ctrl = 'w-full h-11 px-3 text-sm rounded-2xl border border-border-subtle bg-bg-content text-text-main placeholder-text-soft/70 focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition shadow-sm';
 const selectCtrl = ctrl + ' appearance-none cursor-pointer';
+const btnCtrl = 'h-11 flex items-center justify-center gap-2 px-4 rounded-2xl border border-border-subtle bg-bg-content text-text-main text-sm font-medium transition shadow-sm hover:bg-surface-2 hover:text-brand focus:outline-none focus:ring-2 focus:ring-brand';
+
+function Pill({ children, colorClass = 'bg-brand/10 text-brand ring-brand/20' }) {
+   return (
+      <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ring-1 ${colorClass}`}>
+         {children}
+      </span>
+   );
+}
 
 const TYPE_BADGES = {
-   ACTIVO: 'bg-emerald-100 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-300',
-   PASIVO: 'bg-amber-100 text-amber-700 ring-amber-200 dark:bg-amber-500/20 dark:text-amber-300',
-   PATRIMONIO: 'bg-purple-100 text-purple-700 ring-purple-200 dark:bg-purple-500/20 dark:text-purple-300',
-   INGRESOS: 'bg-blue-100 text-blue-700 ring-blue-200 dark:bg-blue-500/20 dark:text-blue-300',
-   COSTOS: 'bg-orange-100 text-orange-700 ring-orange-200 dark:bg-orange-500/20 dark:text-orange-300',
-   GASTOS: 'bg-rose-100 text-rose-700 ring-rose-200 dark:bg-rose-500/20 dark:text-rose-300',
+   ACTIVO: 'bg-emerald-500/10 text-emerald-600 ring-emerald-500/20',
+   PASIVO: 'bg-amber-500/10 text-amber-600 ring-amber-500/20',
+   PATRIMONIO: 'bg-purple-500/10 text-purple-600 ring-purple-500/20',
+   INGRESOS: 'bg-blue-500/10 text-blue-600 ring-blue-500/20',
+   COSTOS: 'bg-orange-500/10 text-orange-600 ring-orange-500/20',
+   GASTOS: 'bg-rose-500/10 text-rose-600 ring-rose-500/20',
 };
+
+function AccountsSummary({ accounts }) {
+   const counts = useMemo(() => {
+      const res = { total: accounts.length, activo: 0, pasivo: 0, patrimonio: 0, ingresos: 0, gastos: 0 };
+      for (const a of accounts) {
+         if (a.type === 'ACTIVO') res.activo++;
+         else if (a.type === 'PASIVO') res.pasivo++;
+         else if (a.type === 'PATRIMONIO') res.patrimonio++;
+         else if (a.type === 'INGRESOS') res.ingresos++;
+         else res.gastos++;
+      }
+      return res;
+   }, [accounts]);
+
+   return (
+      <div className="mb-5 grid grid-cols-2 gap-4 xl:grid-cols-5">
+         <div className="rounded-2xl border border-border-subtle bg-surface-1 p-4 shadow-sm flex items-center gap-4">
+            <div className="p-3 bg-brand/10 text-brand rounded-xl">
+               <DocumentDuplicateIcon className="w-6 h-6" />
+            </div>
+            <div>
+               <div className="text-xs font-semibold text-text-soft uppercase tracking-wide">Total Cuentas</div>
+               <div className="text-xl font-bold text-heading">{counts.total}</div>
+            </div>
+         </div>
+         <div className="rounded-2xl border border-border-subtle bg-surface-1 p-4 shadow-sm flex items-center gap-4">
+            <div className="p-3 bg-emerald-500/10 text-emerald-600 rounded-xl">
+               <BanknotesIcon className="w-6 h-6" />
+            </div>
+            <div>
+               <div className="text-[10px] sm:text-xs font-semibold text-text-soft uppercase tracking-wide">Activos</div>
+               <div className="text-lg sm:text-xl font-bold text-heading">{counts.activo}</div>
+            </div>
+         </div>
+         <div className="rounded-2xl border border-border-subtle bg-surface-1 p-4 shadow-sm flex items-center gap-4">
+            <div className="p-3 bg-amber-500/10 text-amber-600 rounded-xl">
+               <ChartBarIcon className="w-6 h-6" />
+            </div>
+            <div>
+               <div className="text-[10px] sm:text-xs font-semibold text-text-soft uppercase tracking-wide">Pasivo y Patrimonio</div>
+               <div className="text-lg sm:text-xl font-bold text-heading">{counts.pasivo + counts.patrimonio}</div>
+            </div>
+         </div>
+         <div className="rounded-2xl border border-border-subtle bg-surface-1 p-4 shadow-sm flex items-center gap-4">
+            <div className="p-3 bg-blue-500/10 text-blue-600 rounded-xl">
+               <TagIcon className="w-6 h-6" />
+            </div>
+            <div>
+               <div className="text-[10px] sm:text-xs font-semibold text-text-soft uppercase tracking-wide">Ingresos</div>
+               <div className="text-lg sm:text-xl font-bold text-heading">{counts.ingresos}</div>
+            </div>
+         </div>
+         <div className="col-span-2 xl:col-span-1 rounded-2xl border border-brand/30 bg-brand/5 p-4 shadow-sm flex items-center gap-4 ring-1 ring-brand/10">
+            <div className="p-3 bg-brand text-white rounded-xl">
+               <BookOpenIcon className="w-6 h-6" />
+            </div>
+            <div>
+               <div className="text-xs font-semibold text-brand uppercase tracking-wide">Gastos y Costos</div>
+               <div className="text-xl font-bold text-brand">{counts.gastos}</div>
+            </div>
+         </div>
+      </div>
+   );
+}
 
 export default function AccountingAccounts() {
    const { entityId, ready } = useEntityRequired();
@@ -39,12 +116,10 @@ export default function AccountingAccounts() {
    const [accounts, setAccounts] = useState([]);
    const [loading, setLoading] = useState(true);
    const [err, setErr] = useState(null);
-   const [msg, setMsg] = useState(null);
 
    const [search, setSearch] = useState('');
    const [filterType, setFilterType] = useState('');
 
-   // Modal de creación / edición
    const [modalOpen, setModalOpen] = useState(false);
    const [editingAccount, setEditingAccount] = useState(null);
 
@@ -82,11 +157,10 @@ export default function AccountingAccounts() {
       setErr(null);
       try {
          const res = await seedDefaultPlan({ entityId });
-         setMsg(res.created ? `Se crearon ${res.created} cuentas base correctamente.` : 'El plan de cuentas base ya está inicializado.');
+         toast.success(res.created ? `Se crearon ${res.created} cuentas base correctamente.` : 'El plan de cuentas base ya está listo.');
          await loadAccounts();
       } catch (e) {
          setErr(e.message || 'No se pudo poblar el plan de cuentas');
-      } finally {
          setLoading(false);
       }
    };
@@ -127,13 +201,13 @@ export default function AccountingAccounts() {
                nature: formData.nature,
                cost_center_requirement: formData.cost_center_requirement,
             });
-            setMsg('Cuenta actualizada correctamente');
+            toast.success('Cuenta actualizada correctamente');
          } else {
             await createAccount({
                entityId,
                ...formData,
             });
-            setMsg('Cuenta creada correctamente');
+            toast.success('Cuenta creada correctamente');
          }
          setModalOpen(false);
          loadAccounts();
@@ -150,12 +224,17 @@ export default function AccountingAccounts() {
       setErr(null);
       try {
          await deleteAccount(acc.id, entityId);
-         setMsg('Cuenta eliminada');
+         toast.success('Cuenta eliminada correctamente');
          loadAccounts();
       } catch (e) {
          setErr(e.message || 'Error al eliminar cuenta');
          setLoading(false);
       }
+   };
+
+   const handleClearFilters = () => {
+      setSearch('');
+      setFilterType('');
    };
 
    const groupedAccounts = useMemo(() => {
@@ -178,77 +257,82 @@ export default function AccountingAccounts() {
 
    return (
       <div className="space-y-6">
-         {/* Encabezado */}
+         {/* Top Header Card */}
          <div className="bg-bg-content rounded-3xl p-5 border border-border-subtle shadow-sm">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-5 border-b border-border-subtle">
-               <div className="flex items-center gap-3">
-                  <div className="p-3 bg-brand/10 text-brand rounded-2xl">
-                     <BookOpenIcon className="w-7 h-7" />
-                  </div>
-                  <div>
-                     <h2 className="text-2xl font-bold text-heading tracking-tight">Plan de Cuentas Contables</h2>
-                     <p className="text-sm text-text-soft mt-0.5">Estructura general de cuentas para la entidad.</p>
-                  </div>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 pb-5 border-b border-border-subtle">
+               <div>
+                  <h2 className="text-2xl font-bold text-heading tracking-tight">Plan de Cuentas Contables</h2>
+                  <p className="text-sm text-text-soft mt-1">Estructura general de cuentas y clasificación para la contabilidad de la empresa.</p>
                </div>
-
                <div className="flex flex-wrap items-center gap-3">
                   <button
                      onClick={handleSeed}
                      disabled={loading}
-                     className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-brand bg-brand/10 hover:bg-brand hover:text-white rounded-2xl transition disabled:opacity-50"
+                     className={`${btnCtrl} text-brand border-brand/20 bg-brand/5`}
+                     title="Cargar plan de cuentas base estándar"
                   >
-                     <SparklesIcon className="w-4 h-4" /> Cargar Plan Base
+                     <SparklesIcon className="w-5 h-5 stroke-2" />
+                     <span className="hidden sm:inline">Cargar Plan Base</span>
                   </button>
-                  <button
-                     onClick={openCreateModal}
-                     className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-brand hover:bg-brand/90 rounded-2xl shadow transition"
-                  >
-                     <PlusIcon className="w-4 h-4" /> Crear Cuenta
+                  <button onClick={openCreateModal} className={`${btnCtrl} bg-brand text-white hover:bg-brand-hover border-transparent`}>
+                     <PlusIcon className="w-5 h-5 stroke-2" />
+                     <span>Crear Cuenta</span>
                   </button>
                </div>
             </div>
 
-            {/* Filtros */}
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-4 mt-5">
-               <div className="md:col-span-8 relative">
-                  <MagnifyingGlassIcon className="w-5 h-5 absolute left-3.5 top-3 text-text-soft" />
-                  <input
-                     type="text"
-                     placeholder="Buscar por código o nombre..."
-                     className={`${ctrl} pl-10`}
-                     value={search}
-                     onChange={(e) => setSearch(e.target.value)}
-                  />
+            {/* Filter Section */}
+            <div className="space-y-4">
+               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-text-main">
+                     <FunnelIcon className="w-5 h-5 text-brand" /> Filtros de Búsqueda
+                  </div>
+                  <button
+                     onClick={handleClearFilters}
+                     disabled={loading}
+                     className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-text-soft hover:text-danger hover:bg-danger/10 rounded-xl transition-colors disabled:opacity-50"
+                  >
+                     <ArrowPathIcon className="w-4 h-4" /> Limpiar Filtros
+                  </button>
                </div>
-               <div className="md:col-span-4">
-                  <select className={selectCtrl} value={filterType} onChange={(e) => setFilterType(e.target.value)}>
-                     <option value="">Todos los tipos</option>
-                     <option value="ACTIVO">1 ACTIVO</option>
-                     <option value="PASIVO">2 PASIVO</option>
-                     <option value="PATRIMONIO">3 PATRIMONIO</option>
-                     <option value="INGRESOS">4 INGRESOS</option>
-                     <option value="COSTOS">5 COSTOS</option>
-                     <option value="GASTOS">6 GASTOS</option>
-                  </select>
+
+               <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start bg-surface-1 p-4 rounded-2xl border border-border-subtle/50">
+                  <div className="space-y-1.5 md:col-span-8 relative">
+                     <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider">Buscar Cuenta</label>
+                     <div className="relative">
+                        <MagnifyingGlassIcon className="w-5 h-5 absolute left-3.5 top-3 text-text-soft" />
+                        <input
+                           type="text"
+                           placeholder="Buscar por código o nombre de cuenta..."
+                           className={`${ctrl} pl-10`}
+                           value={search}
+                           onChange={(e) => setSearch(e.target.value)}
+                        />
+                     </div>
+                  </div>
+                  <div className="space-y-1.5 md:col-span-4">
+                     <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider">Tipo de Cuenta</label>
+                     <select className={selectCtrl} value={filterType} onChange={(e) => setFilterType(e.target.value)}>
+                        <option value="">Todos los tipos</option>
+                        <option value="ACTIVO">1 ACTIVO</option>
+                        <option value="PASIVO">2 PASIVO</option>
+                        <option value="PATRIMONIO">3 PATRIMONIO</option>
+                        <option value="INGRESOS">4 INGRESOS</option>
+                        <option value="COSTOS">5 COSTOS</option>
+                        <option value="GASTOS">6 GASTOS</option>
+                     </select>
+                  </div>
                </div>
             </div>
          </div>
 
-         {/* Alertas */}
-         {msg && (
-            <div className="p-4 bg-emerald-50 text-emerald-700 rounded-2xl border border-emerald-200 flex items-center gap-3">
-               <CheckCircleIcon className="w-5 h-5 shrink-0" />
-               <span className="text-sm font-medium">{msg}</span>
-            </div>
-         )}
-         {err && (
-            <div className="p-4 bg-rose-50 text-rose-700 rounded-2xl border border-rose-200 flex items-center gap-3">
-               <XMarkIcon className="w-5 h-5 shrink-0" />
-               <span className="text-sm font-medium">{err}</span>
-            </div>
-         )}
+         {/* Summary Cards */}
+         <AccountsSummary accounts={accounts} />
 
-         {/* Contenido / Listado agrupado */}
+         {/* Error Notice */}
+         {err && <div className="p-4 bg-danger/10 text-danger rounded-2xl border border-danger/20 text-sm font-medium">Error: {err}</div>}
+
+         {/* Content / Grouped Accounts */}
          <div className="bg-bg-content rounded-3xl border border-border-subtle shadow-sm overflow-hidden p-6 space-y-6">
             {loading ? (
                <div className="p-10 text-center text-brand font-medium animate-pulse flex items-center justify-center gap-2">
@@ -259,7 +343,7 @@ export default function AccountingAccounts() {
                   <BookOpenIcon className="w-12 h-12 mx-auto text-text-soft/50 mb-3" />
                   <p className="text-base font-semibold">No hay cuentas contables registradas</p>
                   <p className="text-sm mt-1 mb-4">Puedes cargar la plantilla estándar o crear una cuenta manualmente.</p>
-                  <button onClick={handleSeed} className="px-5 py-2.5 bg-brand text-white text-sm font-semibold rounded-2xl shadow">
+                  <button onClick={handleSeed} className={`${btnCtrl} bg-brand text-white mx-auto`}>
                      Cargar Plan Base Ahora
                   </button>
                </div>
@@ -270,7 +354,7 @@ export default function AccountingAccounts() {
                      <div key={type} className="space-y-3">
                         <div className="flex items-center justify-between pb-2 border-b border-border-subtle">
                            <h3 className="text-lg font-bold text-heading flex items-center gap-2">
-                              <span className={`px-2.5 py-0.5 text-xs font-bold rounded-full ring-1 ${TYPE_BADGES[type]}`}>{type}</span>
+                              <Pill colorClass={TYPE_BADGES[type]}>{type}</Pill>
                               <span className="text-sm text-text-soft font-normal">({accList.length} cuentas)</span>
                            </h3>
                         </div>
@@ -280,60 +364,64 @@ export default function AccountingAccounts() {
                         ) : (
                            <div className="overflow-x-auto">
                               <table className="min-w-full text-sm text-left">
-                                 <thead className="bg-surface-2 text-text-soft text-xs uppercase font-semibold">
+                                 <thead className="bg-surface-2 border-b border-border-subtle text-text-soft font-semibold">
                                     <tr>
-                                       <th className="py-2.5 px-4 rounded-l-xl">Código</th>
-                                       <th className="py-2.5 px-4">Nombre Cuenta</th>
-                                       <th className="py-2.5 px-4">Naturaleza</th>
-                                       <th className="py-2.5 px-4">Centro de Costo</th>
-                                       <th className="py-2.5 px-4 text-right rounded-r-xl">Acciones</th>
+                                       <th className="p-4">Código</th>
+                                       <th className="p-4">Nombre Cuenta</th>
+                                       <th className="p-4">Naturaleza</th>
+                                       <th className="p-4">Centro de Costo</th>
+                                       <th className="p-4 text-center">Acciones</th>
                                     </tr>
                                  </thead>
                                  <tbody className="divide-y divide-border-subtle/50">
                                     {accList.map((acc) => (
-                                       <tr key={acc.id} className="hover:bg-brand/5 transition">
-                                          <td className="py-3 px-4 font-mono font-bold text-brand">{acc.code}</td>
-                                          <td className="py-3 px-4 font-medium text-heading">
+                                       <tr key={acc.id} className="hover:bg-brand/5 transition-colors group">
+                                          <td className="p-4 font-mono font-bold text-brand">{acc.code}</td>
+                                          <td className="p-4 font-medium text-heading">
                                              {acc.name}
                                              {acc.is_system && (
-                                                <span className="ml-2 text-[10px] bg-surface-2 text-text-soft px-1.5 py-0.5 rounded font-bold">
+                                                <span className="ml-2 inline-flex px-2 py-0.5 bg-surface-2 rounded font-mono text-[10px] font-bold text-text-soft border border-border-subtle/50">
                                                    SISTEMA
                                                 </span>
                                              )}
                                           </td>
-                                          <td className="py-3 px-4">
-                                             <span
-                                                className={`text-xs px-2 py-0.5 rounded-md font-medium ${
-                                                   acc.nature === 'DEUDORA' ? 'bg-blue-50 text-blue-700' : 'bg-purple-50 text-purple-700'
-                                                }`}
+                                          <td className="p-4">
+                                             <Pill
+                                                colorClass={
+                                                   acc.nature === 'DEUDORA'
+                                                      ? 'bg-blue-500/10 text-blue-600 ring-blue-500/20'
+                                                      : 'bg-purple-500/10 text-purple-600 ring-purple-500/20'
+                                                }
                                              >
                                                 {acc.nature}
-                                             </span>
+                                             </Pill>
                                           </td>
-                                          <td className="py-3 px-4 text-text-soft text-xs">
+                                          <td className="p-4 text-text-soft text-xs">
                                              {acc.cost_center_requirement === 'REQUIRED'
                                                 ? 'Obligatorio'
                                                 : acc.cost_center_requirement === 'OPTIONAL'
                                                 ? 'Opcional'
                                                 : 'No requiere'}
                                           </td>
-                                          <td className="py-3 px-4 text-right space-x-2">
-                                             <button
-                                                onClick={() => openEditModal(acc)}
-                                                className="p-1 text-text-soft hover:text-brand transition"
-                                                title="Editar cuenta"
-                                             >
-                                                <PencilSquareIcon className="w-4 h-4" />
-                                             </button>
-                                             {!acc.is_system && (
+                                          <td className="p-4 text-center">
+                                             <div className="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                                                 <button
-                                                   onClick={() => handleDelete(acc)}
-                                                   className="p-1 text-text-soft hover:text-danger transition"
-                                                   title="Eliminar cuenta"
+                                                   onClick={() => openEditModal(acc)}
+                                                   className="p-1.5 rounded-lg text-text-soft hover:text-brand hover:bg-brand/10 transition outline-none"
+                                                   title="Editar cuenta"
                                                 >
-                                                   <TrashIcon className="w-4 h-4" />
+                                                   <PencilSquareIcon className="w-5 h-5" />
                                                 </button>
-                                             )}
+                                                {!acc.is_system && (
+                                                   <button
+                                                      onClick={() => handleDelete(acc)}
+                                                      className="p-1.5 rounded-lg text-text-soft hover:text-danger hover:bg-danger/10 transition outline-none"
+                                                      title="Eliminar cuenta"
+                                                   >
+                                                      <TrashIcon className="w-5 h-5" />
+                                                   </button>
+                                                )}
+                                             </div>
                                           </td>
                                        </tr>
                                     ))}
@@ -347,112 +435,100 @@ export default function AccountingAccounts() {
             )}
          </div>
 
-         {/* Modal Crear / Editar */}
-         {modalOpen && (
-            <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-               <div className="bg-bg-content rounded-3xl p-6 border border-border-subtle shadow-xl w-full max-w-lg space-y-5 animate-in fade-in zoom-in-95">
-                  <div className="flex items-center justify-between pb-3 border-b border-border-subtle">
-                     <h3 className="text-xl font-bold text-heading">
-                        {editingAccount ? 'Editar Cuenta Contable' : 'Crear Nueva Cuenta Contable'}
-                     </h3>
-                     <button onClick={() => setModalOpen(false)} className="text-text-soft hover:text-heading">
-                        <XMarkIcon className="w-6 h-6" />
-                     </button>
+         {/* Create / Edit Modal */}
+         <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editingAccount ? 'Editar Cuenta Contable' : 'Crear Nueva Cuenta Contable'} maxWidth="max-w-lg">
+            <form onSubmit={handleSubmit} className="space-y-4">
+               <div>
+                  <label className="block text-xs font-semibold uppercase text-text-soft mb-1">Código de Cuenta</label>
+                  <input
+                     type="text"
+                     disabled={!!editingAccount}
+                     required
+                     placeholder="Ej: 5.2.1 o 6.1.5"
+                     className={ctrl}
+                     value={formData.code}
+                     onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+                  />
+               </div>
+
+               <div>
+                  <label className="block text-xs font-semibold uppercase text-text-soft mb-1">Nombre de la Cuenta</label>
+                  <input
+                     type="text"
+                     required
+                     placeholder="Ej: Gastos de Operación"
+                     className={ctrl}
+                     value={formData.name}
+                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  />
+               </div>
+
+               <div className="grid grid-cols-2 gap-4">
+                  <div>
+                     <label className="block text-xs font-semibold uppercase text-text-soft mb-1">Tipo</label>
+                     <select
+                        className={selectCtrl}
+                        value={formData.type}
+                        onChange={(e) => {
+                           const t = e.target.value;
+                           const nat = ['ACTIVO', 'COSTOS', 'GASTOS'].includes(t) ? 'DEUDORA' : 'ACREEDORA';
+                           setFormData({ ...formData, type: t, nature: nat });
+                        }}
+                     >
+                        <option value="ACTIVO">ACTIVO</option>
+                        <option value="PASIVO">PASIVO</option>
+                        <option value="PATRIMONIO">PATRIMONIO</option>
+                        <option value="INGRESOS">INGRESOS</option>
+                        <option value="COSTOS">COSTOS</option>
+                        <option value="GASTOS">GASTOS</option>
+                     </select>
                   </div>
 
-                  <form onSubmit={handleSubmit} className="space-y-4">
-                     <div>
-                        <label className="block text-xs font-semibold uppercase text-text-soft mb-1">Código de Cuenta</label>
-                        <input
-                           type="text"
-                           disabled={!!editingAccount}
-                           required
-                           placeholder="Ej: 5.2.1 o 6.1.5"
-                           className={ctrl}
-                           value={formData.code}
-                           onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                        />
-                     </div>
-
-                     <div>
-                        <label className="block text-xs font-semibold uppercase text-text-soft mb-1">Nombre de la Cuenta</label>
-                        <input
-                           type="text"
-                           required
-                           placeholder="Ej: Gastos de Operación"
-                           className={ctrl}
-                           value={formData.name}
-                           onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                        />
-                     </div>
-
-                     <div className="grid grid-cols-2 gap-4">
-                        <div>
-                           <label className="block text-xs font-semibold uppercase text-text-soft mb-1">Tipo</label>
-                           <select
-                              className={selectCtrl}
-                              value={formData.type}
-                              onChange={(e) => {
-                                 const t = e.target.value;
-                                 const nat = ['ACTIVO', 'COSTOS', 'GASTOS'].includes(t) ? 'DEUDORA' : 'ACREEDORA';
-                                 setFormData({ ...formData, type: t, nature: nat });
-                              }}
-                           >
-                              <option value="ACTIVO">ACTIVO</option>
-                              <option value="PASIVO">PASIVO</option>
-                              <option value="PATRIMONIO">PATRIMONIO</option>
-                              <option value="INGRESOS">INGRESOS</option>
-                              <option value="COSTOS">COSTOS</option>
-                              <option value="GASTOS">GASTOS</option>
-                           </select>
-                        </div>
-
-                        <div>
-                           <label className="block text-xs font-semibold uppercase text-text-soft mb-1">Naturaleza</label>
-                           <select
-                              className={selectCtrl}
-                              value={formData.nature}
-                              onChange={(e) => setFormData({ ...formData, nature: e.target.value })}
-                           >
-                              <option value="DEUDORA">DEUDORA</option>
-                              <option value="ACREEDORA">ACREEDORA</option>
-                           </select>
-                        </div>
-                     </div>
-
-                     <div>
-                        <label className="block text-xs font-semibold uppercase text-text-soft mb-1">Centro de Costo</label>
-                        <select
-                           className={selectCtrl}
-                           value={formData.cost_center_requirement}
-                           onChange={(e) => setFormData({ ...formData, cost_center_requirement: e.target.value })}
-                        >
-                           <option value="NONE">No requiere</option>
-                           <option value="OPTIONAL">Opcional</option>
-                           <option value="REQUIRED">Obligatorio</option>
-                        </select>
-                     </div>
-
-                     <div className="flex justify-end gap-3 pt-4 border-t border-border-subtle">
-                        <button
-                           type="button"
-                           onClick={() => setModalOpen(false)}
-                           className="px-4 py-2.5 text-sm font-semibold text-text-soft hover:bg-surface-2 rounded-2xl transition"
-                        >
-                           Cancelar
-                        </button>
-                        <button
-                           type="submit"
-                           disabled={submitting}
-                           className="px-5 py-2.5 text-sm font-semibold text-white bg-brand hover:bg-brand/90 rounded-2xl shadow transition disabled:opacity-50"
-                        >
-                           {submitting ? 'Guardando...' : 'Guardar Cuenta'}
-                        </button>
-                     </div>
-                  </form>
+                  <div>
+                     <label className="block text-xs font-semibold uppercase text-text-soft mb-1">Naturaleza</label>
+                     <select
+                        className={selectCtrl}
+                        value={formData.nature}
+                        onChange={(e) => setFormData({ ...formData, nature: e.target.value })}
+                     >
+                        <option value="DEUDORA">DEUDORA</option>
+                        <option value="ACREEDORA">ACREEDORA</option>
+                     </select>
+                  </div>
                </div>
-            </div>
-         )}
+
+               <div>
+                  <label className="block text-xs font-semibold uppercase text-text-soft mb-1">Centro de Costo</label>
+                  <select
+                     className={selectCtrl}
+                     value={formData.cost_center_requirement}
+                     onChange={(e) => setFormData({ ...formData, cost_center_requirement: e.target.value })}
+                  >
+                     <option value="NONE">No requiere</option>
+                     <option value="OPTIONAL">Opcional</option>
+                     <option value="REQUIRED">Obligatorio</option>
+                  </select>
+               </div>
+
+               <div className="flex justify-end gap-3 pt-4 border-t border-border-subtle">
+                  <button
+                     type="button"
+                     onClick={() => setModalOpen(false)}
+                     className="px-4 py-2 text-text-soft font-medium hover:text-text-main hover:bg-surface-2 rounded-xl transition"
+                  >
+                     Cancelar
+                  </button>
+                  <button
+                     type="submit"
+                     disabled={submitting}
+                     className="px-5 py-2 bg-brand text-white font-semibold rounded-xl hover:bg-brand-hover shadow-sm transition disabled:opacity-50"
+                  >
+                     {submitting ? 'Guardando...' : 'Guardar Cuenta'}
+                  </button>
+               </div>
+            </form>
+         </Modal>
       </div>
    );
 }
+

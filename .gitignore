@@ -9,3 +9,5 @@ scripts/downloads/
 *.sql
 *.sql.gz
 *.bak-*
+
+*.md
