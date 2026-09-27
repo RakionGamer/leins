@@ -250,6 +250,7 @@ export default function AccountingAccounts() {
          if (groups[acc.type]) groups[acc.type].push(acc);
          else groups.GASTOS.push(acc);
       });
+      Object.values(groups).forEach(list => list.sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true })));
       return groups;
    }, [accounts]);
 

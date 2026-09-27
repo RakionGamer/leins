@@ -97,6 +97,7 @@ export const DEMO_ENTRIES = [
       status: "POSTED",
       total_debit: 178500,
       total_credit: 178500,
+      sii_document: { folio: "45210", document_type: "Factura Electrónica Afecta", net_amount: 150000, tax_amount: 28500, total_amount: 178500 },
       items: [
          { id: 1001, account: { code: "5.2.1", name: "Gastos Administrativos" }, description: "Neto Compra Sodimac", debit: 150000, credit: 0, counterparty_rut: "96.792.430-K", cost_center: "Casa Matriz" },
          { id: 1002, account: { code: "1.1.9", name: "IVA Crédito Fiscal" }, description: "IVA Crédito Fac 45210", debit: 28500, credit: 0, counterparty_rut: "96.792.430-K" },
@@ -112,6 +113,7 @@ export const DEMO_ENTRIES = [
       status: "POSTED",
       total_debit: 2380000,
       total_credit: 2380000,
+      sii_document: { folio: "1205", document_type: "Factura Electrónica Afecta", net_amount: 2000000, tax_amount: 380000, total_amount: 2380000 },
       items: [
          { id: 1004, account: { code: "1.1.6", name: "Clientes por Cobrar" }, description: "Cobro Cliente TechCorp", debit: 2380000, credit: 0, counterparty_rut: "76.890.123-4" },
          { id: 1005, account: { code: "4.1", name: "Ingresos por Ventas Afectas" }, description: "Servicios TI Septiembre", debit: 0, credit: 2000000, counterparty_rut: "76.890.123-4" },
@@ -169,9 +171,24 @@ export const DEMO_RULES = [
 ];
 
 export const DEMO_BALANCES = [
-   { rut: "76.890.123-4", name: "TECHCORP CHILE SPA", account_type: "CLIENTE", total_debit: 2380000, total_credit: 1190000, balance: 1190000, status: "Parcial", document_count: 2 },
-   { rut: "77.456.789-1", name: "DISTRIBUIDORA ANDINA S.A.", account_type: "PROVEEDOR", total_debit: 0, total_credit: 3250000, balance: 3250000, status: "Pendiente", document_count: 1 },
-   { rut: "96.792.430-K", name: "SODIMAC S.A.", account_type: "PROVEEDOR", total_debit: 178500, total_credit: 178500, balance: 0, status: "Pagado", document_count: 2 }
+   { 
+      rut: "76.890.123-4", name: "TECHCORP CHILE SPA", account_type: "CLIENTE", total_debit: 2380000, total_credit: 1190000, balance: 1190000, status: "Parcial", document_count: 2,
+      documents: [
+         { id: 1, folio: "1205", document_type: "Factura Electrónica Afecta", issue_date: "2026-09-18", total: 2380000, paid: 1190000, balance: 1190000, status: "Parcial" }
+      ]
+   },
+   { 
+      rut: "77.456.789-1", name: "DISTRIBUIDORA ANDINA S.A.", account_type: "PROVEEDOR", total_debit: 0, total_credit: 3250000, balance: 3250000, status: "Pendiente", document_count: 1,
+      documents: [
+         { id: 2, folio: "8821", document_type: "Factura Electrónica Afecta", issue_date: "2026-09-25", total: 3250000, paid: 0, balance: 3250000, status: "Pendiente" }
+      ]
+   },
+   { 
+      rut: "96.792.430-K", name: "SODIMAC S.A.", account_type: "PROVEEDOR", total_debit: 178500, total_credit: 178500, balance: 0, status: "Pagado", document_count: 2,
+      documents: [
+         { id: 3, folio: "45210", document_type: "Factura Electrónica Afecta", issue_date: "2026-09-15", total: 178500, paid: 178500, balance: 0, status: "Pagado" }
+      ]
+   }
 ];
 
 // --- Plan de cuentas ---

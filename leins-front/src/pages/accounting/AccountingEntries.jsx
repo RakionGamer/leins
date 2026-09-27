@@ -485,6 +485,30 @@ export default function AccountingEntries() {
                                     <tr>
                                        <td colSpan={9} className="p-0 bg-surface-1">
                                           <div className="p-5 space-y-3 border-y border-border-subtle/80">
+                                             {entry.sii_document && (
+                                                <div className="mb-4 p-4 rounded-2xl bg-brand/5 border border-brand/10 flex flex-wrap gap-6 items-center">
+                                                   <div>
+                                                      <span className="text-[10px] font-bold uppercase text-brand/70 block">Tipo Doc SII</span>
+                                                      <span className="text-sm font-semibold text-brand">{entry.sii_document.document_type}</span>
+                                                   </div>
+                                                   <div>
+                                                      <span className="text-[10px] font-bold uppercase text-brand/70 block">Folio</span>
+                                                      <span className="text-sm font-mono font-bold text-brand">N° {entry.sii_document.folio}</span>
+                                                   </div>
+                                                   <div>
+                                                      <span className="text-[10px] font-bold uppercase text-brand/70 block">Monto Neto</span>
+                                                      <span className="text-sm font-mono font-semibold text-text-main">{clp(entry.sii_document.net_amount)}</span>
+                                                   </div>
+                                                   <div>
+                                                      <span className="text-[10px] font-bold uppercase text-brand/70 block">IVA</span>
+                                                      <span className="text-sm font-mono font-semibold text-text-main">{clp(entry.sii_document.tax_amount)}</span>
+                                                   </div>
+                                                   <div>
+                                                      <span className="text-[10px] font-bold uppercase text-brand/70 block">Total Documento</span>
+                                                      <span className="text-sm font-mono font-bold text-heading">{clp(entry.sii_document.total_amount)}</span>
+                                                   </div>
+                                                </div>
+                                             )}
                                              <h4 className="text-xs uppercase font-bold text-text-soft tracking-wider">
                                                 Movimientos de Libro Diario (N° {entry.entry_number || entry.id})
                                              </h4>

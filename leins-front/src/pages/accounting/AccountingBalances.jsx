@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useEntityRequired } from '../../hooks/useEntityRequired';
 import EntityRequiredNotice from '../../components/EntityRequiredNotice';
 import { toast } from '../../components/Toaster';
@@ -13,6 +13,8 @@ import {
    BuildingStorefrontIcon,
    UserIcon,
    FunnelIcon,
+   ChevronRightIcon,
+   ChevronDownIcon,
 } from '@heroicons/react/24/outline';
 
 const clp = (n) =>
@@ -104,6 +106,7 @@ export default function AccountingBalances() {
 
    const [search, setSearch] = useState('');
    const [typeFilter, setTypeFilter] = useState('ALL');
+   const [expandedRut, setExpandedRut] = useState(null);
 
    const loadBalances = useCallback(async () => {
       if (!entityId) return;
@@ -220,6 +223,7 @@ export default function AccountingBalances() {
                   <table className="min-w-full text-sm text-left">
                      <thead className="bg-surface-2 border-b border-border-subtle text-text-soft font-semibold">
                         <tr>
+                           <th className="p-4 w-10"></th>
                            <th className="p-4">RUT</th>
                            <th className="p-4">Razón Social / Nombre</th>
                            <th className="p-4">Tipo Cuenta</th>
@@ -236,46 +240,106 @@ export default function AccountingBalances() {
                            const paidDoc = isClient ? row.total_credit : row.total_debit;
                            const isPaid = row.balance <= 0;
                            const isPartial = row.balance > 0 && row.balance < totalDoc;
+                           const isExpanded = expandedRut === row.rut;
 
                            return (
-                              <tr key={row.rut} className="hover:bg-brand/5 transition-colors group">
-                                 <td className="p-4 font-mono font-bold text-brand">{row.rut}</td>
-                                 <td className="p-4 font-medium text-heading">{row.name}</td>
-                                 <td className="p-4">
-                                    <Pill
-                                       colorClass={
-                                          isClient
-                                             ? 'bg-blue-500/10 text-blue-600 ring-blue-500/20'
-                                             : 'bg-purple-500/10 text-purple-600 ring-purple-500/20'
-                                       }
-                                    >
-                                       {isClient ? <UserIcon className="w-3.5 h-3.5" /> : <BuildingStorefrontIcon className="w-3.5 h-3.5" />}
-                                       {isClient ? 'CLIENTE' : 'PROVEEDOR'}
-                                    </Pill>
-                                 </td>
-                                 <td className="p-4 text-right font-mono font-semibold text-text-main">{clp(totalDoc)}</td>
-                                 <td className="p-4 text-right font-mono text-text-soft">{clp(paidDoc)}</td>
-                                 <td
-                                    className={`p-4 text-right font-mono font-bold ${
-                                       isPaid ? 'text-emerald-600' : isClient ? 'text-blue-600' : 'text-rose-600'
-                                    }`}
+                              <React.Fragment key={row.rut}>
+                                 <tr
+                                    className="hover:bg-brand/5 transition-colors cursor-pointer group"
+                                    onClick={() => setExpandedRut(isExpanded ? null : row.rut)}
                                  >
-                                    {clp(row.balance)}
-                                 </td>
-                                 <td className="p-4 text-center">
-                                    <Pill
-                                       colorClass={
-                                          isPaid
-                                             ? 'bg-emerald-500/10 text-emerald-600 ring-emerald-500/20'
-                                             : isPartial
-                                             ? 'bg-amber-500/10 text-amber-600 ring-amber-500/20'
-                                             : 'bg-rose-500/10 text-rose-600 ring-rose-500/20'
-                                       }
+                                    <td className="p-4 text-text-soft">
+                                       {isExpanded ? <ChevronDownIcon className="w-5 h-5" /> : <ChevronRightIcon className="w-5 h-5" />}
+                                    </td>
+                                    <td className="p-4 font-mono font-bold text-brand">{row.rut}</td>
+                                    <td className="p-4 font-medium text-heading">{row.name}</td>
+                                    <td className="p-4">
+                                       <Pill
+                                          colorClass={
+                                             isClient
+                                                ? 'bg-blue-500/10 text-blue-600 ring-blue-500/20'
+                                                : 'bg-purple-500/10 text-purple-600 ring-purple-500/20'
+                                          }
+                                       >
+                                          {isClient ? <UserIcon className="w-3.5 h-3.5" /> : <BuildingStorefrontIcon className="w-3.5 h-3.5" />}
+                                          {isClient ? 'CLIENTE' : 'PROVEEDOR'}
+                                       </Pill>
+                                    </td>
+                                    <td className="p-4 text-right font-mono font-semibold text-text-main">{clp(totalDoc)}</td>
+                                    <td className="p-4 text-right font-mono text-text-soft">{clp(paidDoc)}</td>
+                                    <td
+                                       className={`p-4 text-right font-mono font-bold ${
+                                          isPaid ? 'text-emerald-600' : isClient ? 'text-blue-600' : 'text-rose-600'
+                                       }`}
                                     >
-                                       {row.status}
-                                    </Pill>
-                                 </td>
-                              </tr>
+                                       {clp(row.balance)}
+                                    </td>
+                                    <td className="p-4 text-center">
+                                       <Pill
+                                          colorClass={
+                                             isPaid
+                                                ? 'bg-emerald-500/10 text-emerald-600 ring-emerald-500/20'
+                                                : isPartial
+                                                ? 'bg-amber-500/10 text-amber-600 ring-amber-500/20'
+                                                : 'bg-rose-500/10 text-rose-600 ring-rose-500/20'
+                                          }
+                                       >
+                                          {row.status}
+                                       </Pill>
+                                    </td>
+                                 </tr>
+                                 {isExpanded && row.documents && row.documents.length > 0 && (
+                                    <tr>
+                                       <td colSpan={8} className="p-0 bg-surface-1">
+                                          <div className="p-5 space-y-3 border-y border-border-subtle/80">
+                                             <h4 className="text-xs uppercase font-bold text-text-soft tracking-wider">
+                                                Detalle de Documentos Pendientes ({row.documents.length})
+                                             </h4>
+                                             <div className="overflow-x-auto rounded-2xl border border-border-subtle bg-bg-content">
+                                                <table className="min-w-full text-xs text-left">
+                                                   <thead className="bg-surface-2 text-text-soft font-semibold border-b border-border-subtle">
+                                                      <tr>
+                                                         <th className="py-2.5 px-4">Fecha</th>
+                                                         <th className="py-2.5 px-4">Tipo Documento</th>
+                                                         <th className="py-2.5 px-4">Folio</th>
+                                                         <th className="py-2.5 px-4 text-right">Total</th>
+                                                         <th className="py-2.5 px-4 text-right">Pagado</th>
+                                                         <th className="py-2.5 px-4 text-right">Saldo</th>
+                                                         <th className="py-2.5 px-4 text-center">Estado</th>
+                                                      </tr>
+                                                   </thead>
+                                                   <tbody className="divide-y divide-border-subtle/50">
+                                                      {row.documents.map(doc => (
+                                                         <tr key={doc.id} className="hover:bg-brand/5">
+                                                            <td className="py-2.5 px-4 text-text-soft font-medium">{doc.issue_date}</td>
+                                                            <td className="py-2.5 px-4 font-semibold text-heading">{doc.document_type}</td>
+                                                            <td className="py-2.5 px-4 font-mono font-bold text-brand">N° {doc.folio}</td>
+                                                            <td className="py-2.5 px-4 text-right font-mono text-text-main">{clp(doc.total)}</td>
+                                                            <td className="py-2.5 px-4 text-right font-mono text-text-soft">{clp(doc.paid)}</td>
+                                                            <td className="py-2.5 px-4 text-right font-mono font-bold text-heading">{clp(doc.balance)}</td>
+                                                            <td className="py-2.5 px-4 text-center">
+                                                               <Pill
+                                                                  colorClass={
+                                                                     doc.status === 'Pagado'
+                                                                        ? 'bg-emerald-500/10 text-emerald-600 ring-emerald-500/20'
+                                                                        : doc.status === 'Parcial'
+                                                                        ? 'bg-amber-500/10 text-amber-600 ring-amber-500/20'
+                                                                        : 'bg-rose-500/10 text-rose-600 ring-rose-500/20'
+                                                                  }
+                                                               >
+                                                                  {doc.status}
+                                                               </Pill>
+                                                            </td>
+                                                         </tr>
+                                                      ))}
+                                                   </tbody>
+                                                </table>
+                                             </div>
+                                          </div>
+                                       </td>
+                                    </tr>
+                                 )}
+                              </React.Fragment>
                            );
                         })}
                      </tbody>
