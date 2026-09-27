@@ -21,13 +21,13 @@ import {
    TagIcon,
 } from '@heroicons/react/24/outline';
 
-const ctrl = 'w-full h-11 px-3 text-sm rounded-2xl border border-border-subtle bg-bg-content text-text-main placeholder-text-soft/70 focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition shadow-sm';
+const ctrl = 'w-full h-9 px-3 text-sm rounded border border-gray-300 bg-white text-gray-800 placeholder-gray-400 focus:outline-none focus:border-gray-500 focus:ring-1 focus:ring-gray-400 transition-colors shadow-2xs';
 const selectCtrl = ctrl + ' appearance-none cursor-pointer';
-const btnCtrl = 'h-11 flex items-center justify-center gap-2 px-4 rounded-2xl border border-border-subtle bg-bg-content text-text-main text-sm font-medium transition shadow-sm hover:bg-surface-2 hover:text-brand focus:outline-none focus:ring-2 focus:ring-brand';
+const btnCtrl = 'h-9 flex items-center justify-center gap-2 px-3 rounded border border-gray-300 bg-white text-gray-700 text-sm font-medium shadow-2xs hover:bg-gray-50 focus:outline-none transition-colors cursor-pointer';
 
-function Pill({ children, colorClass = 'bg-brand/10 text-brand ring-brand/20' }) {
+function Pill({ children, colorClass = 'bg-gray-100 text-gray-700 border-gray-200' }) {
    return (
-      <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ring-1 ${colorClass}`}>
+      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border ${colorClass}`}>
          {children}
       </span>
    );
@@ -41,32 +41,32 @@ function RulesSummary({ rules }) {
    }, [rules]);
 
    return (
-      <div className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-3">
-         <div className="rounded-2xl border border-border-subtle bg-surface-1 p-4 shadow-sm flex items-center gap-4">
-            <div className="p-3 bg-brand/10 text-brand rounded-xl">
-               <DocumentDuplicateIcon className="w-6 h-6" />
+      <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+         <div className="rounded-lg border border-gray-200 bg-white p-3.5 shadow-2xs flex items-center gap-3">
+            <div className="p-2.5 bg-gray-100 text-gray-600 rounded-md">
+               <DocumentDuplicateIcon className="w-5 h-5" />
             </div>
             <div>
-               <div className="text-xs font-semibold text-text-soft uppercase tracking-wide">Reglas Configuradas</div>
-               <div className="text-xl font-bold text-heading">{stats.total} RUTs</div>
+               <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Reglas Configuradas</div>
+               <div className="text-lg font-bold text-gray-900">{stats.total} RUTs</div>
             </div>
          </div>
-         <div className="rounded-2xl border border-border-subtle bg-surface-1 p-4 shadow-sm flex items-center gap-4">
-            <div className="p-3 bg-blue-500/10 text-blue-600 rounded-xl">
-               <TagIcon className="w-6 h-6" />
+         <div className="rounded-lg border border-gray-200 bg-white p-3.5 shadow-2xs flex items-center gap-3">
+            <div className="p-2.5 bg-blue-50 text-blue-700 rounded-md">
+               <TagIcon className="w-5 h-5" />
             </div>
             <div>
-               <div className="text-xs font-semibold text-text-soft uppercase tracking-wide">Cuentas Mapeadas</div>
-               <div className="text-xl font-bold text-heading">{stats.accountsCount} Cuentas</div>
+               <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Cuentas Mapeadas</div>
+               <div className="text-lg font-bold text-gray-900">{stats.accountsCount} Cuentas</div>
             </div>
          </div>
-         <div className="rounded-2xl border border-brand/30 bg-brand/5 p-4 shadow-sm flex items-center gap-4 ring-1 ring-brand/10">
-            <div className="p-3 bg-brand text-white rounded-xl">
-               <BuildingStorefrontIcon className="w-6 h-6" />
+         <div className="rounded-lg border border-gray-200 bg-white p-3.5 shadow-2xs flex items-center gap-3">
+            <div className="p-2.5 bg-gray-100 text-gray-700 rounded-md">
+               <BuildingStorefrontIcon className="w-5 h-5" />
             </div>
             <div>
-               <div className="text-xs font-semibold text-brand uppercase tracking-wide">Centros de Costo</div>
-               <div className="text-xl font-bold text-brand">{stats.costCentersCount} Centros</div>
+               <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Centros de Costo</div>
+               <div className="text-lg font-bold text-gray-900">{stats.costCentersCount} Centros</div>
             </div>
          </div>
       </div>
@@ -166,13 +166,13 @@ export default function AccountingRules() {
    if (!ready) return <EntityRequiredNotice />;
 
    return (
-      <div className="space-y-6">
+      <div className="space-y-4">
          {/* Top Header Card */}
-         <div className="bg-bg-content rounded-3xl p-5 border border-border-subtle shadow-sm">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 pb-5 border-b border-border-subtle">
+         <div className="bg-white rounded-lg p-4 border border-gray-200 shadow-2xs">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4 pb-4 border-b border-gray-200">
                <div>
-                  <h2 className="text-2xl font-bold text-heading tracking-tight">Reglas de Asignación por RUT</h2>
-                  <p className="text-sm text-text-soft mt-1">
+                  <h2 className="text-xl font-bold text-gray-900 tracking-tight">Reglas de Asignación por RUT</h2>
+                  <p className="text-xs text-gray-500 mt-1">
                      Define qué cuenta contable y centro de costo se imputan automáticamente al sincronizar documentos del SII.
                   </p>
                </div>
@@ -181,28 +181,28 @@ export default function AccountingRules() {
                      setFormData({ counterparty_rut: '', counterparty_name: '', account_id: '', cost_center: '' });
                      setModalOpen(true);
                   }}
-                  className={`${btnCtrl} bg-brand text-white hover:bg-brand-hover border-transparent`}
+                  className="h-9 flex items-center justify-center gap-2 px-3 rounded border border-gray-800 bg-gray-800 text-white text-sm font-medium shadow-2xs hover:bg-gray-900 transition-colors cursor-pointer"
                >
-                  <PlusIcon className="w-5 h-5 stroke-2" />
+                  <PlusIcon className="w-4 h-4 stroke-2" />
                   <span>Nueva Regla</span>
                </button>
             </div>
 
             {/* Filter Section */}
-            <div className="space-y-4">
-               <div className="flex items-center gap-2 text-sm font-semibold text-text-main">
-                  <FunnelIcon className="w-5 h-5 text-brand" /> Filtros de Búsqueda
+            <div className="space-y-3">
+               <div className="flex items-center gap-2 text-xs font-semibold text-gray-700">
+                  <FunnelIcon className="w-4 h-4 text-gray-500" /> Filtros de Búsqueda
                </div>
 
-               <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start bg-surface-1 p-4 rounded-2xl border border-border-subtle/50">
-                  <div className="space-y-1.5 md:col-span-12 relative">
-                     <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider">Buscar por RUT o Nombre</label>
+               <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-start bg-gray-50/80 p-3 rounded-lg border border-gray-200">
+                  <div className="space-y-1 md:col-span-12 relative">
+                     <label className="block text-[11px] font-semibold text-gray-600 uppercase tracking-wider">Buscar por RUT o Nombre</label>
                      <div className="relative">
-                        <MagnifyingGlassIcon className="w-5 h-5 absolute left-3.5 top-3 text-text-soft" />
+                        <MagnifyingGlassIcon className="w-4 h-4 absolute left-3 top-2.5 text-gray-400" />
                         <input
                            type="text"
                            placeholder="Buscar por RUT de proveedor/cliente o cuenta asignada..."
-                           className={`${ctrl} pl-10`}
+                           className={`${ctrl} pl-9`}
                            value={search}
                            onChange={(e) => setSearch(e.target.value)}
                         />
@@ -216,71 +216,71 @@ export default function AccountingRules() {
          <RulesSummary rules={rules} />
 
          {/* Error Notice */}
-         {err && <div className="p-4 bg-danger/10 text-danger rounded-2xl border border-danger/20 text-sm font-medium">Error: {err}</div>}
+         {err && <div className="p-3 bg-red-50 text-red-700 rounded-lg border border-red-200 text-xs font-medium">Error: {err}</div>}
 
          {/* Rules Table */}
-         <div className="bg-bg-content rounded-3xl border border-border-subtle shadow-sm overflow-hidden">
+         <div className="bg-white rounded-lg border border-gray-200 shadow-2xs overflow-hidden">
             {loading ? (
-               <div className="p-10 text-center text-brand font-medium animate-pulse flex items-center justify-center gap-2">
-                  <ArrowPathIcon className="w-5 h-5 animate-spin" /> Cargando reglas de asociación...
+               <div className="p-8 text-center text-gray-500 font-medium text-sm flex items-center justify-center gap-2">
+                  <ArrowPathIcon className="w-4 h-4 animate-spin text-gray-400" /> Cargando reglas de asociación...
                </div>
             ) : filteredRules.length === 0 ? (
-               <div className="p-12 text-center text-text-soft">
-                  <UserGroupIcon className="w-12 h-12 mx-auto text-text-soft/50 mb-3" />
-                  <p className="text-base font-semibold">No hay reglas de asignación configuradas</p>
-                  <p className="text-sm mt-1 mb-4">Por defecto las compras se imputan a "Gastos Administrativos". Crea reglas para categorizarlas automáticamente.</p>
+               <div className="p-10 text-center text-gray-500">
+                  <UserGroupIcon className="w-10 h-10 mx-auto text-gray-300 mb-2" />
+                  <p className="text-sm font-semibold text-gray-800">No hay reglas de asignación configuradas</p>
+                  <p className="text-xs text-gray-500 mt-1 mb-4">Por defecto las compras se imputan a "Gastos Administrativos". Crea reglas para categorizarlas automáticamente.</p>
                   <button
                      onClick={() => {
                         setFormData({ counterparty_rut: '', counterparty_name: '', account_id: '', cost_center: '' });
                         setModalOpen(true);
                      }}
-                     className={`${btnCtrl} bg-brand text-white mx-auto`}
+                     className="h-9 px-4 rounded border border-gray-800 bg-gray-800 text-white text-xs font-medium mx-auto hover:bg-gray-900 transition-colors"
                   >
                      Crear Primera Regla
                   </button>
                </div>
             ) : (
                <div className="overflow-x-auto">
-                  <table className="min-w-full text-sm text-left">
-                     <thead className="bg-surface-2 border-b border-border-subtle text-text-soft font-semibold">
+                  <table className="min-w-full text-xs text-left">
+                     <thead className="bg-gray-50 border-b border-gray-200 text-gray-600 font-semibold uppercase tracking-wider">
                         <tr>
-                           <th className="p-4">RUT Proveedor / Cliente</th>
-                           <th className="p-4">Razón Social / Nombre</th>
-                           <th className="p-4">Cuenta Contable Destino</th>
-                           <th className="p-4">Centro de Costo</th>
-                           <th className="p-4 text-center">Acciones</th>
+                           <th className="py-2.5 px-3">RUT Proveedor / Cliente</th>
+                           <th className="py-2.5 px-3">Razón Social / Nombre</th>
+                           <th className="py-2.5 px-3">Cuenta Contable Destino</th>
+                           <th className="py-2.5 px-3">Centro de Costo</th>
+                           <th className="py-2.5 px-3 text-center">Acciones</th>
                         </tr>
                      </thead>
-                     <tbody className="divide-y divide-border-subtle/50">
+                     <tbody className="divide-y divide-gray-200">
                         {filteredRules.map((rule) => (
-                           <tr key={rule.id} className="hover:bg-brand/5 transition-colors group">
-                              <td className="p-4 font-mono font-bold text-brand">{rule.counterparty_rut}</td>
-                              <td className="p-4 font-medium text-heading">{rule.counterparty_name || '-'}</td>
-                              <td className="p-4 font-medium text-heading">
+                           <tr key={rule.id} className="hover:bg-gray-50/80 transition-colors group">
+                              <td className="py-2.5 px-3 font-mono font-bold text-gray-900">{rule.counterparty_rut}</td>
+                              <td className="py-2.5 px-3 font-medium text-gray-800">{rule.counterparty_name || '-'}</td>
+                              <td className="py-2.5 px-3 font-medium text-gray-800">
                                  {rule.account ? (
                                     <div className="flex items-center gap-2">
-                                       <span className="font-mono text-brand font-bold">{rule.account.code}</span>
+                                       <span className="font-mono text-gray-900 font-bold">{rule.account.code}</span>
                                        <span>{rule.account.name}</span>
                                     </div>
                                  ) : (
                                     '-'
                                  )}
                               </td>
-                              <td className="p-4 text-text-soft">
+                              <td className="py-2.5 px-3 text-gray-500">
                                  {rule.cost_center ? (
-                                    <Pill colorClass="bg-purple-500/10 text-purple-600 ring-purple-500/20">{rule.cost_center}</Pill>
+                                    <Pill colorClass="bg-gray-100 text-gray-700 border-gray-200">{rule.cost_center}</Pill>
                                  ) : (
-                                    <span className="text-text-soft/60 italic">No asignado</span>
+                                    <span className="text-gray-400 italic">No asignado</span>
                                  )}
                               </td>
-                              <td className="p-4 text-center">
+                              <td className="py-2.5 px-3 text-center">
                                  <div className="flex items-center justify-center opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                                     <button
                                        onClick={() => handleDelete(rule)}
-                                       className="p-1.5 rounded-lg text-text-soft hover:text-danger hover:bg-danger/10 transition outline-none"
+                                       className="p-1 rounded text-gray-500 hover:text-red-600 hover:bg-red-50 transition outline-none"
                                        title="Eliminar regla"
                                     >
-                                       <TrashIcon className="w-5 h-5" />
+                                       <TrashIcon className="w-4 h-4" />
                                     </button>
                                  </div>
                               </td>
@@ -296,7 +296,7 @@ export default function AccountingRules() {
          <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title="Nueva Regla de Asignación por RUT" maxWidth="max-w-md">
             <form onSubmit={handleSubmit} className="space-y-4">
                <div>
-                  <label className="block text-xs font-semibold uppercase text-text-soft mb-1">RUT Proveedor / Cliente</label>
+                  <label className="block text-xs font-semibold uppercase text-gray-600 mb-1">RUT Proveedor / Cliente</label>
                   <input
                      type="text"
                      required
@@ -308,7 +308,7 @@ export default function AccountingRules() {
                </div>
 
                <div>
-                  <label className="block text-xs font-semibold uppercase text-text-soft mb-1">Razón Social (Opcional)</label>
+                  <label className="block text-xs font-semibold uppercase text-gray-600 mb-1">Razón Social (Opcional)</label>
                   <input
                      type="text"
                      placeholder="Ej: Servicios Eléctricos SpA"
@@ -319,7 +319,7 @@ export default function AccountingRules() {
                </div>
 
                <div>
-                  <label className="block text-xs font-semibold uppercase text-text-soft mb-1">Cuenta Contable Destino</label>
+                  <label className="block text-xs font-semibold uppercase text-gray-600 mb-1">Cuenta Contable Destino</label>
                   <select
                      required
                      className={selectCtrl}
@@ -336,7 +336,7 @@ export default function AccountingRules() {
                </div>
 
                <div>
-                  <label className="block text-xs font-semibold uppercase text-text-soft mb-1">Centro de Costo (Opcional)</label>
+                  <label className="block text-xs font-semibold uppercase text-gray-600 mb-1">Centro de Costo (Opcional)</label>
                   <input
                      type="text"
                      placeholder="Ej: Casa Matriz / Proyecto Alpha"
@@ -346,18 +346,18 @@ export default function AccountingRules() {
                   />
                </div>
 
-               <div className="flex justify-end gap-3 pt-4 border-t border-border-subtle">
+               <div className="flex justify-end gap-2 pt-4 border-t border-gray-200">
                   <button
                      type="button"
                      onClick={() => setModalOpen(false)}
-                     className="px-4 py-2 text-text-soft font-medium hover:text-text-main hover:bg-surface-2 rounded-xl transition"
+                     className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 transition"
                   >
                      Cancelar
                   </button>
                   <button
                      type="submit"
                      disabled={submitting}
-                     className="px-5 py-2 bg-brand text-white font-semibold rounded-xl hover:bg-brand-hover shadow-sm transition disabled:opacity-50"
+                     className="px-4 py-1.5 bg-gray-800 text-white text-xs font-medium rounded hover:bg-gray-900 transition disabled:opacity-50"
                   >
                      {submitting ? 'Guardando...' : 'Guardar Regla'}
                   </button>

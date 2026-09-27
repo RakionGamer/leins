@@ -33,13 +33,13 @@ import {
 const clp = (n) =>
    new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(Number(n || 0));
 
-const ctrl = 'w-full h-11 px-3 text-sm rounded-2xl border border-border-subtle bg-bg-content text-text-main placeholder-text-soft/70 focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition shadow-sm';
+const ctrl = 'w-full h-9 px-3 text-sm rounded border border-gray-300 bg-white text-gray-800 placeholder-gray-400 focus:outline-none focus:border-gray-500 focus:ring-1 focus:ring-gray-400 transition-colors shadow-2xs';
 const selectCtrl = ctrl + ' appearance-none cursor-pointer';
-const btnCtrl = 'h-11 flex items-center justify-center gap-2 px-4 rounded-2xl border border-border-subtle bg-bg-content text-text-main text-sm font-medium transition shadow-sm hover:bg-surface-2 hover:text-brand focus:outline-none focus:ring-2 focus:ring-brand';
+const btnCtrl = 'h-9 flex items-center justify-center gap-2 px-3 rounded border border-gray-300 bg-white text-gray-700 text-sm font-medium shadow-2xs hover:bg-gray-50 focus:outline-none transition-colors cursor-pointer';
 
-function Pill({ children, colorClass = 'bg-brand/10 text-brand ring-brand/20' }) {
+function Pill({ children, colorClass = 'bg-gray-100 text-gray-700 border-gray-200' }) {
    return (
-      <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ring-1 ${colorClass}`}>
+      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border ${colorClass}`}>
          {children}
       </span>
    );
@@ -62,50 +62,50 @@ function EntriesSummary({ entries }) {
    }, [entries]);
 
    return (
-      <div className="mb-5 grid grid-cols-2 gap-4 xl:grid-cols-5">
-         <div className="rounded-2xl border border-border-subtle bg-surface-1 p-4 shadow-sm flex items-center gap-4">
-            <div className="p-3 bg-brand/10 text-brand rounded-xl">
-               <DocumentDuplicateIcon className="w-6 h-6" />
+      <div className="mb-5 grid grid-cols-2 gap-3 xl:grid-cols-5">
+         <div className="rounded-lg border border-gray-200 bg-white p-3.5 shadow-2xs flex items-center gap-3">
+            <div className="p-2.5 bg-gray-100 text-gray-600 rounded-md">
+               <DocumentDuplicateIcon className="w-5 h-5" />
             </div>
             <div>
-               <div className="text-xs font-semibold text-text-soft uppercase tracking-wide">Asientos</div>
-               <div className="text-xl font-bold text-heading">{stats.totalCount}</div>
+               <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Asientos</div>
+               <div className="text-lg font-bold text-gray-900">{stats.totalCount}</div>
             </div>
          </div>
-         <div className="rounded-2xl border border-border-subtle bg-surface-1 p-4 shadow-sm flex items-center gap-4">
-            <div className="p-3 bg-emerald-500/10 text-emerald-600 rounded-xl">
-               <BanknotesIcon className="w-6 h-6" />
+         <div className="rounded-lg border border-gray-200 bg-white p-3.5 shadow-2xs flex items-center gap-3">
+            <div className="p-2.5 bg-emerald-50 text-emerald-700 rounded-md">
+               <BanknotesIcon className="w-5 h-5" />
             </div>
             <div>
-               <div className="text-[10px] sm:text-xs font-semibold text-text-soft uppercase tracking-wide">Total Debe</div>
-               <div className="text-lg sm:text-xl font-bold text-heading">{clp(stats.totalDebe)}</div>
+               <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Total Debe</div>
+               <div className="text-lg font-bold text-gray-900">{clp(stats.totalDebe)}</div>
             </div>
          </div>
-         <div className="rounded-2xl border border-border-subtle bg-surface-1 p-4 shadow-sm flex items-center gap-4">
-            <div className="p-3 bg-blue-500/10 text-blue-600 rounded-xl">
-               <ChartBarIcon className="w-6 h-6" />
+         <div className="rounded-lg border border-gray-200 bg-white p-3.5 shadow-2xs flex items-center gap-3">
+            <div className="p-2.5 bg-blue-50 text-blue-700 rounded-md">
+               <ChartBarIcon className="w-5 h-5" />
             </div>
             <div>
-               <div className="text-[10px] sm:text-xs font-semibold text-text-soft uppercase tracking-wide">Total Haber</div>
-               <div className="text-lg sm:text-xl font-bold text-heading">{clp(stats.totalHaber)}</div>
+               <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Total Haber</div>
+               <div className="text-lg font-bold text-gray-900">{clp(stats.totalHaber)}</div>
             </div>
          </div>
-         <div className="rounded-2xl border border-border-subtle bg-surface-1 p-4 shadow-sm flex items-center gap-4">
-            <div className="p-3 bg-rose-500/10 text-rose-600 rounded-xl">
-               <ReceiptRefundIcon className="w-6 h-6" />
+         <div className="rounded-lg border border-gray-200 bg-white p-3.5 shadow-2xs flex items-center gap-3">
+            <div className="p-2.5 bg-red-50 text-red-600 rounded-md">
+               <ReceiptRefundIcon className="w-5 h-5" />
             </div>
             <div>
-               <div className="text-[10px] sm:text-xs font-semibold text-text-soft uppercase tracking-wide">Anulados</div>
-               <div className="text-lg sm:text-xl font-bold text-rose-600">{stats.countAnnulled}</div>
+               <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Anulados</div>
+               <div className="text-lg font-bold text-gray-900">{stats.countAnnulled}</div>
             </div>
          </div>
-         <div className="col-span-2 xl:col-span-1 rounded-2xl border border-brand/30 bg-brand/5 p-4 shadow-sm flex items-center gap-4 ring-1 ring-brand/10">
-            <div className="p-3 bg-brand text-white rounded-xl">
-               <CurrencyDollarIcon className="w-6 h-6" />
+         <div className="col-span-2 xl:col-span-1 rounded-lg border border-gray-200 bg-white p-3.5 shadow-2xs flex items-center gap-3">
+            <div className="p-2.5 bg-gray-100 text-gray-700 rounded-md">
+               <CurrencyDollarIcon className="w-5 h-5" />
             </div>
             <div>
-               <div className="text-xs font-semibold text-brand uppercase tracking-wide">Balance Mes</div>
-               <div className="text-xl font-bold text-brand">{clp(stats.balance)}</div>
+               <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Balance Mes</div>
+               <div className="text-lg font-bold text-gray-900">{clp(stats.balance)}</div>
             </div>
          </div>
       </div>
@@ -295,24 +295,15 @@ export default function AccountingEntries() {
    if (!ready) return <EntityRequiredNotice />;
 
    return (
-      <div className="space-y-6">
+      <div className="space-y-4">
          {/* Top Header Card */}
-         <div className="bg-bg-content rounded-3xl p-5 border border-border-subtle shadow-sm">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 pb-5 border-b border-border-subtle">
+         <div className="bg-white rounded-lg p-4 border border-gray-200 shadow-2xs">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4 pb-4 border-b border-gray-200">
                <div>
-                  <h2 className="text-2xl font-bold text-heading tracking-tight">Libro Diario - Asientos Contables</h2>
-                  <p className="text-sm text-text-soft mt-1">Registro de movimientos contables, compras/ventas sincronizadas e impositivas.</p>
+                  <h2 className="text-xl font-bold text-gray-900 tracking-tight">Libro Diario - Asientos Contables</h2>
+                  <p className="text-xs text-gray-500 mt-1">Registro de movimientos contables, compras/ventas sincronizadas e impositivas.</p>
                </div>
-               <div className="flex flex-wrap items-center gap-3">
-                  <button
-                     onClick={handleGenerateSII}
-                     disabled={generating || loading}
-                     className={`${btnCtrl} text-brand border-brand/20 bg-brand/5`}
-                     title="Generar asientos de Compras y Ventas del periodo automáticamente"
-                  >
-                     <SparklesIcon className="w-5 h-5 stroke-2" />
-                     <span className="hidden sm:inline">{generating ? 'Generando SII...' : 'Generar Asientos SII'}</span>
-                  </button>
+               <div className="flex flex-wrap items-center gap-2">
                   <button
                      onClick={() => {
                         setFormData({
@@ -325,45 +316,45 @@ export default function AccountingEntries() {
                         });
                         setModalOpen(true);
                      }}
-                     className={`${btnCtrl} bg-brand text-white hover:bg-brand-hover border-transparent`}
+                     className="h-9 flex items-center justify-center gap-2 px-3 rounded border border-gray-800 bg-gray-800 text-white text-sm font-medium shadow-2xs hover:bg-gray-900 transition-colors cursor-pointer"
                   >
-                     <PlusIcon className="w-5 h-5 stroke-2" />
+                     <PlusIcon className="w-4 h-4 stroke-2" />
                      <span>Nuevo Asiento Manual</span>
                   </button>
                </div>
             </div>
 
             {/* Filter Section */}
-            <div className="space-y-4">
-               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div className="flex items-center gap-2 text-sm font-semibold text-text-main">
-                     <FunnelIcon className="w-5 h-5 text-brand" /> Filtros de Búsqueda
+            <div className="space-y-3">
+               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-gray-700">
+                     <FunnelIcon className="w-4 h-4 text-gray-500" /> Filtros de Búsqueda
                   </div>
                   <button
                      onClick={handleClearFilters}
                      disabled={loading}
-                     className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-text-soft hover:text-danger hover:bg-danger/10 rounded-xl transition-colors disabled:opacity-50"
+                     className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded transition-colors disabled:opacity-50"
                   >
-                     <ArrowPathIcon className="w-4 h-4" /> Limpiar Filtros
+                     <ArrowPathIcon className="w-3.5 h-3.5" /> Limpiar Filtros
                   </button>
                </div>
 
-               <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start bg-surface-1 p-4 rounded-2xl border border-border-subtle/50">
-                  <div className="space-y-1.5 md:col-span-4 relative">
-                     <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider">Concepto / Glosa</label>
+               <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-start bg-gray-50/80 p-3 rounded-lg border border-gray-200">
+                  <div className="space-y-1 md:col-span-4 relative">
+                     <label className="block text-[11px] font-semibold text-gray-600 uppercase tracking-wider">Concepto / Glosa</label>
                      <div className="relative">
-                        <MagnifyingGlassIcon className="w-5 h-5 absolute left-3.5 top-3 text-text-soft" />
+                        <MagnifyingGlassIcon className="w-4 h-4 absolute left-3 top-2.5 text-gray-400" />
                         <input
                            type="text"
                            placeholder="Buscar por concepto o N° asiento..."
-                           className={`${ctrl} pl-10`}
+                           className={`${ctrl} pl-9`}
                            value={search}
                            onChange={(e) => setSearch(e.target.value)}
                         />
                      </div>
                   </div>
-                  <div className="space-y-1.5 md:col-span-3">
-                     <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider">Mes de Operación</label>
+                  <div className="space-y-1 md:col-span-3">
+                     <label className="block text-[11px] font-semibold text-gray-600 uppercase tracking-wider">Mes de Operación</label>
                      <input
                         type="month"
                         className={ctrl}
@@ -371,8 +362,8 @@ export default function AccountingEntries() {
                         onChange={(e) => setFilterMonth(e.target.value)}
                      />
                   </div>
-                  <div className="space-y-1.5 md:col-span-3">
-                     <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider">Origen</label>
+                  <div className="space-y-1 md:col-span-3">
+                     <label className="block text-[11px] font-semibold text-gray-600 uppercase tracking-wider">Origen</label>
                      <select className={selectCtrl} value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)}>
                         <option value="">Todos los orígenes</option>
                         <option value="MANUAL">Manual</option>
@@ -381,8 +372,8 @@ export default function AccountingEntries() {
                         <option value="BANK_MOVEMENT">Banco</option>
                      </select>
                   </div>
-                  <div className="space-y-1.5 md:col-span-2">
-                     <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider">Estado</label>
+                  <div className="space-y-1 md:col-span-2">
+                     <label className="block text-[11px] font-semibold text-gray-600 uppercase tracking-wider">Estado</label>
                      <select className={selectCtrl} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
                         <option value="">Todos los estados</option>
                         <option value="POSTED">Vigentes</option>
@@ -400,37 +391,34 @@ export default function AccountingEntries() {
          {err && <div className="p-4 bg-danger/10 text-danger rounded-2xl border border-danger/20 text-sm font-medium">Error: {err}</div>}
 
          {/* Entries Table */}
-         <div className="bg-bg-content rounded-3xl border border-border-subtle shadow-sm overflow-hidden">
+         <div className="bg-white rounded-lg border border-gray-200 shadow-2xs overflow-hidden">
             {loading ? (
-               <div className="p-10 text-center text-brand font-medium animate-pulse flex items-center justify-center gap-2">
-                  <ArrowPathIcon className="w-5 h-5 animate-spin" /> Cargando asientos contables...
+               <div className="p-8 text-center text-gray-500 font-medium text-sm flex items-center justify-center gap-2">
+                  <ArrowPathIcon className="w-4 h-4 animate-spin text-gray-400" /> Cargando asientos contables...
                </div>
             ) : entries.length === 0 ? (
-               <div className="p-12 text-center text-text-soft">
-                  <DocumentTextIcon className="w-12 h-12 mx-auto text-text-soft/50 mb-3" />
-                  <p className="text-base font-semibold">No se encontraron asientos contables</p>
-                  <p className="text-sm mt-1 mb-4">Haz clic en "Generar Asientos SII" para crear los asientos del periodo automáticamente.</p>
-                  <button onClick={handleGenerateSII} className={`${btnCtrl} bg-brand text-white mx-auto`}>
-                     Generar Asientos SII Ahora
-                  </button>
+               <div className="p-10 text-center text-gray-500">
+                  <DocumentTextIcon className="w-10 h-10 mx-auto text-gray-300 mb-2" />
+                  <p className="text-sm font-semibold text-gray-800">No se encontraron asientos contables</p>
+                  <p className="text-xs text-gray-500 mt-1">No hay asientos contables registrados para el filtro seleccionado.</p>
                </div>
             ) : (
                <div className="overflow-x-auto">
-                  <table className="min-w-full text-sm text-left">
-                     <thead className="bg-surface-2 border-b border-border-subtle text-text-soft font-semibold">
+                  <table className="min-w-full text-xs text-left">
+                     <thead className="bg-gray-50 border-b border-gray-200 text-gray-600 font-semibold uppercase tracking-wider">
                         <tr>
-                           <th className="p-4 w-10"></th>
-                           <th className="p-4">N° Asiento</th>
-                           <th className="p-4">Fecha</th>
-                           <th className="p-4">Origen</th>
-                           <th className="p-4">Concepto / Glosa</th>
-                           <th className="p-4 text-right">Total Debe</th>
-                           <th className="p-4 text-right">Total Haber</th>
-                           <th className="p-4 text-center">Estado</th>
-                           <th className="p-4 text-center">Acciones</th>
+                           <th className="py-2.5 px-3 w-8"></th>
+                           <th className="py-2.5 px-3">N° Asiento</th>
+                           <th className="py-2.5 px-3">Fecha</th>
+                           <th className="py-2.5 px-3">Origen</th>
+                           <th className="py-2.5 px-3">Concepto / Glosa</th>
+                           <th className="py-2.5 px-3 text-right">Total Debe</th>
+                           <th className="py-2.5 px-3 text-right">Total Haber</th>
+                           <th className="py-2.5 px-3 text-center">Estado</th>
+                           <th className="py-2.5 px-3 text-center">Acciones</th>
                         </tr>
                      </thead>
-                     <tbody className="divide-y divide-border-subtle/50">
+                     <tbody className="divide-y divide-gray-200">
                         {entries.map((entry) => {
                            const isExpanded = expandedEntryId === entry.id;
                            const isAnnulled = entry.status === 'ANNULLED';
@@ -438,43 +426,46 @@ export default function AccountingEntries() {
                            return (
                               <React.Fragment key={entry.id}>
                                  <tr
-                                    className={`hover:bg-brand/5 transition-colors cursor-pointer group ${
-                                       isAnnulled ? 'opacity-60 bg-rose-500/5' : ''
+                                    className={`hover:bg-gray-50/80 transition-colors cursor-pointer group ${
+                                       isAnnulled ? 'opacity-60 bg-gray-50' : ''
                                     }`}
                                     onClick={() => setExpandedEntryId(isExpanded ? null : entry.id)}
                                  >
-                                    <td className="p-4 text-text-soft">
-                                       {isExpanded ? <ChevronDownIcon className="w-5 h-5" /> : <ChevronRightIcon className="w-5 h-5" />}
+                                    <td className="py-2.5 px-3 text-gray-400">
+                                       {isExpanded ? <ChevronDownIcon className="w-4 h-4" /> : <ChevronRightIcon className="w-4 h-4" />}
                                     </td>
-                                    <td className="p-4 font-mono font-bold text-brand">#{entry.entry_number || entry.id}</td>
-                                    <td className="p-4 font-medium text-heading whitespace-nowrap">{entry.entry_date}</td>
-                                    <td className="p-4">
-                                       <span className="inline-flex px-2 py-0.5 bg-surface-2 rounded-md font-mono text-xs font-semibold text-text-soft border border-border-subtle/50">
-                                          {entry.source_type}
+                                    <td className="py-2.5 px-3 font-mono font-bold text-gray-900">#{entry.entry_number || entry.id}</td>
+                                    <td className="py-2.5 px-3 font-medium text-gray-800 whitespace-nowrap">{entry.entry_date}</td>
+                                    <td className="py-2.5 px-3">
+                                       <span className="inline-flex px-2 py-0.5 bg-gray-100 rounded text-[11px] font-medium text-gray-700 border border-gray-200">
+                                          {entry.source_type === 'SII_PURCHASE' ? 'Compra SII' :
+                                           entry.source_type === 'SII_SALE' ? 'Venta SII' :
+                                           entry.source_type === 'BANK_MOVEMENT' ? 'Banco' :
+                                           entry.source_type === 'MANUAL' ? 'Manual' : entry.source_type}
                                        </span>
                                     </td>
-                                    <td className="p-4 font-medium text-heading truncate max-w-[280px]">{entry.concept}</td>
-                                    <td className="p-4 text-right font-mono font-bold text-emerald-600">{clp(entry.total_debit)}</td>
-                                    <td className="p-4 text-right font-mono font-bold text-blue-600">{clp(entry.total_credit)}</td>
-                                    <td className="p-4 text-center">
+                                    <td className="py-2.5 px-3 font-medium text-gray-800 truncate max-w-[280px]">{entry.concept}</td>
+                                    <td className="py-2.5 px-3 text-right font-mono font-bold text-gray-900">{clp(entry.total_debit)}</td>
+                                    <td className="py-2.5 px-3 text-right font-mono font-bold text-gray-900">{clp(entry.total_credit)}</td>
+                                    <td className="py-2.5 px-3 text-center">
                                        <Pill
                                           colorClass={
                                              isAnnulled
-                                                ? 'bg-rose-500/10 text-rose-600 ring-rose-500/20'
-                                                : 'bg-emerald-500/10 text-emerald-600 ring-emerald-500/20'
+                                                ? 'bg-gray-100 text-gray-500 border-gray-200 line-through'
+                                                : 'bg-emerald-50 text-emerald-700 border-emerald-200'
                                           }
                                        >
                                           {isAnnulled ? 'ANULADO' : 'VIGENTE'}
                                        </Pill>
                                     </td>
-                                    <td className="p-4 text-center" onClick={(e) => e.stopPropagation()}>
+                                    <td className="py-2.5 px-3 text-center" onClick={(e) => e.stopPropagation()}>
                                        {!isAnnulled && (
                                           <button
                                              onClick={() => handleAnnul(entry)}
-                                             className="p-1.5 rounded-lg text-text-soft hover:text-danger hover:bg-danger/10 transition outline-none"
+                                             className="p-1 rounded text-gray-500 hover:text-red-600 hover:bg-red-50 transition outline-none"
                                              title="Anular asiento"
                                           >
-                                             <TrashIcon className="w-5 h-5" />
+                                             <TrashIcon className="w-4 h-4" />
                                           </button>
                                        )}
                                     </td>
@@ -483,66 +474,66 @@ export default function AccountingEntries() {
                                  {/* Expanded Details */}
                                  {isExpanded && (
                                     <tr>
-                                       <td colSpan={9} className="p-0 bg-surface-1">
-                                          <div className="p-5 space-y-3 border-y border-border-subtle/80">
+                                       <td colSpan={9} className="p-0 bg-gray-50/70">
+                                          <div className="p-4 space-y-3 border-y border-gray-200">
                                              {entry.sii_document && (
-                                                <div className="mb-4 p-4 rounded-2xl bg-brand/5 border border-brand/10 flex flex-wrap gap-6 items-center">
+                                                <div className="mb-3 p-3 rounded-md bg-white border border-gray-200 flex flex-wrap gap-5 items-center">
                                                    <div>
-                                                      <span className="text-[10px] font-bold uppercase text-brand/70 block">Tipo Doc SII</span>
-                                                      <span className="text-sm font-semibold text-brand">{entry.sii_document.document_type}</span>
+                                                      <span className="text-[10px] font-semibold uppercase text-gray-500 block">Tipo Doc SII</span>
+                                                      <span className="text-xs font-semibold text-gray-800">{entry.sii_document.document_type}</span>
                                                    </div>
                                                    <div>
-                                                      <span className="text-[10px] font-bold uppercase text-brand/70 block">Folio</span>
-                                                      <span className="text-sm font-mono font-bold text-brand">N° {entry.sii_document.folio}</span>
+                                                      <span className="text-[10px] font-semibold uppercase text-gray-500 block">Folio</span>
+                                                      <span className="text-xs font-mono font-bold text-gray-900">N° {entry.sii_document.folio}</span>
                                                    </div>
                                                    <div>
-                                                      <span className="text-[10px] font-bold uppercase text-brand/70 block">Monto Neto</span>
-                                                      <span className="text-sm font-mono font-semibold text-text-main">{clp(entry.sii_document.net_amount)}</span>
+                                                      <span className="text-[10px] font-semibold uppercase text-gray-500 block">Monto Neto</span>
+                                                      <span className="text-xs font-mono font-medium text-gray-800">{clp(entry.sii_document.net_amount)}</span>
                                                    </div>
                                                    <div>
-                                                      <span className="text-[10px] font-bold uppercase text-brand/70 block">IVA</span>
-                                                      <span className="text-sm font-mono font-semibold text-text-main">{clp(entry.sii_document.tax_amount)}</span>
+                                                      <span className="text-[10px] font-semibold uppercase text-gray-500 block">IVA</span>
+                                                      <span className="text-xs font-mono font-medium text-gray-800">{clp(entry.sii_document.tax_amount)}</span>
                                                    </div>
                                                    <div>
-                                                      <span className="text-[10px] font-bold uppercase text-brand/70 block">Total Documento</span>
-                                                      <span className="text-sm font-mono font-bold text-heading">{clp(entry.sii_document.total_amount)}</span>
+                                                      <span className="text-[10px] font-semibold uppercase text-gray-500 block">Total Documento</span>
+                                                      <span className="text-xs font-mono font-bold text-gray-900">{clp(entry.sii_document.total_amount)}</span>
                                                    </div>
                                                 </div>
                                              )}
-                                             <h4 className="text-xs uppercase font-bold text-text-soft tracking-wider">
+                                             <h4 className="text-[11px] uppercase font-semibold text-gray-600 tracking-wider">
                                                 Movimientos de Libro Diario (N° {entry.entry_number || entry.id})
                                              </h4>
-                                             <div className="overflow-x-auto rounded-2xl border border-border-subtle bg-bg-content">
+                                             <div className="overflow-x-auto rounded border border-gray-200 bg-white">
                                                 <table className="min-w-full text-xs text-left">
-                                                   <thead className="bg-surface-2 text-text-soft font-semibold border-b border-border-subtle">
+                                                   <thead className="bg-gray-50 text-gray-600 font-semibold border-b border-gray-200 uppercase tracking-wider">
                                                       <tr>
-                                                         <th className="py-2.5 px-4">Código</th>
-                                                         <th className="py-2.5 px-4">Cuenta Contable</th>
-                                                         <th className="py-2.5 px-4">Descripción</th>
-                                                         <th className="py-2.5 px-4">RUT Contraparte</th>
-                                                         <th className="py-2.5 px-4">Centro Costo</th>
-                                                         <th className="py-2.5 px-4 text-right">Debe</th>
-                                                         <th className="py-2.5 px-4 text-right">Haber</th>
+                                                         <th className="py-2 px-3">Código</th>
+                                                         <th className="py-2 px-3">Cuenta Contable</th>
+                                                         <th className="py-2 px-3">Descripción</th>
+                                                         <th className="py-2 px-3">RUT Contraparte</th>
+                                                         <th className="py-2 px-3">Centro Costo</th>
+                                                         <th className="py-2 px-3 text-right">Debe</th>
+                                                         <th className="py-2 px-3 text-right">Haber</th>
                                                       </tr>
                                                    </thead>
-                                                   <tbody className="divide-y divide-border-subtle/50">
+                                                   <tbody className="divide-y divide-gray-200">
                                                       {entry.items?.map((it) => (
-                                                         <tr key={it.id} className="hover:bg-brand/5">
-                                                            <td className="py-2.5 px-4 font-mono font-bold text-brand">
+                                                         <tr key={it.id} className="hover:bg-gray-50/80">
+                                                            <td className="py-2 px-3 font-mono font-bold text-gray-900">
                                                                {it.account?.code || '-'}
                                                             </td>
-                                                            <td className="py-2.5 px-4 font-medium text-heading">
+                                                            <td className="py-2 px-3 font-medium text-gray-800">
                                                                {it.account?.name || '-'}
                                                             </td>
-                                                            <td className="py-2.5 px-4 text-text-soft">{it.description || '-'}</td>
-                                                            <td className="py-2.5 px-4 font-mono text-text-soft">
+                                                            <td className="py-2 px-3 text-gray-600">{it.description || '-'}</td>
+                                                            <td className="py-2 px-3 font-mono text-gray-600">
                                                                {it.counterparty_rut || '-'}
                                                             </td>
-                                                            <td className="py-2.5 px-4 text-text-soft">{it.cost_center || '-'}</td>
-                                                            <td className="py-2.5 px-4 text-right font-mono font-bold text-emerald-600">
+                                                            <td className="py-2 px-3 text-gray-600">{it.cost_center || '-'}</td>
+                                                            <td className="py-2 px-3 text-right font-mono font-semibold text-gray-900">
                                                                {Number(it.debit) > 0 ? clp(it.debit) : '-'}
                                                             </td>
-                                                            <td className="py-2.5 px-4 text-right font-mono font-bold text-blue-600">
+                                                            <td className="py-2 px-3 text-right font-mono font-semibold text-gray-900">
                                                                {Number(it.credit) > 0 ? clp(it.credit) : '-'}
                                                             </td>
                                                          </tr>
@@ -691,43 +682,43 @@ export default function AccountingEntries() {
                </div>
 
                {/* Modal Totals Summary */}
-               <div className="p-4 rounded-2xl bg-surface-1 border border-border-subtle flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-sm">
+               <div className="p-3.5 rounded-lg bg-gray-50 border border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
                   <div className="flex items-center gap-4">
                      <div>
-                        <span className="text-xs text-text-soft block uppercase font-semibold">Total Debe</span>
-                        <span className="text-base font-bold text-emerald-600 font-mono">{clp(modalTotals.debit)}</span>
+                        <span className="text-[10px] text-gray-500 block uppercase font-semibold">Total Debe</span>
+                        <span className="text-sm font-bold text-gray-900 font-mono">{clp(modalTotals.debit)}</span>
                      </div>
                      <div>
-                        <span className="text-xs text-text-soft block uppercase font-semibold">Total Haber</span>
-                        <span className="text-base font-bold text-blue-600 font-mono">{clp(modalTotals.credit)}</span>
+                        <span className="text-[10px] text-gray-500 block uppercase font-semibold">Total Haber</span>
+                        <span className="text-sm font-bold text-gray-900 font-mono">{clp(modalTotals.credit)}</span>
                      </div>
                   </div>
 
                   <div>
                      {modalTotals.diff === 0 ? (
-                        <Pill colorClass="bg-emerald-500/10 text-emerald-600 ring-emerald-500/20">
-                           <CheckCircleIcon className="w-4 h-4" /> Asiento Cuadrado
+                        <Pill colorClass="bg-emerald-50 text-emerald-700 border-emerald-200">
+                           <CheckCircleIcon className="w-3.5 h-3.5 text-emerald-600" /> Asiento Cuadrado
                         </Pill>
                      ) : (
-                        <Pill colorClass="bg-rose-500/10 text-rose-600 ring-rose-500/20">
+                        <Pill colorClass="bg-red-50 text-red-700 border-red-200">
                            Diferencia: {clp(modalTotals.diff)}
                         </Pill>
                      )}
                   </div>
                </div>
 
-               <div className="flex justify-end gap-3 pt-4 border-t border-border-subtle">
+               <div className="flex justify-end gap-2 pt-4 border-t border-gray-200">
                   <button
                      type="button"
                      onClick={() => setModalOpen(false)}
-                     className="px-4 py-2 text-text-soft font-medium hover:text-text-main hover:bg-surface-2 rounded-xl transition"
+                     className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 transition"
                   >
                      Cancelar
                   </button>
                   <button
                      type="submit"
                      disabled={submitting || modalTotals.diff > 0.05}
-                     className="px-5 py-2 bg-brand text-white font-semibold rounded-xl hover:bg-brand-hover shadow-sm transition disabled:opacity-50"
+                     className="px-4 py-1.5 bg-gray-800 text-white text-xs font-medium rounded hover:bg-gray-900 transition disabled:opacity-50"
                   >
                      {submitting ? 'Guardando...' : 'Guardar Asiento'}
                   </button>
