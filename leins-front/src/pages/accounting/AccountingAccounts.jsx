@@ -23,27 +23,26 @@ import {
    BanknotesIcon,
    ChartBarIcon,
    TagIcon,
+   CurrencyDollarIcon,
+   HashtagIcon,
+   BookmarkIcon,
 } from '@heroicons/react/24/outline';
 
-const ctrl = 'w-full h-9 px-3 text-sm rounded border border-gray-300 bg-white text-gray-800 placeholder-gray-400 focus:outline-none focus:border-gray-500 focus:ring-1 focus:ring-gray-400 transition-colors shadow-2xs';
+const ctrl = 'w-full h-11 px-3 text-sm rounded-2xl border border-border-subtle bg-bg-content text-text-main placeholder-text-soft/70 focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition shadow-sm';
 const selectCtrl = ctrl + ' appearance-none cursor-pointer';
-const btnCtrl = 'h-9 flex items-center justify-center gap-2 px-3 rounded border border-gray-300 bg-white text-gray-700 text-sm font-medium shadow-2xs hover:bg-gray-50 focus:outline-none transition-colors cursor-pointer';
+const btnCtrl = 'h-11 flex items-center justify-center gap-2 px-4 rounded-2xl border border-border-subtle bg-bg-content text-text-main text-sm font-medium transition shadow-sm hover:bg-surface-2 hover:text-brand focus:outline-none focus:ring-2 focus:ring-brand';
 
-function Pill({ children, colorClass = 'bg-gray-100 text-gray-700 border-gray-200' }) {
-   return (
-      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border ${colorClass}`}>
-         {children}
-      </span>
-   );
+function Pill({ children, colorClass = "bg-brand/10 text-brand ring-brand/20" }) {
+   return <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ring-1 ${colorClass}`}>{children}</span>;
 }
 
 const TYPE_BADGES = {
-   ACTIVO: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-   PASIVO: 'bg-amber-50 text-amber-700 border-amber-200',
-   PATRIMONIO: 'bg-purple-50 text-purple-700 border-purple-200',
-   INGRESOS: 'bg-blue-50 text-blue-700 border-blue-200',
-   COSTOS: 'bg-orange-50 text-orange-700 border-orange-200',
-   GASTOS: 'bg-gray-100 text-gray-700 border-gray-200',
+   ACTIVO: 'bg-emerald-100 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-300 dark:ring-emerald-500/30',
+   PASIVO: 'bg-amber-100 text-amber-700 ring-amber-200 dark:bg-amber-500/20 dark:text-amber-300 dark:ring-amber-500/30',
+   PATRIMONIO: 'bg-purple-100 text-purple-700 ring-purple-200 dark:bg-purple-500/20 dark:text-purple-300 dark:ring-purple-500/30',
+   INGRESOS: 'bg-blue-100 text-blue-700 ring-blue-200 dark:bg-blue-500/20 dark:text-blue-300 dark:ring-blue-500/30',
+   COSTOS: 'bg-orange-100 text-orange-700 ring-orange-200 dark:bg-orange-500/20 dark:text-orange-300 dark:ring-orange-500/30',
+   GASTOS: 'bg-slate-100 text-slate-700 ring-slate-200 dark:bg-slate-500/20 dark:text-slate-300 dark:ring-slate-500/30',
 };
 
 function AccountsSummary({ accounts }) {
@@ -60,50 +59,40 @@ function AccountsSummary({ accounts }) {
    }, [accounts]);
 
    return (
-      <div className="mb-5 grid grid-cols-2 gap-3 xl:grid-cols-5">
-         <div className="rounded-lg border border-gray-200 bg-white p-3.5 shadow-2xs flex items-center gap-3">
-            <div className="p-2.5 bg-gray-100 text-gray-600 rounded-md">
-               <DocumentDuplicateIcon className="w-5 h-5" />
-            </div>
+      <div className="mb-5 grid grid-cols-2 gap-4 xl:grid-cols-5">
+         <div className="rounded-2xl border border-border-subtle bg-surface-1 p-4 shadow-sm flex items-center gap-4">
+            <div className="p-3 bg-brand/10 text-brand rounded-xl"><DocumentDuplicateIcon className="w-6 h-6" /></div>
             <div>
-               <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Total Cuentas</div>
-               <div className="text-lg font-bold text-gray-900">{counts.total}</div>
+               <div className="text-xs font-semibold text-text-soft uppercase tracking-wide">Total Cuentas</div>
+               <div className="text-xl font-bold text-heading">{counts.total}</div>
             </div>
          </div>
-         <div className="rounded-lg border border-gray-200 bg-white p-3.5 shadow-2xs flex items-center gap-3">
-            <div className="p-2.5 bg-emerald-50 text-emerald-700 rounded-md">
-               <BanknotesIcon className="w-5 h-5" />
-            </div>
+         <div className="rounded-2xl border border-border-subtle bg-surface-1 p-4 shadow-sm flex items-center gap-4">
+            <div className="p-3 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-xl"><BanknotesIcon className="w-6 h-6" /></div>
             <div>
-               <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Activos</div>
-               <div className="text-lg font-bold text-gray-900">{counts.activo}</div>
+               <div className="text-xs font-semibold text-text-soft uppercase tracking-wide">Activos</div>
+               <div className="text-xl font-bold text-heading">{counts.activo}</div>
             </div>
          </div>
-         <div className="rounded-lg border border-gray-200 bg-white p-3.5 shadow-2xs flex items-center gap-3">
-            <div className="p-2.5 bg-amber-50 text-amber-700 rounded-md">
-               <ChartBarIcon className="w-5 h-5" />
-            </div>
+         <div className="rounded-2xl border border-border-subtle bg-surface-1 p-4 shadow-sm flex items-center gap-4">
+            <div className="p-3 bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-xl"><ChartBarIcon className="w-6 h-6" /></div>
             <div>
-               <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Pasivo / Patr.</div>
-               <div className="text-lg font-bold text-gray-900">{counts.pasivo + counts.patrimonio}</div>
+               <div className="text-xs font-semibold text-text-soft uppercase tracking-wide">Pasivo / Patr.</div>
+               <div className="text-xl font-bold text-heading">{counts.pasivo + counts.patrimonio}</div>
             </div>
          </div>
-         <div className="rounded-lg border border-gray-200 bg-white p-3.5 shadow-2xs flex items-center gap-3">
-            <div className="p-2.5 bg-blue-50 text-blue-700 rounded-md">
-               <TagIcon className="w-5 h-5" />
-            </div>
+         <div className="rounded-2xl border border-border-subtle bg-surface-1 p-4 shadow-sm flex items-center gap-4">
+            <div className="p-3 bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-xl"><TagIcon className="w-6 h-6" /></div>
             <div>
-               <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Ingresos</div>
-               <div className="text-lg font-bold text-gray-900">{counts.ingresos}</div>
+               <div className="text-xs font-semibold text-text-soft uppercase tracking-wide">Ingresos</div>
+               <div className="text-xl font-bold text-heading">{counts.ingresos}</div>
             </div>
          </div>
-         <div className="col-span-2 xl:col-span-1 rounded-lg border border-gray-200 bg-white p-3.5 shadow-2xs flex items-center gap-3">
-            <div className="p-2.5 bg-gray-100 text-gray-700 rounded-md">
-               <BookOpenIcon className="w-5 h-5" />
-            </div>
+         <div className="col-span-2 xl:col-span-1 rounded-2xl border border-brand/30 bg-brand/5 p-4 shadow-sm flex items-center gap-4 ring-1 ring-brand/10">
+            <div className="p-3 bg-brand text-white rounded-xl"><BookOpenIcon className="w-6 h-6" /></div>
             <div>
-               <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Gastos y Costos</div>
-               <div className="text-lg font-bold text-gray-900">{counts.gastos}</div>
+               <div className="text-xs font-semibold text-brand uppercase tracking-wide">Gastos y Costos</div>
+               <div className="text-xl font-bold text-brand">{counts.gastos}</div>
             </div>
          </div>
       </div>
@@ -257,62 +246,62 @@ export default function AccountingAccounts() {
    if (!ready) return <EntityRequiredNotice />;
 
    return (
-      <div className="space-y-4">
-         {/* Top Header Card */}
-         <div className="bg-white rounded-lg p-4 border border-gray-200 shadow-2xs">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4 pb-4 border-b border-gray-200">
+      <div className="space-y-6">
+         {/* Top Header & Filter Card */}
+         <div className="bg-bg-content rounded-3xl p-5 border border-border-subtle shadow-sm">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 pb-5 border-b border-border-subtle">
                <div>
-                  <h2 className="text-xl font-bold text-gray-900 tracking-tight">Plan de Cuentas Contables</h2>
-                  <p className="text-xs text-gray-500 mt-1">Estructura general de cuentas y clasificación para la contabilidad de la empresa.</p>
+                  <h2 className="text-2xl font-bold text-heading tracking-tight">Plan de Cuentas Contables</h2>
+                  <p className="text-sm text-text-soft mt-1">Estructura general de cuentas y clasificación para la contabilidad de la empresa.</p>
                </div>
-               <div className="flex flex-wrap items-center gap-2">
+               <div className="flex flex-wrap items-center gap-3">
                   <button
                      onClick={handleSeed}
                      disabled={loading}
                      className={btnCtrl}
                      title="Cargar plan de cuentas base estándar"
                   >
-                     <SparklesIcon className="w-4 h-4 text-gray-500" />
+                     <SparklesIcon className="w-5 h-5 text-brand" />
                      <span className="hidden sm:inline">Cargar Plan Base</span>
                   </button>
-                  <button onClick={openCreateModal} className="h-9 flex items-center justify-center gap-2 px-3 rounded border border-gray-800 bg-gray-800 text-white text-sm font-medium shadow-2xs hover:bg-gray-900 transition-colors cursor-pointer">
-                     <PlusIcon className="w-4 h-4 stroke-2" />
+                  <button onClick={openCreateModal} className={`${btnCtrl} text-brand border-brand/20 bg-brand/5`} title="Crear nueva cuenta contable">
+                     <PlusIcon className="w-5 h-5 stroke-2" />
                      <span>Crear Cuenta</span>
                   </button>
                </div>
             </div>
 
             {/* Filter Section */}
-            <div className="space-y-3">
-               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 text-xs font-semibold text-gray-700">
-                     <FunnelIcon className="w-4 h-4 text-gray-500" /> Filtros de Búsqueda
+            <div className="space-y-4">
+               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-text-main">
+                     <FunnelIcon className="w-5 h-5 text-brand" /> Filtros de Búsqueda
                   </div>
                   <button
                      onClick={handleClearFilters}
                      disabled={loading}
-                     className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded transition-colors disabled:opacity-50"
+                     className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-text-soft hover:text-danger hover:bg-danger/10 rounded-xl transition-colors disabled:opacity-50"
                   >
-                     <ArrowPathIcon className="w-3.5 h-3.5" /> Limpiar Filtros
+                     <ArrowPathIcon className="w-4 h-4" /> Limpiar Filtros
                   </button>
                </div>
 
-               <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-start bg-gray-50/80 p-3 rounded-lg border border-gray-200">
-                  <div className="space-y-1 md:col-span-8 relative">
-                     <label className="block text-[11px] font-semibold text-gray-600 uppercase tracking-wider">Buscar Cuenta</label>
+               <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start bg-surface-1 p-4 rounded-2xl border border-border-subtle/50">
+                  <div className="space-y-1.5 md:col-span-8 relative">
+                     <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider">Buscar Cuenta</label>
                      <div className="relative">
-                        <MagnifyingGlassIcon className="w-4 h-4 absolute left-3 top-2.5 text-gray-400" />
+                        <MagnifyingGlassIcon className="w-5 h-5 absolute left-3 top-3 text-text-soft/70" />
                         <input
                            type="text"
                            placeholder="Buscar por código o nombre de cuenta..."
-                           className={`${ctrl} pl-9`}
+                           className={`${ctrl} pl-10`}
                            value={search}
                            onChange={(e) => setSearch(e.target.value)}
                         />
                      </div>
                   </div>
-                  <div className="space-y-1 md:col-span-4">
-                     <label className="block text-[11px] font-semibold text-gray-600 uppercase tracking-wider">Tipo de Cuenta</label>
+                  <div className="space-y-1.5 md:col-span-4">
+                     <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider">Tipo de Cuenta</label>
                      <select className={selectCtrl} value={filterType} onChange={(e) => setFilterType(e.target.value)}>
                         <option value="">Todos los tipos</option>
                         <option value="ACTIVO">1 ACTIVO</option>
@@ -331,20 +320,20 @@ export default function AccountingAccounts() {
          <AccountsSummary accounts={accounts} />
 
          {/* Error Notice */}
-         {err && <div className="p-3 bg-red-50 text-red-700 rounded-lg border border-red-200 text-xs font-medium">Error: {err}</div>}
+         {err && <div className="p-4 bg-danger/10 text-danger rounded-2xl border border-danger/20 text-sm font-medium">Error: {err}</div>}
 
          {/* Content / Grouped Accounts */}
-         <div className="bg-white rounded-lg border border-gray-200 shadow-2xs overflow-hidden p-5 space-y-6">
+         <div className="bg-bg-content rounded-3xl border border-border-subtle shadow-sm overflow-hidden p-6 space-y-6">
             {loading ? (
-               <div className="p-8 text-center text-gray-500 font-medium text-sm flex items-center justify-center gap-2">
-                  <ArrowPathIcon className="w-4 h-4 animate-spin text-gray-400" /> Cargando plan de cuentas...
+               <div className="p-10 text-center text-brand font-medium animate-pulse flex items-center justify-center gap-2">
+                  <ArrowPathIcon className="w-5 h-5 animate-spin text-brand" /> Cargando plan de cuentas...
                </div>
             ) : accounts.length === 0 ? (
-               <div className="p-10 text-center text-gray-500">
-                  <BookOpenIcon className="w-10 h-10 mx-auto text-gray-300 mb-2" />
-                  <p className="text-sm font-semibold text-gray-800">No hay cuentas contables registradas</p>
-                  <p className="text-xs text-gray-500 mt-1 mb-4">Puedes cargar la plantilla estándar o crear una cuenta manualmente.</p>
-                  <button onClick={handleSeed} className="h-9 px-4 rounded border border-gray-800 bg-gray-800 text-white text-xs font-medium mx-auto hover:bg-gray-900 transition-colors">
+               <div className="p-10 text-center text-text-soft">
+                  <BookOpenIcon className="w-12 h-12 mx-auto text-text-soft/40 mb-3" />
+                  <p className="text-base font-semibold text-heading">No hay cuentas contables registradas</p>
+                  <p className="text-xs text-text-soft mt-1 mb-5">Puedes cargar la plantilla estándar o crear una cuenta manualmente.</p>
+                  <button onClick={handleSeed} className="px-5 py-2.5 bg-brand text-white font-semibold text-xs rounded-xl hover:bg-brand-hover shadow-sm transition">
                      Cargar Plan Base Ahora
                   </button>
                </div>
@@ -352,74 +341,74 @@ export default function AccountingAccounts() {
                Object.entries(groupedAccounts).map(([type, accList]) => {
                   if (accList.length === 0 && filterType && filterType !== type) return null;
                   return (
-                     <div key={type} className="space-y-2">
-                        <div className="flex items-center justify-between pb-1.5 border-b border-gray-200">
-                           <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                     <div key={type} className="space-y-3">
+                        <div className="flex items-center justify-between pb-2 border-b border-border-subtle">
+                           <h3 className="text-base font-bold text-heading flex items-center gap-3">
                               <Pill colorClass={TYPE_BADGES[type]}>{type}</Pill>
-                              <span className="text-xs text-gray-500 font-normal">({accList.length} cuentas)</span>
+                              <span className="text-xs text-text-soft font-normal">({accList.length} cuentas)</span>
                            </h3>
                         </div>
 
                         {accList.length === 0 ? (
-                           <p className="text-xs text-gray-400 italic pl-1">Sin cuentas registradas en esta categoría.</p>
+                           <p className="text-xs text-text-soft/70 italic pl-1">Sin cuentas registradas en esta categoría.</p>
                         ) : (
-                           <div className="overflow-x-auto rounded border border-gray-200">
-                              <table className="min-w-full text-xs text-left">
-                                 <thead className="bg-gray-50 border-b border-gray-200 text-gray-600 font-semibold uppercase tracking-wider">
+                           <div className="overflow-x-auto rounded-2xl border border-border-subtle">
+                              <table className="min-w-full text-sm text-left">
+                                 <thead className="bg-surface-2 border-b border-border-subtle text-text-soft font-semibold">
                                     <tr>
-                                       <th className="py-2.5 px-3">Código</th>
-                                       <th className="py-2.5 px-3">Nombre Cuenta</th>
-                                       <th className="py-2.5 px-3">Naturaleza</th>
-                                       <th className="py-2.5 px-3">Centro de Costo</th>
-                                       <th className="py-2.5 px-3 text-center">Acciones</th>
+                                       <th className="py-3 px-4">Código</th>
+                                       <th className="py-3 px-4">Nombre Cuenta</th>
+                                       <th className="py-3 px-4">Naturaleza</th>
+                                       <th className="py-3 px-4">Centro de Costo</th>
+                                       <th className="py-3 px-4 text-center">Acciones</th>
                                     </tr>
                                  </thead>
-                                 <tbody className="divide-y divide-gray-200">
+                                 <tbody className="divide-y divide-border-subtle/50">
                                     {accList.map((acc) => (
-                                       <tr key={acc.id} className="hover:bg-gray-50/80 transition-colors group">
-                                          <td className="py-2.5 px-3 font-mono font-bold text-gray-900">{acc.code}</td>
-                                          <td className="py-2.5 px-3 font-medium text-gray-800">
+                                       <tr key={acc.id} className="hover:bg-brand/5 transition-colors group">
+                                          <td className="py-3 px-4 font-mono font-bold text-heading">{acc.code}</td>
+                                          <td className="py-3 px-4 font-medium text-text-main">
                                              {acc.name}
                                              {acc.is_system && (
-                                                <span className="ml-2 inline-flex px-1.5 py-0.5 bg-gray-100 rounded font-mono text-[10px] font-semibold text-gray-500 border border-gray-200">
+                                                <span className="ml-2 inline-flex px-2 py-0.5 bg-surface-2 rounded-md font-mono text-[10px] font-semibold text-text-soft border border-border-subtle/50">
                                                    SISTEMA
                                                 </span>
                                              )}
                                           </td>
-                                          <td className="py-2.5 px-3">
+                                          <td className="py-3 px-4">
                                              <Pill
                                                 colorClass={
                                                    acc.nature === 'DEUDORA'
-                                                      ? 'bg-slate-100 text-slate-700 border-slate-200'
-                                                      : 'bg-slate-100 text-slate-700 border-slate-200'
+                                                      ? 'bg-slate-100 text-slate-700 ring-slate-200 dark:bg-slate-500/20 dark:text-slate-300 dark:ring-slate-500/30'
+                                                      : 'bg-slate-100 text-slate-700 ring-slate-200 dark:bg-slate-500/20 dark:text-slate-300 dark:ring-slate-500/30'
                                                 }
                                              >
                                                 {acc.nature}
                                              </Pill>
                                           </td>
-                                          <td className="py-2.5 px-3 text-gray-500 text-xs">
+                                          <td className="py-3 px-4 text-text-soft text-xs">
                                              {acc.cost_center_requirement === 'REQUIRED'
                                                 ? 'Obligatorio'
                                                 : acc.cost_center_requirement === 'OPTIONAL'
                                                 ? 'Opcional'
                                                 : 'No requiere'}
                                           </td>
-                                          <td className="py-2.5 px-3 text-center">
+                                          <td className="py-3 px-4 text-center">
                                              <div className="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                                                 <button
                                                    onClick={() => openEditModal(acc)}
-                                                   className="p-1 rounded text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition"
+                                                   className="p-1.5 rounded-lg text-text-soft hover:text-brand hover:bg-brand/10 transition outline-none focus:ring-2 focus:ring-brand"
                                                    title="Editar cuenta"
                                                 >
-                                                   <PencilSquareIcon className="w-4 h-4" />
+                                                   <PencilSquareIcon className="w-5 h-5" />
                                                 </button>
                                                 {!acc.is_system && (
                                                    <button
                                                       onClick={() => handleDelete(acc)}
-                                                      className="p-1 rounded text-gray-500 hover:text-red-600 hover:bg-red-50 transition"
+                                                      className="p-1.5 rounded-lg text-text-soft hover:text-danger hover:bg-danger/10 transition outline-none focus:ring-2 focus:ring-danger"
                                                       title="Eliminar cuenta"
                                                    >
-                                                      <TrashIcon className="w-4 h-4" />
+                                                      <TrashIcon className="w-5 h-5" />
                                                    </button>
                                                 )}
                                              </div>
@@ -511,18 +500,18 @@ export default function AccountingAccounts() {
                   </select>
                </div>
 
-               <div className="flex justify-end gap-2 pt-4 border-t border-gray-200">
+               <div className="flex justify-end gap-3 pt-4 border-t border-border-subtle">
                   <button
                      type="button"
                      onClick={() => setModalOpen(false)}
-                     className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 transition"
+                     className="px-4 py-2 text-text-soft font-medium hover:text-text-main hover:bg-surface-2 rounded-xl transition"
                   >
                      Cancelar
                   </button>
                   <button
                      type="submit"
                      disabled={submitting}
-                     className="px-4 py-1.5 bg-gray-800 text-white text-xs font-medium rounded hover:bg-gray-900 transition disabled:opacity-50"
+                     className="px-5 py-2 bg-brand text-white font-semibold rounded-xl hover:bg-brand-hover shadow-sm transition disabled:opacity-50"
                   >
                      {submitting ? 'Guardando...' : 'Guardar Cuenta'}
                   </button>
@@ -532,4 +521,5 @@ export default function AccountingAccounts() {
       </div>
    );
 }
+
 

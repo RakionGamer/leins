@@ -13,10 +13,69 @@ import {
    PlusIcon,
    TrashIcon,
    ArrowPathIcon,
+   DocumentDuplicateIcon,
+   TagIcon,
+   BookOpenIcon,
+   CurrencyDollarIcon,
+   FunnelIcon,
+   MagnifyingGlassIcon,
 } from '@heroicons/react/24/outline';
 
-const ctrl = 'w-full h-9 px-3 text-sm rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-1)] text-[var(--heading)] placeholder-[var(--text-soft)] focus:outline-none focus:border-[var(--brand)] transition-colors shadow-sm';
+const ctrl = 'w-full h-11 px-3 text-sm rounded-2xl border border-border-subtle bg-bg-content text-text-main placeholder-text-soft/70 focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition shadow-sm';
 const selectCtrl = ctrl + ' appearance-none cursor-pointer';
+const btnCtrl = 'h-11 flex items-center justify-center gap-2 px-4 rounded-2xl border border-border-subtle bg-bg-content text-text-main text-sm font-medium transition shadow-sm hover:bg-surface-2 hover:text-brand focus:outline-none focus:ring-2 focus:ring-brand';
+
+function Pill({ children, colorClass = "bg-brand/10 text-brand ring-brand/20" }) {
+   return <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ring-1 ${colorClass}`}>{children}</span>;
+}
+
+function ResumenReglas({ rules }) {
+   const stats = useMemo(() => {
+      const ruts = new Set();
+      const accounts = new Set();
+      let costCenters = 0;
+
+      for (const r of rules ?? []) {
+         if (r.counterparty_rut) ruts.add(r.counterparty_rut);
+         if (r.account_id) accounts.add(r.account_id);
+         if (r.cost_center) costCenters++;
+      }
+      return { total: rules?.length ?? 0, ruts: ruts.size, accounts: accounts.size, costCenters };
+   }, [rules]);
+
+   return (
+      <div className="mb-5 grid grid-cols-2 gap-4 xl:grid-cols-4">
+         <div className="rounded-2xl border border-border-subtle bg-surface-1 p-4 shadow-sm flex items-center gap-4">
+            <div className="p-3 bg-brand/10 text-brand rounded-xl"><DocumentDuplicateIcon className="w-6 h-6" /></div>
+            <div>
+               <div className="text-xs font-semibold text-text-soft uppercase tracking-wide">Total Reglas</div>
+               <div className="text-xl font-bold text-heading">{stats.total}</div>
+            </div>
+         </div>
+         <div className="rounded-2xl border border-border-subtle bg-surface-1 p-4 shadow-sm flex items-center gap-4">
+            <div className="p-3 bg-purple-500/10 text-purple-600 dark:text-purple-400 rounded-xl"><TagIcon className="w-6 h-6" /></div>
+            <div>
+               <div className="text-xs font-semibold text-text-soft uppercase tracking-wide">RUTs Configurados</div>
+               <div className="text-xl font-bold text-heading">{stats.ruts}</div>
+            </div>
+         </div>
+         <div className="rounded-2xl border border-border-subtle bg-surface-1 p-4 shadow-sm flex items-center gap-4">
+            <div className="p-3 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-xl"><BookOpenIcon className="w-6 h-6" /></div>
+            <div>
+               <div className="text-xs font-semibold text-text-soft uppercase tracking-wide">Cuentas Asignadas</div>
+               <div className="text-xl font-bold text-heading">{stats.accounts}</div>
+            </div>
+         </div>
+         <div className="rounded-2xl border border-brand/30 bg-brand/5 p-4 shadow-sm flex items-center gap-4 ring-1 ring-brand/10">
+            <div className="p-3 bg-brand text-white rounded-xl"><CurrencyDollarIcon className="w-6 h-6" /></div>
+            <div>
+               <div className="text-xs font-semibold text-brand uppercase tracking-wide">Centros de Costo</div>
+               <div className="text-xl font-bold text-brand">{stats.costCenters}</div>
+            </div>
+         </div>
+      </div>
+   );
+}
 
 export default function AccountingRules() {
    const { entityId, ready } = useEntityRequired();
@@ -26,8 +85,6 @@ export default function AccountingRules() {
    const [loading, setLoading] = useState(true);
    const [err, setErr] = useState(null);
    const [search, setSearch] = useState('');
-
-   const [mostrarFiltros, setMostrarFiltros] = useState(true);
 
    const [modalOpen, setModalOpen] = useState(false);
    const [formData, setFormData] = useState({
@@ -113,124 +170,137 @@ export default function AccountingRules() {
    if (!ready) return <EntityRequiredNotice />;
 
    return (
-      <div className="animate-fade-in">
-         {/* PANEL: Filtros */}
-         <div
-            className={[
-               "relative bg-[var(--bg-content)] shadow-sm transition-all duration-300 ease-out origin-top",
-               mostrarFiltros ? "z-[80] opacity-100 max-h-[1000px] py-3 px-4 space-y-3 scale-100 overflow-visible mb-4" : "z-0 opacity-0 max-h-0 p-0 pointer-events-none scale-[.98] overflow-hidden",
-            ].join(" ")}
-         >
-            <h2 className="text-xl font-semibold text-[var(--heading)]">
-               Reglas de Asignación por RUT
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
-               <div className="flex flex-col gap-1 md:col-span-4">
-                  <label className="text-[12px] text-[var(--text-soft)]">Buscar por RUT o Nombre</label>
-                  <input
-                     type="text"
-                     placeholder="Buscar por RUT de proveedor/cliente o cuenta asignada..."
-                     className="border border-[var(--border-subtle)] bg-[var(--surface-1)] rounded-lg p-2 text-[var(--heading)] placeholder-[var(--text-soft)] focus:outline-none focus:border-[var(--brand)]"
-                     value={search}
-                     onChange={(e) => setSearch(e.target.value)}
-                  />
+      <div className="space-y-6">
+         {/* Top Header & Filter Card */}
+         <div className="bg-bg-content rounded-3xl p-5 border border-border-subtle shadow-sm">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 pb-5 border-b border-border-subtle">
+               <div>
+                  <h2 className="text-2xl font-bold text-heading tracking-tight">Reglas de Asignación por RUT</h2>
+                  <p className="text-sm text-text-soft mt-1">Automatice la imputación contable de documentos asociando RUTs a cuentas específicas.</p>
                </div>
-            </div>
-         </div>
-
-         {/* Toolbar y Tabs */}
-         <div className="bg-[var(--bg-content)] py-2 px-4 shadow-sm mb-4">
-            <div className="flex items-center justify-between gap-3">
-               <div className="flex flex-wrap items-center gap-2" role="tablist">
-                  <button className="px-3 py-2 rounded-lg flex items-center gap-2 bg-[var(--surface-2)] text-[var(--heading)]">
-                     <span>Reglas de Asignación</span>
-                  </button>
-               </div>
-               <div className="flex items-center gap-2">
+               <div className="flex flex-wrap items-center gap-3">
                   <button
                      onClick={() => {
                         setFormData({ counterparty_rut: '', counterparty_name: '', account_id: '', cost_center: '' });
                         setModalOpen(true);
                      }}
-                     className="flex items-center gap-2 px-3 md:px-6 py-2.5 bg-[var(--brand)] text-white font-medium rounded-xl shadow-lg shadow-brand/20 hover:opacity-90 hover:-translate-y-0.5 transition-all"
+                     className={`${btnCtrl} text-brand border-brand/20 bg-brand/5`}
+                     title="Crear nueva regla de asignación"
                   >
-                     <PlusIcon className="w-4 h-4 stroke-2" />
-                     <span className="hidden xl:block">Nueva Regla</span>
+                     <PlusIcon className="w-5 h-5 stroke-2" />
+                     <span>Nueva Regla</span>
                   </button>
-                  <button type="button" onClick={() => setMostrarFiltros(v => !v)} className="p-2 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--surface-1)]" title="Mostrar/Ocultar filtros">
-                     🔍
+               </div>
+            </div>
+
+            {/* Filter Section */}
+            <div className="space-y-4">
+               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-text-main">
+                     <FunnelIcon className="w-5 h-5 text-brand" /> Filtros de Búsqueda
+                  </div>
+                  <button
+                     onClick={() => { setSearch(''); loadRules(); }}
+                     disabled={loading}
+                     className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-text-soft hover:text-danger hover:bg-danger/10 rounded-xl transition-colors disabled:opacity-50"
+                  >
+                     <ArrowPathIcon className="w-4 h-4" /> Limpiar Filtros
                   </button>
+               </div>
+
+               <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start bg-surface-1 p-4 rounded-2xl border border-border-subtle/50">
+                  <div className="space-y-1.5 md:col-span-12 relative">
+                     <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider">Buscar por RUT o Nombre</label>
+                     <div className="relative">
+                        <MagnifyingGlassIcon className="w-5 h-5 absolute left-3 top-3 text-text-soft/70" />
+                        <input
+                           type="text"
+                           placeholder="Buscar por RUT de proveedor/cliente o cuenta asignada..."
+                           className={`${ctrl} pl-10`}
+                           value={search}
+                           onChange={(e) => setSearch(e.target.value)}
+                        />
+                     </div>
+                  </div>
                </div>
             </div>
          </div>
 
-         {err && <div className="p-4 bg-[var(--danger)]/10 text-[var(--danger)] rounded-lg mb-4 text-sm font-medium">Error: {err}</div>}
+         {/* Resumen Tarjetas */}
+         <ResumenReglas rules={rules} />
+
+         {err && <div className="p-4 bg-danger/10 text-danger rounded-2xl border border-danger/20 text-sm font-medium">Error: {err}</div>}
 
          {/* Rules Table */}
-         <div className={`bg-[var(--bg-content)] overflow-auto shadow-sm transition-all animate-fade-in ${loading ? 'opacity-60 pointer-events-none' : ''}`}>
-            <table className="min-w-full text-sm">
-               <thead className="sticky top-0 bg-[var(--surface-2)] text-[var(--heading)]">
-                  <tr className="text-left">
-                     <th className="px-3 py-2">RUT Proveedor / Cliente</th>
-                     <th className="px-3 py-2">Razón Social / Nombre</th>
-                     <th className="px-3 py-2">Cuenta Contable Destino</th>
-                     <th className="px-3 py-2">Centro de Costo</th>
-                     <th className="px-3 py-2 text-center">Acciones</th>
-                  </tr>
-               </thead>
-               <tbody>
-                  {filteredRules.length === 0 && (
+         <div className={`bg-bg-content rounded-3xl border border-border-subtle shadow-sm overflow-hidden transition-all ${loading ? 'opacity-60 pointer-events-none' : ''}`}>
+            <div className="overflow-x-auto">
+               <table className="min-w-full text-sm text-left">
+                  <thead className="bg-surface-2 border-b border-border-subtle text-text-soft font-semibold">
                      <tr>
-                        <td className="px-3 py-8 text-center text-[var(--text-soft)]" colSpan={5}>
-                           Sin resultados. Ajusta filtros o crea una nueva regla.
-                        </td>
+                        <th className="p-4">RUT Proveedor / Cliente</th>
+                        <th className="p-4">Razón Social / Nombre</th>
+                        <th className="p-4">Cuenta Contable Destino</th>
+                        <th className="p-4">Centro de Costo</th>
+                        <th className="p-4 text-center">Acciones</th>
                      </tr>
-                  )}
-                  {filteredRules.map((rule) => (
-                     <tr key={rule.id} className="border-b border-[var(--border-subtle)] hover:bg-[var(--surface-1)] transition-colors group">
-                        <td className="px-3 py-2 font-mono font-bold text-[var(--heading)]">{rule.counterparty_rut}</td>
-                        <td className="px-3 py-2 font-medium text-[var(--text-main)]">{rule.counterparty_name || '-'}</td>
-                        <td className="px-3 py-2 font-medium text-[var(--text-main)]">
-                           {rule.account ? (
-                              <div className="flex items-center gap-2">
-                                 <span className="font-mono text-[var(--heading)] font-bold">{rule.account.code}</span>
-                                 <span>{rule.account.name}</span>
-                              </div>
-                           ) : (
-                              '-'
-                           )}
-                        </td>
-                        <td className="px-3 py-2 text-[var(--text-soft)]">
-                           {rule.cost_center ? (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border bg-[var(--surface-2)] text-[var(--text-main)] border-[var(--border-subtle)]">
-                                 {rule.cost_center}
-                              </span>
-                           ) : (
-                              <span className="italic">No asignado</span>
-                           )}
-                        </td>
-                        <td className="px-3 py-2 text-center">
-                           <div className="flex items-center justify-center opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
-                              <button
-                                 onClick={() => handleDelete(rule)}
-                                 className="p-1 rounded text-[var(--text-soft)] hover:text-[var(--danger)] hover:bg-[var(--danger)]/10 transition outline-none"
-                                 title="Eliminar regla"
-                              >
-                                 <TrashIcon className="w-4 h-4" />
-                              </button>
-                           </div>
-                        </td>
-                     </tr>
-                  ))}
-               </tbody>
-            </table>
+                  </thead>
+                  <tbody className="divide-y divide-border-subtle/50">
+                     {filteredRules.length === 0 ? (
+                        <tr>
+                           <td className="p-10 text-center text-text-soft italic" colSpan={5}>
+                              Sin resultados. Ajusta filtros o crea una nueva regla.
+                           </td>
+                        </tr>
+                     ) : (
+                        filteredRules.map((rule) => (
+                           <tr key={rule.id} className="hover:bg-brand/5 transition-colors group">
+                              <td className="p-4 font-mono font-bold text-heading">{rule.counterparty_rut}</td>
+                              <td className="p-4 font-medium text-text-main">{rule.counterparty_name || '-'}</td>
+                              <td className="p-4 font-medium text-text-main">
+                                 {rule.account ? (
+                                    <div className="flex items-center gap-2">
+                                       <Pill colorClass="bg-slate-100 text-slate-700 ring-slate-200 dark:bg-slate-500/20 dark:text-slate-300 dark:ring-slate-500/30">
+                                          {rule.account.code}
+                                       </Pill>
+                                       <span>{rule.account.name}</span>
+                                    </div>
+                                 ) : (
+                                    '-'
+                                 )}
+                              </td>
+                              <td className="p-4 text-text-soft">
+                                 {rule.cost_center ? (
+                                    <Pill colorClass="bg-emerald-100 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-300 dark:ring-emerald-500/30">
+                                       {rule.cost_center}
+                                    </Pill>
+                                 ) : (
+                                    <span className="italic text-xs text-text-soft/70">No asignado</span>
+                                 )}
+                              </td>
+                              <td className="p-4 text-center">
+                                 <div className="flex items-center justify-center opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                                    <button
+                                       onClick={() => handleDelete(rule)}
+                                       className="p-1.5 rounded-lg text-text-soft hover:text-danger hover:bg-danger/10 transition outline-none focus:ring-2 focus:ring-danger"
+                                       title="Eliminar regla"
+                                    >
+                                       <TrashIcon className="w-5 h-5" />
+                                    </button>
+                                 </div>
+                              </td>
+                           </tr>
+                        ))
+                     )}
+                  </tbody>
+               </table>
+            </div>
          </div>
 
          {/* Create Rule Modal */}
          <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title="Nueva Regla de Asignación por RUT" maxWidth="max-w-md">
             <form onSubmit={handleSubmit} className="space-y-4">
                <div>
-                  <label className="block text-xs font-semibold uppercase text-[var(--text-soft)] mb-1">RUT Proveedor / Cliente</label>
+                  <label className="block text-xs font-semibold uppercase text-text-soft mb-1">RUT Proveedor / Cliente</label>
                   <input
                      type="text"
                      required
@@ -242,7 +312,7 @@ export default function AccountingRules() {
                </div>
 
                <div>
-                  <label className="block text-xs font-semibold uppercase text-[var(--text-soft)] mb-1">Razón Social (Opcional)</label>
+                  <label className="block text-xs font-semibold uppercase text-text-soft mb-1">Razón Social (Opcional)</label>
                   <input
                      type="text"
                      placeholder="Ej: Servicios Eléctricos SpA"
@@ -253,7 +323,7 @@ export default function AccountingRules() {
                </div>
 
                <div>
-                  <label className="block text-xs font-semibold uppercase text-[var(--text-soft)] mb-1">Cuenta Contable Destino</label>
+                  <label className="block text-xs font-semibold uppercase text-text-soft mb-1">Cuenta Contable Destino</label>
                   <select
                      required
                      className={selectCtrl}
@@ -270,7 +340,7 @@ export default function AccountingRules() {
                </div>
 
                <div>
-                  <label className="block text-xs font-semibold uppercase text-[var(--text-soft)] mb-1">Centro de Costo (Opcional)</label>
+                  <label className="block text-xs font-semibold uppercase text-text-soft mb-1">Centro de Costo (Opcional)</label>
                   <input
                      type="text"
                      placeholder="Ej: Casa Matriz / Proyecto Alpha"
@@ -280,18 +350,18 @@ export default function AccountingRules() {
                   />
                </div>
 
-               <div className="flex justify-end gap-2 pt-4 border-t border-[var(--border-subtle)]">
+               <div className="flex justify-end gap-3 pt-4 border-t border-border-subtle">
                   <button
                      type="button"
                      onClick={() => setModalOpen(false)}
-                     className="px-4 py-2 text-sm font-medium text-[var(--text-main)] bg-[var(--surface-1)] border border-[var(--border-subtle)] rounded-lg hover:bg-[var(--surface-2)] transition"
+                     className="px-4 py-2 text-text-soft font-medium hover:text-text-main hover:bg-surface-2 rounded-xl transition"
                   >
                      Cancelar
                   </button>
                   <button
                      type="submit"
                      disabled={submitting}
-                     className="px-6 py-2 bg-[var(--brand)] text-white text-sm font-medium rounded-lg hover:opacity-90 transition disabled:opacity-50"
+                     className="px-5 py-2 bg-brand text-white font-semibold rounded-xl hover:bg-brand-hover shadow-sm transition disabled:opacity-50"
                   >
                      {submitting ? 'Guardando...' : 'Guardar Regla'}
                   </button>
@@ -301,3 +371,4 @@ export default function AccountingRules() {
       </div>
    );
 }
+

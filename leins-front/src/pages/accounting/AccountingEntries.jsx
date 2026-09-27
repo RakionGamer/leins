@@ -17,13 +17,88 @@ import {
    TrashIcon,
    PlusIcon,
    CheckCircleIcon,
+   DocumentDuplicateIcon,
+   BanknotesIcon,
+   ChartBarIcon,
+   BookOpenIcon,
+   CurrencyDollarIcon,
+   FunnelIcon,
+   ArrowPathIcon,
 } from '@heroicons/react/24/outline';
 
 const clp = (n) =>
    new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(Number(n || 0));
 
-const ctrl = 'w-full h-9 px-3 text-sm rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-1)] text-[var(--heading)] placeholder-[var(--text-soft)] focus:outline-none focus:border-[var(--brand)] transition-colors shadow-sm';
+const ctrl = 'w-full h-11 px-3 text-sm rounded-2xl border border-border-subtle bg-bg-content text-text-main placeholder-text-soft/70 focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition shadow-sm';
 const selectCtrl = ctrl + ' appearance-none cursor-pointer';
+
+function Pill({ children, colorClass = "bg-brand/10 text-brand ring-brand/20" }) {
+   return <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ring-1 ${colorClass}`}>{children}</span>;
+}
+
+const SOURCE_BADGES = {
+   SII_PURCHASE: { label: 'Compra SII', colorClass: 'bg-amber-100 text-amber-700 ring-amber-200 dark:bg-amber-500/20 dark:text-amber-300 dark:ring-amber-500/30' },
+   SII_SALE: { label: 'Venta SII', colorClass: 'bg-blue-100 text-blue-700 ring-blue-200 dark:bg-blue-500/20 dark:text-blue-300 dark:ring-blue-500/30' },
+   BANK_MOVEMENT: { label: 'Banco', colorClass: 'bg-purple-100 text-purple-700 ring-purple-200 dark:bg-purple-500/20 dark:text-purple-300 dark:ring-purple-500/30' },
+   MANUAL: { label: 'Manual', colorClass: 'bg-slate-100 text-slate-700 ring-slate-200 dark:bg-slate-500/20 dark:text-slate-300 dark:ring-slate-500/30' },
+};
+
+function ResumenAsientos({ entries }) {
+   const fmt = new Intl.NumberFormat('es-CL');
+   const stats = useMemo(() => {
+      let totalDebe = 0, totalHaber = 0, vigentes = 0, anulados = 0;
+      for (const e of entries ?? []) {
+         if (e.status === 'ANNULLED') {
+            anulados++;
+         } else {
+            vigentes++;
+            totalDebe += Number(e.total_debit || 0);
+            totalHaber += Number(e.total_credit || 0);
+         }
+      }
+      return { total: entries?.length ?? 0, totalDebe, totalHaber, vigentes, anulados };
+   }, [entries]);
+
+   return (
+      <div className="mb-5 grid grid-cols-2 gap-4 xl:grid-cols-5">
+         <div className="rounded-2xl border border-border-subtle bg-surface-1 p-4 shadow-sm flex items-center gap-4">
+            <div className="p-3 bg-brand/10 text-brand rounded-xl"><DocumentDuplicateIcon className="w-6 h-6" /></div>
+            <div>
+               <div className="text-xs font-semibold text-text-soft uppercase tracking-wide">Total Asientos</div>
+               <div className="text-xl font-bold text-heading">{stats.total}</div>
+            </div>
+         </div>
+         <div className="rounded-2xl border border-border-subtle bg-surface-1 p-4 shadow-sm flex items-center gap-4">
+            <div className="p-3 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-xl"><BanknotesIcon className="w-6 h-6" /></div>
+            <div>
+               <div className="text-xs font-semibold text-text-soft uppercase tracking-wide">Total Debe</div>
+               <div className="text-xl font-bold text-heading">$ {fmt.format(stats.totalDebe)}</div>
+            </div>
+         </div>
+         <div className="rounded-2xl border border-border-subtle bg-surface-1 p-4 shadow-sm flex items-center gap-4">
+            <div className="p-3 bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-xl"><ChartBarIcon className="w-6 h-6" /></div>
+            <div>
+               <div className="text-xs font-semibold text-text-soft uppercase tracking-wide">Total Haber</div>
+               <div className="text-xl font-bold text-heading">$ {fmt.format(stats.totalHaber)}</div>
+            </div>
+         </div>
+         <div className="rounded-2xl border border-border-subtle bg-surface-1 p-4 shadow-sm flex items-center gap-4">
+            <div className="p-3 bg-purple-500/10 text-purple-600 dark:text-purple-400 rounded-xl"><BookOpenIcon className="w-6 h-6" /></div>
+            <div>
+               <div className="text-xs font-semibold text-text-soft uppercase tracking-wide">Asientos Vigentes</div>
+               <div className="text-xl font-bold text-heading">{stats.vigentes}</div>
+            </div>
+         </div>
+         <div className="col-span-2 xl:col-span-1 rounded-2xl border border-brand/30 bg-brand/5 p-4 shadow-sm flex items-center gap-4 ring-1 ring-brand/10">
+            <div className="p-3 bg-brand text-white rounded-xl"><CurrencyDollarIcon className="w-6 h-6" /></div>
+            <div>
+               <div className="text-xs font-semibold text-brand uppercase tracking-wide">Total Registrado</div>
+               <div className="text-xl font-bold text-brand">$ {fmt.format(stats.totalDebe)}</div>
+            </div>
+         </div>
+      </div>
+   );
+}
 
 export default function AccountingEntries() {
    const { entityId, ready } = useEntityRequired();
@@ -183,84 +258,15 @@ export default function AccountingEntries() {
    if (!ready) return <EntityRequiredNotice />;
 
    return (
-      <div className="animate-fade-in">
-         {/* PANEL: Filtros */}
-         <div
-            className={[
-               "relative bg-[var(--bg-content)] shadow-sm transition-all duration-300 ease-out origin-top",
-               mostrarFiltros ? "z-[80] opacity-100 max-h-[1000px] py-3 px-4 space-y-3 scale-100 overflow-visible mb-4" : "z-0 opacity-0 max-h-0 p-0 pointer-events-none scale-[.98] overflow-hidden",
-            ].join(" ")}
-         >
-            <h2 className="text-xl font-semibold text-[var(--heading)]">
-               Libro Diario - Asientos Contables
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
-               <div className="flex flex-col gap-1 md:col-span-2">
-                  <label className="text-[12px] text-[var(--text-soft)]">Concepto / Glosa</label>
-                  <input
-                     type="text"
-                     placeholder="Buscar por concepto o N° asiento..."
-                     className="border border-[var(--border-subtle)] bg-[var(--surface-1)] rounded-lg p-2 text-[var(--heading)] placeholder-[var(--text-soft)] focus:outline-none focus:border-[var(--brand)]"
-                     value={search}
-                     onChange={(e) => setSearch(e.target.value)}
-                  />
+      <div className="space-y-6">
+         {/* Top Header & Filter Card */}
+         <div className="bg-bg-content rounded-3xl p-5 border border-border-subtle shadow-sm">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 pb-5 border-b border-border-subtle">
+               <div>
+                  <h2 className="text-2xl font-bold text-heading tracking-tight">Libro Diario - Asientos Contables</h2>
+                  <p className="text-sm text-text-soft mt-1">Registro cronológico de movimientos contables y transacciones financieras.</p>
                </div>
-               <div className="flex flex-col gap-1">
-                  <label className="text-[12px] text-[var(--text-soft)]">Mes de Operación</label>
-                  <input
-                     type="month"
-                     className="border border-[var(--border-subtle)] bg-[var(--surface-1)] rounded-lg p-2 text-[var(--heading)] focus:outline-none focus:border-[var(--brand)]"
-                     value={filterMonth}
-                     onChange={(e) => setFilterMonth(e.target.value)}
-                  />
-               </div>
-               <div className="flex flex-col gap-1">
-                  <label className="text-[12px] text-[var(--text-soft)]">Origen</label>
-                  <select
-                     className="border border-[var(--border-subtle)] bg-[var(--surface-1)] rounded-lg p-2 text-[var(--heading)] focus:outline-none focus:border-[var(--brand)] appearance-none"
-                     value={sourceFilter}
-                     onChange={(e) => setSourceFilter(e.target.value)}
-                  >
-                     <option value="">Todos los orígenes</option>
-                     <option value="MANUAL">Manual</option>
-                     <option value="SII_PURCHASE">SII Compra</option>
-                     <option value="SII_SALE">SII Venta</option>
-                     <option value="BANK_MOVEMENT">Banco</option>
-                  </select>
-               </div>
-               <div className="flex flex-col gap-1">
-                  <label className="text-[12px] text-[var(--text-soft)]">Estado</label>
-                  <select
-                     className="border border-[var(--border-subtle)] bg-[var(--surface-1)] rounded-lg p-2 text-[var(--heading)] focus:outline-none focus:border-[var(--brand)] appearance-none"
-                     value={statusFilter}
-                     onChange={(e) => setStatusFilter(e.target.value)}
-                  >
-                     <option value="">Todos los estados</option>
-                     <option value="POSTED">Vigentes</option>
-                     <option value="ANNULLED">Anulados</option>
-                  </select>
-               </div>
-               <div className="flex items-end gap-2">
-                  <button
-                     disabled={loading}
-                     className={`px-4 py-2 rounded-lg ${loading ? "opacity-60 cursor-not-allowed" : "bg-[var(--brand)] text-white hover:opacity-90"}`}
-                     onClick={loadData}
-                  >
-                     {loading ? "Cargando…" : "Filtrar"}
-                  </button>
-               </div>
-            </div>
-         </div>
-
-         {/* Toolbar y Tabs */}
-         <div className="bg-[var(--bg-content)] py-2 px-4 shadow-sm mb-4">
-            <div className="flex items-center justify-between gap-3">
-               <div className="flex flex-wrap items-center gap-2" role="tablist">
-                  <button className="px-3 py-2 rounded-lg flex items-center gap-2 bg-[var(--surface-2)] text-[var(--heading)]">
-                     <span>Asientos</span>
-                  </button>
-               </div>
-               <div className="flex items-center gap-2">
+               <div className="flex flex-wrap items-center gap-3">
                   <button
                      onClick={() => {
                         setFormData({
@@ -273,156 +279,214 @@ export default function AccountingEntries() {
                         });
                         setModalOpen(true);
                      }}
-                     className="flex items-center gap-2 px-3 md:px-6 py-2.5 bg-[var(--brand)] text-white font-medium rounded-xl shadow-lg shadow-brand/20 hover:opacity-90 hover:-translate-y-0.5 transition-all"
+                     className="h-11 flex items-center justify-center gap-2 px-4 rounded-2xl border border-brand/20 bg-brand/5 text-brand text-sm font-semibold transition shadow-sm hover:bg-brand hover:text-white focus:outline-none focus:ring-2 focus:ring-brand cursor-pointer"
                   >
-                     <PlusIcon className="w-4 h-4 stroke-2" />
-                     <span className="hidden xl:block">Asiento Manual</span>
+                     <PlusIcon className="w-5 h-5 stroke-2" />
+                     <span>Asiento Manual</span>
                   </button>
-                  <button type="button" onClick={() => setMostrarFiltros(v => !v)} className="p-2 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--surface-1)]" title="Mostrar/Ocultar filtros">
-                     🔍
+               </div>
+            </div>
+
+            {/* Filter Section */}
+            <div className="space-y-4">
+               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-text-main">
+                     <FunnelIcon className="w-5 h-5 text-brand" /> Filtros de Búsqueda
+                  </div>
+                  <button
+                     onClick={() => { setSearch(''); setSourceFilter(''); setStatusFilter(''); loadData(); }}
+                     disabled={loading}
+                     className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-text-soft hover:text-danger hover:bg-danger/10 rounded-xl transition-colors disabled:opacity-50"
+                  >
+                     <ArrowPathIcon className="w-4 h-4" /> Limpiar Filtros
                   </button>
+               </div>
+
+               <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start bg-surface-1 p-4 rounded-2xl border border-border-subtle/50">
+                  <div className="space-y-1.5 md:col-span-4">
+                     <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider">Concepto / Glosa</label>
+                     <input
+                        type="text"
+                        placeholder="Buscar por concepto o N° asiento..."
+                        className={ctrl}
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                     />
+                  </div>
+                  <div className="space-y-1.5 md:col-span-3">
+                     <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider">Mes de Operación</label>
+                     <input
+                        type="month"
+                        className={ctrl}
+                        value={filterMonth}
+                        onChange={(e) => setFilterMonth(e.target.value)}
+                     />
+                  </div>
+                  <div className="space-y-1.5 md:col-span-3">
+                     <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider">Origen</label>
+                     <select
+                        className={selectCtrl}
+                        value={sourceFilter}
+                        onChange={(e) => setSourceFilter(e.target.value)}
+                     >
+                        <option value="">Todos los orígenes</option>
+                        <option value="MANUAL">Manual</option>
+                        <option value="SII_PURCHASE">SII Compra</option>
+                        <option value="SII_SALE">SII Venta</option>
+                        <option value="BANK_MOVEMENT">Banco</option>
+                     </select>
+                  </div>
+                  <div className="space-y-1.5 md:col-span-2">
+                     <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider">Estado</label>
+                     <select
+                        className={selectCtrl}
+                        value={statusFilter}
+                        onChange={(e) => setStatusFilter(e.target.value)}
+                     >
+                        <option value="">Todos</option>
+                        <option value="POSTED">Vigentes</option>
+                        <option value="ANNULLED">Anulados</option>
+                     </select>
+                  </div>
                </div>
             </div>
          </div>
 
-         {err && <div className="p-4 bg-[var(--danger)]/10 text-[var(--danger)] rounded-lg mb-4 text-sm font-medium">Error: {err}</div>}
+         {/* Resumen Tarjetas */}
+         <ResumenAsientos entries={entries} />
+
+         {err && <div className="p-4 bg-danger/10 text-danger rounded-2xl border border-danger/20 text-sm font-medium">Error: {err}</div>}
 
          {/* Tabla de Asientos */}
-         <div className={`bg-[var(--bg-content)] overflow-auto shadow-sm transition-all animate-fade-in ${loading ? 'opacity-60 pointer-events-none' : ''}`}>
-            <table className="min-w-full text-sm">
-               <thead className="sticky top-0 bg-[var(--surface-2)] text-[var(--heading)]">
-                  <tr className="text-left">
-                     <th className="px-3 py-2 w-8"></th>
-                     <th className="px-3 py-2">N° Asiento</th>
-                     <th className="px-3 py-2">Fecha</th>
-                     <th className="px-3 py-2">Origen</th>
-                     <th className="px-3 py-2">Concepto / Glosa</th>
-                     <th className="px-3 py-2 text-right">Total Debe</th>
-                     <th className="px-3 py-2 text-right">Total Haber</th>
-                     <th className="px-3 py-2 text-center">Estado</th>
-                     <th className="px-3 py-2 text-right">Acciones</th>
-                  </tr>
-               </thead>
-               <tbody>
-                  {entries.length === 0 && (
+         <div className={`bg-bg-content rounded-3xl border border-border-subtle shadow-sm overflow-hidden transition-all ${loading ? 'opacity-60 pointer-events-none' : ''}`}>
+            <div className="overflow-x-auto">
+               <table className="min-w-full text-sm text-left">
+                  <thead className="bg-surface-2 border-b border-border-subtle text-text-soft font-semibold">
                      <tr>
-                        <td className="px-3 py-8 text-center text-[var(--text-soft)]" colSpan={9}>
-                           Sin resultados. Ajusta filtros.
-                        </td>
+                        <th className="p-4 w-8"></th>
+                        <th className="p-4 font-semibold">N° Asiento</th>
+                        <th className="p-4 font-semibold">Fecha</th>
+                        <th className="p-4 font-semibold">Origen</th>
+                        <th className="p-4 font-semibold">Concepto / Glosa</th>
+                        <th className="p-4 font-semibold text-right">Total Debe</th>
+                        <th className="p-4 font-semibold text-right">Total Haber</th>
+                        <th className="p-4 font-semibold text-center">Estado</th>
+                        <th className="p-4 font-semibold text-center">Acciones</th>
                      </tr>
-                  )}
-                  {entries.map((entry) => {
-                     const isExpanded = expandedEntryId === entry.id;
-                     const isAnnulled = entry.status === 'ANNULLED';
+                  </thead>
+                  <tbody className="divide-y divide-border-subtle/50">
+                     {entries.length === 0 ? (
+                        <tr>
+                           <td className="p-10 text-center text-text-soft italic" colSpan={9}>
+                              Sin resultados. Ajusta filtros.
+                           </td>
+                        </tr>
+                     ) : entries.map((entry) => {
+                           const isExpanded = expandedEntryId === entry.id;
+                           const isAnnulled = entry.status === 'ANNULLED';
+                           const sourceInfo = SOURCE_BADGES[entry.source_type] || { label: entry.source_type, colorClass: 'bg-slate-100 text-slate-700 ring-slate-200 dark:bg-slate-500/20 dark:text-slate-300 dark:ring-slate-500/30' };
 
-                     return (
-                        <React.Fragment key={entry.id}>
-                           <tr
-                              className={`border-b border-[var(--border-subtle)] hover:bg-[var(--surface-1)] transition-colors cursor-pointer group ${
-                                 isAnnulled ? 'opacity-60' : ''
-                              }`}
-                              onClick={() => setExpandedEntryId(isExpanded ? null : entry.id)}
-                           >
-                              <td className="px-3 py-2 text-[var(--text-soft)]">
-                                 {isExpanded ? <ChevronDownIcon className="w-4 h-4" /> : <ChevronRightIcon className="w-4 h-4" />}
-                              </td>
-                              <td className="px-3 py-2 font-mono font-bold text-[var(--heading)]">#{entry.entry_number || entry.id}</td>
-                              <td className="px-3 py-2 font-medium text-[var(--text-main)] whitespace-nowrap">{entry.entry_date}</td>
-                              <td className="px-3 py-2">
-                                 <span className="inline-flex px-2 py-0.5 bg-[var(--surface-2)] rounded-full text-[10px] font-medium text-[var(--text-main)] border border-[var(--border-subtle)]">
-                                    {entry.source_type === 'SII_PURCHASE' ? 'Compra SII' :
-                                     entry.source_type === 'SII_SALE' ? 'Venta SII' :
-                                     entry.source_type === 'BANK_MOVEMENT' ? 'Banco' :
-                                     entry.source_type === 'MANUAL' ? 'Manual' : entry.source_type}
-                                 </span>
-                              </td>
-                              <td className="px-3 py-2 font-medium text-[var(--text-main)] truncate max-w-[280px]">{entry.concept}</td>
-                              <td className="px-3 py-2 text-right font-mono font-bold text-[var(--heading)]">{clp(entry.total_debit)}</td>
-                              <td className="px-3 py-2 text-right font-mono font-bold text-[var(--heading)]">{clp(entry.total_credit)}</td>
-                              <td className="px-3 py-2 text-center">
-                                 <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${
-                                    isAnnulled
-                                       ? 'bg-[var(--surface-1)] text-[var(--text-soft)] border-[var(--border-subtle)] line-through'
-                                       : 'bg-[var(--success)]/10 text-[var(--success)] border-[var(--success)]/20'
-                                 }`}>
-                                    {isAnnulled ? 'ANULADO' : 'VIGENTE'}
-                                 </span>
-                              </td>
-                              <td className="px-3 py-2 text-center" onClick={(e) => e.stopPropagation()}>
-                                 {!isAnnulled && (
-                                    <button
-                                       onClick={() => handleAnnul(entry)}
-                                       className="p-1 rounded text-[var(--text-soft)] hover:text-[var(--danger)] hover:bg-[var(--danger)]/10 transition outline-none"
-                                       title="Anular asiento"
-                                    >
-                                       <TrashIcon className="w-4 h-4" />
-                                    </button>
-                                 )}
-                              </td>
-                           </tr>
+                           return (
+                              <React.Fragment key={entry.id}>
+                                 <tr
+                                    className={`hover:bg-brand/5 transition-colors cursor-pointer group ${
+                                       isAnnulled ? 'opacity-60' : ''
+                                    }`}
+                                    onClick={() => setExpandedEntryId(isExpanded ? null : entry.id)}
+                                 >
+                                    <td className="p-4 text-text-soft">
+                                       {isExpanded ? <ChevronDownIcon className="w-4 h-4" /> : <ChevronRightIcon className="w-4 h-4" />}
+                                    </td>
+                                    <td className="p-4 font-mono font-bold text-heading">#{entry.entry_number || entry.id}</td>
+                                    <td className="p-4 font-medium text-text-main whitespace-nowrap">{entry.entry_date}</td>
+                                    <td className="p-4">
+                                       <Pill colorClass={sourceInfo.colorClass}>
+                                          {sourceInfo.label}
+                                       </Pill>
+                                    </td>
+                                    <td className="p-4 font-medium text-text-main truncate max-w-[280px]">{entry.concept}</td>
+                                    <td className="p-4 text-right font-mono font-bold text-heading">{clp(entry.total_debit)}</td>
+                                    <td className="p-4 text-right font-mono font-bold text-heading">{clp(entry.total_credit)}</td>
+                                    <td className="p-4 text-center">
+                                       <Pill colorClass={isAnnulled ? 'bg-rose-100 text-rose-700 ring-rose-200 dark:bg-rose-500/20 dark:text-rose-300 dark:ring-rose-500/30' : 'bg-emerald-100 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-300 dark:ring-emerald-500/30'}>
+                                          {isAnnulled ? 'ANULADO' : 'VIGENTE'}
+                                       </Pill>
+                                    </td>
+                                    <td className="p-4 text-center" onClick={(e) => e.stopPropagation()}>
+                                       {!isAnnulled && (
+                                          <button
+                                             onClick={() => handleAnnul(entry)}
+                                             className="p-1.5 rounded-lg text-text-soft hover:text-danger hover:bg-danger/10 transition outline-none focus:ring-2 focus:ring-danger"
+                                             title="Anular asiento"
+                                          >
+                                             <TrashIcon className="w-5 h-5" />
+                                          </button>
+                                       )}
+                                    </td>
+                                 </tr>
 
                            {isExpanded && (
                               <tr>
-                                 <td colSpan={9} className="p-0 bg-[var(--surface-1)]">
-                                    <div className="p-4 space-y-3 border-b border-[var(--border-subtle)]">
+                                 <td colSpan={9} className="p-0 bg-surface-1">
+                                    <div className="p-5 space-y-4 border-b border-border-subtle">
                                        {entry.sii_document && (
-                                          <div className="mb-3 p-3 rounded-lg bg-[var(--bg-content)] border border-[var(--border-subtle)] flex flex-wrap gap-5 items-center">
+                                          <div className="p-4 rounded-2xl bg-bg-content border border-border-subtle flex flex-wrap gap-6 items-center">
                                              <div>
-                                                <span className="text-[10px] font-semibold uppercase text-[var(--text-soft)] block">Tipo Doc SII</span>
-                                                <span className="text-xs font-semibold text-[var(--heading)]">{entry.sii_document.document_type}</span>
+                                                <span className="text-[10px] font-semibold uppercase text-text-soft block">Tipo Doc SII</span>
+                                                <span className="text-xs font-semibold text-heading">{entry.sii_document.document_type}</span>
                                              </div>
                                              <div>
-                                                <span className="text-[10px] font-semibold uppercase text-[var(--text-soft)] block">Folio</span>
-                                                <span className="text-xs font-mono font-bold text-[var(--heading)]">N° {entry.sii_document.folio}</span>
+                                                <span className="text-[10px] font-semibold uppercase text-text-soft block">Folio</span>
+                                                <span className="text-xs font-mono font-bold text-heading">N° {entry.sii_document.folio}</span>
                                              </div>
                                              <div>
-                                                <span className="text-[10px] font-semibold uppercase text-[var(--text-soft)] block">Monto Neto</span>
-                                                <span className="text-xs font-mono font-medium text-[var(--text-main)]">{clp(entry.sii_document.net_amount)}</span>
+                                                <span className="text-[10px] font-semibold uppercase text-text-soft block">Monto Neto</span>
+                                                <span className="text-xs font-mono font-medium text-text-main">{clp(entry.sii_document.net_amount)}</span>
                                              </div>
                                              <div>
-                                                <span className="text-[10px] font-semibold uppercase text-[var(--text-soft)] block">IVA</span>
-                                                <span className="text-xs font-mono font-medium text-[var(--text-main)]">{clp(entry.sii_document.tax_amount)}</span>
+                                                <span className="text-[10px] font-semibold uppercase text-text-soft block">IVA</span>
+                                                <span className="text-xs font-mono font-medium text-text-main">{clp(entry.sii_document.tax_amount)}</span>
                                              </div>
                                              <div>
-                                                <span className="text-[10px] font-semibold uppercase text-[var(--text-soft)] block">Total Documento</span>
-                                                <span className="text-xs font-mono font-bold text-[var(--heading)]">{clp(entry.sii_document.total_amount)}</span>
+                                                <span className="text-[10px] font-semibold uppercase text-text-soft block">Total Documento</span>
+                                                <span className="text-xs font-mono font-bold text-heading">{clp(entry.sii_document.total_amount)}</span>
                                              </div>
                                           </div>
                                        )}
-                                       <h4 className="text-[11px] uppercase font-semibold text-[var(--text-soft)] tracking-wider">
+                                       <h4 className="text-xs uppercase font-bold text-text-soft tracking-wider">
                                           Movimientos de Libro Diario (N° {entry.entry_number || entry.id})
                                        </h4>
-                                       <div className="overflow-x-auto rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-content)]">
+                                       <div className="overflow-x-auto rounded-2xl border border-border-subtle bg-bg-content">
                                           <table className="min-w-full text-xs text-left">
-                                             <thead className="bg-[var(--surface-2)] text-[var(--heading)] font-semibold uppercase tracking-wider">
+                                             <thead className="bg-surface-2 text-text-soft font-semibold uppercase tracking-wider">
                                                 <tr>
-                                                   <th className="py-2 px-3">Código</th>
-                                                   <th className="py-2 px-3">Cuenta Contable</th>
-                                                   <th className="py-2 px-3">Descripción</th>
-                                                   <th className="py-2 px-3">RUT Contraparte</th>
-                                                   <th className="py-2 px-3">Centro Costo</th>
-                                                   <th className="py-2 px-3 text-right">Debe</th>
-                                                   <th className="py-2 px-3 text-right">Haber</th>
+                                                   <th className="py-2.5 px-4">Código</th>
+                                                   <th className="py-2.5 px-4">Cuenta Contable</th>
+                                                   <th className="py-2.5 px-4">Descripción</th>
+                                                   <th className="py-2.5 px-4">RUT Contraparte</th>
+                                                   <th className="py-2.5 px-4">Centro Costo</th>
+                                                   <th className="py-2.5 px-4 text-right">Debe</th>
+                                                   <th className="py-2.5 px-4 text-right">Haber</th>
                                                 </tr>
                                              </thead>
-                                             <tbody>
-                                                {entry.items?.map((it, idx) => (
-                                                   <tr key={it.id} className={`${idx !== (entry.items?.length - 1) ? 'border-b border-[var(--border-subtle)]' : ''} hover:bg-[var(--surface-1)]`}>
-                                                      <td className="py-2 px-3 font-mono font-bold text-[var(--heading)]">
+                                             <tbody className="divide-y divide-border-subtle/50">
+                                                {entry.items?.map((it) => (
+                                                   <tr key={it.id} className="hover:bg-surface-1">
+                                                      <td className="py-2.5 px-4 font-mono font-bold text-heading">
                                                          {it.account?.code || '-'}
                                                       </td>
-                                                      <td className="py-2 px-3 font-medium text-[var(--text-main)]">
+                                                      <td className="py-2.5 px-4 font-medium text-text-main">
                                                          {it.account?.name || '-'}
                                                       </td>
-                                                      <td className="py-2 px-3 text-[var(--text-soft)]">{it.description || '-'}</td>
-                                                      <td className="py-2 px-3 font-mono text-[var(--text-soft)]">
+                                                      <td className="py-2.5 px-4 text-text-soft">{it.description || '-'}</td>
+                                                      <td className="py-2.5 px-4 font-mono text-text-soft">
                                                          {it.counterparty_rut || '-'}
                                                       </td>
-                                                      <td className="py-2 px-3 text-[var(--text-soft)]">{it.cost_center || '-'}</td>
-                                                      <td className="py-2 px-3 text-right font-mono font-semibold text-[var(--heading)]">
+                                                      <td className="py-2.5 px-4 text-text-soft">{it.cost_center || '-'}</td>
+                                                      <td className="py-2.5 px-4 text-right font-mono font-semibold text-heading">
                                                          {Number(it.debit) > 0 ? clp(it.debit) : '-'}
                                                       </td>
-                                                      <td className="py-2 px-3 text-right font-mono font-semibold text-[var(--heading)]">
+                                                      <td className="py-2.5 px-4 text-right font-mono font-semibold text-heading">
                                                          {Number(it.credit) > 0 ? clp(it.credit) : '-'}
                                                       </td>
                                                    </tr>
@@ -440,6 +504,7 @@ export default function AccountingEntries() {
                </tbody>
             </table>
          </div>
+      </div>
 
          {/* Modal Nuevo Asiento Manual */}
          <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title="Nuevo Asiento Contable Manual" maxWidth="max-w-4xl">
