@@ -265,14 +265,19 @@ export default function AccountingEntries() {
          return;
       }
       try {
-         const { rows } = await listTransactions({ entityId, limit: 100 });
-         const tx = rows.find(r => Number(r.id) === txId);
-         if (!tx) {
-             toast.error("No se encontró el movimiento con ese ID en los últimos 100 registros.");
+         const { autofindCandidates } = await import('../../services/reconcileApi');
+         const response = await autofindCandidates({ entityId, bank_transaction_id: txId, limit: 1 });
+         
+         if (!response || !response.bank) {
+             toast.error("No se encontró el movimiento con ese ID.");
              return;
          }
          
+         const tx = response.bank;
          const amount = Number(tx.amount || 0);
+         // En autofind, el type viene omitido, pero lo deducimos del amount
+         const type = amount >= 0 ? 'income' : 'expense';
+         const absAmount = Math.abs(amount);
          const date = tx.issued_at ? tx.issued_at.substring(0, 10) : new Date().toISOString().substring(0, 10);
          
          setFormData({
@@ -280,8 +285,8 @@ export default function AccountingEntries() {
              entry_date: date,
              concept: `Importado: ${tx.description || ''}`,
              items: [
-                 { account_id: '', description: tx.description || '', debit: tx.type === 'income' ? amount : '', credit: tx.type === 'expense' ? amount : '', counterparty_rut: '', cost_center: '' },
-                 { account_id: '', description: 'Contrapartida', debit: tx.type === 'expense' ? amount : '', credit: tx.type === 'income' ? amount : '', counterparty_rut: '', cost_center: '' },
+                 { account_id: '', description: tx.description || '', debit: type === 'income' ? absAmount : '', credit: type === 'expense' ? absAmount : '', counterparty_rut: '', cost_center: '' },
+                 { account_id: '', description: 'Contrapartida', debit: type === 'expense' ? absAmount : '', credit: type === 'income' ? absAmount : '', counterparty_rut: '', cost_center: '' },
              ]
          });
          toast.success("Datos importados del banco.");
