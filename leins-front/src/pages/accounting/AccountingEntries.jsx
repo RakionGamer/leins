@@ -11,6 +11,7 @@ import {
    annulEntry,
    getAccounts,
 } from '../../services/accountingApi';
+import { listTransactions } from '../../services/entitiesApi';
 import {
    ChevronDownIcon,
    ChevronRightIcon,
@@ -252,6 +253,40 @@ export default function AccountingEntries() {
          setErr(e.message || 'Error al registrar asiento contable');
       } finally {
          setSubmitting(false);
+      }
+   };
+
+   const handleImportBankTx = async () => {
+      const idStr = window.prompt("Ingrese el ID del movimiento bancario a importar:");
+      if (!idStr) return;
+      const txId = Number(idStr);
+      if (!txId) {
+         toast.error("ID inválido");
+         return;
+      }
+      try {
+         const { rows } = await listTransactions({ entityId, limit: 100 });
+         const tx = rows.find(r => Number(r.id) === txId);
+         if (!tx) {
+             toast.error("No se encontró el movimiento con ese ID en los últimos 100 registros.");
+             return;
+         }
+         
+         const amount = Number(tx.amount || 0);
+         const date = tx.issued_at ? tx.issued_at.substring(0, 10) : new Date().toISOString().substring(0, 10);
+         
+         setFormData({
+             ...formData,
+             entry_date: date,
+             concept: `Importado: ${tx.description || ''}`,
+             items: [
+                 { account_id: '', description: tx.description || '', debit: tx.type === 'income' ? amount : '', credit: tx.type === 'expense' ? amount : '', counterparty_rut: '', cost_center: '' },
+                 { account_id: '', description: 'Contrapartida', debit: tx.type === 'expense' ? amount : '', credit: tx.type === 'income' ? amount : '', counterparty_rut: '', cost_center: '' },
+             ]
+         });
+         toast.success("Datos importados del banco.");
+      } catch(e) {
+          toast.error(e.message || "Error al importar el movimiento bancario");
       }
    };
 
@@ -658,6 +693,13 @@ export default function AccountingEntries() {
                </div>
 
                <div className="flex justify-end gap-2 pt-4 border-t border-[var(--border-subtle)]">
+                  <button
+                     type="button"
+                     onClick={handleImportBankTx}
+                     className="px-4 py-2 text-sm font-medium text-brand bg-brand/10 border border-brand/20 rounded-lg hover:bg-brand/20 transition mr-auto"
+                  >
+                     Importar Movimiento Bancario
+                  </button>
                   <button
                      type="button"
                      onClick={() => setModalOpen(false)}
