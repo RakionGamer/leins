@@ -533,8 +533,60 @@ class AccountingService {
             createdCount++;
          }
       }
+      
+      // Retro-Sincronización: Generar asientos para conciliaciones bancarias pasadas
+      const historicalRecons = await models.BankTransactionDocument.findAll({
+         include: [
+            { model: models.EntityBankTransaction, as: 'tx', where: { entity_id: entityId } },
+            { model: models.EntitySiiDocument, as: 'doc', where: { entity_id: entityId } }
+         ]
+      });
 
-      return { createdCount, skippedCount, totalDocs: docs.length };
+      const bankAcc = allAccounts.find(a => a.code === '1.1.2' || a.name.includes('Banco'));
+
+      for (const recon of historicalRecons) {
+         const bankTx = recon.tx;
+         const doc = recon.doc;
+         if (!bankTx || !doc) continue;
+
+         const existingEntry = await models.AccountingEntry.findOne({
+            where: { entity_id: entityId, source_type: 'BANK_MOVEMENT', source_id: bankTx.id, status: 'POSTED' }
+         });
+         
+         if (!existingEntry && bankAcc) {
+            const rut = (doc.counterparty_rut || '').toUpperCase();
+            const name = doc.counterparty_name || '';
+            const toApply = Number(recon.amount_applied || bankTx.amount);
+
+            if (bankTx.type === 'expense' && proveedores) {
+               await this.createEntry(entityId, {
+                  entry_date: bankTx.issued_at || doc.issue_date,
+                  concept: `Pago Banco Folio ${doc.folio || '-'} - ${name || rut}`,
+                  source_type: 'BANK_MOVEMENT',
+                  source_id: bankTx.id,
+                  items: [
+                     { account_id: proveedores.id, description: `Pago Proveedor Folio ${doc.folio || '-'}`, debit: toApply, credit: 0, counterparty_rut: rut, counterparty_name: name },
+                     { account_id: bankAcc.id, description: `Egreso Banco ${bankTx.description || ''}`, debit: 0, credit: toApply, counterparty_rut: rut, counterparty_name: name }
+                  ]
+               });
+               createdCount++;
+            } else if (bankTx.type === 'income' && clientes) {
+               await this.createEntry(entityId, {
+                  entry_date: bankTx.issued_at || doc.issue_date,
+                  concept: `Cobro Banco Folio ${doc.folio || '-'} - ${name || rut || 'Cliente'}`,
+                  source_type: 'BANK_MOVEMENT',
+                  source_id: bankTx.id,
+                  items: [
+                     { account_id: bankAcc.id, description: `Ingreso Banco ${bankTx.description || ''}`, debit: toApply, credit: 0, counterparty_rut: rut, counterparty_name: name },
+                     { account_id: clientes.id, description: `Abono Cliente Folio ${doc.folio || '-'}`, debit: 0, credit: toApply, counterparty_rut: rut, counterparty_name: name }
+                  ]
+               });
+               createdCount++;
+            }
+         }
+      }
+
+      return { createdCount, skippedCount, totalDocs: docs.length + historicalRecons.length };
    }
 
    // --- Control de Saldos por RUT (Clientes y Proveedores) ---

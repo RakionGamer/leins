@@ -285,19 +285,26 @@ export default function AccountingEntries() {
          const date = tx.issued_at ? tx.issued_at.substring(0, 10) : new Date().toISOString().substring(0, 10);
          
          let rut = '';
-         if (recons?.rows?.[0]?.document?.counterparty_rut) {
-             rut = recons.rows[0].document.counterparty_rut;
-         } else if (response.best?.counterparty_rut) {
+         let contrapartidaDesc = 'Contrapartida';
+         let conceptText = `Importado: ${tx.description || ''}`;
+
+         if (recons?.rows?.[0]?.document) {
+             const doc = recons.rows[0].document;
+             rut = doc.counterparty_rut;
+             contrapartidaDesc = `Cancelación Fac. N° ${doc.folio} - ${doc.counterparty_name || ''}`;
+             conceptText = `Pago/Cobro de Factura N° ${doc.folio} (${doc.counterparty_name || ''})`;
+         } else if (response.best) {
              rut = response.best.counterparty_rut;
+             contrapartidaDesc = `Sugerencia Fac. N° ${response.best.folio}`;
          }
          
          setFormData({
              ...formData,
              entry_date: date,
-             concept: `Importado: ${tx.description || ''}`,
+             concept: conceptText,
              items: [
                  { account_id: '', description: tx.description || '', debit: type === 'income' ? absAmount : '', credit: type === 'expense' ? absAmount : '', counterparty_rut: rut, cost_center: '' },
-                 { account_id: '', description: 'Contrapartida', debit: type === 'expense' ? absAmount : '', credit: type === 'income' ? absAmount : '', counterparty_rut: rut, cost_center: '' },
+                 { account_id: '', description: contrapartidaDesc, debit: type === 'expense' ? absAmount : '', credit: type === 'income' ? absAmount : '', counterparty_rut: rut, cost_center: '' },
              ]
          });
          toast.success("Datos importados del banco.");
@@ -318,6 +325,23 @@ export default function AccountingEntries() {
                   <p className="text-sm text-text-soft mt-1">Registro cronológico de movimientos contables y transacciones financieras.</p>
                </div>
                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                     onClick={async () => {
+                         try {
+                             toast.loading("Generando asientos desde el SII...", { id: "sii-sync" });
+                             const { generateSiiEntries } = await import('../../services/accountingApi');
+                             const res = await generateSiiEntries({ entityId });
+                             toast.success(`¡Listo! Se crearon ${res.createdCount || 0} asientos nuevos.`, { id: "sii-sync" });
+                             loadData();
+                         } catch (e) {
+                             toast.error(e.message || "Error al sincronizar SII", { id: "sii-sync" });
+                         }
+                     }}
+                     className="h-11 flex items-center justify-center gap-2 px-4 rounded-2xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-semibold transition shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-200"
+                  >
+                     <ArrowPathIcon className="w-5 h-5 stroke-2" />
+                     <span>Sincronizar SII</span>
+                  </button>
                   <button
                      onClick={() => {
                         setFormData({

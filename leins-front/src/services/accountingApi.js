@@ -397,9 +397,14 @@ export const generateSiiEntries = async (payload) => {
          method: 'POST',
          body: JSON.stringify(payload),
       });
-      if (response.ok) return parseJsonSafe(response);
-   } catch (e) {}
-   return { createdCount: 4, skippedCount: 1, totalDocs: 5 };
+      if (!response.ok) {
+         const err = await parseJsonSafe(response);
+         throw new Error(err.message || 'Error del servidor');
+      }
+      return parseJsonSafe(response);
+   } catch (e) {
+      throw e;
+   }
 };
 
 // --- Control de saldos por RUT ---
