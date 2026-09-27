@@ -201,8 +201,7 @@ export const getAccounts = async ({ entityId, type, q, signal } = {}) => {
 
       const response = await fetchWithAuth(`/accounting/accounts?${qs.toString()}`, { signal });
       if (response.ok) {
-         const data = await parseJsonSafe(response);
-         if (Array.isArray(data) && data.length > 0) return data;
+         return await parseJsonSafe(response);
       }
    } catch (e) {
       console.warn("📌 Usando datos Demo para Plan de Cuentas");
@@ -268,8 +267,7 @@ export const getRules = async ({ entityId, signal } = {}) => {
 
       const response = await fetchWithAuth(`/accounting/rules?${qs.toString()}`, { signal });
       if (response.ok) {
-         const data = await parseJsonSafe(response);
-         if (Array.isArray(data) && data.length > 0) return data;
+         return await parseJsonSafe(response);
       }
    } catch (e) {}
    return DEMO_RULES;
@@ -316,8 +314,7 @@ export const getEntries = async ({ entityId, month, from, to, source_type, statu
 
       const response = await fetchWithAuth(`/accounting/entries?${qs.toString()}`, { signal });
       if (response.ok) {
-         const data = await parseJsonSafe(response);
-         if (data.rows && data.rows.length > 0) return data;
+         return await parseJsonSafe(response);
       }
    } catch (e) {}
 
@@ -415,8 +412,7 @@ export const getBalances = async ({ entityId, type, q, signal } = {}) => {
 
       const response = await fetchWithAuth(`/accounting/balances?${qs.toString()}`, { signal });
       if (response.ok) {
-         const data = await parseJsonSafe(response);
-         if (Array.isArray(data) && data.length > 0) return data;
+         return await parseJsonSafe(response);
       }
    } catch (e) {}
 
