@@ -651,7 +651,12 @@ const run = async ({ entityId = null, year: inYear = null, month: inMonth = null
                   navigated = true;
                   break;
                } catch (navErr) {
-                  if (navAttempt === 3) throw navErr;
+                  // guardar snapshot del último intento para diagnosticar qué muestra el SII
+                  if (navAttempt === 3) {
+                     console.log(`❌ SII no cargó el formulario tras 3 intentos. Guardando diagnóstico...`);
+                     await saveDebugSnapshot(page, downloadDir, `debug-formcontribuyente-timeout-${creds.entity_id}-${Date.now()}.html`);
+                     throw navErr;
+                  }
                   console.log(`⚠️ SII no respondió al cargar formulario (intento ${navAttempt}/3), reintentando en 15s...`);
                   await sleep(15000);
                }
