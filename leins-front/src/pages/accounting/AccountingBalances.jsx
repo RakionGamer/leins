@@ -248,51 +248,36 @@ export default function AccountingBalances() {
                                        </Pill>
                                     </td>
                                  </tr>
-                                 {isExpanded && row.documents && row.documents.length > 0 && (
+                                 {isExpanded && row.entries && row.entries.length > 0 && (
                                     <tr>
                                        <td colSpan={8} className="p-0 bg-surface-1">
-                                          <div className="p-5 space-y-4 border-b border-border-subtle">
+                                          <div className="p-5 space-y-4 border-b border-border-subtle shadow-inner">
                                              <h4 className="text-xs uppercase font-bold text-text-soft tracking-wider">
-                                                Detalle de Documentos Pendientes ({row.documents.length})
+                                                Historial de Movimientos Contables ({row.entries.length})
                                              </h4>
                                              <div className="overflow-x-auto rounded-2xl border border-border-subtle bg-bg-content">
                                                 <table className="min-w-full text-xs text-left">
                                                    <thead className="bg-surface-2 text-text-soft font-semibold uppercase tracking-wider">
                                                       <tr>
                                                          <th className="py-2.5 px-4">Fecha</th>
-                                                         <th className="py-2.5 px-4">Tipo Documento</th>
-                                                         <th className="py-2.5 px-4">Folio</th>
-                                                         <th className="py-2.5 px-4 text-right">Total</th>
-                                                         <th className="py-2.5 px-4 text-right">Pagado</th>
-                                                         <th className="py-2.5 px-4 text-right">Saldo</th>
-                                                         <th className="py-2.5 px-4 text-center">Estado</th>
+                                                         <th className="py-2.5 px-4">Concepto / Glosa</th>
+                                                         <th className="py-2.5 px-4 text-right">Debe (Cargo)</th>
+                                                         <th className="py-2.5 px-4 text-right">Haber (Abono)</th>
                                                       </tr>
                                                    </thead>
                                                    <tbody className="divide-y divide-border-subtle/50">
-                                                      {row.documents.map((doc) => (
-                                                         <tr key={doc.id} className="hover:bg-surface-1">
-                                                            <td className="py-2.5 px-4 text-text-main font-medium">{doc.issue_date}</td>
-                                                            <td className="py-2.5 px-4 font-medium text-heading">{doc.document_type}</td>
-                                                            <td className="py-2.5 px-4 font-mono font-bold text-heading">N° {doc.folio}</td>
-                                                            <td className="py-2.5 px-4 text-right font-mono text-heading">{clp(doc.total)}</td>
-                                                            <td className="py-2.5 px-4 text-right font-mono text-text-soft">{clp(doc.paid)}</td>
-                                                            <td className="py-2.5 px-4 text-right font-mono font-bold text-heading">{clp(doc.balance)}</td>
-                                                            <td className="py-2.5 px-4 text-center">
-                                                               <Pill colorClass={
-                                                                  doc.status === 'Pagado'
-                                                                     ? 'bg-emerald-100 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-300 dark:ring-emerald-500/30'
-                                                                     : doc.status === 'Parcial'
-                                                                     ? 'bg-amber-100 text-amber-700 ring-amber-200 dark:bg-amber-500/20 dark:text-amber-300 dark:ring-amber-500/30'
-                                                                     : 'bg-rose-100 text-rose-700 ring-rose-200 dark:bg-rose-500/20 dark:text-rose-300 dark:ring-rose-500/30'
-                                                               }>
-                                                                  {doc.status}
-                                                               </Pill>
-                                                            </td>
+                                                      {row.entries.map((entry) => (
+                                                         <tr key={entry.id} className="hover:bg-surface-1">
+                                                            <td className="py-2.5 px-4 text-text-main font-medium">{entry.date}</td>
+                                                            <td className="py-2.5 px-4 font-medium text-heading">{entry.concept}</td>
+                                                            <td className="py-2.5 px-4 text-right font-mono font-bold text-text-main">{entry.debit > 0 ? clp(entry.debit) : '-'}</td>
+                                                            <td className="py-2.5 px-4 text-right font-mono font-bold text-brand">{entry.credit > 0 ? clp(entry.credit) : '-'}</td>
                                                          </tr>
                                                       ))}
                                                    </tbody>
                                                 </table>
                                              </div>
+
                                           </div>
                                        </td>
                                     </tr>

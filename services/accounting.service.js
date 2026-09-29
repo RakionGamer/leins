@@ -637,6 +637,7 @@ class AccountingService {
                total_credit: 0,
                balance: 0,
                document_count: 0,
+               entries: [],
             });
          } else if (!map.get(rut).name && item.counterparty_name) {
             // Si ya existe en el mapa sin nombre, completarlo con el primero disponible
@@ -647,6 +648,13 @@ class AccountingService {
          rec.total_debit += Number(item.debit || 0);
          rec.total_credit += Number(item.credit || 0);
          rec.document_count += 1;
+         rec.entries.push({
+            id: item.id,
+            date: item.entry?.entry_date,
+            concept: item.entry?.concept || item.description,
+            debit: Number(item.debit || 0),
+            credit: Number(item.credit || 0)
+         });
       }
 
       // Enriquecer nombres faltantes desde la tabla de documentos SII
