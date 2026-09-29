@@ -440,15 +440,16 @@ class AccountingService {
       let skippedCount = 0;
 
       const getDocOpType = (d) => {
-         if (d.operation_type) return String(d.operation_type).toUpperCase();
-         // Lógica de retrocompatibilidad (igual que sii-document.service.js)
+         const op = d.operationType || d.operation_type;
+         if (op) return String(op).toUpperCase();
+         // Lógica de retrocompatibilidad
          if ([39, 41, 1001].includes(d.doc_type_code)) return "INCOME";
          if (d.doc_type_code === 1002) return "EXPENSE";
          if ([33, 34, 61].includes(d.doc_type_code)) {
             if (d.received_date || d.purchase_type) return "EXPENSE";
             return "INCOME";
          }
-         return "EXPENSE"; // fallback por defecto
+         return "EXPENSE";
       };
 
       for (const doc of docs) {
