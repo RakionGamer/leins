@@ -250,6 +250,30 @@ module.exports = {
             TZ: "America/Santiago",
             SII_DOWNLOAD_DIR: "/tmp/leins-sii-downloads"
          }
+      },
+
+      // -----------------------------------------------------------------------
+      // 11. generacion de asientos contables automaticos
+      // ejecucion: todos los dias a las 06:15 am (despues de todas las descargas)
+      // objetivo: tomar todos los documentos SII nuevos y conciliaciones y crear/actualizar los asientos
+      // -----------------------------------------------------------------------
+      {
+         name: "sii-accounting-entries-daily",
+         script: "scripts/generate-sii-entries-daily.js",
+         exec_mode: "fork",
+         instances: 1,
+         watch: false,
+         autorestart: false,
+         time: true,
+         cron_restart: "15 6 * * *",
+         max_memory_restart: "1G",
+         out_file: "logs/sii-accounting-entries-daily.log",
+         error_file: "logs/sii-accounting-entries-daily-err.log",
+         merge_logs: true,
+         env: {
+            NODE_ENV: "production",
+            TZ: "America/Santiago"
+         }
       }
    ]
 }
