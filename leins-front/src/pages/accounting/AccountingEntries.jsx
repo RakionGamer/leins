@@ -361,6 +361,24 @@ export default function AccountingEntries() {
                      <span>Limpiar Anulados</span>
                   </button>
                   <button
+                     onClick={async () => {
+                        if (!window.confirm("¡CUIDADO! Esto borrará absolutamente TODOS los asientos contables (incluyendo manuales). No afectará facturas, bancos ni conciliaciones. Podrás reconstruirlos con 'Sincronizar SII'. ¿Proceder?")) return;
+                        try {
+                           toast.loading("Borrando todos los asientos...", { id: "delete-all" });
+                           const { deleteAllEntries } = await import('../../services/accountingApi');
+                           const res = await deleteAllEntries(entityId);
+                           toast.success(`¡Limpieza profunda completa! Se eliminaron ${res.deletedCount || 0} asientos.`, { id: "delete-all" });
+                           loadData();
+                        } catch (e) {
+                           toast.error(e.message || "Error al borrar todos los asientos", { id: "delete-all" });
+                        }
+                     }}
+                     className="h-11 flex items-center justify-center gap-2 px-4 rounded-2xl border border-danger/20 bg-danger text-white text-sm font-semibold transition shadow-sm hover:bg-danger/90 focus:outline-none focus:ring-2 focus:ring-danger/50"
+                  >
+                     <TrashIcon className="w-5 h-5 stroke-2" />
+                     <span>Borrar Todos</span>
+                  </button>
+                  <button
                      onClick={() => {
                         setFormData({
                            entry_date: new Date().toISOString().substring(0, 10),

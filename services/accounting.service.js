@@ -397,6 +397,28 @@ class AccountingService {
       return { deletedCount };
    }
 
+   async deleteAllEntries(entityId) {
+      // 1. Encontrar todos los asientos
+      const entries = await models.AccountingEntry.findAll({
+         where: { entity_id: entityId }
+      });
+      
+      const ids = entries.map(e => e.id);
+      if (ids.length === 0) return { deletedCount: 0 };
+
+      // 2. Borrar items
+      await models.AccountingEntryItem.destroy({
+         where: { entry_id: { [Op.in]: ids } }
+      });
+
+      // 3. Borrar asientos
+      const deletedCount = await models.AccountingEntry.destroy({
+         where: { id: { [Op.in]: ids } }
+      });
+
+      return { deletedCount };
+   }
+
    // --- Generación Automática de Asientos desde SII (Compras y Ventas) ---
    async generateSiiEntries(entityId, { month, from, to, docIds }) {
       await this.ensureDefaultPlan(entityId);
@@ -467,9 +489,21 @@ class AccountingService {
 
          const rut = (doc.counterparty_rut || "").toUpperCase();
          const name = doc.counterparty_name || "";
-         const total = Number(doc.total_amount || 0);
-         const vat = Number(doc.amount_vat || 0);
-         const net = Number(doc.amount_net || (total - vat));
+         let total = Number(doc.total_amount || 0);
+         let vat = Number(doc.amount_vat || 0);
+         let net = Number(doc.amount_net || 0);
+         const exempt = Number(doc.amount_exempt || 0);
+
+         // Si es Afecta (Factura 33 o Boleta 39) y el SII no desglosó el IVA en la base
+         if ([33, 39].includes(doc.doc_type_code) && vat === 0 && total > 0) {
+            const brutoAfecto = total - exempt;
+            if (brutoAfecto > 0) {
+               net = Math.round(brutoAfecto / 1.19);
+               vat = brutoAfecto - net;
+            }
+         }
+
+         if (net === 0) net = total - vat;
 
          if (opType === "EXPENSE") {
             // COMPRA

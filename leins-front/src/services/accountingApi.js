@@ -407,6 +407,22 @@ export const clearAnnulledEntries = async (entityId) => {
    }
 };
 
+export const deleteAllEntries = async (entityId) => {
+   try {
+      const qs = new URLSearchParams();
+      if (entityId) qs.set('entityId', String(entityId));
+
+      const response = await fetchWithAuth(`/accounting/entries/all?${qs.toString()}`, { method: 'DELETE' });
+      if (!response.ok) {
+         const err = await parseJsonSafe(response);
+         throw new Error(err.message || 'Error del servidor al borrar');
+      }
+      return parseJsonSafe(response);
+   } catch (e) {
+      throw e;
+   }
+};
+
 export const generateSiiEntries = async (payload) => {
    try {
       const response = await fetchWithAuth('/accounting/entries/generate-sii', {
