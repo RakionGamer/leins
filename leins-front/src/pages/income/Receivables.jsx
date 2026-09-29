@@ -287,7 +287,10 @@ export default function Receivables() {
                remaining_amount: Number(it.remaining_amount || 0),
                credit_notes_applied: Number(it.credit_notes_applied || 0),
                doc_type_code: it.doc_type_code,
+               nce_nde_reference: it.nce_nde_reference,
             }));
+
+            console.warn('[DEBUG] Documentos obtenidos desde la API:', mapped);
 
             setRows(mapped);
             const totalPagesCalc = Number(payload.totalPages ?? Math.max(1, Math.ceil((payload.total ?? mapped.length) / pageSize)));
