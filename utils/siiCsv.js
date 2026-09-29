@@ -96,6 +96,11 @@ function pickAndNormalize(csvRow) {
    for (const [k, v] of Object.entries(csvRow)) {
       const key = H.get(normHeader(k));
       if (!key) continue;
+      // "primero no-vacío gana": si ya hay un valor definido y no vacío,
+      // no lo sobreescribimos. Esto evita que una columna posterior vacía
+      // (ej: "NCE o NDE sobre Fact. de Compra") pise un valor válido
+      // ya capturado por una columna anterior (ej: "Folio Docto. Referencia").
+      if (key in out && out[key] !== '' && out[key] !== null && out[key] !== undefined) continue;
       out[key] = v;
    }
 
