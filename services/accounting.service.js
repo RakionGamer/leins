@@ -505,19 +505,27 @@ class AccountingService {
 
          if (net === 0) net = total - vat;
 
+         const isCreditNote = doc.doc_type_code === 61;
+         let conceptPrefix = "";
+         if (opType === "EXPENSE") {
+            conceptPrefix = isCreditNote ? "NC Proveedor" : "Compra";
+         } else {
+            conceptPrefix = isCreditNote ? "NC Cliente" : "Venta";
+         }
+
          if (opType === "EXPENSE") {
             // COMPRA
             const rule = ruleMap.get(rut);
             const expenseAccountId = rule ? rule.account_id : gastosDefault.id;
             const costCenter = rule ? rule.cost_center : null;
 
-            const concept = `Compra Folio ${doc.folio || "-"} - ${name || rut}`;
+            const concept = `${conceptPrefix} Folio ${doc.folio || "-"} - ${name || rut}`;
             const items = [];
 
             // Debe: Gasto/Activo (Neto o Total si exenta)
             items.push({
                account_id: expenseAccountId,
-               description: `Neto Compra Folio ${doc.folio || "-"}`,
+               description: `Neto ${conceptPrefix} Folio ${doc.folio || "-"}`,
                debit: vat > 0 ? net : total,
                credit: 0,
                counterparty_rut: rut,
@@ -547,6 +555,10 @@ class AccountingService {
                counterparty_name: name,
             });
 
+            if (isCreditNote) {
+               items.forEach(i => { const t = i.debit; i.debit = i.credit; i.credit = t; });
+            }
+
             await this.createEntry(entityId, {
                entry_date: doc.issue_date,
                concept,
@@ -557,7 +569,7 @@ class AccountingService {
             createdCount++;
          } else {
             // VENTA
-            const concept = `Venta Folio ${doc.folio || "-"} - ${name || rut || "Cliente"}`;
+            const concept = `${conceptPrefix} Folio ${doc.folio || "-"} - ${name || rut || "Cliente"}`;
             const items = [];
 
             // Debe: Clientes por Cobrar (Total)
@@ -573,7 +585,7 @@ class AccountingService {
             // Haber: Ingresos por Ventas (Neto o Total si exenta)
             items.push({
                account_id: ventas.id,
-               description: `Ingreso Venta Folio ${doc.folio || "-"}`,
+               description: `Ingreso ${conceptPrefix} Folio ${doc.folio || "-"}`,
                debit: 0,
                credit: vat > 0 ? net : total,
                counterparty_rut: rut,
@@ -590,6 +602,10 @@ class AccountingService {
                   counterparty_rut: rut,
                   counterparty_name: name,
                });
+            }
+
+            if (isCreditNote) {
+               items.forEach(i => { const t = i.debit; i.debit = i.credit; i.credit = t; });
             }
 
             await this.createEntry(entityId, {
