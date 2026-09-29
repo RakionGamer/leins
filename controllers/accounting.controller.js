@@ -148,6 +148,16 @@ const getBalances = async (req, res, next) => {
    }
 };
 
+const clearAnnulledEntries = async (req, res, next) => {
+   try {
+      const entityId = req.entityId;
+      const result = await service.clearAnnulledEntries(entityId);
+      res.json(result);
+   } catch (error) {
+      next(error);
+   }
+};
+
 module.exports = {
    getAccounts,
    createAccount,
@@ -161,6 +171,7 @@ module.exports = {
    getEntryById,
    createEntry,
    annulEntry,
+   clearAnnulledEntries,
    generateSiiEntries,
    getBalances,
 };

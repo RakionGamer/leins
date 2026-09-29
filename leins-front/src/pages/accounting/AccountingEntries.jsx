@@ -9,6 +9,7 @@ import {
    getEntries,
    createEntry,
    annulEntry,
+   clearAnnulledEntries,
    getAccounts,
 } from '../../services/accountingApi';
 import { listTransactions } from '../../services/entitiesApi';
@@ -341,6 +342,23 @@ export default function AccountingEntries() {
                   >
                      <ArrowPathIcon className="w-5 h-5 stroke-2" />
                      <span>Sincronizar SII</span>
+                  </button>
+                  <button
+                     onClick={async () => {
+                        if (!window.confirm("¿Estás seguro de eliminar permanentemente todos los asientos anulados? Esta acción no se puede deshacer.")) return;
+                        try {
+                           toast.loading("Limpiando asientos anulados...", { id: "clear-annulled" });
+                           const res = await clearAnnulledEntries(entityId);
+                           toast.success(`¡Limpieza completa! Se eliminaron ${res.deletedCount || 0} asientos anulados.`, { id: "clear-annulled" });
+                           loadData();
+                        } catch (e) {
+                           toast.error(e.message || "Error al limpiar asientos anulados", { id: "clear-annulled" });
+                        }
+                     }}
+                     className="h-11 flex items-center justify-center gap-2 px-4 rounded-2xl border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 text-sm font-semibold transition shadow-sm hover:bg-red-100 dark:hover:bg-red-500/20 focus:outline-none focus:ring-2 focus:ring-red-200"
+                  >
+                     <TrashIcon className="w-5 h-5 stroke-2" />
+                     <span>Limpiar Anulados</span>
                   </button>
                   <button
                      onClick={() => {

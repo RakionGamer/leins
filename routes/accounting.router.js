@@ -35,6 +35,7 @@ router.get("/entries", ensureEntityAccess, controller.getEntries);
 router.get("/entries/:id", ensureEntityAccess, validatorHandler(getByIdSchema, "params"), controller.getEntryById);
 router.post("/entries", ensureEntityAccess, validatorHandler(createEntrySchema, "body"), controller.createEntry);
 router.post("/entries/:id/annul", ensureEntityAccess, validatorHandler(getByIdSchema, "params"), controller.annulEntry);
+router.delete("/entries/annulled/clear", ensureEntityAccess, controller.clearAnnulledEntries);
 router.post("/entries/generate-sii", ensureEntityAccess, validatorHandler(generateSiiSchema, "body"), controller.generateSiiEntries);
 
 // --- Saldos por RUT ---

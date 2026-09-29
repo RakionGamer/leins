@@ -375,6 +375,28 @@ class AccountingService {
       return entry;
    }
 
+   async clearAnnulledEntries(entityId) {
+      // 1. Encontrar todos los asientos anulados
+      const entries = await models.AccountingEntry.findAll({
+         where: { entity_id: entityId, status: "ANNULLED" }
+      });
+      
+      const ids = entries.map(e => e.id);
+      if (ids.length === 0) return { deletedCount: 0 };
+
+      // 2. Borrar primero los items (cascade puede estar configurado, pero mejor manual)
+      await models.AccountingEntryItem.destroy({
+         where: { entry_id: { [models.Sequelize.Op.in]: ids } }
+      });
+
+      // 3. Borrar los asientos
+      const deletedCount = await models.AccountingEntry.destroy({
+         where: { id: { [models.Sequelize.Op.in]: ids } }
+      });
+
+      return { deletedCount };
+   }
+
    // --- Generación Automática de Asientos desde SII (Compras y Ventas) ---
    async generateSiiEntries(entityId, { month, from, to, docIds }) {
       await this.ensureDefaultPlan(entityId);
