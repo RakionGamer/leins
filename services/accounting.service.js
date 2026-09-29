@@ -595,8 +595,10 @@ class AccountingService {
       await this.ensureDefaultPlan(entityId);
 
       const accounts = await models.AccountingAccount.findAll({ where: { entity_id: entityId } });
-      const clientesAcc = accounts.find((a) => a.code === "1.1.6" || a.name.includes("Clientes"));
-      const proveedoresAcc = accounts.find((a) => a.code === "2.1" || a.name.includes("Proveedores"));
+      const accountByCode = new Map(accounts.map((a) => [a.code, a]));
+
+      const clientesAcc = accountByCode.get("1.1.6") || accounts.find((a) => a.name.toLowerCase() === "clientes por cobrar");
+      const proveedoresAcc = accountByCode.get("2.1") || accounts.find((a) => a.name.toLowerCase() === "proveedores nacionales");
 
       const targetAccountIds = [];
       if ((type === "ALL" || type === "RECEIVABLE") && clientesAcc) targetAccountIds.push(clientesAcc.id);
