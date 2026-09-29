@@ -439,8 +439,20 @@ class AccountingService {
       let createdCount = 0;
       let skippedCount = 0;
 
+      const getDocOpType = (d) => {
+         if (d.operation_type) return String(d.operation_type).toUpperCase();
+         // Lógica de retrocompatibilidad (igual que sii-document.service.js)
+         if ([39, 41, 1001].includes(d.doc_type_code)) return "INCOME";
+         if (d.doc_type_code === 1002) return "EXPENSE";
+         if ([33, 34, 61].includes(d.doc_type_code)) {
+            if (d.received_date || d.purchase_type) return "EXPENSE";
+            return "INCOME";
+         }
+         return "EXPENSE"; // fallback por defecto
+      };
+
       for (const doc of docs) {
-         const opType = String(doc.operation_type || (doc.doc_type_code === 39 || doc.doc_type_code === 41 ? "INCOME" : "EXPENSE")).toUpperCase();
+         const opType = getDocOpType(doc);
          const sourceType = opType === "INCOME" ? "SII_SALE" : "SII_PURCHASE";
 
          // Verificar si ya existe un asiento activo para este documento
@@ -581,7 +593,7 @@ class AccountingService {
             const name = doc.counterparty_name || bankTx.description || '';
             const toApply = Number(recon.amount_applied || bankTx.amount);
 
-            const opType = String(doc.operation_type || 'EXPENSE').toUpperCase();
+            const opType = getDocOpType(doc);
 
             if (opType === 'EXPENSE' && proveedores) {
                // Documento de Compra
