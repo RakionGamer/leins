@@ -581,30 +581,66 @@ class AccountingService {
             const name = doc.counterparty_name || bankTx.description || '';
             const toApply = Number(recon.amount_applied || bankTx.amount);
 
-            if (bankTx.type === 'expense' && proveedores) {
-               await this.createEntry(entityId, {
-                  entry_date: bankTx.issued_at || doc.issue_date,
-                  concept: `Pago Banco Folio ${doc.folio || '-'} - ${name || rut}`,
-                  source_type: 'BANK_MOVEMENT',
-                  source_id: bankTx.id,
-                  items: [
-                     { account_id: proveedores.id, description: `Pago Proveedor Folio ${doc.folio || '-'}`, debit: toApply, credit: 0, counterparty_rut: rut, counterparty_name: name },
-                     { account_id: bankAcc.id, description: `Egreso Banco ${bankTx.description || ''}`, debit: 0, credit: toApply, counterparty_rut: rut, counterparty_name: name }
-                  ]
-               });
-               createdCount++;
-            } else if (bankTx.type === 'income' && clientes) {
-               await this.createEntry(entityId, {
-                  entry_date: bankTx.issued_at || doc.issue_date,
-                  concept: `Cobro Banco Folio ${doc.folio || '-'} - ${name || rut || 'Cliente'}`,
-                  source_type: 'BANK_MOVEMENT',
-                  source_id: bankTx.id,
-                  items: [
-                     { account_id: bankAcc.id, description: `Ingreso Banco ${bankTx.description || ''}`, debit: toApply, credit: 0, counterparty_rut: rut, counterparty_name: name },
-                     { account_id: clientes.id, description: `Abono Cliente Folio ${doc.folio || '-'}`, debit: 0, credit: toApply, counterparty_rut: rut, counterparty_name: name }
-                  ]
-               });
-               createdCount++;
+            const opType = String(doc.operation_type || 'EXPENSE').toUpperCase();
+
+            if (opType === 'EXPENSE' && proveedores) {
+               // Documento de Compra
+               if (bankTx.type === 'expense') {
+                  // Pago normal
+                  await this.createEntry(entityId, {
+                     entry_date: bankTx.issued_at || doc.issue_date,
+                     concept: `Pago Banco Folio ${doc.folio || '-'} - ${name || rut}`,
+                     source_type: 'BANK_MOVEMENT',
+                     source_id: bankTx.id,
+                     items: [
+                        { account_id: proveedores.id, description: `Pago Proveedor Folio ${doc.folio || '-'}`, debit: toApply, credit: 0, counterparty_rut: rut, counterparty_name: name },
+                        { account_id: bankAcc.id, description: `Egreso Banco ${bankTx.description || ''}`, debit: 0, credit: toApply, counterparty_rut: rut, counterparty_name: name }
+                     ]
+                  });
+                  createdCount++;
+               } else if (bankTx.type === 'income') {
+                  // Reembolso de una compra
+                  await this.createEntry(entityId, {
+                     entry_date: bankTx.issued_at || doc.issue_date,
+                     concept: `Reembolso Compra Folio ${doc.folio || '-'} - ${name || rut}`,
+                     source_type: 'BANK_MOVEMENT',
+                     source_id: bankTx.id,
+                     items: [
+                        { account_id: bankAcc.id, description: `Ingreso Banco ${bankTx.description || ''}`, debit: toApply, credit: 0, counterparty_rut: rut, counterparty_name: name },
+                        { account_id: proveedores.id, description: `Reverso Pago Proveedor Folio ${doc.folio || '-'}`, debit: 0, credit: toApply, counterparty_rut: rut, counterparty_name: name }
+                     ]
+                  });
+                  createdCount++;
+               }
+            } else if (opType === 'INCOME' && clientes) {
+               // Documento de Venta
+               if (bankTx.type === 'income') {
+                  // Cobro normal
+                  await this.createEntry(entityId, {
+                     entry_date: bankTx.issued_at || doc.issue_date,
+                     concept: `Cobro Banco Folio ${doc.folio || '-'} - ${name || rut || 'Cliente'}`,
+                     source_type: 'BANK_MOVEMENT',
+                     source_id: bankTx.id,
+                     items: [
+                        { account_id: bankAcc.id, description: `Ingreso Banco ${bankTx.description || ''}`, debit: toApply, credit: 0, counterparty_rut: rut, counterparty_name: name },
+                        { account_id: clientes.id, description: `Abono Cliente Folio ${doc.folio || '-'}`, debit: 0, credit: toApply, counterparty_rut: rut, counterparty_name: name }
+                     ]
+                  });
+                  createdCount++;
+               } else if (bankTx.type === 'expense') {
+                  // Devolución a un cliente
+                  await this.createEntry(entityId, {
+                     entry_date: bankTx.issued_at || doc.issue_date,
+                     concept: `Devolución a Cliente Folio ${doc.folio || '-'} - ${name || rut}`,
+                     source_type: 'BANK_MOVEMENT',
+                     source_id: bankTx.id,
+                     items: [
+                        { account_id: clientes.id, description: `Reverso Abono Cliente Folio ${doc.folio || '-'}`, debit: toApply, credit: 0, counterparty_rut: rut, counterparty_name: name },
+                        { account_id: bankAcc.id, description: `Egreso Banco ${bankTx.description || ''}`, debit: 0, credit: toApply, counterparty_rut: rut, counterparty_name: name }
+                     ]
+                  });
+                  createdCount++;
+               }
             }
          }
       }
