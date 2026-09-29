@@ -750,6 +750,10 @@ const run = async ({ entityId = null, year: inYear = null, month: inMonth = null
                if (fullYear) await sleep(2000);
             }
          } finally {
+            try {
+               const { logoutSII } = require('../libs/functions');
+               if (page) await logoutSII(page).catch(() => {});
+            } catch (e) {}
             await context.close();
          }
       };

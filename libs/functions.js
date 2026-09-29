@@ -270,6 +270,15 @@ async function loginSII(page, rutSinDv, dv, clave, timeoutMs = 30_000) {
    console.log('✅ Login exitoso');
 }
 
+async function logoutSII(page, timeoutMs = 10_000) {
+   console.log("👋 Cerrando sesión en SII...");
+   try {
+      await page.goto("https://zeusr.sii.cl/cgi_AUT2000/autTermino.cgi", { waitUntil: "domcontentloaded", timeout: timeoutMs });
+   } catch (error) {
+      console.log(`⚠️ No se pudo cerrar la sesión de forma normal: ${error.message}`);
+   }
+}
+
 // espera a que el panel lateral este visible y estable
 async function waitForPanelOpen(page, { panelSelector, expandedSelector, timeoutMs = 30000 }) {
    // si hay un nodo con aria-expanded, esperar true
@@ -830,6 +839,7 @@ async function parseCsvFile(filePath, {
 module.exports = {
    SII_URLS,
    loginSII,
+   logoutSII,
    getYearMonthPair,
    fetchCredentials,
    ensureDir,
