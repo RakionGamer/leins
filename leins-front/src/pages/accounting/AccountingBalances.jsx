@@ -83,6 +83,9 @@ export default function AccountingBalances() {
    const [typeFilter, setTypeFilter] = useState('ALL');
    const [expandedRut, setExpandedRut] = useState(null);
 
+   const [currentPage, setCurrentPage] = useState(1);
+   const itemsPerPage = 15;
+
    const loadBalances = useCallback(async () => {
       if (!entityId) return;
       setLoading(true);
@@ -90,6 +93,7 @@ export default function AccountingBalances() {
       try {
          const data = await getBalances({ entityId, type: typeFilter, q: search });
          setBalances(Array.isArray(data) ? data : []);
+         setCurrentPage(1); // Reset page on new load
       } catch (e) {
          setErr(e.message || 'Error al obtener saldos por RUT');
       } finally {
@@ -104,6 +108,9 @@ export default function AccountingBalances() {
    }, [ready, entityId, loadBalances]);
 
    if (!ready) return <EntityRequiredNotice />;
+
+   const totalPages = Math.ceil(balances.length / itemsPerPage);
+   const paginatedBalances = balances.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
    return (
       <div className="space-y-6">
@@ -195,14 +202,14 @@ export default function AccountingBalances() {
                      </tr>
                   </thead>
                   <tbody className="divide-y divide-border-subtle/50">
-                     {balances.length === 0 ? (
+                     {paginatedBalances.length === 0 ? (
                         <tr>
                            <td className="p-10 text-center text-text-soft italic" colSpan={8}>
                               Sin resultados. Ajusta filtros.
                            </td>
                         </tr>
                      ) : (
-                        balances.map((row) => {
+                        paginatedBalances.map((row) => {
                            const isClient = row.account_type === 'CLIENTE';
                            const totalDoc = isClient ? row.total_debit : row.total_credit;
                            const paidDoc = isClient ? row.total_credit : row.total_debit;
@@ -289,6 +296,34 @@ export default function AccountingBalances() {
                   </tbody>
                </table>
             </div>
+            
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+               <div className="p-4 border-t border-border-subtle bg-surface-1 flex items-center justify-between text-sm">
+                  <div className="text-text-soft font-medium">
+                     Mostrando <span className="text-heading">{(currentPage - 1) * itemsPerPage + 1}</span> a <span className="text-heading">{Math.min(currentPage * itemsPerPage, balances.length)}</span> de <span className="text-heading">{balances.length}</span> resultados
+                  </div>
+                  <div className="flex items-center gap-2">
+                     <button
+                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                        disabled={currentPage === 1}
+                        className="px-3 py-1.5 rounded-lg border border-border-subtle bg-bg-content text-text-main font-medium hover:bg-surface-2 disabled:opacity-50 transition-colors"
+                     >
+                        Anterior
+                     </button>
+                     <div className="font-semibold text-text-main px-2">
+                        Página {currentPage} de {totalPages}
+                     </div>
+                     <button
+                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                        disabled={currentPage === totalPages}
+                        className="px-3 py-1.5 rounded-lg border border-border-subtle bg-bg-content text-text-main font-medium hover:bg-surface-2 disabled:opacity-50 transition-colors"
+                     >
+                        Siguiente
+                     </button>
+                  </div>
+               </div>
+            )}
          </div>
       </div>
    );
