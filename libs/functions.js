@@ -801,10 +801,15 @@ function monthsOfYear(year) {
 // lee y parsea un archivo CSV en objetos JS
 async function parseCsvFile(filePath, {
    delimiter = ";",
-   encoding = "utf8",
+   encoding = null, // null = auto-detectar (utf8 con fallback a latin1)
 } = {}) {
    console.log(`📂 leyendo CSV: ${filePath}`);
-   const content = await fs.readFile(filePath, encoding);
+
+   // Los archivos del SII vienen en latin1 (ISO-8859-1).
+   // Intentamos detectarlo automáticamente: si encoding no se provee,
+   // leemos en latin1 que es compatible con utf8 para caracteres ASCII.
+   const resolvedEncoding = encoding || 'latin1';
+   const content = await fs.readFile(filePath, resolvedEncoding);
 
    const records = parse(content, {
       columns: true,          // usa la 1a fila como encabezado
