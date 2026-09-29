@@ -19,6 +19,7 @@ import {
    CurrencyDollarIcon,
    FunnelIcon,
    MagnifyingGlassIcon,
+   PencilIcon,
 } from '@heroicons/react/24/outline';
 
 const ctrl = 'w-full h-11 px-3 text-sm rounded-2xl border border-border-subtle bg-bg-content text-text-main placeholder-text-soft/70 focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition shadow-sm';
@@ -278,7 +279,22 @@ export default function AccountingRules() {
                                  )}
                               </td>
                               <td className="p-4 text-center">
-                                 <div className="flex items-center justify-center opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                                 <div className="flex items-center justify-center opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity gap-1">
+                                    <button
+                                       onClick={() => {
+                                          setFormData({
+                                             counterparty_rut: rule.counterparty_rut,
+                                             counterparty_name: rule.counterparty_name || '',
+                                             account_id: rule.account_id || '',
+                                             cost_center: rule.cost_center || '',
+                                          });
+                                          setModalOpen(true);
+                                       }}
+                                       className="p-1.5 rounded-lg text-text-soft hover:text-brand hover:bg-brand/10 transition outline-none focus:ring-2 focus:ring-brand"
+                                       title="Editar regla"
+                                    >
+                                       <PencilIcon className="w-5 h-5" />
+                                    </button>
                                     <button
                                        onClick={() => handleDelete(rule)}
                                        className="p-1.5 rounded-lg text-text-soft hover:text-danger hover:bg-danger/10 transition outline-none focus:ring-2 focus:ring-danger"
@@ -297,7 +313,7 @@ export default function AccountingRules() {
          </div>
 
          {/* Create Rule Modal */}
-         <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title="Nueva Regla de Asignación por RUT" maxWidth="max-w-md">
+         <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title="Regla de Asignación por RUT" maxWidth="max-w-md">
             <form onSubmit={handleSubmit} className="space-y-4">
                <div>
                   <label className="block text-xs font-semibold uppercase text-text-soft mb-1">RUT Proveedor / Cliente</label>
