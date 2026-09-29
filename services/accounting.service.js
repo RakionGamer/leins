@@ -386,12 +386,12 @@ class AccountingService {
 
       // 2. Borrar primero los items (cascade puede estar configurado, pero mejor manual)
       await models.AccountingEntryItem.destroy({
-         where: { entry_id: { [models.Sequelize.Op.in]: ids } }
+         where: { entry_id: { [Op.in]: ids } }
       });
 
       // 3. Borrar los asientos
       const deletedCount = await models.AccountingEntry.destroy({
-         where: { id: { [models.Sequelize.Op.in]: ids } }
+         where: { id: { [Op.in]: ids } }
       });
 
       return { deletedCount };
