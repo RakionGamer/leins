@@ -639,10 +639,24 @@ const run = async ({ entityId = null, year: inYear = null, month: inMonth = null
             }
             if (!logged) throw new Error("Fallo login tras 3 intentos");
 
-            await navigatePages(page, [SII_URLS.comprasventas], {
-               lastSelector: 'form[name="formContribuyente"]',
-               timeout: 60000,
-            });
+            // El SII a veces carga muy lento y no muestra el formulario a tiempo.
+            // Reintentamos hasta 3 veces antes de considerar el fallo definitivo.
+            let navigated = false;
+            for (let navAttempt = 1; navAttempt <= 3; navAttempt++) {
+               try {
+                  await navigatePages(page, [SII_URLS.comprasventas], {
+                     lastSelector: 'form[name="formContribuyente"]',
+                     timeout: 60000,
+                  });
+                  navigated = true;
+                  break;
+               } catch (navErr) {
+                  if (navAttempt === 3) throw navErr;
+                  console.log(`⚠️ SII no respondió al cargar formulario (intento ${navAttempt}/3), reintentando en 15s...`);
+                  await sleep(15000);
+               }
+            }
+            if (!navigated) throw new Error("SII no cargó el formulario tras 3 intentos");
 
             const monthsList = fullYear ? monthsOfYear(year) : [{ year, month }];
 
