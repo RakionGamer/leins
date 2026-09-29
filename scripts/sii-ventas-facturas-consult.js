@@ -55,7 +55,7 @@ const SALES_DOCUMENTS = {
       summaryTexts: ["nota de credito electronica (61)"],
    },
 };
-const DEFAULT_TYPES = [33, 34];
+const DEFAULT_TYPES = [33, 34, 61];
 
 function normalizeTypesInput(value) {
    if (Array.isArray(value)) {

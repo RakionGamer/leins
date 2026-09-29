@@ -82,7 +82,14 @@ class SiiLoaderService {
          tobacco_cigarrillos: inter.tobacco_cigarrillos || 0,
          tobacco_elaborados: inter.tobacco_elaborados || 0,
 
-         nce_nde_reference: inter.nce_nde_reference || null,
+         nce_nde_reference: inter.nce_nde_reference 
+            || String(this._pickByHeader(raw, [
+               "nce o nde", 
+               "folio docto. referencia", 
+               "folio doc. referencia", 
+               "folio doc referencia", 
+               "referencia"
+            ]) || "").replace(/[^\d]/g, "").trim() || null,
          other_tax_code: inter.other_tax_code || null,
          other_tax_value: inter.other_tax_value || 0,
          other_tax_rate: inter.other_tax_rate || 0,
