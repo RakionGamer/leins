@@ -555,7 +555,8 @@ class AccountingService {
          
          if (!existingEntry && bankAcc) {
             const rut = (doc.counterparty_rut || '').toUpperCase();
-            const name = doc.counterparty_name || '';
+            // Prioridad: nombre del documento SII > nombre del banco (si está en descripción) > vacío
+            const name = doc.counterparty_name || bankTx.description || '';
             const toApply = Number(recon.amount_applied || bankTx.amount);
 
             if (bankTx.type === 'expense' && proveedores) {
@@ -630,19 +631,47 @@ class AccountingService {
          if (!map.has(rut)) {
             map.set(rut, {
                rut,
-               name: item.counterparty_name || "Sin nombre",
+               name: item.counterparty_name || "",
                account_type: item.account_id === clientesAcc?.id ? "CLIENTE" : "PROVEEDOR",
                total_debit: 0,
                total_credit: 0,
                balance: 0,
                document_count: 0,
             });
+         } else if (!map.get(rut).name && item.counterparty_name) {
+            // Si ya existe en el mapa sin nombre, completarlo con el primero disponible
+            map.get(rut).name = item.counterparty_name;
          }
 
          const rec = map.get(rut);
          rec.total_debit += Number(item.debit || 0);
          rec.total_credit += Number(item.credit || 0);
          rec.document_count += 1;
+      }
+
+      // Enriquecer nombres faltantes desde la tabla de documentos SII
+      const rutsWithoutName = Array.from(map.entries())
+         .filter(([, v]) => !v.name && v.rut !== "SIN_RUT")
+         .map(([rut]) => rut);
+
+      if (rutsWithoutName.length > 0) {
+         const siiDocs = await models.EntitySiiDocument.findAll({
+            where: {
+               entity_id: entityId,
+               counterparty_rut: { [Op.in]: rutsWithoutName },
+               counterparty_name: { [Op.ne]: null },
+            },
+            attributes: ["counterparty_rut", "counterparty_name"],
+            group: ["counterparty_rut", "counterparty_name"],
+            limit: 200,
+         });
+
+         for (const doc of siiDocs) {
+            const entry = map.get((doc.counterparty_rut || "").toUpperCase());
+            if (entry && !entry.name && doc.counterparty_name) {
+               entry.name = doc.counterparty_name;
+            }
+         }
       }
 
       const results = Array.from(map.values()).map((r) => {
@@ -653,11 +682,20 @@ class AccountingService {
          } else {
             r.balance = r.total_credit - r.total_debit;
          }
+         r.name = r.name || "Sin nombre";
          r.status = r.balance <= 0 ? "Pagado" : (r.balance < (r.account_type === "CLIENTE" ? r.total_debit : r.total_credit) ? "Parcial" : "Pendiente");
          return r;
       });
 
-      return results.sort((a, b) => Math.abs(b.balance) - Math.abs(a.balance));
+      // Aplicar filtro q también por nombre (ahora que tenemos nombres completos)
+      const filtered = q
+         ? results.filter(r =>
+              r.rut.toLowerCase().includes(q.toLowerCase()) ||
+              r.name.toLowerCase().includes(q.toLowerCase())
+           )
+         : results;
+
+      return filtered.sort((a, b) => Math.abs(b.balance) - Math.abs(a.balance));
    }
 }
 
