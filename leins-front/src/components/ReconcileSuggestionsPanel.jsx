@@ -216,7 +216,7 @@ export default function ReconcileSuggestionsPanel({
    type,
    dateFrom,
    dateTo,
-   daysWindow = 3,
+   daysWindow = 45,
    onApplied
 }) {
    const queryClient = useQueryClient();

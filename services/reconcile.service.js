@@ -431,7 +431,7 @@ class ReconcileService {
       dateFrom = null,
       dateTo = null,
       amountTolerance = 1.0,
-      daysWindow = 3,
+      daysWindow = 45,
       search = null,
    }) {
       if (!entityId) throw boom.badRequest("entityId is required");
@@ -442,7 +442,7 @@ class ReconcileService {
       const docReconcileAmount = this.#documentReconcileAmountSql("d");
       const docCreditNotesSum = this.#creditNotesSumSql("d");
       const resolvedDateFrom = this.#resolveDefaultDateFrom(dateFrom);
-      const parsedDaysWindow = Number(daysWindow) || 3;
+      const parsedDaysWindow = Number(daysWindow) || 45;
 
       const params = {
          entityId,
@@ -539,7 +539,7 @@ class ReconcileService {
       dateFrom = null,
       dateTo = null,
       amountTolerance = 1.0,
-      daysWindow = 3,
+      daysWindow = 45,
       search = null,
       cap = 50,
    }) {
@@ -590,7 +590,7 @@ class ReconcileService {
       dateFrom = null,           // 'YYYY-MM-DD'
       dateTo = null,             // 'YYYY-MM-DD'
       amountTolerance = 1.0,
-      daysWindow = 3,
+      daysWindow = 45,
       limit = 50,
       offset = 0,
       search = null,
@@ -604,7 +604,7 @@ class ReconcileService {
    }) {
 
       if (!entityId) throw boom.badRequest("entityId is required");
-      const parsedDaysWindow = Math.max(1, Number(daysWindow) || 3);
+      const parsedDaysWindow = Math.max(1, Number(daysWindow) || 45);
       const resolvedMaxCandidates = countOnly ? Math.max(1, Number(maxCandidates) || 500) : null;
 
       // mapeo ventas/compras
