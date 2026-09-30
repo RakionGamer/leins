@@ -1941,9 +1941,7 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
       const bankAmt = Math.abs(Number(bankTx.amount || 0));
       const docReconcileAmount = BankService.#documentReconcileAmountSql("`EntitySiiDocument`");
       const docCreditNotesSum = BankService.#creditNotesSumSql("`EntitySiiDocument`");
-      const absDiffLiteral = sequelize.literal(
-         `ABS((${docReconcileAmount}) - ${bankAmt})`
-      );
+      // ( remainingLiteral will be defined below and used in the query )
 
       // 2) diferencia de días contra la fecha del movimiento
       //   - issued_at viene como DATETIME; lo casteamos a DATE para DATEDIFF
@@ -2004,13 +2002,13 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
          };
 
       // 5) Saldo pendiente > 0 (subselect como literal)
-      const remainingLiteral = sequelize.literal(
-         `((${docReconcileAmount}) - COALESCE((
+      const remainingSqlString = `((${docReconcileAmount}) - COALESCE((
        SELECT SUM(btd.amount_applied)
        FROM bank_transaction_documents btd
        WHERE btd.entity_sii_document_id = \`EntitySiiDocument\`.\`id\`
-     ),0) - ${docCreditNotesSum})`
-      );
+     ),0) - ${docCreditNotesSum})`;
+      
+      const remainingLiteral = sequelize.literal(remainingSqlString);
 
       // 6) WHERE base: entity, tipo (opcional), rut (opcional) y saldo pendiente
       const rutParts = BankService.#rutParts(rut);
@@ -2029,6 +2027,12 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
 
       const andFilters = [
          docTypeFilter,
+         {
+            [Op.or]: [
+               { doc_type_code: { [Op.notIn]: [56, 61] } },
+               { doc_type_code: null }
+            ]
+         },
          sequelize.where(remainingLiteral, { [Op.gt]: 0 }),
       ];
       if (rutFilter) andFilters.push(rutFilter);
@@ -2050,11 +2054,11 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
             'counterparty_name',
             'total_amount',
             [remainingLiteral, 'doc_remaining'],
-            [absDiffLiteral, 'abs_diff'],
+            [sequelize.literal(`ABS(${remainingSqlString} - ${bankAmt})`), 'abs_diff'],
             [dateDiffLiteral, 'date_diff'],
          ],
          order: [
-            [absDiffLiteral, 'ASC'],
+            [sequelize.literal(`ABS(${remainingSqlString} - ${bankAmt})`), 'ASC'],
             [dateDiffLiteral, 'ASC'],
             ['issue_date', 'DESC'],
             ['id', 'DESC'],
