@@ -299,7 +299,7 @@ const getSuggestions = asyncHandler(async (req, res) => {
       type,
       dateFrom,
       dateTo,
-      daysWindow = '45',
+      daysWindow = '3',
       limit,
       offset,
       page,
@@ -346,7 +346,7 @@ const getSuggestionsFast = asyncHandler(async (req, res) => {
       type,
       dateFrom,
       dateTo,
-      daysWindow = '45',
+      daysWindow = '3',
       limit,
       offset,
       page,
@@ -395,7 +395,7 @@ const countSuggestions = asyncHandler(async (req, res) => {
       type,
       dateFrom,
       dateTo,
-      daysWindow = '45',
+      daysWindow = '3',
       search,
       cap
    } = req.query;

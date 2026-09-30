@@ -324,6 +324,14 @@ class SiiDocumentsService {
          where[Op.and].push(
             sequelize.where(sequelize.literal(remainingSQL), { [Op.gt]: 0 })
          );
+         if (!type) {
+            where[Op.and].push({
+               [Op.or]: [
+                  { doc_type_code: { [Op.notIn]: [56, 61] } },
+                  { doc_type_code: null }
+               ]
+            });
+         }
       }
 
       const attributes = [

@@ -24,6 +24,14 @@ const AccountingAccountSchema = {
    },
    is_active: { allowNull: false, type: DataTypes.BOOLEAN, defaultValue: true },
    is_system: { allowNull: false, type: DataTypes.BOOLEAN, defaultValue: false },
+   require_rut: { allowNull: false, type: DataTypes.BOOLEAN, defaultValue: false },
+   require_reference: { allowNull: false, type: DataTypes.BOOLEAN, defaultValue: false },
+   is_auxiliary: { allowNull: false, type: DataTypes.BOOLEAN, defaultValue: false },
+   cash_flow_classification: {
+      allowNull: false,
+      type: DataTypes.ENUM("OPERACIONAL", "INVERSION", "FINANCIAMIENTO", "NONE"),
+      defaultValue: "NONE",
+   },
 };
 
 class AccountingAccount extends Model {

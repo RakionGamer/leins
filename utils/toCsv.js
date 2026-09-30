@@ -15,7 +15,7 @@ function toCsv(rows, columns) {
    const lines = rows.map((row) =>
       columns.map((c) => escapeCsvField(c.value(row))).join(',')
    );
-   return ['﻿' + header, ...lines].join('\r\n');
+   return ['﻿sep=,', header, ...lines].join('\r\n');
 }
 
 module.exports = { toCsv };

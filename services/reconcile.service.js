@@ -13,7 +13,7 @@ class ReconcileService {
 
       if (type === "expense") {
          return `AND (
-            ${op} = 'EXPENSE'
+            ${op} IN ('EXPENSE', 'COMPRA', 'COMPRAS', 'expense', 'compra', 'compras')
             OR (${op} IS NULL AND ${code} = 1002)
             OR (${op} IS NULL AND ${code} IN (33,34) AND (${received} IS NOT NULL OR ${purchaseType} IS NOT NULL))
             OR (${op} IS NULL AND ${code} IS NULL)
@@ -23,7 +23,7 @@ class ReconcileService {
 
       if (type === "income") {
          return `AND (
-            ${op} = 'INCOME'
+            ${op} IN ('INCOME', 'VENTA', 'VENTAS', 'income', 'venta', 'ventas')
             OR (${op} IS NULL AND ${code} IN (39,41,1001))
             OR (${op} IS NULL AND ${code} IN (33,34) AND ${received} IS NULL AND ${purchaseType} IS NULL)
          )
@@ -41,14 +41,14 @@ class ReconcileService {
       const bankType = `${bankAlias}.type`;
 
       const isExpenseDoc = `(
-         ${op} = 'EXPENSE'
+         ${op} IN ('EXPENSE', 'COMPRA', 'COMPRAS', 'expense', 'compra', 'compras')
          OR (${op} IS NULL AND ${code} = 1002)
          OR (${op} IS NULL AND ${code} IN (33,34) AND (${received} IS NOT NULL OR ${purchaseType} IS NOT NULL))
          OR (${op} IS NULL AND ${code} IS NULL)
       )`;
 
       const isIncomeDoc = `(
-         ${op} = 'INCOME'
+         ${op} IN ('INCOME', 'VENTA', 'VENTAS', 'income', 'venta', 'ventas')
          OR (${op} IS NULL AND ${code} IN (39,41,1001))
          OR (${op} IS NULL AND ${code} IN (33,34) AND ${received} IS NULL AND ${purchaseType} IS NULL)
       )`;

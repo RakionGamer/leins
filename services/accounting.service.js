@@ -139,6 +139,10 @@ class AccountingService {
          nature: payload.nature || (["ACTIVO", "COSTOS", "GASTOS"].includes(payload.type) ? "DEUDORA" : "ACREEDORA"),
          cost_center_requirement: payload.cost_center_requirement || "NONE",
          is_system: false,
+         require_rut: Boolean(payload.require_rut),
+         require_reference: Boolean(payload.require_reference),
+         is_auxiliary: Boolean(payload.is_auxiliary),
+         cash_flow_classification: payload.cash_flow_classification || "NONE",
       });
    }
 
@@ -153,6 +157,10 @@ class AccountingService {
       if (payload.type) account.type = payload.type;
       if (payload.nature) account.nature = payload.nature;
       if (payload.cost_center_requirement) account.cost_center_requirement = payload.cost_center_requirement;
+      if (payload.require_rut !== undefined) account.require_rut = Boolean(payload.require_rut);
+      if (payload.require_reference !== undefined) account.require_reference = Boolean(payload.require_reference);
+      if (payload.is_auxiliary !== undefined) account.is_auxiliary = Boolean(payload.is_auxiliary);
+      if (payload.cash_flow_classification !== undefined) account.cash_flow_classification = payload.cash_flow_classification;
 
       await account.save();
       return account;
@@ -514,6 +522,62 @@ class AccountingService {
          }
 
          if (opType === "EXPENSE") {
+            if (doc.doc_type_code === 1002) {
+               const honorariosGasto = accountByCode.get("6.4") || allAccounts.find((a) => a.name.includes("Honorarios Profesionales")) || gastosDefault;
+               const retencion = accountByCode.get("2.9") || allAccounts.find((a) => a.name.includes("Retenciones Honorarios"));
+               const honorariosPorPagar = accountByCode.get("2.3") || allAccounts.find((a) => a.name.includes("Honorarios por Pagar"));
+               
+               if (!retencion || !honorariosPorPagar) {
+                  throw boom.badRequest("No se encontraron las cuentas para Honorarios (Retención o por Pagar).");
+               }
+
+               const rule = ruleMap.get(rut);
+               const costCenter = rule ? rule.cost_center : null;
+
+               const concept = `Boleta de Honorarios Folio ${doc.folio || "-"} - ${name || rut}`;
+               const items = [];
+
+               const bruto = Number(doc.amount_net || doc.total_amount || 0);
+               const retencionMonto = Number(doc.amount_tax_no_credit || 0);
+               const liquido = bruto - retencionMonto;
+
+               items.push({
+                  account_id: honorariosGasto.id,
+                  description: `Bruto BHE Folio ${doc.folio || "-"}`,
+                  debit: bruto,
+                  credit: 0,
+                  counterparty_rut: rut,
+                  counterparty_name: name,
+                  cost_center: costCenter,
+               });
+               items.push({
+                  account_id: retencion.id,
+                  description: `Retención BHE Folio ${doc.folio || "-"}`,
+                  debit: 0,
+                  credit: retencionMonto,
+                  counterparty_rut: rut,
+                  counterparty_name: name,
+               });
+               items.push({
+                  account_id: honorariosPorPagar.id,
+                  description: `Líquido BHE Folio ${doc.folio || "-"}`,
+                  debit: 0,
+                  credit: liquido,
+                  counterparty_rut: rut,
+                  counterparty_name: name,
+               });
+
+               await this.createEntry(entityId, {
+                  entry_date: doc.issue_date,
+                  concept,
+                  source_type: sourceType,
+                  source_id: doc.id,
+                  items,
+               });
+               createdCount++;
+               continue;
+            }
+
             // COMPRA
             const rule = ruleMap.get(rut);
             const expenseAccountId = rule ? rule.account_id : gastosDefault.id;
@@ -652,7 +716,7 @@ class AccountingService {
                   // Pago normal
                   await this.createEntry(entityId, {
                      entry_date: bankTx.issued_at || doc.issue_date,
-                     concept: `Pago Banco Folio ${doc.folio || '-'} - ${name || rut}`,
+                     concept: `Pago Proveedor ${name || rut} Folio ${doc.folio || '-'}`,
                      source_type: 'BANK_MOVEMENT',
                      source_id: bankTx.id,
                      items: [
@@ -681,7 +745,7 @@ class AccountingService {
                   // Cobro normal
                   await this.createEntry(entityId, {
                      entry_date: bankTx.issued_at || doc.issue_date,
-                     concept: `Cobro Banco Folio ${doc.folio || '-'} - ${name || rut || 'Cliente'}`,
+                     concept: `Cobro de Cliente ${name || rut || 'Cliente'} Folio ${doc.folio || '-'}`,
                      source_type: 'BANK_MOVEMENT',
                      source_id: bankTx.id,
                      items: [
