@@ -15,7 +15,11 @@ function toCsv(rows, columns) {
    const lines = rows.map((row) =>
       columns.map((c) => escapeCsvField(c.value(row))).join(',')
    );
-   return ['﻿sep=,', header, ...lines].join('\r\n');
+   const csvString = ['sep=,', header, ...lines].join('\r\n');
+   return Buffer.concat([
+      Buffer.from([0xEF, 0xBB, 0xBF]), // UTF-8 BOM
+      Buffer.from(csvString, 'utf-8')
+   ]);
 }
 
 module.exports = { toCsv };
