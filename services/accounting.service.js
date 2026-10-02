@@ -2706,9 +2706,9 @@ class AccountingService {
 
          if (opType === "EXPENSE") {
             if (doc.doc_type_code === 1002) {
-               const honorariosGasto = accountByCode.get("61.04.30") || allAccounts.find((a) => a.name.toLowerCase().includes("honorarios profesionales")) || gastosDefault;
+               const honorariosGasto = accountByCode.get("61.04.04") || allAccounts.find((a) => a.name.toLowerCase().includes("honorarios profesionales")) || gastosDefault;
                const retencion = accountByCode.get("21.13.30") || allAccounts.find((a) => a.name.toLowerCase().includes("ret impto 2da categoria") || a.name.toLowerCase().includes("retenciones honorarios"));
-               const honorariosPorPagar = accountByCode.get("21.12.20") || allAccounts.find((a) => a.name.toLowerCase().includes("honorarios por pagar"));
+               const honorariosPorPagar = accountByCode.get("21.12.15") || allAccounts.find((a) => a.name.toLowerCase().includes("honorarios por pagar"));
                
                if (!retencion || !honorariosPorPagar) {
                   throw boom.badRequest("No se encontraron las cuentas para Honorarios (Retención o por Pagar).");
