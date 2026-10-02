@@ -2170,7 +2170,15 @@ const DEFAULT_ACCOUNTS_SEED = [
 class AccountingService {
    // Asegura y puebla el plan de cuentas por defecto si está vacío
    async ensureDefaultPlan(entityId) {
-      const count = await models.AccountingAccount.count({ where: { entity_id: entityId } });
+      const entries = await models.AccountingEntry.findAll({ where: { entity_id: entityId }});
+      if (entries.length > 0) {
+         await models.AccountingEntryItem.destroy({ where: { entry_id: entries.map(e => e.id) } });
+         await models.AccountingEntry.destroy({ where: { entity_id: entityId } });
+      }
+      await models.AccountingRule.destroy({ where: { entity_id: entityId } });
+      await models.AccountingAccount.destroy({ where: { entity_id: entityId } });
+
+      const count = 0;
       if (count > 0) {
          // Auto-corregir el nombre de la cuenta 2.9 para empresas existentes
          await models.AccountingAccount.update(
