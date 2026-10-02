@@ -2817,11 +2817,11 @@ class AccountingService {
             const concept = `${conceptPrefix} Folio ${doc.folio || "-"} - ${name || rut || "Cliente"}`;
             const items = [];
 
-            const docTypeName = isBoleta ? 'Boleta' : 'Factura';
-            const glosaVenta = `${docTypeName} ${name || rut} Folio ${doc.folio || "-"}`.trim();
-
             const isBoleta = [39, 41].includes(Number(doc.doc_type_code));
             const ctaCliente = isBoleta ? clientesBoletas : clientes;
+
+            const docTypeName = isBoleta ? 'Boleta' : 'Factura';
+            const glosaVenta = `${docTypeName} ${name || rut} Folio ${doc.folio || "-"}`.trim();
 
             // Debe: Clientes por Cobrar (Total)
             items.push({
