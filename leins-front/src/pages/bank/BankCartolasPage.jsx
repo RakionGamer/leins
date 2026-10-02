@@ -938,10 +938,12 @@ export default function BankCartolasPage() {
          }
 
          const picked = targetCandidates.find(d => Number(d.id) === Number(selectedDocId));
-         toast.success(selectedDocuments.length > 1
-            ? `${selectedDocuments.length} registros aplicados correctamente`
+         const actualReconciledCount = selectedDocuments.length > 1 ? pairs.length : 1;
+         
+         toast.success(actualReconciledCount > 1
+            ? `${actualReconciledCount} registros conciliados correctamente`
             : picked
-               ? `${selectedTargetKind === 'bank_transaction' ? 'Movimiento' : 'Folio'} ${picked.folio ?? picked.id} aplicado correctamente`
+               ? `${selectedTargetKind === 'bank_transaction' ? 'Movimiento' : 'Folio'} ${picked.folio ?? picked.id} conciliado correctamente`
                : selectedTargetKind === 'bank_transaction' ? 'Movimiento cruzado correctamente' : 'Documento conciliado correctamente'
          );
 
