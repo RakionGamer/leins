@@ -394,7 +394,16 @@ class AccountingService {
       const where = { entity_id: entityId };
 
       if (status) where.status = status;
-      if (source_type) where.source_type = source_type;
+      
+      if (source_type === 'SII_HONORARY') {
+         where.source_type = 'SII_PURCHASE';
+         where.concept = { [Op.like]: '%Boleta de Honorarios%' };
+      } else if (source_type === 'SII_PURCHASE') {
+         where.source_type = 'SII_PURCHASE';
+         where.concept = { [Op.notLike]: '%Boleta de Honorarios%' };
+      } else if (source_type) {
+         where.source_type = source_type;
+      }
 
       if (month && /^\d{4}-\d{2}$/.test(month)) {
          const [y, m] = month.split("-").map(Number);

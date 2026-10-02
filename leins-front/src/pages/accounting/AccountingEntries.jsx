@@ -451,6 +451,7 @@ export default function AccountingEntries() {
                         <option value="">Todos los orígenes</option>
                         <option value="MANUAL">Manual</option>
                         <option value="SII_PURCHASE">SII Compra</option>
+                        <option value="SII_HONORARY">Honorarios SII</option>
                         <option value="SII_SALE">SII Venta</option>
                         <option value="BANK_MOVEMENT">Banco</option>
                      </select>
