@@ -2878,7 +2878,7 @@ class AccountingService {
          ]
       });
 
-      const bankAcc = allAccounts.find(a => a.code === '1.1.2' || a.name.includes('Banco'));
+      const bankAcc = allAccounts.find(a => a.code === '11.02.50' || a.name.toLowerCase().includes('banco chile')) || allAccounts.find(a => a.name.toLowerCase().includes('banco'));
 
       for (const recon of historicalRecons) {
          const bankTx = recon.tx;
@@ -2898,7 +2898,7 @@ class AccountingService {
             const opType = getDocOpType(doc);
 
             if (opType === 'EXPENSE') {
-               const honorariosPorPagar = accountByCode.get("2.3") || allAccounts.find((a) => a.name.includes("Honorarios por Pagar"));
+               const honorariosPorPagar = accountByCode.get("21.12.15") || allAccounts.find((a) => a.name.toLowerCase().includes("honorarios por pagar"));
                const isBHE = doc.doc_type_code === 1002;
                const payableAccount = (isBHE && honorariosPorPagar) ? honorariosPorPagar : proveedores;
 
@@ -2934,36 +2934,41 @@ class AccountingService {
                      createdCount++;
                   }
                }
-            } else if (opType === 'INCOME' && clientes) {
-               // Documento de Venta
-               if (bankTx.type === 'income') {
-                  // Cobro normal
-                  const glosaCobro = `Cobro de Cliente ${name || rut || 'Cliente'} Folio ${doc.folio || '-'}`.trim();
-                  await this.createEntry(entityId, {
-                     entry_date: bankTx.issued_at || doc.issue_date,
-                     concept: glosaCobro,
-                     source_type: 'BANK_MOVEMENT',
-                     source_id: bankTx.id,
-                     items: [
-                        { account_id: bankAcc.id, description: glosaCobro, debit: toApply, credit: 0, counterparty_rut: rut, counterparty_name: name },
-                        { account_id: clientes.id, description: glosaCobro, debit: 0, credit: toApply, counterparty_rut: rut, counterparty_name: name }
-                     ]
-                  });
-                  createdCount++;
-               } else if (bankTx.type === 'expense') {
-                  // Devolución a un cliente
-                  const glosaDev = `Devolución a Cliente Folio ${doc.folio || '-'} - ${name || rut}`.trim();
-                  await this.createEntry(entityId, {
-                     entry_date: bankTx.issued_at || doc.issue_date,
-                     concept: glosaDev,
-                     source_type: 'BANK_MOVEMENT',
-                     source_id: bankTx.id,
-                     items: [
-                        { account_id: clientes.id, description: glosaDev, debit: toApply, credit: 0, counterparty_rut: rut, counterparty_name: name },
-                        { account_id: bankAcc.id, description: glosaDev, debit: 0, credit: toApply, counterparty_rut: rut, counterparty_name: name }
-                     ]
-                  });
-                  createdCount++;
+            } else if (opType === 'INCOME') {
+               const isBoleta = [39, 41, '39', '41'].includes(doc.doc_type_code);
+               const clientesBoletas = accountByCode.get("11.05.20") || allAccounts.find((a) => a.name.toLowerCase().includes("clientes boletas")) || clientes;
+               const currentClientesAcc = isBoleta ? clientesBoletas : clientes;
+               if (currentClientesAcc) {
+                  // Documento de Venta
+                  if (bankTx.type === 'income') {
+                     // Cobro normal
+                     const glosaCobro = `Cobro de Cliente ${name || rut || 'Cliente'} Folio ${doc.folio || '-'}`.trim();
+                     await this.createEntry(entityId, {
+                        entry_date: bankTx.issued_at || doc.issue_date,
+                        concept: glosaCobro,
+                        source_type: 'BANK_MOVEMENT',
+                        source_id: bankTx.id,
+                        items: [
+                           { account_id: bankAcc.id, description: glosaCobro, debit: toApply, credit: 0, counterparty_rut: rut, counterparty_name: name },
+                           { account_id: currentClientesAcc.id, description: glosaCobro, debit: 0, credit: toApply, counterparty_rut: rut, counterparty_name: name }
+                        ]
+                     });
+                     createdCount++;
+                  } else if (bankTx.type === 'expense') {
+                     // Devolución a un cliente
+                     const glosaDev = `Devolución a Cliente Folio ${doc.folio || '-'} - ${name || rut}`.trim();
+                     await this.createEntry(entityId, {
+                        entry_date: bankTx.issued_at || doc.issue_date,
+                        concept: glosaDev,
+                        source_type: 'BANK_MOVEMENT',
+                        source_id: bankTx.id,
+                        items: [
+                           { account_id: currentClientesAcc.id, description: glosaDev, debit: toApply, credit: 0, counterparty_rut: rut, counterparty_name: name },
+                           { account_id: bankAcc.id, description: glosaDev, debit: 0, credit: toApply, counterparty_rut: rut, counterparty_name: name }
+                        ]
+                     });
+                     createdCount++;
+                  }
                }
             }
          }
