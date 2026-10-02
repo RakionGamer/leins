@@ -41,7 +41,7 @@ const DEFAULT_ACCOUNTS_SEED = [
    { code: "2.6", name: "IVA Débito Fiscal", type: "PASIVO", nature: "ACREEDORA", is_system: true },
    { code: "2.7", name: "IVA por Pagar", type: "PASIVO", nature: "ACREEDORA", is_system: true },
    { code: "2.8", name: "PPM por Pagar", type: "PASIVO", nature: "ACREEDORA", is_system: true },
-   { code: "2.9", name: "Ret 2da Categoria", type: "PASIVO", nature: "ACREEDORA", is_system: true },
+   { code: "2.9", name: "Ret Impto 2da Categoria", type: "PASIVO", nature: "ACREEDORA", is_system: true },
    { code: "2.10", name: "Sueldos por Pagar", type: "PASIVO", nature: "ACREEDORA", is_system: true },
    { code: "2.11", name: "Cotizaciones por Pagar", type: "PASIVO", nature: "ACREEDORA", is_system: true },
    { code: "2.12", name: "Crédito Bancario LP", type: "PASIVO", nature: "ACREEDORA", is_system: true },
@@ -94,7 +94,14 @@ class AccountingService {
    // Asegura y puebla el plan de cuentas por defecto si está vacío
    async ensureDefaultPlan(entityId) {
       const count = await models.AccountingAccount.count({ where: { entity_id: entityId } });
-      if (count > 0) return { created: 0 };
+      if (count > 0) {
+         // Auto-corregir el nombre de la cuenta 2.9 para empresas existentes
+         await models.AccountingAccount.update(
+            { name: "Ret Impto 2da Categoria" },
+            { where: { entity_id: entityId, code: "2.9" } }
+         );
+         return { created: 0 };
+      }
 
       const records = DEFAULT_ACCOUNTS_SEED.map((acc) => ({
          ...acc,
@@ -604,7 +611,7 @@ class AccountingService {
          if (opType === "EXPENSE") {
             if (doc.doc_type_code === 1002) {
                const honorariosGasto = accountByCode.get("6.4") || allAccounts.find((a) => a.name.includes("Honorarios Profesionales")) || gastosDefault;
-               const retencion = accountByCode.get("2.9") || allAccounts.find((a) => a.name.includes("Ret 2da Categoria")) || allAccounts.find((a) => a.name.includes("Retenciones Honorarios"));
+               const retencion = accountByCode.get("2.9") || allAccounts.find((a) => a.name.includes("Ret Impto 2da Categoria")) || allAccounts.find((a) => a.name.includes("Ret 2da Categoria")) || allAccounts.find((a) => a.name.includes("Retenciones Honorarios"));
                const honorariosPorPagar = accountByCode.get("2.3") || allAccounts.find((a) => a.name.includes("Honorarios por Pagar"));
                
                if (!retencion || !honorariosPorPagar) {
