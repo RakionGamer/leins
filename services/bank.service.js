@@ -1802,7 +1802,8 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
          const name = doc.counterparty_name || '';
 
          if (bankTx.type === 'expense' && bankAcc) {
-            const isHonorario = doc.doc_type_code === 1002 || doc.doc_type_code === '1002';
+            const docTypeCode = Number(doc.get?.("doc_type_code") || doc.doc_type_code || 0);
+            const isHonorario = docTypeCode === 1002;
             const contraCuenta = isHonorario ? honorariosPorPagar : proveedoresAcc;
             const contraDesc = isHonorario ? 'Pago Honorarios' : 'Pago Proveedor';
             if (contraCuenta) {
@@ -1832,7 +1833,8 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
                });
             }
          } else if (bankTx.type === 'income' && bankAcc) {
-            const isBoleta = [39, 41, '39', '41'].includes(doc.doc_type_code);
+            const docTypeCode = Number(doc.get?.("doc_type_code") || doc.doc_type_code || 0);
+            const isBoleta = [39, 41].includes(docTypeCode);
             const contraCuenta = isBoleta ? clientesBoletasAcc : clientesAcc;
             const contraDesc = isBoleta ? 'Abono Boleta' : 'Abono Cliente';
             if (contraCuenta) {
