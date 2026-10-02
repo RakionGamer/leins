@@ -576,40 +576,60 @@ export default function AccountingEntries() {
                                           Movimientos de Libro Diario (N° {entry.entry_number || entry.id})
                                        </h4>
                                        <div className="overflow-x-auto rounded-2xl border border-border-subtle bg-bg-content">
-                                          <table className="min-w-full text-xs text-left">
+                                          <table className="min-w-full text-[11px] text-left">
                                              <thead className="bg-surface-2 text-text-soft font-semibold uppercase tracking-wider">
                                                 <tr>
-                                                   <th className="py-2.5 px-4">Código</th>
-                                                   <th className="py-2.5 px-4">Cuenta Contable</th>
-                                                   <th className="py-2.5 px-4">Descripción</th>
-                                                   <th className="py-2.5 px-4">RUT Contraparte</th>
-                                                   <th className="py-2.5 px-4">Centro Costo</th>
-                                                   <th className="py-2.5 px-4 text-right">Debe</th>
-                                                   <th className="py-2.5 px-4 text-right">Haber</th>
+                                                   <th className="py-2.5 px-3">Fecha</th>
+                                                   <th className="py-2.5 px-3">Cta</th>
+                                                   <th className="py-2.5 px-3">Naturaleza</th>
+                                                   <th className="py-2.5 px-3">Glosa</th>
+                                                   <th className="py-2.5 px-3 text-right">Debe</th>
+                                                   <th className="py-2.5 px-3 text-right">Haber</th>
+                                                   <th className="py-2.5 px-3">RUT</th>
+                                                   <th className="py-2.5 px-3">Razon Social</th>
+                                                   <th className="py-2.5 px-3">Folio</th>
+                                                   <th className="py-2.5 px-3">C.C</th>
                                                 </tr>
                                              </thead>
                                              <tbody className="divide-y divide-border-subtle/50">
-                                                {entry.items?.map((it) => (
-                                                   <tr key={it.id} className="hover:bg-surface-1">
-                                                      <td className="py-2.5 px-4 font-mono font-bold text-heading">
-                                                         {it.account?.code || '-'}
-                                                      </td>
-                                                      <td className="py-2.5 px-4 font-medium text-text-main">
-                                                         {it.account?.name || '-'}
-                                                      </td>
-                                                      <td className="py-2.5 px-4 text-text-soft">{it.description || '-'}</td>
-                                                      <td className="py-2.5 px-4 font-mono text-text-soft">
-                                                         {it.counterparty_rut || '-'}
-                                                      </td>
-                                                      <td className="py-2.5 px-4 text-text-soft">{it.cost_center || '-'}</td>
-                                                      <td className="py-2.5 px-4 text-right font-mono font-semibold text-heading">
-                                                         {Number(it.debit) > 0 ? clp(it.debit) : '-'}
-                                                      </td>
-                                                      <td className="py-2.5 px-4 text-right font-mono font-semibold text-heading">
-                                                         {Number(it.credit) > 0 ? clp(it.credit) : '-'}
-                                                      </td>
-                                                   </tr>
-                                                ))}
+                                                {entry.items?.map((it) => {
+                                                   // Format date
+                                                   const dateParts = (entry.entry_date || '').split('-');
+                                                   const dateStr = dateParts.length === 3 ? `${dateParts[2]}-${dateParts[1]}-${dateParts[0].slice(-2)}` : entry.entry_date;
+
+                                                   // Map Naturaleza
+                                                   let nature = '-';
+                                                   if (['INGRESOS', 'COSTOS', 'GASTOS'].includes(it.account?.type)) nature = 'Resultado';
+                                                   else if (it.account?.type === 'ACTIVO') nature = 'Activo';
+                                                   else if (it.account?.type === 'PASIVO') nature = 'Pasivo';
+                                                   else if (it.account?.type === 'PATRIMONIO') nature = 'Patrimonio';
+
+                                                   // Extract Folio
+                                                   let folio = entry.sii_document?.folio || '-';
+                                                   if (folio === '-') {
+                                                      const match = (it.description || entry.concept || '').match(/Nro\s+(\S+)|Folio\s+(\S+)/i);
+                                                      if (match) folio = match[1] || match[2] || '-';
+                                                   }
+
+                                                   return (
+                                                      <tr key={it.id} className="hover:bg-surface-1">
+                                                         <td className="py-2.5 px-3 whitespace-nowrap text-text-soft">{dateStr}</td>
+                                                         <td className="py-2.5 px-3 font-medium text-text-main">{it.account?.name || '-'}</td>
+                                                         <td className="py-2.5 px-3 text-text-soft">{nature}</td>
+                                                         <td className="py-2.5 px-3 text-text-main">{it.description || '-'}</td>
+                                                         <td className="py-2.5 px-3 text-right font-mono font-semibold text-heading whitespace-nowrap">
+                                                            {Number(it.debit) > 0 ? clp(it.debit) : ''}
+                                                         </td>
+                                                         <td className="py-2.5 px-3 text-right font-mono font-semibold text-heading whitespace-nowrap">
+                                                            {Number(it.credit) > 0 ? clp(it.credit) : ''}
+                                                         </td>
+                                                         <td className="py-2.5 px-3 font-mono text-text-soft whitespace-nowrap">{it.counterparty_rut || ''}</td>
+                                                         <td className="py-2.5 px-3 text-text-soft truncate max-w-[120px]">{it.counterparty_name || ''}</td>
+                                                         <td className="py-2.5 px-3 text-text-soft whitespace-nowrap">{folio}</td>
+                                                         <td className="py-2.5 px-3 text-text-soft whitespace-nowrap">{it.cost_center || 'N/P'}</td>
+                                                      </tr>
+                                                   );
+                                                })}
                                              </tbody>
                                           </table>
                                        </div>
