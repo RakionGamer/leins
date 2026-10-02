@@ -32,6 +32,7 @@ const AccountingAccountSchema = {
       type: DataTypes.ENUM("OPERACIONAL", "INVERSION", "FINANCIAMIENTO", "NONE"),
       defaultValue: "NONE",
    },
+   is_title: { allowNull: false, type: DataTypes.BOOLEAN, defaultValue: false },
 };
 
 class AccountingAccount extends Model {

@@ -118,6 +118,10 @@ export default function AccountingAccounts() {
       type: 'GASTOS',
       nature: 'DEUDORA',
       cost_center_requirement: 'NONE',
+      require_rut: false,
+      require_reference: false,
+      is_auxiliary: false,
+      is_title: false,
    });
    const [submitting, setSubmitting] = useState(false);
 
@@ -164,6 +168,10 @@ export default function AccountingAccounts() {
          type: initialType,
          nature: initialNature,
          cost_center_requirement: 'NONE',
+         require_rut: false,
+         require_reference: false,
+         is_auxiliary: false,
+         is_title: false,
       });
       setModalOpen(true);
    };
@@ -198,6 +206,10 @@ export default function AccountingAccounts() {
          type: acc.type,
          nature: acc.nature,
          cost_center_requirement: acc.cost_center_requirement || 'NONE',
+         require_rut: !!acc.require_rut,
+         require_reference: !!acc.require_reference,
+         is_auxiliary: !!acc.is_auxiliary,
+         is_title: !!acc.is_title,
       });
       setModalOpen(true);
    };
@@ -213,6 +225,10 @@ export default function AccountingAccounts() {
                type: formData.type,
                nature: formData.nature,
                cost_center_requirement: formData.cost_center_requirement,
+               require_rut: formData.require_rut,
+               require_reference: formData.require_reference,
+               is_auxiliary: formData.is_auxiliary,
+               is_title: formData.is_title,
             });
             toast.success('Cuenta actualizada correctamente');
          } else {
@@ -383,7 +399,7 @@ export default function AccountingAccounts() {
                                        <th className="py-3 px-4">Código</th>
                                        <th className="py-3 px-4">Nombre Cuenta</th>
                                        <th className="py-3 px-4">Naturaleza</th>
-                                       <th className="py-3 px-4">Centro de Costo</th>
+                                       <th className="py-3 px-4">Atributos</th>
                                        <th className="py-3 px-4 text-center">Acciones</th>
                                     </tr>
                                  </thead>
@@ -411,11 +427,17 @@ export default function AccountingAccounts() {
                                              </Pill>
                                           </td>
                                           <td className="py-3 px-4 text-text-soft text-xs">
-                                             {acc.cost_center_requirement === 'REQUIRED'
-                                                ? 'Obligatorio'
-                                                : acc.cost_center_requirement === 'OPTIONAL'
-                                                ? 'Opcional'
-                                                : 'No requiere'}
+                                             <div className="flex flex-wrap gap-1">
+                                                {acc.is_title && <Pill colorClass="bg-blue-100 text-blue-700">TÍTULO</Pill>}
+                                                {acc.require_rut && <Pill colorClass="bg-slate-100 text-slate-700">RUT</Pill>}
+                                                {acc.require_reference && <Pill colorClass="bg-slate-100 text-slate-700">Ref</Pill>}
+                                                {acc.is_auxiliary && <Pill colorClass="bg-slate-100 text-slate-700">Aux</Pill>}
+                                                {acc.cost_center_requirement === 'REQUIRED' && <Pill colorClass="bg-brand/10 text-brand">CC Oblig.</Pill>}
+                                                {acc.cost_center_requirement === 'OPTIONAL' && <Pill colorClass="bg-slate-100 text-slate-700">CC Opc.</Pill>}
+                                                {!acc.is_title && !acc.require_rut && !acc.require_reference && !acc.is_auxiliary && acc.cost_center_requirement === 'NONE' && (
+                                                   <span className="text-text-soft/60 italic">Básica</span>
+                                                )}
+                                             </div>
                                           </td>
                                           <td className="py-3 px-4 text-center">
                                              <div className="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
@@ -527,6 +549,48 @@ export default function AccountingAccounts() {
                      <option value="OPTIONAL">Opcional</option>
                      <option value="REQUIRED">Obligatorio</option>
                   </select>
+               </div>
+
+               <div className="pt-2">
+                  <label className="block text-xs font-semibold uppercase text-text-soft mb-2">Atributos de la Cuenta</label>
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                     <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                           type="checkbox"
+                           className="w-4 h-4 rounded text-brand focus:ring-brand border-border-subtle"
+                           checked={formData.is_title}
+                           onChange={(e) => setFormData({ ...formData, is_title: e.target.checked })}
+                        />
+                        <span className="text-text-main font-medium">Es Título Agrupador</span>
+                     </label>
+                     <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                           type="checkbox"
+                           className="w-4 h-4 rounded text-brand focus:ring-brand border-border-subtle"
+                           checked={formData.require_rut}
+                           onChange={(e) => setFormData({ ...formData, require_rut: e.target.checked })}
+                        />
+                        <span className="text-text-main font-medium">Requiere RUT</span>
+                     </label>
+                     <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                           type="checkbox"
+                           className="w-4 h-4 rounded text-brand focus:ring-brand border-border-subtle"
+                           checked={formData.require_reference}
+                           onChange={(e) => setFormData({ ...formData, require_reference: e.target.checked })}
+                        />
+                        <span className="text-text-main font-medium">Requiere Referencia</span>
+                     </label>
+                     <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                           type="checkbox"
+                           className="w-4 h-4 rounded text-brand focus:ring-brand border-border-subtle"
+                           checked={formData.is_auxiliary}
+                           onChange={(e) => setFormData({ ...formData, is_auxiliary: e.target.checked })}
+                        />
+                        <span className="text-text-main font-medium">Es Cuenta Auxiliar</span>
+                     </label>
+                  </div>
                </div>
 
                <div className="flex justify-end gap-3 pt-4 border-t border-border-subtle">
