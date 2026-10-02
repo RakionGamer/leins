@@ -165,7 +165,6 @@ export default function AccountingRules() {
       setErr(null);
       try {
          await upsertBulkRules({
-            entityId,
             account_id: Number(formData.account_id),
             cost_center: formData.cost_center,
             ruts,
@@ -459,23 +458,6 @@ export default function AccountingRules() {
                   >
                      <PlusIcon className="w-4 h-4" /> Agregar otro RUT
                   </button>
-               </div>
-
-               <div>
-                  <label className="block text-xs font-semibold uppercase text-text-soft mb-1">Cuenta Contable Destino</label>
-                  <select
-                     required
-                     className={selectCtrl}
-                     value={formData.account_id}
-                     onChange={(e) => setFormData({ ...formData, account_id: e.target.value })}
-                  >
-                     <option value="">Seleccionar cuenta...</option>
-                     {accounts.map((acc) => (
-                        <option key={acc.id} value={acc.id}>
-                           {acc.code} - {acc.name} ({acc.type})
-                        </option>
-                     ))}
-                  </select>
                </div>
 
                <div>
