@@ -2059,14 +2059,14 @@ export default function BankCartolasPage() {
 
                            <section className="lg:col-span-5">
                               <div className="flex items-center justify-between mb-3">
-                                 <h3 className="text-[var(--heading)] font-medium">{selectedTargetKind === 'bank_transaction' ? 'Movimiento seleccionado' : hasMultipleSelectedDocuments ? 'Documentos seleccionados' : 'Documento seleccionado'}</h3>
+                                 <h3 className="text-[var(--heading)] font-medium">{hasMultipleSelectedDocuments ? (selectedTargetKind === 'bank_transaction' ? 'Movimientos seleccionados' : 'Documentos seleccionados') : (selectedTargetKind === 'bank_transaction' ? 'Movimiento seleccionado' : 'Documento seleccionado')}</h3>
                               </div>
                               <div className="relative w-full rounded-md shadow-lg border bg-[var(--bankcard-surface)] border-[var(--bankcard-border)] p-3 md:p-4" style={bankCardTheme}>
                                  <div className="absolute inset-x-0 -top-[1px] h-1 rounded-t-md" style={{ background: 'var(--bankcard-gradient)' }} />
                                  <div className="flex items-start justify-between gap-2">
                                     <div className="min-w-0">
                                        <div className="flex items-center gap-2">
-                                          <div className="text-[12px] text-[var(--bankcard-soft)]">{hasMultipleSelectedDocuments ? `${selectedDocuments.length} documentos` : selectedDoc?.issue_date || "—"}</div>
+                                          <div className="text-[12px] text-[var(--bankcard-soft)]">{hasMultipleSelectedDocuments ? `${selectedDocuments.length} ${selectedTargetKind === 'bank_transaction' ? 'movimientos' : 'documentos'}` : selectedDoc?.issue_date || "—"}</div>
                                           {hasMultipleSelectedDocuments ? (
                                              <span className="inline-flex items-center px-2 h-5 rounded-full text-[10px] font-semibold bg-[var(--brand)] text-white">Lote</span>
                                           ) : selectedTargetKind === 'bank_transaction' ? (
@@ -2086,7 +2086,7 @@ export default function BankCartolasPage() {
                                        </div>
                                        <div className="mt-1 font-semibold text-[13px] md:text-[14px] text-[var(--bankcard-text)] truncate">
                                           {hasMultipleSelectedDocuments
-                                             ? `${selectedDocuments.length} documentos seleccionados`
+                                             ? `${selectedDocuments.length} ${selectedTargetKind === 'bank_transaction' ? 'movimientos' : 'documentos'} seleccionados`
                                              : `${selectedDoc?.counterparty_rut || selectedDoc?.counterparty_tax_id || selectedDoc?.rut ? `${selectedDoc.counterparty_rut || selectedDoc.counterparty_tax_id || selectedDoc.rut} - ` : ''}${selectedDoc?.counterparty_name || selectedDoc?.description || selectedDoc?.descripcion || "(sin descripcion)"}`}
                                        </div>
                                     </div>
