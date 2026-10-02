@@ -195,16 +195,28 @@ export default function AccountingRules() {
    };
 
    const filteredRules = useMemo(() => {
-      if (!search.trim()) return rules;
-      const q = search.toLowerCase().trim();
-      return rules.filter(
-         (r) =>
-            (r.counterparty_rut && r.counterparty_rut.toLowerCase().includes(q)) ||
-            (r.counterparty_name && r.counterparty_name.toLowerCase().includes(q)) ||
-            (r.account && r.account.name.toLowerCase().includes(q)) ||
-            (r.account && r.account.type.toLowerCase().includes(q))
-      );
-   }, [rules, search]);
+      let result = rules;
+      
+      if (accountFilter) {
+         result = result.filter(r => r.account_id && String(r.account_id) === accountFilter);
+      }
+      
+      if (roleFilter) {
+         result = result.filter(r => getRoleFromAccount(r.account) === roleFilter);
+      }
+
+      if (search.trim()) {
+         const q = search.toLowerCase().trim();
+         result = result.filter(
+            (r) =>
+               (r.counterparty_rut && r.counterparty_rut.toLowerCase().includes(q)) ||
+               (r.counterparty_name && r.counterparty_name.toLowerCase().includes(q)) ||
+               (r.account && r.account.name && r.account.name.toLowerCase().includes(q)) ||
+               (r.account && r.account.code && r.account.code.toLowerCase().includes(q))
+         );
+      }
+      return result;
+   }, [rules, search, accountFilter, roleFilter]);
 
    const groupedRules = useMemo(() => {
       const groups = {};
@@ -221,7 +233,9 @@ export default function AccountingRules() {
       return Object.values(groups).sort((a, b) => {
          if (!a.account) return 1;
          if (!b.account) return -1;
-         return a.account.code.localeCompare(b.account.code, undefined, { numeric: true });
+         const codeA = a.account.code || '';
+         const codeB = b.account.code || '';
+         return codeA.localeCompare(codeB, undefined, { numeric: true });
       });
    }, [filteredRules]);
 
