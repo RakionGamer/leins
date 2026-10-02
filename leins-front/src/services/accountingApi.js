@@ -287,6 +287,22 @@ export const upsertRule = async (payload) => {
    return newRule;
 };
 
+export const upsertBulkRules = async (payload) => {
+   try {
+      const response = await fetchWithAuth('/accounting/rules/bulk', {
+         method: 'POST',
+         body: JSON.stringify(payload),
+      });
+      if (!response.ok) {
+         const err = await parseJsonSafe(response);
+         throw new Error(err.message || 'Error del servidor al guardar masivamente');
+      }
+      return parseJsonSafe(response);
+   } catch (e) {
+      throw e;
+   }
+};
+
 export const deleteRule = async (id, entityId) => {
    try {
       const qs = new URLSearchParams();

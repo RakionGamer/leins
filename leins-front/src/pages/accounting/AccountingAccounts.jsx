@@ -156,14 +156,38 @@ export default function AccountingAccounts() {
 
    const openCreateModal = () => {
       setEditingAccount(null);
+      const initialType = 'GASTOS';
+      const initialNature = 'DEUDORA';
       setFormData({
-         code: '',
+         code: getSuggestedCode(initialType, accounts),
          name: '',
-         type: 'GASTOS',
-         nature: 'DEUDORA',
+         type: initialType,
+         nature: initialNature,
          cost_center_requirement: 'NONE',
       });
       setModalOpen(true);
+   };
+
+   const getSuggestedCode = (type, currentAccounts) => {
+      const accountsOfType = currentAccounts.filter(a => a.type === type);
+      if (accountsOfType.length === 0) {
+         if (type === 'ACTIVO') return '1.1';
+         if (type === 'PASIVO') return '2.1';
+         if (type === 'PATRIMONIO') return '3.1';
+         if (type === 'INGRESOS') return '4.1';
+         if (type === 'COSTOS') return '5.1';
+         if (type === 'GASTOS') return '6.1';
+         return '';
+      }
+      accountsOfType.sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
+      const lastCode = accountsOfType[accountsOfType.length - 1].code;
+      const parts = lastCode.split('.');
+      const lastNum = parseInt(parts[parts.length - 1], 10);
+      if (!isNaN(lastNum)) {
+         parts[parts.length - 1] = (lastNum + 1).toString();
+         return parts.join('.');
+      }
+      return lastCode + '.1';
    };
 
    const openEditModal = (acc) => {
@@ -428,8 +452,47 @@ export default function AccountingAccounts() {
          {/* Create / Edit Modal */}
          <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editingAccount ? 'Editar Cuenta Contable' : 'Crear Nueva Cuenta Contable'} maxWidth="max-w-lg">
             <form onSubmit={handleSubmit} className="space-y-4">
+               <div className="grid grid-cols-2 gap-4">
+                  <div>
+                     <label className="block text-xs font-semibold uppercase text-text-soft mb-1">Tipo de Cuenta</label>
+                     <select
+                        className={selectCtrl}
+                        value={formData.type}
+                        onChange={(e) => {
+                           const t = e.target.value;
+                           const nat = ['ACTIVO', 'COSTOS', 'GASTOS'].includes(t) ? 'DEUDORA' : 'ACREEDORA';
+                           setFormData({ 
+                              ...formData, 
+                              type: t, 
+                              nature: nat,
+                              code: editingAccount ? formData.code : getSuggestedCode(t, accounts)
+                           });
+                        }}
+                     >
+                        <option value="ACTIVO">ACTIVO</option>
+                        <option value="PASIVO">PASIVO</option>
+                        <option value="PATRIMONIO">PATRIMONIO</option>
+                        <option value="INGRESOS">INGRESOS</option>
+                        <option value="COSTOS">COSTOS</option>
+                        <option value="GASTOS">GASTOS</option>
+                     </select>
+                  </div>
+
+                  <div>
+                     <label className="block text-xs font-semibold uppercase text-text-soft mb-1">Naturaleza</label>
+                     <select
+                        className={`${selectCtrl} bg-surface-2 opacity-80`}
+                        value={formData.nature}
+                        disabled
+                     >
+                        <option value="DEUDORA">DEUDORA</option>
+                        <option value="ACREEDORA">ACREEDORA</option>
+                     </select>
+                  </div>
+               </div>
+
                <div>
-                  <label className="block text-xs font-semibold uppercase text-text-soft mb-1">Código de Cuenta</label>
+                  <label className="block text-xs font-semibold uppercase text-text-soft mb-1">Código Correlativo Sugerido</label>
                   <input
                      type="text"
                      disabled={!!editingAccount}
@@ -451,40 +514,6 @@ export default function AccountingAccounts() {
                      value={formData.name}
                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   />
-               </div>
-
-               <div className="grid grid-cols-2 gap-4">
-                  <div>
-                     <label className="block text-xs font-semibold uppercase text-text-soft mb-1">Tipo</label>
-                     <select
-                        className={selectCtrl}
-                        value={formData.type}
-                        onChange={(e) => {
-                           const t = e.target.value;
-                           const nat = ['ACTIVO', 'COSTOS', 'GASTOS'].includes(t) ? 'DEUDORA' : 'ACREEDORA';
-                           setFormData({ ...formData, type: t, nature: nat });
-                        }}
-                     >
-                        <option value="ACTIVO">ACTIVO</option>
-                        <option value="PASIVO">PASIVO</option>
-                        <option value="PATRIMONIO">PATRIMONIO</option>
-                        <option value="INGRESOS">INGRESOS</option>
-                        <option value="COSTOS">COSTOS</option>
-                        <option value="GASTOS">GASTOS</option>
-                     </select>
-                  </div>
-
-                  <div>
-                     <label className="block text-xs font-semibold uppercase text-text-soft mb-1">Naturaleza</label>
-                     <select
-                        className={selectCtrl}
-                        value={formData.nature}
-                        onChange={(e) => setFormData({ ...formData, nature: e.target.value })}
-                     >
-                        <option value="DEUDORA">DEUDORA</option>
-                        <option value="ACREEDORA">ACREEDORA</option>
-                     </select>
-                  </div>
                </div>
 
                <div>

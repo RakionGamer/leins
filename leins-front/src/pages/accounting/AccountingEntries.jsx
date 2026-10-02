@@ -40,9 +40,17 @@ function Pill({ children, colorClass = "bg-brand/10 text-brand ring-brand/20" })
 
 const SOURCE_BADGES = {
    SII_PURCHASE: { label: 'Compra SII', colorClass: 'bg-amber-100 text-amber-700 ring-amber-200 dark:bg-amber-500/20 dark:text-amber-300 dark:ring-amber-500/30' },
+   SII_HONORARY: { label: 'Honorarios SII', colorClass: 'bg-indigo-100 text-indigo-700 ring-indigo-200 dark:bg-indigo-500/20 dark:text-indigo-300 dark:ring-indigo-500/30' },
    SII_SALE: { label: 'Venta SII', colorClass: 'bg-blue-100 text-blue-700 ring-blue-200 dark:bg-blue-500/20 dark:text-blue-300 dark:ring-blue-500/30' },
    BANK_MOVEMENT: { label: 'Banco', colorClass: 'bg-purple-100 text-purple-700 ring-purple-200 dark:bg-purple-500/20 dark:text-purple-300 dark:ring-purple-500/30' },
    MANUAL: { label: 'Manual', colorClass: 'bg-slate-100 text-slate-700 ring-slate-200 dark:bg-slate-500/20 dark:text-slate-300 dark:ring-slate-500/30' },
+};
+
+const getSourceInfo = (entry) => {
+   if (entry.source_type === 'SII_PURCHASE' && entry.concept && entry.concept.startsWith('BH Nro')) {
+      return SOURCE_BADGES.SII_HONORARY;
+   }
+   return SOURCE_BADGES[entry.source_type] || { label: entry.source_type, colorClass: 'bg-slate-100 text-slate-700 ring-slate-200 dark:bg-slate-500/20 dark:text-slate-300 dark:ring-slate-500/30' };
 };
 
 function ResumenAsientos({ entries }) {
@@ -495,7 +503,7 @@ export default function AccountingEntries() {
                      ) : entries.map((entry) => {
                            const isExpanded = expandedEntryId === entry.id;
                            const isAnnulled = entry.status === 'ANNULLED';
-                           const sourceInfo = SOURCE_BADGES[entry.source_type] || { label: entry.source_type, colorClass: 'bg-slate-100 text-slate-700 ring-slate-200 dark:bg-slate-500/20 dark:text-slate-300 dark:ring-slate-500/30' };
+                           const sourceInfo = getSourceInfo(entry);
 
                            return (
                               <React.Fragment key={entry.id}>

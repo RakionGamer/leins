@@ -6,6 +6,7 @@ import { toast } from '../../components/Toaster';
 import {
    getRules,
    upsertRule,
+   upsertBulkRules,
    deleteRule,
    getAccounts,
 } from '../../services/accountingApi';
@@ -89,10 +90,9 @@ export default function AccountingRules() {
 
    const [modalOpen, setModalOpen] = useState(false);
    const [formData, setFormData] = useState({
-      counterparty_rut: '',
-      counterparty_name: '',
       account_id: '',
       cost_center: '',
+      ruts_text: '',
    });
    const [submitting, setSubmitting] = useState(false);
 
@@ -123,22 +123,36 @@ export default function AccountingRules() {
    const handleSubmit = async (e) => {
       e.preventDefault();
       if (!formData.account_id) return;
+      
+      const lines = formData.ruts_text.split('\n').map(l => l.trim()).filter(l => l);
+      const ruts = lines.map(line => {
+         // Si la línea contiene espacio, intentamos separar RUT y Nombre
+         const match = line.match(/^([0-9kK.-]+)\s*(.*)$/);
+         if (match) {
+            return { rut: match[1].trim(), name: match[2].trim() };
+         }
+         return { rut: line, name: '' };
+      });
+
+      if (ruts.length === 0) {
+         toast.error("Debe ingresar al menos un RUT");
+         return;
+      }
 
       setSubmitting(true);
       setErr(null);
       try {
-         await upsertRule({
+         await upsertBulkRules({
             entityId,
-            counterparty_rut: formData.counterparty_rut,
-            counterparty_name: formData.counterparty_name,
             account_id: Number(formData.account_id),
             cost_center: formData.cost_center,
+            ruts
          });
-         toast.success('Regla de asignación guardada correctamente');
+         toast.success(`Se guardaron ${ruts.length} reglas correctamente`);
          setModalOpen(false);
          loadRules();
       } catch (e) {
-         setErr(e.message || 'Error al guardar la regla');
+         setErr(e.message || 'Error al guardar las reglas');
       } finally {
          setSubmitting(false);
       }
@@ -164,9 +178,29 @@ export default function AccountingRules() {
          (r) =>
             (r.counterparty_rut && r.counterparty_rut.toLowerCase().includes(q)) ||
             (r.counterparty_name && r.counterparty_name.toLowerCase().includes(q)) ||
-            (r.account && r.account.name.toLowerCase().includes(q))
+            (r.account && r.account.name.toLowerCase().includes(q)) ||
+            (r.account && r.account.type.toLowerCase().includes(q))
       );
    }, [rules, search]);
+
+   const groupedRules = useMemo(() => {
+      const groups = {};
+      for (const rule of filteredRules) {
+         const accId = rule.account_id || 'unassigned';
+         if (!groups[accId]) {
+            groups[accId] = {
+               account: rule.account,
+               rules: []
+            };
+         }
+         groups[accId].rules.push(rule);
+      }
+      return Object.values(groups).sort((a, b) => {
+         if (!a.account) return 1;
+         if (!b.account) return -1;
+         return a.account.code.localeCompare(b.account.code, undefined, { numeric: true });
+      });
+   }, [filteredRules]);
 
    if (!ready) return <EntityRequiredNotice />;
 
@@ -232,110 +266,113 @@ export default function AccountingRules() {
 
          {err && <div className="p-4 bg-danger/10 text-danger rounded-2xl border border-danger/20 text-sm font-medium">Error: {err}</div>}
 
-         {/* Rules Table */}
-         <div className={`bg-bg-content rounded-3xl border border-border-subtle shadow-sm overflow-hidden transition-all ${loading ? 'opacity-60 pointer-events-none' : ''}`}>
-            <div className="overflow-x-auto">
-               <table className="min-w-full text-sm text-left">
-                  <thead className="bg-surface-2 border-b border-border-subtle text-text-soft font-semibold">
-                     <tr>
-                        <th className="p-4">RUT Proveedor / Cliente</th>
-                        <th className="p-4">Razón Social / Nombre</th>
-                        <th className="p-4">Cuenta Contable Destino</th>
-                        <th className="p-4">Centro de Costo</th>
-                        <th className="p-4 text-center">Acciones</th>
-                     </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border-subtle/50">
-                     {filteredRules.length === 0 ? (
-                        <tr>
-                           <td className="p-10 text-center text-text-soft italic" colSpan={5}>
-                              Sin resultados. Ajusta filtros o crea una nueva regla.
-                           </td>
-                        </tr>
-                     ) : (
-                        filteredRules.map((rule) => (
-                           <tr key={rule.id} className="hover:bg-brand/5 transition-colors group">
-                              <td className="p-4 font-mono font-bold text-heading">{rule.counterparty_rut}</td>
-                              <td className="p-4 font-medium text-text-main">{rule.counterparty_name || '-'}</td>
-                              <td className="p-4 font-medium text-text-main">
-                                 {rule.account ? (
-                                    <div className="flex items-center gap-2">
-                                       <Pill colorClass="bg-slate-100 text-slate-700 ring-slate-200 dark:bg-slate-500/20 dark:text-slate-300 dark:ring-slate-500/30">
-                                          {rule.account.code}
-                                       </Pill>
-                                       <span>{rule.account.name}</span>
-                                    </div>
-                                 ) : (
-                                    '-'
-                                 )}
-                              </td>
-                              <td className="p-4 text-text-soft">
-                                 {rule.cost_center ? (
-                                    <Pill colorClass="bg-emerald-100 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-300 dark:ring-emerald-500/30">
-                                       {rule.cost_center}
-                                    </Pill>
-                                 ) : (
-                                    <span className="italic text-xs text-text-soft/70">No asignado</span>
-                                 )}
-                              </td>
-                              <td className="p-4 text-center">
-                                 <div className="flex items-center justify-center opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity gap-1">
-                                    <button
-                                       onClick={() => {
-                                          setFormData({
-                                             counterparty_rut: rule.counterparty_rut,
-                                             counterparty_name: rule.counterparty_name || '',
-                                             account_id: rule.account_id || '',
-                                             cost_center: rule.cost_center || '',
-                                          });
-                                          setModalOpen(true);
-                                       }}
-                                       className="p-1.5 rounded-lg text-text-soft hover:text-brand hover:bg-brand/10 transition outline-none focus:ring-2 focus:ring-brand"
-                                       title="Editar regla"
-                                    >
-                                       <PencilIcon className="w-5 h-5" />
-                                    </button>
-                                    <button
-                                       onClick={() => handleDelete(rule)}
-                                       className="p-1.5 rounded-lg text-text-soft hover:text-danger hover:bg-danger/10 transition outline-none focus:ring-2 focus:ring-danger"
-                                       title="Eliminar regla"
-                                    >
-                                       <TrashIcon className="w-5 h-5" />
-                                    </button>
-                                 </div>
-                              </td>
-                           </tr>
-                        ))
-                     )}
-                  </tbody>
-               </table>
-            </div>
+         {/* Rules Table Grouped */}
+         <div className={`space-y-6 transition-all ${loading ? 'opacity-60 pointer-events-none' : ''}`}>
+            {groupedRules.length === 0 ? (
+               <div className="bg-bg-content rounded-3xl border border-border-subtle p-10 text-center text-text-soft italic shadow-sm">
+                  Sin resultados. Ajusta filtros o crea nuevas reglas.
+               </div>
+            ) : (
+               groupedRules.map((group, index) => (
+                  <div key={index} className="bg-bg-content rounded-3xl border border-border-subtle shadow-sm overflow-hidden">
+                     <div className="bg-surface-2 border-b border-border-subtle p-4 flex flex-wrap items-center justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                           {group.account ? (
+                              <>
+                                 <Pill colorClass="bg-brand/10 text-brand ring-brand/20">
+                                    {group.account.code}
+                                 </Pill>
+                                 <h3 className="font-bold text-heading text-lg">{group.account.name}</h3>
+                                 <Pill colorClass="bg-slate-100 text-slate-700 ring-slate-200">
+                                    {group.account.type}
+                                 </Pill>
+                              </>
+                           ) : (
+                              <h3 className="font-bold text-heading text-lg">Sin Cuenta Asignada</h3>
+                           )}
+                        </div>
+                        <div className="text-sm text-text-soft font-medium">
+                           {group.rules.length} RUT(s)
+                        </div>
+                     </div>
+                     <div className="overflow-x-auto">
+                        <table className="min-w-full text-sm text-left">
+                           <thead className="bg-surface-1 border-b border-border-subtle text-text-soft font-semibold text-xs uppercase tracking-wider">
+                              <tr>
+                                 <th className="p-3 pl-5">RUT</th>
+                                 <th className="p-3">Razón Social / Nombre</th>
+                                 <th className="p-3">Centro de Costo</th>
+                                 <th className="p-3 text-center">Acciones</th>
+                              </tr>
+                           </thead>
+                           <tbody className="divide-y divide-border-subtle/50">
+                              {group.rules.map((rule) => (
+                                 <tr key={rule.id} className="hover:bg-brand/5 transition-colors group/row">
+                                    <td className="p-3 pl-5 font-mono font-bold text-heading whitespace-nowrap">{rule.counterparty_rut}</td>
+                                    <td className="p-3 font-medium text-text-main">{rule.counterparty_name || '-'}</td>
+                                    <td className="p-3 text-text-soft">
+                                       {rule.cost_center ? (
+                                          <Pill colorClass="bg-emerald-100 text-emerald-700 ring-emerald-200">
+                                             {rule.cost_center}
+                                          </Pill>
+                                       ) : (
+                                          <span className="italic text-xs text-text-soft/70">No asignado</span>
+                                       )}
+                                    </td>
+                                    <td className="p-3 text-center">
+                                       <div className="flex items-center justify-center opacity-0 group-hover/row:opacity-100 focus-within:opacity-100 transition-opacity gap-1">
+                                          <button
+                                             onClick={() => handleDelete(rule)}
+                                             className="p-1.5 rounded-lg text-text-soft hover:text-danger hover:bg-danger/10 transition outline-none focus:ring-2 focus:ring-danger"
+                                             title="Eliminar regla"
+                                          >
+                                             <TrashIcon className="w-5 h-5" />
+                                          </button>
+                                       </div>
+                                    </td>
+                                 </tr>
+                              ))}
+                           </tbody>
+                        </table>
+                     </div>
+                  </div>
+               ))
+            )}
          </div>
 
          {/* Create Rule Modal */}
-         <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title="Regla de Asignación por RUT" maxWidth="max-w-md">
+         <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title="Asignación Masiva de RUTs a Cuenta" maxWidth="max-w-xl">
             <form onSubmit={handleSubmit} className="space-y-4">
                <div>
-                  <label className="block text-xs font-semibold uppercase text-text-soft mb-1">RUT Proveedor / Cliente</label>
-                  <input
-                     type="text"
+                  <label className="block text-xs font-semibold uppercase text-text-soft mb-1">1. Cuenta Contable Destino</label>
+                  <select
                      required
-                     placeholder="Ej: 76.123.456-7"
-                     className={ctrl}
-                     value={formData.counterparty_rut}
-                     onChange={(e) => setFormData({ ...formData, counterparty_rut: e.target.value })}
-                  />
+                     className={selectCtrl}
+                     value={formData.account_id}
+                     onChange={(e) => setFormData({ ...formData, account_id: e.target.value })}
+                  >
+                     <option value="">Seleccionar cuenta...</option>
+                     {accounts.map((acc) => (
+                        <option key={acc.id} value={acc.id}>
+                           {acc.code} - {acc.name} ({acc.type})
+                        </option>
+                     ))}
+                  </select>
                </div>
 
                <div>
-                  <label className="block text-xs font-semibold uppercase text-text-soft mb-1">Razón Social (Opcional)</label>
-                  <input
-                     type="text"
-                     placeholder="Ej: Servicios Eléctricos SpA"
-                     className={ctrl}
-                     value={formData.counterparty_name}
-                     onChange={(e) => setFormData({ ...formData, counterparty_name: e.target.value })}
+                  <label className="block text-xs font-semibold uppercase text-text-soft mb-1">2. RUTs a asociar (Uno por línea)</label>
+                  <textarea
+                     required
+                     rows={8}
+                     placeholder="Pega los RUTs aquí. Ej:&#10;76.123.456-7&#10;12.345.678-9 Nombre Opcional"
+                     className="w-full p-3 text-sm rounded-2xl border border-border-subtle bg-bg-content text-text-main placeholder-text-soft/70 focus:outline-none focus:ring-2 focus:ring-brand shadow-sm font-mono"
+                     value={formData.ruts_text}
+                     onChange={(e) => setFormData({ ...formData, ruts_text: e.target.value })}
                   />
+                  <p className="text-xs text-text-soft mt-1.5">
+                     Ingresa un RUT por línea. Opcionalmente puedes agregar el nombre al lado separado por un espacio.
+                  </p>
                </div>
 
                <div>

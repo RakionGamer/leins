@@ -27,6 +27,15 @@ const upsertRuleSchema = joi.object({
    cost_center: joi.string().max(100).allow(null, "").optional(),
 });
 
+const upsertBulkRuleSchema = joi.object({
+   account_id: joi.number().integer().positive().required(),
+   cost_center: joi.string().max(100).allow(null, "").optional(),
+   ruts: joi.array().items(joi.object({
+      rut: joi.string().max(16).required(),
+      name: joi.string().max(255).allow(null, "").optional()
+   })).min(1).required()
+});
+
 const entryItemSchema = joi.object({
    account_id: joi.number().integer().positive().required(),
    description: joi.string().max(255).allow(null, "").optional(),
@@ -61,6 +70,7 @@ module.exports = {
    createAccountSchema,
    updateAccountSchema,
    upsertRuleSchema,
+   upsertBulkRuleSchema,
    createEntrySchema,
    generateSiiSchema,
    getByIdSchema,

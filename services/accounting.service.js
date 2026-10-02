@@ -57,6 +57,7 @@ const DEFAULT_ACCOUNTS_SEED = [
    { code: "4.2", name: "Ingresos por Servicios", type: "INGRESOS", nature: "ACREEDORA", is_system: true },
    { code: "4.3", name: "Otros Ingresos Operacionales", type: "INGRESOS", nature: "ACREEDORA", is_system: true },
    { code: "4.4", name: "Ingresos Financieros", type: "INGRESOS", nature: "ACREEDORA", is_system: true },
+   { code: "4.5", name: "Ingresos Fuera de la Explotación", type: "INGRESOS", nature: "ACREEDORA", is_system: true },
 
    // 5 COSTOS
    { code: "5.1", name: "Costo de Ventas", type: "COSTOS", nature: "DEUDORA", is_system: true },
@@ -86,6 +87,7 @@ const DEFAULT_ACCOUNTS_SEED = [
    { code: "6.17", name: "Fletes y Distribución", type: "GASTOS", nature: "DEUDORA", is_system: true },
    { code: "6.18", name: "Intereses Bancarios", type: "GASTOS", nature: "DEUDORA", is_system: true },
    { code: "6.19", name: "Multas e Intereses Tributarios", type: "GASTOS", nature: "DEUDORA", is_system: true },
+   { code: "6.20", name: "Egresos Fuera de la Explotación", type: "GASTOS", nature: "DEUDORA", is_system: true },
 ];
 
 class AccountingService {
@@ -264,6 +266,49 @@ class AccountingService {
       if (!rule) throw boom.notFound("Regla no encontrada");
       await rule.destroy();
       return { id };
+   }
+
+   async upsertBulkRules(entityId, { account_id, cost_center, ruts }) {
+      const account = await models.AccountingAccount.findOne({
+         where: { id: account_id, entity_id: entityId },
+      });
+      if (!account) throw boom.notFound("Cuenta contable no existe para la entidad");
+
+      if (!Array.isArray(ruts)) throw boom.badRequest("ruts debe ser un array");
+
+      const t = await sequelize.transaction();
+      try {
+         for (const item of ruts) {
+            const rutClean = String(item.rut || item.counterparty_rut).trim().toUpperCase();
+            if (!rutClean || rutClean === 'UNDEFINED') continue;
+            const name = item.name || item.counterparty_name || null;
+
+            const [rule, created] = await models.AccountingRule.findOrCreate({
+               where: { entity_id: entityId, counterparty_rut: rutClean },
+               defaults: {
+                  entity_id: entityId,
+                  counterparty_rut: rutClean,
+                  counterparty_name: name?.trim() || null,
+                  account_id,
+                  cost_center: cost_center?.trim() || null,
+               },
+               transaction: t
+            });
+
+            if (!created) {
+               rule.account_id = account_id;
+               if (name) rule.counterparty_name = name.trim();
+               rule.cost_center = cost_center?.trim() || null;
+               await rule.save({ transaction: t });
+            }
+         }
+         await t.commit();
+      } catch (err) {
+         await t.rollback();
+         throw err;
+      }
+
+      return { success: true, count: ruts.length };
    }
 
    // --- Asientos Contables ---
@@ -576,9 +621,11 @@ class AccountingService {
                const retencionMonto = Number(doc.amount_tax_no_credit || 0);
                const liquido = bruto - retencionMonto;
 
+               const glosaBHE = `BH Nro ${doc.folio || "-"} ${name || rut}`.trim();
+
                items.push({
                   account_id: honorariosGasto.id,
-                  description: `Bruto BHE Folio ${doc.folio || "-"}`,
+                  description: glosaBHE,
                   debit: bruto,
                   credit: 0,
                   counterparty_rut: rut,
@@ -587,7 +634,7 @@ class AccountingService {
                });
                items.push({
                   account_id: retencion.id,
-                  description: `Retención BHE Folio ${doc.folio || "-"}`,
+                  description: glosaBHE,
                   debit: 0,
                   credit: retencionMonto,
                   counterparty_rut: rut,
@@ -595,7 +642,7 @@ class AccountingService {
                });
                items.push({
                   account_id: honorariosPorPagar.id,
-                  description: `Líquido BHE Folio ${doc.folio || "-"}`,
+                  description: glosaBHE,
                   debit: 0,
                   credit: liquido,
                   counterparty_rut: rut,
@@ -621,10 +668,12 @@ class AccountingService {
             const concept = `${conceptPrefix} Folio ${doc.folio || "-"} - ${name || rut}`;
             const items = [];
 
+            const glosaCompra = `Factura ${name || rut} Folio ${doc.folio || "-"}`.trim();
+
             // Debe: Gasto/Activo (Neto o Total si exenta)
             items.push({
                account_id: expenseAccountId,
-               description: `Neto ${conceptPrefix} Folio ${doc.folio || "-"}`,
+               description: glosaCompra,
                debit: vat > 0 ? net : total,
                credit: 0,
                counterparty_rut: rut,
@@ -636,7 +685,7 @@ class AccountingService {
             if (vat > 0) {
                items.push({
                   account_id: ivaCredito.id,
-                  description: `IVA Crédito Folio ${doc.folio || "-"}`,
+                  description: glosaCompra,
                   debit: vat,
                   credit: 0,
                   counterparty_rut: rut,
@@ -647,7 +696,7 @@ class AccountingService {
             // Haber: Proveedores Nacionales (Total)
             items.push({
                account_id: proveedores.id,
-               description: `Deuda Proveedor Folio ${doc.folio || "-"}`,
+               description: glosaCompra,
                debit: 0,
                credit: total,
                counterparty_rut: rut,
@@ -671,10 +720,12 @@ class AccountingService {
             const concept = `${conceptPrefix} Folio ${doc.folio || "-"} - ${name || rut || "Cliente"}`;
             const items = [];
 
+            const glosaVenta = `Factura ${name || rut} Folio ${doc.folio || "-"}`.trim();
+
             // Debe: Clientes por Cobrar (Total)
             items.push({
                account_id: clientes.id,
-               description: `Cobro Cliente Folio ${doc.folio || "-"}`,
+               description: glosaVenta,
                debit: total,
                credit: 0,
                counterparty_rut: rut,
@@ -684,7 +735,7 @@ class AccountingService {
             // Haber: Ingresos por Ventas (Neto o Total si exenta)
             items.push({
                account_id: ventas.id,
-               description: `Ingreso ${conceptPrefix} Folio ${doc.folio || "-"}`,
+               description: glosaVenta,
                debit: 0,
                credit: vat > 0 ? net : total,
                counterparty_rut: rut,
@@ -695,7 +746,7 @@ class AccountingService {
             if (vat > 0) {
                items.push({
                   account_id: ivaDebito.id,
-                  description: `IVA Débito Folio ${doc.folio || "-"}`,
+                  description: glosaVenta,
                   debit: 0,
                   credit: vat,
                   counterparty_rut: rut,
@@ -745,60 +796,70 @@ class AccountingService {
 
             const opType = getDocOpType(doc);
 
-            if (opType === 'EXPENSE' && proveedores) {
-               // Documento de Compra
-               if (bankTx.type === 'expense') {
-                  // Pago normal
-                  await this.createEntry(entityId, {
-                     entry_date: bankTx.issued_at || doc.issue_date,
-                     concept: `Pago Proveedor ${name || rut} Folio ${doc.folio || '-'}`,
-                     source_type: 'BANK_MOVEMENT',
-                     source_id: bankTx.id,
-                     items: [
-                        { account_id: proveedores.id, description: `Pago Proveedor Folio ${doc.folio || '-'}`, debit: toApply, credit: 0, counterparty_rut: rut, counterparty_name: name },
-                        { account_id: bankAcc.id, description: `Egreso Banco ${bankTx.description || ''}`, debit: 0, credit: toApply, counterparty_rut: rut, counterparty_name: name }
-                     ]
-                  });
-                  createdCount++;
-               } else if (bankTx.type === 'income') {
-                  // Reembolso de una compra
-                  await this.createEntry(entityId, {
-                     entry_date: bankTx.issued_at || doc.issue_date,
-                     concept: `Reembolso Compra Folio ${doc.folio || '-'} - ${name || rut}`,
-                     source_type: 'BANK_MOVEMENT',
-                     source_id: bankTx.id,
-                     items: [
-                        { account_id: bankAcc.id, description: `Ingreso Banco ${bankTx.description || ''}`, debit: toApply, credit: 0, counterparty_rut: rut, counterparty_name: name },
-                        { account_id: proveedores.id, description: `Reverso Pago Proveedor Folio ${doc.folio || '-'}`, debit: 0, credit: toApply, counterparty_rut: rut, counterparty_name: name }
-                     ]
-                  });
-                  createdCount++;
+            if (opType === 'EXPENSE') {
+               const honorariosPorPagar = accountByCode.get("2.3") || allAccounts.find((a) => a.name.includes("Honorarios por Pagar"));
+               const isBHE = doc.doc_type_code === 1002;
+               const payableAccount = (isBHE && honorariosPorPagar) ? honorariosPorPagar : proveedores;
+
+               if (payableAccount) {
+                  // Documento de Compra u Honorario
+                  if (bankTx.type === 'expense') {
+                     // Pago normal
+                     const glosaPago = isBHE ? `Pago BH Nro ${doc.folio || '-'} ${name || rut}` : `Pago proveedor ${name || rut} Folio ${doc.folio || '-'}`;
+                     await this.createEntry(entityId, {
+                        entry_date: bankTx.issued_at || doc.issue_date,
+                        concept: glosaPago,
+                        source_type: 'BANK_MOVEMENT',
+                        source_id: bankTx.id,
+                        items: [
+                           { account_id: payableAccount.id, description: glosaPago, debit: toApply, credit: 0, counterparty_rut: rut, counterparty_name: name },
+                           { account_id: bankAcc.id, description: glosaPago, debit: 0, credit: toApply, counterparty_rut: rut, counterparty_name: name }
+                        ]
+                     });
+                     createdCount++;
+                  } else if (bankTx.type === 'income') {
+                     // Reembolso de una compra/honorario
+                     const glosaReembolso = isBHE ? `Reverso Pago BH Nro ${doc.folio || '-'} ${name || rut}` : `Reembolso Compra Folio ${doc.folio || '-'} - ${name || rut}`;
+                     await this.createEntry(entityId, {
+                        entry_date: bankTx.issued_at || doc.issue_date,
+                        concept: glosaReembolso,
+                        source_type: 'BANK_MOVEMENT',
+                        source_id: bankTx.id,
+                        items: [
+                           { account_id: bankAcc.id, description: glosaReembolso, debit: toApply, credit: 0, counterparty_rut: rut, counterparty_name: name },
+                           { account_id: payableAccount.id, description: glosaReembolso, debit: 0, credit: toApply, counterparty_rut: rut, counterparty_name: name }
+                        ]
+                     });
+                     createdCount++;
+                  }
                }
             } else if (opType === 'INCOME' && clientes) {
                // Documento de Venta
                if (bankTx.type === 'income') {
                   // Cobro normal
+                  const glosaCobro = `Cobro de Cliente ${name || rut || 'Cliente'} Folio ${doc.folio || '-'}`.trim();
                   await this.createEntry(entityId, {
                      entry_date: bankTx.issued_at || doc.issue_date,
-                     concept: `Cobro de Cliente ${name || rut || 'Cliente'} Folio ${doc.folio || '-'}`,
+                     concept: glosaCobro,
                      source_type: 'BANK_MOVEMENT',
                      source_id: bankTx.id,
                      items: [
-                        { account_id: bankAcc.id, description: `Ingreso Banco ${bankTx.description || ''}`, debit: toApply, credit: 0, counterparty_rut: rut, counterparty_name: name },
-                        { account_id: clientes.id, description: `Abono Cliente Folio ${doc.folio || '-'}`, debit: 0, credit: toApply, counterparty_rut: rut, counterparty_name: name }
+                        { account_id: bankAcc.id, description: glosaCobro, debit: toApply, credit: 0, counterparty_rut: rut, counterparty_name: name },
+                        { account_id: clientes.id, description: glosaCobro, debit: 0, credit: toApply, counterparty_rut: rut, counterparty_name: name }
                      ]
                   });
                   createdCount++;
                } else if (bankTx.type === 'expense') {
                   // Devolución a un cliente
+                  const glosaDev = `Devolución a Cliente Folio ${doc.folio || '-'} - ${name || rut}`.trim();
                   await this.createEntry(entityId, {
                      entry_date: bankTx.issued_at || doc.issue_date,
-                     concept: `Devolución a Cliente Folio ${doc.folio || '-'} - ${name || rut}`,
+                     concept: glosaDev,
                      source_type: 'BANK_MOVEMENT',
                      source_id: bankTx.id,
                      items: [
-                        { account_id: clientes.id, description: `Reverso Abono Cliente Folio ${doc.folio || '-'}`, debit: toApply, credit: 0, counterparty_rut: rut, counterparty_name: name },
-                        { account_id: bankAcc.id, description: `Egreso Banco ${bankTx.description || ''}`, debit: 0, credit: toApply, counterparty_rut: rut, counterparty_name: name }
+                        { account_id: clientes.id, description: glosaDev, debit: toApply, credit: 0, counterparty_rut: rut, counterparty_name: name },
+                        { account_id: bankAcc.id, description: glosaDev, debit: 0, credit: toApply, counterparty_rut: rut, counterparty_name: name }
                      ]
                   });
                   createdCount++;

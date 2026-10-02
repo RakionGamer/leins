@@ -75,6 +75,16 @@ const upsertRule = async (req, res, next) => {
    }
 };
 
+const upsertBulkRules = async (req, res, next) => {
+   try {
+      const entityId = req.entityId;
+      const result = await service.upsertBulkRules(entityId, req.body);
+      res.status(201).json(result);
+   } catch (error) {
+      next(error);
+   }
+};
+
 const deleteRule = async (req, res, next) => {
    try {
       const entityId = req.entityId;
@@ -176,6 +186,7 @@ module.exports = {
    seedDefaultPlan,
    getRules,
    upsertRule,
+   upsertBulkRules,
    deleteRule,
    getEntries,
    getEntryById,
