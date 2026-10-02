@@ -165,6 +165,7 @@ export default function AccountingRules() {
       setErr(null);
       try {
          await upsertBulkRules({
+            entityId,
             account_id: Number(formData.account_id),
             cost_center: formData.cost_center,
             ruts,

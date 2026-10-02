@@ -28,6 +28,7 @@ const upsertRuleSchema = joi.object({
 });
 
 const upsertBulkRuleSchema = joi.object({
+   entityId: entityId.optional(),
    account_id: joi.number().integer().positive().required(),
    cost_center: joi.string().max(100).allow(null, "").optional(),
    replace_account: joi.boolean().optional(),
