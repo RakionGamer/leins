@@ -87,6 +87,15 @@ export default function AccountingRules() {
    const [loading, setLoading] = useState(true);
    const [err, setErr] = useState(null);
    const [search, setSearch] = useState('');
+   const [accountFilter, setAccountFilter] = useState('');
+   const [roleFilter, setRoleFilter] = useState('');
+
+   const clearFilters = () => {
+      setSearch('');
+      setAccountFilter('');
+      setRoleFilter('');
+      loadRules();
+   };
 
    const [modalOpen, setModalOpen] = useState(false);
    const [formData, setFormData] = useState({
@@ -235,7 +244,7 @@ export default function AccountingRules() {
                      <FunnelIcon className="w-5 h-5 text-brand" /> Filtros de Búsqueda
                   </div>
                   <button
-                     onClick={() => { setSearch(''); loadRules(); }}
+                     onClick={clearFilters}
                      disabled={loading}
                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-text-soft hover:text-danger hover:bg-danger/10 rounded-xl transition-colors disabled:opacity-50"
                   >
@@ -244,18 +253,46 @@ export default function AccountingRules() {
                </div>
 
                <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start bg-surface-1 p-4 rounded-2xl border border-border-subtle/50">
-                  <div className="space-y-1.5 md:col-span-12 relative">
+                  <div className="space-y-1.5 md:col-span-4 relative">
                      <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider">Buscar por RUT o Nombre</label>
                      <div className="relative">
                         <MagnifyingGlassIcon className="w-5 h-5 absolute left-3 top-3 text-text-soft/70" />
                         <input
                            type="text"
-                           placeholder="Buscar por RUT de proveedor/cliente o cuenta asignada..."
+                           placeholder="Buscar RUT, nombre, cuenta..."
                            className={`${ctrl} pl-10`}
                            value={search}
                            onChange={(e) => setSearch(e.target.value)}
                         />
                      </div>
+                  </div>
+                  <div className="space-y-1.5 md:col-span-4">
+                     <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider">Filtrar por Cuenta Contable</label>
+                     <select 
+                        className={selectCtrl}
+                        value={accountFilter}
+                        onChange={(e) => setAccountFilter(e.target.value)}
+                     >
+                        <option value="">Todas las cuentas</option>
+                        {accounts.map(acc => (
+                           <option key={acc.id} value={acc.id}>{acc.code} - {acc.name}</option>
+                        ))}
+                     </select>
+                  </div>
+                  <div className="space-y-1.5 md:col-span-4">
+                     <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider">Rol (Tipo de Entidad)</label>
+                     <select 
+                        className={selectCtrl}
+                        value={roleFilter}
+                        onChange={(e) => setRoleFilter(e.target.value)}
+                     >
+                        <option value="">Todos los roles</option>
+                        <option value="Cliente">Cliente</option>
+                        <option value="Proveedor">Proveedor</option>
+                        <option value="Prestador de Servicios (BH)">Prestador de Servicios (BH)</option>
+                        <option value="Colaborador (Liq)">Colaborador (Liq)</option>
+                        <option value="Otro">Otro</option>
+                     </select>
                   </div>
                </div>
             </div>
@@ -301,6 +338,7 @@ export default function AccountingRules() {
                               <tr>
                                  <th className="p-3 pl-5">RUT</th>
                                  <th className="p-3">Razón Social / Nombre</th>
+                                 <th className="p-3">Rol Contable</th>
                                  <th className="p-3">Centro de Costo</th>
                                  <th className="p-3 text-center">Acciones</th>
                               </tr>
@@ -310,6 +348,11 @@ export default function AccountingRules() {
                                  <tr key={rule.id} className="hover:bg-brand/5 transition-colors group/row">
                                     <td className="p-3 pl-5 font-mono font-bold text-heading whitespace-nowrap">{rule.counterparty_rut}</td>
                                     <td className="p-3 font-medium text-text-main">{rule.counterparty_name || '-'}</td>
+                                    <td className="p-3">
+                                       <Pill colorClass={getRoleColor(getRoleFromAccount(rule.account))}>
+                                          {getRoleFromAccount(rule.account)}
+                                       </Pill>
+                                    </td>
                                     <td className="p-3 text-text-soft">
                                        {rule.cost_center ? (
                                           <Pill colorClass="bg-emerald-100 text-emerald-700 ring-emerald-200">
@@ -371,7 +414,7 @@ export default function AccountingRules() {
                      onChange={(e) => setFormData({ ...formData, ruts_text: e.target.value })}
                   />
                   <p className="text-xs text-text-soft mt-1.5">
-                     Ingresa un RUT por línea. Opcionalmente puedes agregar el nombre al lado separado por un espacio.
+                     Ingresa un RUT por línea. Opcionalmente puedes agregar el nombre al lado separado por un espacio. <strong>Tip: Puedes copiar y pegar una columna entera desde Excel.</strong>
                   </p>
                </div>
 
