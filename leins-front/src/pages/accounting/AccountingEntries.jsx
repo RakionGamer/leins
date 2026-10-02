@@ -47,7 +47,7 @@ const SOURCE_BADGES = {
 };
 
 const getSourceInfo = (entry) => {
-   if (entry.source_type === 'SII_PURCHASE' && entry.concept && entry.concept.startsWith('BH Nro')) {
+   if (entry.source_type === 'SII_PURCHASE' && entry.concept && entry.concept.startsWith('Boleta de Honorarios')) {
       return SOURCE_BADGES.SII_HONORARY;
    }
    return SOURCE_BADGES[entry.source_type] || { label: entry.source_type, colorClass: 'bg-slate-100 text-slate-700 ring-slate-200 dark:bg-slate-500/20 dark:text-slate-300 dark:ring-slate-500/30' };
