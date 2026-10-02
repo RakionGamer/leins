@@ -1792,63 +1792,75 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
          const accountingService = new AccountingService();
          await accountingService.ensureDefaultPlan(entityId);
          const accounts = await models.AccountingAccount.findAll({ where: { entity_id: entityId } });
-         const bankAcc = accounts.find(a => a.code === '1.1.2' || a.name.includes('Banco'));
-         const clientesAcc = accounts.find(a => a.code === '1.1.6' || a.name.includes('Clientes'));
-         const proveedoresAcc = accounts.find(a => a.code === '2.1' || a.name.includes('Proveedores'));
+         const bankAcc = accounts.find(a => a.code === '11.02.50' || a.name.toLowerCase().includes('banco chile')) || accounts.find(a => a.name.toLowerCase().includes('banco'));
+         const clientesAcc = accounts.find(a => a.code === '11.05.10' || a.name.toLowerCase().includes('clientes'));
+         const proveedoresAcc = accounts.find(a => a.code === '21.07.10' || a.name.toLowerCase().includes('proveedores'));
+         const honorariosPorPagar = accounts.find(a => a.code === '21.12.15' || a.name.toLowerCase().includes('honorarios por pagar'));
+         const clientesBoletasAcc = accounts.find(a => a.code === '11.05.20' || a.name.toLowerCase().includes('clientes boletas')) || clientesAcc;
 
          const rut = (doc.counterparty_rut || '').toUpperCase();
          const name = doc.counterparty_name || '';
 
-         if (bankTx.type === 'expense' && bankAcc && proveedoresAcc) {
-            await accountingService.createEntry(entityId, {
-               entry_date: bankTx.issued_at || doc.issue_date,
-               concept: `Pago Banco Folio ${doc.folio || '-'} - ${name || rut}`,
-               source_type: 'BANK_MOVEMENT',
-               source_id: bankTx.id,
-               items: [
-                  {
-                     account_id: proveedoresAcc.id,
-                     description: `Pago Proveedor Folio ${doc.folio || '-'}`,
-                     debit: toApply,
-                     credit: 0,
-                     counterparty_rut: rut,
-                     counterparty_name: name,
-                  },
-                  {
-                     account_id: bankAcc.id,
-                     description: `Egreso Banco ${bankTx.description || ''}`,
-                     debit: 0,
-                     credit: toApply,
-                     counterparty_rut: rut,
-                     counterparty_name: name,
-                  }
-               ]
-            });
-         } else if (bankTx.type === 'income' && bankAcc && clientesAcc) {
-            await accountingService.createEntry(entityId, {
-               entry_date: bankTx.issued_at || doc.issue_date,
-               concept: `Cobro Banco Folio ${doc.folio || '-'} - ${name || rut || 'Cliente'}`,
-               source_type: 'BANK_MOVEMENT',
-               source_id: bankTx.id,
-               items: [
-                  {
-                     account_id: bankAcc.id,
-                     description: `Ingreso Banco ${bankTx.description || ''}`,
-                     debit: toApply,
-                     credit: 0,
-                     counterparty_rut: rut,
-                     counterparty_name: name,
-                  },
-                  {
-                     account_id: clientesAcc.id,
-                     description: `Abono Cliente Folio ${doc.folio || '-'}`,
-                     debit: 0,
-                     credit: toApply,
-                     counterparty_rut: rut,
-                     counterparty_name: name,
-                  }
-               ]
-            });
+         if (bankTx.type === 'expense' && bankAcc) {
+            const isHonorario = doc.doc_type_code === 1002 || doc.doc_type_code === '1002';
+            const contraCuenta = isHonorario ? honorariosPorPagar : proveedoresAcc;
+            const contraDesc = isHonorario ? 'Pago Honorarios' : 'Pago Proveedor';
+            if (contraCuenta) {
+               await accountingService.createEntry(entityId, {
+                  entry_date: bankTx.issued_at || doc.issue_date,
+                  concept: `Pago Banco Folio ${doc.folio || '-'} - ${name || rut}`,
+                  source_type: 'BANK_MOVEMENT',
+                  source_id: bankTx.id,
+                  items: [
+                     {
+                        account_id: contraCuenta.id,
+                        description: `${contraDesc} Folio ${doc.folio || '-'}`,
+                        debit: toApply,
+                        credit: 0,
+                        counterparty_rut: rut,
+                        counterparty_name: name,
+                     },
+                     {
+                        account_id: bankAcc.id,
+                        description: `Egreso Banco ${bankTx.description || ''}`,
+                        debit: 0,
+                        credit: toApply,
+                        counterparty_rut: rut,
+                        counterparty_name: name,
+                     }
+                  ]
+               });
+            }
+         } else if (bankTx.type === 'income' && bankAcc) {
+            const isBoleta = [39, 41, '39', '41'].includes(doc.doc_type_code);
+            const contraCuenta = isBoleta ? clientesBoletasAcc : clientesAcc;
+            const contraDesc = isBoleta ? 'Abono Boleta' : 'Abono Cliente';
+            if (contraCuenta) {
+               await accountingService.createEntry(entityId, {
+                  entry_date: bankTx.issued_at || doc.issue_date,
+                  concept: `Cobro Banco Folio ${doc.folio || '-'} - ${name || rut || 'Cliente'}`,
+                  source_type: 'BANK_MOVEMENT',
+                  source_id: bankTx.id,
+                  items: [
+                     {
+                        account_id: bankAcc.id,
+                        description: `Ingreso Banco ${bankTx.description || ''}`,
+                        debit: toApply,
+                        credit: 0,
+                        counterparty_rut: rut,
+                        counterparty_name: name,
+                     },
+                     {
+                        account_id: contraCuenta.id,
+                        description: `${contraDesc} Folio ${doc.folio || '-'}`,
+                        debit: 0,
+                        credit: toApply,
+                        counterparty_rut: rut,
+                        counterparty_name: name,
+                     }
+                  ]
+               });
+            }
          }
       } catch (accErr) {
          console.warn("⚠️ No se pudo auto-generar el asiento contable del movimiento bancario:", accErr.message);

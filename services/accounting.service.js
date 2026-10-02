@@ -2613,7 +2613,8 @@ class AccountingService {
       const ivaCredito = accountByCode.get("11.10.10") || allAccounts.find((a) => a.name.toLowerCase().includes("credito fiscal") || a.name.toLowerCase().includes("crédito fiscal"));
       const ivaDebito = accountByCode.get("21.13.10") || allAccounts.find((a) => a.name.toLowerCase().includes("debito fiscal") || a.name.toLowerCase().includes("débito fiscal"));
       const proveedores = accountByCode.get("21.07.10") || allAccounts.find((a) => a.name.toLowerCase().includes("proveedores"));
-      const clientes = accountByCode.get("11.05.10") || allAccounts.find((a) => a.name.toLowerCase().includes("clientes"));
+      const clientes = accountByCode.get("11.05.10") || allAccounts.find((a) => a.name.toLowerCase() === "clientes");
+      const clientesBoletas = accountByCode.get("11.05.20") || allAccounts.find((a) => a.name.toLowerCase().includes("clientes boletas")) || clientes;
       const ventas = accountByCode.get("51.01.50") || allAccounts.find((a) => a.name.toLowerCase().includes("ventas"));
       const gastosDefault = accountByCode.get("61.04.30") || allAccounts.find((a) => a.type === "GASTOS");
 
@@ -2763,7 +2764,8 @@ class AccountingService {
             const concept = `${conceptPrefix} Folio ${doc.folio || "-"} - ${name || rut}`;
             const items = [];
 
-            const glosaCompra = `Factura ${name || rut} Folio ${doc.folio || "-"}`.trim();
+            const docTypeName = Number(doc.doc_type_code) === 1002 ? 'BH' : 'Factura';
+            const glosaCompra = `${docTypeName} ${name || rut} Folio ${doc.folio || "-"}`.trim();
 
             // Debe: Gasto/Activo (Neto o Total si exenta)
             items.push({
@@ -2815,11 +2817,15 @@ class AccountingService {
             const concept = `${conceptPrefix} Folio ${doc.folio || "-"} - ${name || rut || "Cliente"}`;
             const items = [];
 
-            const glosaVenta = `Factura ${name || rut} Folio ${doc.folio || "-"}`.trim();
+            const docTypeName = isBoleta ? 'Boleta' : 'Factura';
+            const glosaVenta = `${docTypeName} ${name || rut} Folio ${doc.folio || "-"}`.trim();
+
+            const isBoleta = [39, 41].includes(Number(doc.doc_type_code));
+            const ctaCliente = isBoleta ? clientesBoletas : clientes;
 
             // Debe: Clientes por Cobrar (Total)
             items.push({
-               account_id: clientes.id,
+               account_id: ctaCliente.id,
                description: glosaVenta,
                debit: total,
                credit: 0,
