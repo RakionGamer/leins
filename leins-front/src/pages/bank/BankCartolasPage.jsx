@@ -1700,7 +1700,7 @@ export default function BankCartolasPage() {
                   </div>
 
                   <div className="px-6 py-2 h-[calc(92vh-64px)] overflow-auto">
-                     {!(selectedTargetKind === 'bank_transaction' && selectedDoc) ? (
+                     {!(selectedTargetKind === 'bank_transaction' && selectedDoc && false) ? (
                         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                            <section className="lg:col-span-6">
                               <div className="w-full max-w-[420px]">
@@ -1738,20 +1738,20 @@ export default function BankCartolasPage() {
 
                            <section className="lg:col-span-6 flex justify-end">
                               <div className="w-full max-w-[420px]">
-                                 <h3 className="text-[var(--heading)] font-medium mb-2">Documentos de respaldo</h3>
+                                 <h3 className="text-[var(--heading)] font-medium mb-2">{selectedTargetKind === 'bank_transaction' ? 'Movimientos de respaldo' : 'Documentos de respaldo'}</h3>
                                  <div className="mb-3 border-t border" />
                                  <div className="border border-dashed border-[var(--border-subtle)] rounded-xl p-6 text-[var(--text-soft)] text-sm flex items-center justify-center">
-                                    Selecciona documentos de respaldo para conciliarlos contra este movimiento bancario
+                                    {selectedTargetKind === 'bank_transaction' ? 'Selecciona uno o más movimientos bancarios para cruzar.' : 'Selecciona documentos de respaldo para conciliarlos contra este movimiento bancario'}
                                  </div>
                               </div>
                            </section>
 
                            <section className="lg:col-span-12">
                               <div className="flex justify-center min-h-6">
-                                 {selectedTargetKind === 'document' && selectedDocuments.length > 0 && !menuLoading && !ctaDelay ? (
+                                 {selectedDocuments.length > 0 && !menuLoading && !ctaDelay ? (
                                     <div className="flex flex-col md:flex-row md:items-center justify-center gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-1)] px-4 py-3">
                                        <div className="text-sm text-[var(--text-main)]">
-                                          <span className="font-semibold">{selectedDocuments.length}</span> documento(s) seleccionados
+                                          <span className="font-semibold">{selectedDocuments.length}</span> {selectedTargetKind === 'bank_transaction' ? 'movimiento(s)' : 'documento(s)'} seleccionados
                                           <span className="mx-2 text-[var(--text-soft)]">|</span>
                                           max: <span className="font-semibold">{fmtCLP?.(maxAssignable)}</span>
                                        </div>
@@ -1776,7 +1776,7 @@ export default function BankCartolasPage() {
                                           {saveState === 'saving' ? 'Guardando...' : 'Guardar conciliacion'}
                                        </button>
                                     </div>
-                                 ) : !(selectedTargetKind === 'document' ? selectedDocuments.length > 0 : selectedDocId) && !menuLoading && !ctaDelay && (
+                                 ) : selectedDocuments.length === 0 && !selectedDocId && !menuLoading && !ctaDelay && (
                                     <button className="px-6 py-2 rounded bg-emerald-400/60 text-white cursor-not-allowed" disabled>No hay nada que guardar</button>
                                  )}
                               </div>
