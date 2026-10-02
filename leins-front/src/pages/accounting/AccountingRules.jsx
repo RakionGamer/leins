@@ -101,7 +101,7 @@ export default function AccountingRules() {
    const [formData, setFormData] = useState({
       account_id: '',
       cost_center: '',
-      ruts_text: '',
+      ruts: [{ rut: '', name: '' }],
    });
    const [submitting, setSubmitting] = useState(false);
 
@@ -129,24 +129,37 @@ export default function AccountingRules() {
       }
    }, [ready, entityId, loadRules]);
 
+   const addRutRow = () => {
+      setFormData(prev => ({ ...prev, ruts: [...prev.ruts, { rut: '', name: '' }] }));
+   };
+   
+   const removeRutRow = (index) => {
+      setFormData(prev => ({ ...prev, ruts: prev.ruts.filter((_, i) => i !== index) }));
+   };
+
+   const updateRutRow = (index, field, value) => {
+      setFormData(prev => {
+         const newRuts = [...prev.ruts];
+         newRuts[index][field] = value;
+         return { ...prev, ruts: newRuts };
+      });
+   };
+
+   const handleEditGroup = (group) => {
+      const ruts = group.rules.map(r => ({ rut: r.counterparty_rut || '', name: r.counterparty_name || '' }));
+      setFormData({
+         account_id: group.account ? group.account.id : '',
+         cost_center: group.rules[0]?.cost_center || '',
+         ruts: ruts.length ? ruts : [{ rut: '', name: '' }],
+      });
+      setModalOpen(true);
+   };
+
    const handleSubmit = async (e) => {
       e.preventDefault();
       if (!formData.account_id) return;
       
-      const lines = formData.ruts_text.split('\n').map(l => l.trim()).filter(l => l);
-      const ruts = lines.map(line => {
-         // Si la línea contiene espacio, intentamos separar RUT y Nombre
-         const match = line.match(/^([0-9kK.-]+)\s*(.*)$/);
-         if (match) {
-            return { rut: match[1].trim(), name: match[2].trim() };
-         }
-         return { rut: line, name: '' };
-      });
-
-      if (ruts.length === 0) {
-         toast.error("Debe ingresar al menos un RUT");
-         return;
-      }
+      const ruts = formData.ruts.map(r => ({ rut: String(r.rut).trim(), name: String(r.name).trim() })).filter(r => r.rut);
 
       setSubmitting(true);
       setErr(null);
@@ -155,7 +168,8 @@ export default function AccountingRules() {
             entityId,
             account_id: Number(formData.account_id),
             cost_center: formData.cost_center,
-            ruts
+            ruts,
+            replace_account: true
          });
          toast.success(`Se guardaron ${ruts.length} reglas correctamente`);
          setModalOpen(false);
@@ -225,7 +239,7 @@ export default function AccountingRules() {
                <div className="flex flex-wrap items-center gap-3">
                   <button
                      onClick={() => {
-                        setFormData({ counterparty_rut: '', counterparty_name: '', account_id: '', cost_center: '' });
+                        setFormData({ account_id: '', cost_center: '', ruts: [{ rut: '', name: '' }] });
                         setModalOpen(true);
                      }}
                      className={`${btnCtrl} text-brand border-brand/20 bg-brand/5`}
@@ -332,49 +346,54 @@ export default function AccountingRules() {
                            {group.rules.length} RUT(s)
                         </div>
                      </div>
-                     <div className="overflow-x-auto">
+                     <div className="overflow-x-auto p-4">
                         <table className="min-w-full text-sm text-left">
                            <thead className="bg-surface-1 border-b border-border-subtle text-text-soft font-semibold text-xs uppercase tracking-wider">
                               <tr>
-                                 <th className="p-3 pl-5">RUT</th>
-                                 <th className="p-3">Razón Social / Nombre</th>
-                                 <th className="p-3">Rol Contable</th>
+                                 <th className="p-3 pl-5 w-1/2">Proveedores / RUTs Asociados</th>
                                  <th className="p-3">Centro de Costo</th>
+                                 <th className="p-3 text-center">Rol Inferido</th>
                                  <th className="p-3 text-center">Acciones</th>
                               </tr>
                            </thead>
-                           <tbody className="divide-y divide-border-subtle/50">
-                              {group.rules.map((rule) => (
-                                 <tr key={rule.id} className="hover:bg-brand/5 transition-colors group/row">
-                                    <td className="p-3 pl-5 font-mono font-bold text-heading whitespace-nowrap">{rule.counterparty_rut}</td>
-                                    <td className="p-3 font-medium text-text-main">{rule.counterparty_name || '-'}</td>
-                                    <td className="p-3">
-                                       <Pill colorClass={getRoleColor(getRoleFromAccount(rule.account))}>
-                                          {getRoleFromAccount(rule.account)}
+                           <tbody>
+                              <tr className="hover:bg-brand/5 transition-colors group/row">
+                                 <td className="p-3 pl-5">
+                                    <div className="flex flex-col gap-1 max-h-48 overflow-y-auto pr-2">
+                                       {group.rules.map((rule) => (
+                                          <div key={rule.id} className="text-xs text-text-main">
+                                             <span className="font-mono font-bold">{rule.counterparty_rut}</span> 
+                                             {rule.counterparty_name ? <span className="text-text-soft ml-1">- {rule.counterparty_name}</span> : ''}
+                                          </div>
+                                       ))}
+                                    </div>
+                                 </td>
+                                 <td className="p-3 text-text-soft">
+                                    {group.rules[0]?.cost_center ? (
+                                       <Pill colorClass="bg-emerald-100 text-emerald-700 ring-emerald-200">
+                                          {group.rules[0].cost_center}
                                        </Pill>
-                                    </td>
-                                    <td className="p-3 text-text-soft">
-                                       {rule.cost_center ? (
-                                          <Pill colorClass="bg-emerald-100 text-emerald-700 ring-emerald-200">
-                                             {rule.cost_center}
-                                          </Pill>
-                                       ) : (
-                                          <span className="italic text-xs text-text-soft/70">No asignado</span>
-                                       )}
-                                    </td>
-                                    <td className="p-3 text-center">
-                                       <div className="flex items-center justify-center opacity-0 group-hover/row:opacity-100 focus-within:opacity-100 transition-opacity gap-1">
-                                          <button
-                                             onClick={() => handleDelete(rule)}
-                                             className="p-1.5 rounded-lg text-text-soft hover:text-danger hover:bg-danger/10 transition outline-none focus:ring-2 focus:ring-danger"
-                                             title="Eliminar regla"
-                                          >
-                                             <TrashIcon className="w-5 h-5" />
-                                          </button>
-                                       </div>
-                                    </td>
-                                 </tr>
-                              ))}
+                                    ) : (
+                                       <span className="italic text-xs text-text-soft/70">No asignado</span>
+                                    )}
+                                 </td>
+                                 <td className="p-3 text-center">
+                                    <Pill colorClass={getRoleColor(getRoleFromAccount(group.account))}>
+                                       {getRoleFromAccount(group.account)}
+                                    </Pill>
+                                 </td>
+                                 <td className="p-3 text-center">
+                                    <div className="flex items-center justify-center gap-2">
+                                       <button
+                                          onClick={() => handleEditGroup(group)}
+                                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-text-soft border border-border-subtle hover:text-brand hover:border-brand/30 hover:bg-brand/5 transition text-xs font-semibold shadow-sm"
+                                          title="Editar grupo"
+                                       >
+                                          <PencilIcon className="w-4 h-4" /> Editar Grupo
+                                       </button>
+                                    </div>
+                                 </td>
+                              </tr>
                            </tbody>
                         </table>
                      </div>
@@ -404,18 +423,42 @@ export default function AccountingRules() {
                </div>
 
                <div>
-                  <label className="block text-xs font-semibold uppercase text-text-soft mb-1">2. RUTs a asociar (Uno por línea)</label>
-                  <textarea
-                     required
-                     rows={8}
-                     placeholder="Pega los RUTs aquí. Ej:&#10;76.123.456-7&#10;12.345.678-9 Nombre Opcional"
-                     className="w-full p-3 text-sm rounded-2xl border border-border-subtle bg-bg-content text-text-main placeholder-text-soft/70 focus:outline-none focus:ring-2 focus:ring-brand shadow-sm font-mono"
-                     value={formData.ruts_text}
-                     onChange={(e) => setFormData({ ...formData, ruts_text: e.target.value })}
-                  />
-                  <p className="text-xs text-text-soft mt-1.5">
-                     Ingresa un RUT por línea. Opcionalmente puedes agregar el nombre al lado separado por un espacio. <strong>Tip: Puedes copiar y pegar una columna entera desde Excel.</strong>
-                  </p>
+                  <label className="block text-xs font-semibold uppercase text-text-soft mb-2">2. RUTs y Razones Sociales</label>
+                  <div className="space-y-3 max-h-60 overflow-y-auto p-1 pr-2">
+                     {formData.ruts.map((r, i) => (
+                        <div key={i} className="flex gap-2 items-center">
+                           <input 
+                              type="text" 
+                              placeholder="RUT" 
+                              required
+                              className={`${ctrl} w-1/3 font-mono`} 
+                              value={r.rut} 
+                              onChange={e => updateRutRow(i, 'rut', e.target.value)} 
+                           />
+                           <input 
+                              type="text" 
+                              placeholder="Razón Social (Opcional)" 
+                              className={`${ctrl} w-2/3`} 
+                              value={r.name} 
+                              onChange={e => updateRutRow(i, 'name', e.target.value)} 
+                           />
+                           <button 
+                              type="button" 
+                              onClick={() => removeRutRow(i)} 
+                              className="p-2 text-text-soft hover:text-danger hover:bg-danger/10 rounded-xl transition"
+                           >
+                              <TrashIcon className="w-5 h-5" />
+                           </button>
+                        </div>
+                     ))}
+                  </div>
+                  <button 
+                     type="button" 
+                     onClick={addRutRow} 
+                     className="mt-3 flex items-center gap-1.5 text-xs font-semibold text-brand hover:text-brand-hover bg-brand/10 hover:bg-brand/20 px-3 py-1.5 rounded-lg transition"
+                  >
+                     <PlusIcon className="w-4 h-4" /> Agregar otro RUT
+                  </button>
                </div>
 
                <div>

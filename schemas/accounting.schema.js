@@ -30,10 +30,11 @@ const upsertRuleSchema = joi.object({
 const upsertBulkRuleSchema = joi.object({
    account_id: joi.number().integer().positive().required(),
    cost_center: joi.string().max(100).allow(null, "").optional(),
+   replace_account: joi.boolean().optional(),
    ruts: joi.array().items(joi.object({
       rut: joi.string().max(16).required(),
       name: joi.string().max(255).allow(null, "").optional()
-   })).min(1).required()
+   })).allow(null).optional()
 });
 
 const entryItemSchema = joi.object({

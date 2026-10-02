@@ -2354,7 +2354,7 @@ class AccountingService {
       return { id };
    }
 
-   async upsertBulkRules(entityId, { account_id, cost_center, ruts }) {
+   async upsertBulkRules(entityId, { account_id, cost_center, ruts, replace_account = false }) {
       const account = await models.AccountingAccount.findOne({
          where: { id: account_id, entity_id: entityId },
       });
@@ -2364,6 +2364,21 @@ class AccountingService {
 
       const t = await sequelize.transaction();
       try {
+         const providedRuts = ruts.map(r => String(r.rut || r.counterparty_rut).trim().toUpperCase()).filter(r => r && r !== 'UNDEFINED');
+         if (replace_account) {
+            if (providedRuts.length > 0) {
+               await models.AccountingRule.destroy({
+                  where: { entity_id: entityId, account_id, counterparty_rut: { [Op.notIn]: providedRuts } },
+                  transaction: t
+               });
+            } else {
+               await models.AccountingRule.destroy({
+                  where: { entity_id: entityId, account_id },
+                  transaction: t
+               });
+            }
+         }
+
          for (const item of ruts) {
             const rutClean = String(item.rut || item.counterparty_rut).trim().toUpperCase();
             if (!rutClean || rutClean === 'UNDEFINED') continue;
