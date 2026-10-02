@@ -1425,7 +1425,7 @@ class BankService {
       return { ok: true, rows: mapped, total: mapped.length };
    }
 
-   async reconcileBankTransaction({ entityId, bank_transaction_id, target_bank_transaction_id, amount = null }) {
+   async #reconcileBankWithTx({ entityId, bank_transaction_id, target_bank_transaction_id, amount = null, method = 'manual', t }) {
       const parsedEntityId = Number(entityId);
       const sourceId = Number(bank_transaction_id);
       const targetId = Number(target_bank_transaction_id);
@@ -1435,88 +1435,99 @@ class BankService {
       if (sourceId === targetId) throw boom.badRequest("cannot reconcile a transaction with itself");
       if (amount != null && !(Number(amount) > 0)) throw boom.badRequest("amount must be a positive number");
 
-      return await sequelize.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED }, async (t) => {
-         const remainingSQL = BankService.#bankRemainingSql("bt");
-         const loadTx = async (id) => {
-            const [row] = await sequelize.query(
-               `
-               SELECT bt.id, bt.entity_id, bt.type, bt.amount, bt.description, bt.issued_at,
-                      ${remainingSQL} AS remaining_amount
-               FROM entity_bank_transactions bt
-               WHERE bt.id = :id AND bt.entity_id = :entityId
-               LIMIT 1
-               FOR UPDATE
-               `,
-               { replacements: { id, entityId: parsedEntityId }, type: QueryTypes.SELECT, transaction: t }
-            );
-            return row;
-         };
+      const remainingSQL = BankService.#bankRemainingSql("bt");
+      const loadTx = async (id) => {
+         const [row] = await sequelize.query(
+            `
+            SELECT bt.id, bt.entity_id, bt.type, bt.amount, bt.description, bt.issued_at,
+                   ${remainingSQL} AS remaining_amount
+            FROM entity_bank_transactions bt
+            WHERE bt.id = :id AND bt.entity_id = :entityId
+            LIMIT 1
+            FOR UPDATE
+            `,
+            { replacements: { id, entityId: parsedEntityId }, type: QueryTypes.SELECT, transaction: t }
+         );
+         return row;
+      };
 
-         const source = await loadTx(sourceId);
-         const target = await loadTx(targetId);
-         if (!source) throw boom.notFound("bank transaction not found for the given entity");
-         if (!target) throw boom.notFound("target bank transaction not found for the given entity");
-         if (source.type === target.type) throw boom.badRequest("bank transactions must have opposite types");
+      const source = await loadTx(sourceId);
+      const target = await loadTx(targetId);
+      if (!source) throw boom.notFound("bank transaction not found for the given entity");
+      if (!target) throw boom.notFound("target bank transaction not found for the given entity");
+      if (source.type === target.type) throw boom.badRequest("bank transactions must have opposite types");
 
-         const sourceRemaining = Number(source.remaining_amount || 0);
-         const targetRemaining = Number(target.remaining_amount || 0);
-         if (sourceRemaining <= 0) throw boom.conflict("bank transaction has no remaining balance");
-         if (targetRemaining <= 0) throw boom.conflict("target bank transaction has no remaining balance");
+      const sourceRemaining = Number(source.remaining_amount || 0);
+      const targetRemaining = Number(target.remaining_amount || 0);
+      if (sourceRemaining <= 0) throw boom.conflict("bank transaction has no remaining balance");
+      if (targetRemaining <= 0) throw boom.conflict("target bank transaction has no remaining balance");
 
-         let toApply = amount != null ? Number(amount) : Math.min(sourceRemaining, targetRemaining);
-         if (!Number.isFinite(toApply) || toApply <= 0) throw boom.badRequest("invalid amount to apply");
-         if (toApply > sourceRemaining + 1e-6) throw boom.conflict("amount exceeds bank transaction remaining balance");
-         if (toApply > targetRemaining + 1e-6) throw boom.conflict("amount exceeds target bank transaction remaining balance");
+      let toApply = amount != null ? Number(amount) : Math.min(sourceRemaining, targetRemaining);
+      if (!Number.isFinite(toApply) || toApply <= 0) throw boom.badRequest("invalid amount to apply");
+      if (toApply > sourceRemaining + 1e-6) throw boom.conflict("amount exceeds bank transaction remaining balance");
+      if (toApply > targetRemaining + 1e-6) throw boom.conflict("amount exceeds target bank transaction remaining balance");
 
-         const dup = await models.BankTransactionMatch.findOne({
-            where: {
-               [Op.or]: [
-                  { source_bank_transaction_id: sourceId, target_bank_transaction_id: targetId, amount_applied: toApply },
-                  { source_bank_transaction_id: targetId, target_bank_transaction_id: sourceId, amount_applied: toApply },
-               ],
-            },
-            transaction: t,
-            lock: t.LOCK.UPDATE,
-         });
-         if (dup) throw boom.conflict("an identical bank reconciliation already exists for this pair and amount");
+      const dup = await models.BankTransactionMatch.findOne({
+         where: {
+            [Op.or]: [
+               { source_bank_transaction_id: sourceId, target_bank_transaction_id: targetId, amount_applied: toApply },
+               { source_bank_transaction_id: targetId, target_bank_transaction_id: sourceId, amount_applied: toApply },
+            ],
+         },
+         transaction: t,
+         lock: t.LOCK.UPDATE,
+      });
+      if (dup) throw boom.conflict("an identical bank reconciliation already exists for this pair and amount");
 
-         const link = await models.BankTransactionMatch.create({
-            source_bank_transaction_id: sourceId,
+      const link = await models.BankTransactionMatch.create({
+         source_bank_transaction_id: sourceId,
+         target_bank_transaction_id: targetId,
+         amount_applied: toApply,
+         method: method,
+      }, { transaction: t });
+
+      const sourceAfter = await loadTx(sourceId);
+      const targetAfter = await loadTx(targetId);
+
+      return {
+         ok: true,
+         applied: {
+            id: link.id,
+            bank_transaction_id: sourceId,
             target_bank_transaction_id: targetId,
             amount_applied: toApply,
+         },
+         bank: {
+            id: sourceId,
+            type: source.type,
+            amount: Number(source.amount || 0),
+            remaining_before: sourceRemaining,
+            remaining_after: Number(sourceAfter.remaining_amount || 0),
+            description: source.description,
+            issued_at: source.issued_at,
+         },
+         target: {
+            id: targetId,
+            type: target.type,
+            amount: Number(target.amount || 0),
+            remaining_before: targetRemaining,
+            remaining_after: Number(targetAfter.remaining_amount || 0),
+            description: target.description,
+            issued_at: target.issued_at,
+         },
+      };
+   }
+
+   async reconcileBankTransaction({ entityId, bank_transaction_id, target_bank_transaction_id, amount = null }) {
+      return await sequelize.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED }, async (t) => {
+         return await this.#reconcileBankWithTx({
+            entityId,
+            bank_transaction_id,
+            target_bank_transaction_id,
+            amount,
             method: 'manual',
-         }, { transaction: t });
-
-         const sourceAfter = await loadTx(sourceId);
-         const targetAfter = await loadTx(targetId);
-
-         return {
-            ok: true,
-            applied: {
-               id: link.id,
-               bank_transaction_id: sourceId,
-               target_bank_transaction_id: targetId,
-               amount_applied: toApply,
-            },
-            bank: {
-               id: sourceId,
-               type: source.type,
-               amount: Number(source.amount || 0),
-               remaining_before: sourceRemaining,
-               remaining_after: Number(sourceAfter.remaining_amount || 0),
-               description: source.description,
-               issued_at: source.issued_at,
-            },
-            target: {
-               id: targetId,
-               type: target.type,
-               amount: Number(target.amount || 0),
-               remaining_before: targetRemaining,
-               remaining_after: Number(targetAfter.remaining_amount || 0),
-               description: target.description,
-               issued_at: target.issued_at,
-            },
-         };
+            t
+         });
       });
    }
 
@@ -1902,23 +1913,35 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
 
          for (const p of pairs) {
             const bank_transaction_id = Number(p.bank_transaction_id);
-            const document_id = Number(p.document_id);
+            const document_id = p.document_id ? Number(p.document_id) : null;
+            const target_bank_transaction_id = p.target_bank_transaction_id ? Number(p.target_bank_transaction_id) : null;
             const amount = p.amount != null ? Number(p.amount) : null;
 
             if (!bank_transaction_id) throw boom.badRequest("bank_transaction_id is required");
-            if (!document_id) throw boom.badRequest("document_id is required");
+            if (!document_id && !target_bank_transaction_id) throw boom.badRequest("document_id or target_bank_transaction_id is required");
             if (amount != null && !(amount > 0)) throw boom.badRequest("amount must be a positive number");
 
-            // reutiliza tu propio reconcile pero pasando la misma transacción
-            const out = await this.#reconcileWithTx({
-               entityId: Number(entityId),
-               bank_transaction_id,
-               document_id,
-               amount,
-               method,
-               t
-            });
-            results.push(out);
+            if (target_bank_transaction_id) {
+               const out = await this.#reconcileBankWithTx({
+                  entityId: Number(entityId),
+                  bank_transaction_id,
+                  target_bank_transaction_id,
+                  amount,
+                  method,
+                  t
+               });
+               results.push(out);
+            } else {
+               const out = await this.#reconcileWithTx({
+                  entityId: Number(entityId),
+                  bank_transaction_id,
+                  document_id,
+                  amount,
+                  method,
+                  t
+               });
+               results.push(out);
+            }
          }
 
          return { ok: true, count: results.length, results };

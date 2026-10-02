@@ -698,14 +698,14 @@ export default function BankCartolasPage() {
    const targetCandidates = selectedTargetKind === 'bank_transaction' ? bankTransferCandidates : documentCandidates;
    const selectedDoc = useMemo(() => targetCandidates.find(d => Number(d.id) === Number(selectedDocId)), [targetCandidates, selectedDocId]);
    const selectedDocuments = useMemo(() => {
-      if (selectedTargetKind !== 'document' || selectedDocIds.length === 0) return [];
-      const byId = new Map(documentCandidates.map((item) => [Number(item.id), item]));
+      if (selectedDocIds.length === 0) return [];
+      const byId = new Map(targetCandidates.map((item) => [Number(item.id), item]));
       return selectedDocIds.map((id) => byId.get(Number(id))).filter(Boolean);
-   }, [documentCandidates, selectedDocIds, selectedTargetKind]);
+   }, [targetCandidates, selectedDocIds]);
    const selectedDocumentsPending = useMemo(() => (
       selectedDocuments.reduce((sum, item) => sum + Math.max(0, Number(item.remaining_amount || 0)), 0)
    ), [selectedDocuments]);
-   const hasMultipleSelectedDocuments = selectedTargetKind === 'document' && selectedDocuments.length > 1;
+   const hasMultipleSelectedDocuments = selectedDocuments.length > 1;
 
    const maxAssignable = useMemo(() => {
       const tx = Math.max(0, Number(txRemaining || 0));
@@ -719,7 +719,7 @@ export default function BankCartolasPage() {
    const isFullyAssigned = txRemainingAfter === 0 && assigned > 0;
    const selectedDocumentAllocation = useMemo(() => {
       const allocation = new Map();
-      if (selectedTargetKind !== 'document' || selectedDocuments.length === 0) return allocation;
+      if (selectedDocuments.length === 0) return allocation;
 
       let remainingToApply = Number(assigned || 0);
       for (const doc of selectedDocuments) {
@@ -887,8 +887,8 @@ export default function BankCartolasPage() {
    }, [entityId, reconcileDocumentSide, reconcileTx, reconcileTxDate]);
 
    const reconcileSelected = useCallback(async () => {
-      const hasDocumentSelection = selectedTargetKind === 'document' && selectedDocuments.length > 0;
-      const hasSingleSelection = selectedTargetKind !== 'document' && selectedDocId;
+      const hasDocumentSelection = selectedDocuments.length > 0;
+      const hasSingleSelection = selectedDocId != null;
       if (!reconcileTx || (!hasDocumentSelection && !hasSingleSelection)) return;
       try {
          setLoadingAuto(true);
@@ -896,14 +896,7 @@ export default function BankCartolasPage() {
          const amountToApply = Math.max(0, Number(assigned || 0));
          if (!(amountToApply > 0)) throw new Error('Ingresa un monto valido a asignar');
 
-         if (selectedTargetKind === 'bank_transaction') {
-            await reconcileBankTransaction({
-               entityId,
-               bank_transaction_id: bankTxId,
-               target_bank_transaction_id: Number(selectedDocId),
-               amount: amountToApply,
-            });
-         } else if (selectedDocuments.length > 1) {
+         if (selectedDocuments.length > 1) {
             let remainingToApply = amountToApply;
             const pairs = selectedDocuments
                .map((doc) => {
@@ -912,13 +905,14 @@ export default function BankCartolasPage() {
                   remainingToApply -= amount;
                   return {
                      bank_transaction_id: bankTxId,
-                     document_id: Number(doc.id),
+                     document_id: selectedTargetKind === 'document' ? Number(doc.id) : null,
+                     target_bank_transaction_id: selectedTargetKind === 'bank_transaction' ? Number(doc.id) : null,
                      amount,
                   };
                })
-               .filter((pair) => pair.document_id && pair.amount > 0);
+               .filter((pair) => (pair.document_id || pair.target_bank_transaction_id) && pair.amount > 0);
 
-            if (!pairs.length) throw new Error('No hay monto disponible para aplicar a los documentos seleccionados');
+            if (!pairs.length) throw new Error('No hay monto disponible para aplicar a los registros seleccionados');
 
             await reconcileBulk({
                entityId,
@@ -926,17 +920,26 @@ export default function BankCartolasPage() {
                method: 'manual-multi',
             });
          } else {
-            await reconcileOne({
-               entityId,
-               bank_transaction_id: bankTxId,
-               document_id: Number(selectedDocuments[0]?.id || selectedDocId),
-               amount: amountToApply,
-            });
+            if (selectedTargetKind === 'bank_transaction') {
+               await reconcileBankTransaction({
+                  entityId,
+                  bank_transaction_id: bankTxId,
+                  target_bank_transaction_id: Number(selectedDocuments[0]?.id || selectedDocId),
+                  amount: amountToApply,
+               });
+            } else {
+               await reconcileOne({
+                  entityId,
+                  bank_transaction_id: bankTxId,
+                  document_id: Number(selectedDocuments[0]?.id || selectedDocId),
+                  amount: amountToApply,
+               });
+            }
          }
 
          const picked = targetCandidates.find(d => Number(d.id) === Number(selectedDocId));
          toast.success(selectedDocuments.length > 1
-            ? `${selectedDocuments.length} documentos aplicados correctamente`
+            ? `${selectedDocuments.length} registros aplicados correctamente`
             : picked
                ? `${selectedTargetKind === 'bank_transaction' ? 'Movimiento' : 'Folio'} ${picked.folio ?? picked.id} aplicado correctamente`
                : selectedTargetKind === 'bank_transaction' ? 'Movimiento cruzado correctamente' : 'Documento conciliado correctamente'
@@ -1277,23 +1280,15 @@ export default function BankCartolasPage() {
    ), [reconcileDocumentSide]);
 
    const isCandidateSelected = useCallback((candidate) => {
-      const kind = candidate?.target_kind || selectedTargetKind;
-      if (kind === 'bank_transaction') return Number(selectedDocId) === Number(candidate?.id);
+      if (!candidate?.id) return false;
       return selectedDocIds.some((id) => Number(id) === Number(candidate?.id));
-   }, [selectedDocId, selectedDocIds, selectedTargetKind]);
+   }, [selectedDocIds]);
 
    const toggleCandidateSelection = useCallback((candidate) => {
       if (!candidate?.id) return;
       const kind = candidate.target_kind || selectedTargetKind;
 
-      if (kind === 'bank_transaction') {
-         setSelectedTargetKind('bank_transaction');
-         setSelectedDocIds([]);
-         setSelectedDocId(Number(candidate.id));
-         return;
-      }
-
-      setSelectedTargetKind('document');
+      setSelectedTargetKind(kind);
       setSelectedDocIds((current) => {
          const id = Number(candidate.id);
          const exists = current.some((item) => Number(item) === id);
