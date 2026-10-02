@@ -476,3 +476,16 @@ export const getBalances = async ({ entityId, type, q, signal } = {}) => {
 
    return filtered;
 };
+
+
+export const searchCounterpartyName = async (rut) => {
+   try {
+      const response = await fetchWithAuth(`/accounting/rules/counterparty/${encodeURIComponent(rut)}`);
+      if (response.ok) {
+         return await parseJsonSafe(response);
+      }
+      return { name: null };
+   } catch (e) {
+      return { name: null };
+   }
+};

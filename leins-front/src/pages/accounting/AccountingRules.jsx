@@ -7,6 +7,7 @@ import {
    getRules,
    upsertRule,
    upsertBulkRules,
+   searchCounterpartyName,
    deleteRule,
    getAccounts,
 } from '../../services/accountingApi';
@@ -160,12 +161,39 @@ export default function AccountingRules() {
       setFormData(prev => ({ ...prev, ruts: prev.ruts.filter((_, i) => i !== index) }));
    };
 
-   const updateRutRow = (index, field, value) => {
+   const updateRutRow = async (index, field, value) => {
       setFormData(prev => {
          const newRuts = [...prev.ruts];
          newRuts[index][field] = value;
          return { ...prev, ruts: newRuts };
       });
+         
+      if (field === 'rut') {
+         const clean = value.replace(/[^0-9kK-]/g, '').toUpperCase();
+         if (clean.length >= 8) {
+            // Check local first
+            const existing = rules.find(r => r.counterparty_rut === clean && r.counterparty_name);
+            if (existing && existing.counterparty_name) {
+               setFormData(prev => {
+                  const newRuts = [...prev.ruts];
+                  if (!newRuts[index].name) newRuts[index].name = existing.counterparty_name;
+                  return { ...prev, ruts: newRuts };
+               });
+               return;
+            }
+            
+            // Check API
+            const result = await searchCounterpartyName(clean);
+            if (result && result.name) {
+               setFormData(prev => {
+                  const newRuts = [...prev.ruts];
+                  // Solo sobreescribe si el usuario no ha escrito nada
+                  if (!newRuts[index].name) newRuts[index].name = result.name;
+                  return { ...prev, ruts: newRuts };
+               });
+            }
+         }
+      }
    };
 
    const handleEditGroup = (group) => {
@@ -355,88 +383,69 @@ export default function AccountingRules() {
          {err && <div className="p-4 bg-danger/10 text-danger rounded-2xl border border-danger/20 text-sm font-medium">Error: {err}</div>}
 
          {/* Rules Table Grouped */}
-         <div className={`space-y-6 transition-all ${loading ? 'opacity-60 pointer-events-none' : ''}`}>
-            {groupedRules.length === 0 ? (
-               <div className="bg-bg-content rounded-3xl border border-border-subtle p-10 text-center text-text-soft italic shadow-sm">
-                  Sin resultados. Ajusta filtros o crea nuevas reglas.
-               </div>
-            ) : (
-               groupedRules.map((group, index) => (
-                  <div key={index} className="bg-bg-content rounded-3xl border border-border-subtle shadow-sm overflow-hidden">
-                     <div className="bg-surface-2 border-b border-border-subtle p-4 flex flex-wrap items-center justify-between gap-4">
-                        <div className="flex items-center gap-3">
-                           {group.account ? (
-                              <>
-                                 <Pill colorClass="bg-brand/10 text-brand ring-brand/20">
-                                    {group.account.code}
-                                 </Pill>
-                                 <h3 className="font-bold text-heading text-lg">{group.account.name}</h3>
-                                 <Pill colorClass="bg-slate-100 text-slate-700 ring-slate-200">
-                                    {group.account.type}
-                                 </Pill>
-                              </>
-                           ) : (
-                              <h3 className="font-bold text-heading text-lg">Sin Cuenta Asignada</h3>
-                           )}
-                        </div>
-                        <div className="text-sm text-text-soft font-medium">
-                           {group.rules.length} RUT(s)
-                        </div>
-                     </div>
-                     <div className="overflow-x-auto p-4">
-                        <table className="min-w-full text-sm text-left">
-                           <thead className="bg-surface-1 border-b border-border-subtle text-text-soft font-semibold text-xs uppercase tracking-wider">
-                              <tr>
-                                 <th className="p-3 pl-5 w-1/2">Proveedores / RUTs Asociados</th>
-                                 <th className="p-3">Centro de Costo</th>
-                                 <th className="p-3 text-center">Rol Inferido</th>
-                                 <th className="p-3 text-center">Acciones</th>
-                              </tr>
-                           </thead>
-                           <tbody>
-                              <tr className="hover:bg-brand/5 transition-colors group/row">
-                                 <td className="p-3 pl-5">
-                                    <div className="flex flex-col gap-1 max-h-48 overflow-y-auto pr-2">
+         <div className={`transition-all ${loading ? 'opacity-60 pointer-events-none' : ''}`}>
+            <div className="bg-bg-content rounded-3xl border border-border-subtle shadow-sm overflow-hidden">
+               <div className="overflow-x-auto">
+                  <table className="min-w-full text-sm text-left">
+                     <thead className="bg-surface-1 border-b border-border-subtle text-text-soft font-semibold text-xs uppercase tracking-wider">
+                        <tr>
+                           <th className="p-4 pl-6 w-1/3">Proveedores</th>
+                           <th className="p-4">Glosa (Centro de Costo)</th>
+                           <th className="p-4">Cuenta</th>
+                           <th className="p-4 text-center">Acciones</th>
+                        </tr>
+                     </thead>
+                     <tbody className="divide-y divide-border-subtle/50">
+                        {groupedRules.length === 0 ? (
+                           <tr>
+                              <td colSpan="4" className="p-10 text-center text-text-soft italic">
+                                 Sin resultados. Ajusta filtros o crea nuevas reglas.
+                              </td>
+                           </tr>
+                        ) : (
+                           groupedRules.map((group, index) => (
+                              <tr key={index} className="hover:bg-brand/5 transition-colors group/row align-top">
+                                 <td className="p-4 pl-6">
+                                    <div className="flex flex-col gap-1.5 max-h-48 overflow-y-auto pr-2">
                                        {group.rules.map((rule) => (
-                                          <div key={rule.id} className="text-xs text-text-main">
-                                             <span className="font-mono font-bold">{rule.counterparty_rut}</span> 
-                                             {rule.counterparty_name ? <span className="text-text-soft ml-1">- {rule.counterparty_name}</span> : ''}
+                                          <div key={rule.id} className="text-xs text-text-main flex items-center gap-1.5">
+                                             <span className="font-mono font-bold whitespace-nowrap">{rule.counterparty_rut}</span> 
+                                             {rule.counterparty_name ? <span className="text-text-soft truncate">- {rule.counterparty_name}</span> : ''}
                                           </div>
                                        ))}
                                     </div>
                                  </td>
-                                 <td className="p-3 text-text-soft">
-                                    {group.rules[0]?.cost_center ? (
-                                       <Pill colorClass="bg-emerald-100 text-emerald-700 ring-emerald-200">
-                                          {group.rules[0].cost_center}
-                                       </Pill>
+                                 <td className="p-4 text-text-soft font-medium">
+                                    {group.rules[0]?.cost_center || <span className="italic text-xs text-text-soft/70">No asignada</span>}
+                                 </td>
+                                 <td className="p-4">
+                                    {group.account ? (
+                                       <div className="flex flex-col gap-1">
+                                          <span className="font-bold text-text-main">{group.account.code}</span>
+                                          <span className="text-xs text-text-soft truncate max-w-[200px]">{group.account.name}</span>
+                                       </div>
                                     ) : (
-                                       <span className="italic text-xs text-text-soft/70">No asignado</span>
+                                       <span className="italic text-xs text-text-soft/70">Sin cuenta</span>
                                     )}
                                  </td>
-                                 <td className="p-3 text-center">
-                                    <Pill colorClass={getRoleColor(getRoleFromAccount(group.account))}>
-                                       {getRoleFromAccount(group.account)}
-                                    </Pill>
-                                 </td>
-                                 <td className="p-3 text-center">
-                                    <div className="flex items-center justify-center gap-2">
+                                 <td className="p-4 text-center">
+                                    <div className="flex items-center justify-center gap-2 opacity-0 group-hover/row:opacity-100 transition-opacity">
                                        <button
                                           onClick={() => handleEditGroup(group)}
-                                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-text-soft border border-border-subtle hover:text-brand hover:border-brand/30 hover:bg-brand/5 transition text-xs font-semibold shadow-sm"
+                                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-brand border border-brand/20 bg-brand/5 hover:bg-brand/10 transition text-xs font-semibold shadow-sm"
                                           title="Editar grupo"
                                        >
-                                          <PencilIcon className="w-4 h-4" /> Editar Grupo
+                                          <PencilIcon className="w-4 h-4" /> Editar
                                        </button>
                                     </div>
                                  </td>
                               </tr>
-                           </tbody>
-                        </table>
-                     </div>
-                  </div>
-               ))
-            )}
+                           ))
+                        )}
+                     </tbody>
+                  </table>
+               </div>
+            </div>
          </div>
 
          {/* Create Rule Modal */}

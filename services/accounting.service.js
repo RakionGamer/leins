@@ -2345,6 +2345,27 @@ class AccountingService {
       });
    }
 
+   
+   async searchCounterparty(rut) {
+      const cleanRut = String(rut).trim().toUpperCase();
+      
+      // Check Rules first
+      const rule = await models.AccountingRule.findOne({
+         where: { counterparty_rut: cleanRut, counterparty_name: { [Op.ne]: null } },
+         attributes: ['counterparty_name']
+      });
+      if (rule && rule.counterparty_name) return { name: rule.counterparty_name };
+
+      // Check SII documents globally
+      const doc = await models.EntitySiiDocument.findOne({
+         where: { counterparty_rut: cleanRut, counterparty_name: { [Op.ne]: null } },
+         attributes: ['counterparty_name']
+      });
+      if (doc && doc.counterparty_name) return { name: doc.counterparty_name };
+
+      return { name: null };
+   }
+
    async deleteRule(entityId, id) {
       const rule = await models.AccountingRule.findOne({
          where: { id, entity_id: entityId },

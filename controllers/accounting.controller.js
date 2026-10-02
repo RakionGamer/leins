@@ -178,7 +178,19 @@ const deleteAllEntries = async (req, res, next) => {
    }
 };
 
+
+const searchCounterparty = async (req, res, next) => {
+   try {
+      const { rut } = req.params;
+      const result = await service.searchCounterparty(rut);
+      res.json(result);
+   } catch (error) {
+      next(error);
+   }
+};
+
 module.exports = {
+   searchCounterparty,
    getAccounts,
    createAccount,
    updateAccount,

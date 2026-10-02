@@ -30,6 +30,7 @@ router.delete("/accounts/:id", ensureEntityAccess, validatorHandler(getByIdSchem
 router.get("/rules", ensureEntityAccess, controller.getRules);
 router.post("/rules", ensureEntityAccess, validatorHandler(upsertRuleSchema, "body"), controller.upsertRule);
 router.post("/rules/bulk", ensureEntityAccess, validatorHandler(upsertBulkRuleSchema, "body"), controller.upsertBulkRules);
+router.get("/rules/counterparty/:rut", controller.searchCounterparty);
 router.delete("/rules/:id", ensureEntityAccess, validatorHandler(getByIdSchema, "params"), controller.deleteRule);
 
 // --- Asientos contables ---
