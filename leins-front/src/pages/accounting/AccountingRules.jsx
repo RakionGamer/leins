@@ -31,6 +31,29 @@ function Pill({ children, colorClass = "bg-brand/10 text-brand ring-brand/20" })
    return <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ring-1 ${colorClass}`}>{children}</span>;
 }
 
+const getRoleFromAccount = (account) => {
+   if (!account) return 'Desconocido';
+   const code = account.code || '';
+   const name = (account.name || '').toLowerCase();
+   
+   if (code.startsWith('11.05.') || name.includes('cliente')) return 'Cliente';
+   if (code === '21.12.15' || name.includes('honorarios')) return 'Prestador de Servicios (BH)';
+   if (code === '21.12.10' || name.includes('remuneraciones')) return 'Colaborador (Liq)';
+   if (code.startsWith('2') || code.startsWith('6') || name.includes('proveedor')) return 'Proveedor';
+   
+   return 'Otro';
+};
+
+const getRoleColor = (role) => {
+   switch (role) {
+      case 'Cliente': return 'bg-blue-100 text-blue-700 ring-blue-200';
+      case 'Proveedor': return 'bg-purple-100 text-purple-700 ring-purple-200';
+      case 'Prestador de Servicios (BH)': return 'bg-amber-100 text-amber-700 ring-amber-200';
+      case 'Colaborador (Liq)': return 'bg-emerald-100 text-emerald-700 ring-emerald-200';
+      default: return 'bg-slate-100 text-slate-700 ring-slate-200';
+   }
+};
+
 function ResumenReglas({ rules }) {
    const stats = useMemo(() => {
       const ruts = new Set();
