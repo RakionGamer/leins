@@ -185,11 +185,46 @@ class AccountingService {
 
    // --- Reglas de Asignación por Proveedor/Cliente ---
    async listRules(entityId) {
-      return models.AccountingRule.findAll({
+      const rules = await models.AccountingRule.findAll({
          where: { entity_id: entityId },
          include: [{ model: models.AccountingAccount, as: "account" }],
          order: [["counterparty_rut", "ASC"]],
       });
+
+      // Autocompletar la razón social desde los documentos si está vacía
+      const rulesToEnhance = rules.filter(r => !r.counterparty_name && r.counterparty_rut);
+      if (rulesToEnhance.length > 0) {
+         const ruts = [...new Set(rulesToEnhance.map(r => r.counterparty_rut))];
+         const docs = await models.EntitySiiDocument.findAll({
+            where: { 
+               entity_id: entityId, 
+               counterparty_rut: { [Op.in]: ruts },
+               counterparty_name: { [Op.not]: null, [Op.ne]: '' }
+            },
+            attributes: ['counterparty_rut', 'counterparty_name'],
+            group: ['counterparty_rut', 'counterparty_name'],
+            raw: true
+         });
+         
+         const nameMap = {};
+         for (const doc of docs) {
+            if (!nameMap[doc.counterparty_rut]) {
+               nameMap[doc.counterparty_rut] = doc.counterparty_name;
+            }
+         }
+
+         for (const rule of rules) {
+            if (!rule.counterparty_name && nameMap[rule.counterparty_rut]) {
+               rule.setDataValue('counterparty_name', nameMap[rule.counterparty_rut]);
+               rule.counterparty_name = nameMap[rule.counterparty_rut];
+               
+               // Opcional: guardarlo en BD para la próxima vez
+               rule.save().catch(() => {});
+            }
+         }
+      }
+
+      return rules;
    }
 
    async upsertRule(entityId, { counterparty_rut, counterparty_name, account_id, cost_center }) {
