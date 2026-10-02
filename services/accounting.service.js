@@ -2618,12 +2618,12 @@ class AccountingService {
       const allAccounts = await models.AccountingAccount.findAll({ where: { entity_id: entityId } });
       const accountByCode = new Map(allAccounts.map((a) => [a.code, a]));
 
-      const ivaCredito = accountByCode.get("1.1.9") || allAccounts.find((a) => a.name.includes("Crédito Fiscal"));
-      const ivaDebito = accountByCode.get("2.6") || allAccounts.find((a) => a.name.includes("Débito Fiscal"));
-      const proveedores = accountByCode.get("2.1") || allAccounts.find((a) => a.name.includes("Proveedores"));
-      const clientes = accountByCode.get("1.1.6") || allAccounts.find((a) => a.name.includes("Clientes"));
-      const ventas = accountByCode.get("4.1") || allAccounts.find((a) => a.name.includes("Ventas"));
-      const gastosDefault = accountByCode.get("5.2.1") || accountByCode.get("6.1") || allAccounts.find((a) => a.type === "GASTOS");
+      const ivaCredito = accountByCode.get("11.10.10") || allAccounts.find((a) => a.name.toLowerCase().includes("credito fiscal") || a.name.toLowerCase().includes("crédito fiscal"));
+      const ivaDebito = accountByCode.get("21.13.10") || allAccounts.find((a) => a.name.toLowerCase().includes("debito fiscal") || a.name.toLowerCase().includes("débito fiscal"));
+      const proveedores = accountByCode.get("21.07.10") || allAccounts.find((a) => a.name.toLowerCase().includes("proveedores"));
+      const clientes = accountByCode.get("11.05.10") || allAccounts.find((a) => a.name.toLowerCase().includes("clientes"));
+      const ventas = accountByCode.get("51.01.50") || allAccounts.find((a) => a.name.toLowerCase().includes("ventas"));
+      const gastosDefault = accountByCode.get("61.04.30") || allAccounts.find((a) => a.type === "GASTOS");
 
       if (!ivaCredito || !ivaDebito || !proveedores || !clientes || !ventas || !gastosDefault) {
          throw boom.badRequest("No se encontraron todas las cuentas base para la generación automática.");
@@ -2706,9 +2706,9 @@ class AccountingService {
 
          if (opType === "EXPENSE") {
             if (doc.doc_type_code === 1002) {
-               const honorariosGasto = accountByCode.get("6.4") || allAccounts.find((a) => a.name.includes("Honorarios Profesionales")) || gastosDefault;
-               const retencion = accountByCode.get("2.9") || allAccounts.find((a) => a.name.includes("Ret Impto 2da Categoria")) || allAccounts.find((a) => a.name.includes("Ret 2da Categoria")) || allAccounts.find((a) => a.name.includes("Retenciones Honorarios"));
-               const honorariosPorPagar = accountByCode.get("2.3") || allAccounts.find((a) => a.name.includes("Honorarios por Pagar"));
+               const honorariosGasto = accountByCode.get("61.04.30") || allAccounts.find((a) => a.name.toLowerCase().includes("honorarios profesionales")) || gastosDefault;
+               const retencion = accountByCode.get("21.13.30") || allAccounts.find((a) => a.name.toLowerCase().includes("ret impto 2da categoria") || a.name.toLowerCase().includes("retenciones honorarios"));
+               const honorariosPorPagar = accountByCode.get("21.12.20") || allAccounts.find((a) => a.name.toLowerCase().includes("honorarios por pagar"));
                
                if (!retencion || !honorariosPorPagar) {
                   throw boom.badRequest("No se encontraron las cuentas para Honorarios (Retención o por Pagar).");
