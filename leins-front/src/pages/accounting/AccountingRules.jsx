@@ -161,15 +161,27 @@ export default function AccountingRules() {
       setFormData(prev => ({ ...prev, ruts: prev.ruts.filter((_, i) => i !== index) }));
    };
 
+   const formatRut = (rut) => {
+      let value = String(rut).replace(/[^0-9kK]/g, '').toUpperCase();
+      if (value.length > 9) value = value.slice(0, 9);
+      if (value.length <= 1) return value;
+      let body = value.slice(0, -1);
+      let dv = value.slice(-1);
+      body = body.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+      return `${body}-${dv}`;
+   };
+
    const updateRutRow = async (index, field, value) => {
+      const finalValue = field === 'rut' ? formatRut(value) : value;
+      
       setFormData(prev => {
          const newRuts = [...prev.ruts];
-         newRuts[index][field] = value;
+         newRuts[index][field] = finalValue;
          return { ...prev, ruts: newRuts };
       });
          
       if (field === 'rut') {
-         const clean = value.replace(/[^0-9kK-]/g, '').toUpperCase();
+         const clean = finalValue.replace(/[^0-9kK-]/g, '').toUpperCase();
          if (clean.length >= 8) {
             // Check local first
             const existing = rules.find(r => r.counterparty_rut === clean && r.counterparty_name);
@@ -210,7 +222,7 @@ export default function AccountingRules() {
       e.preventDefault();
       if (!formData.account_id) return;
       
-      const ruts = formData.ruts.map(r => ({ rut: String(r.rut).trim(), name: String(r.name).trim() })).filter(r => r.rut);
+      const ruts = formData.ruts.map(r => ({ rut: String(r.rut).replace(/[^0-9kK-]/g, '').trim(), name: String(r.name).trim() })).filter(r => r.rut);
 
       setSubmitting(true);
       setErr(null);
