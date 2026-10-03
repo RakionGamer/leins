@@ -1792,7 +1792,13 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
          const accountingService = new AccountingService();
          await accountingService.ensureDefaultPlan(entityId);
          const accounts = await models.AccountingAccount.findAll({ where: { entity_id: entityId } });
-         const bankAcc = accounts.find(a => a.code === '11.02.50' || a.name.toLowerCase().includes('banco chile')) || accounts.find(a => a.name.toLowerCase().includes('banco'));
+         
+         const entityBankAcc = await models.EntityBankAccount.findByPk(bankTx.entity_bank_account_id);
+         const bankName = entityBankAcc ? entityBankAcc.bank_name.toLowerCase() : '';
+         let bankAcc = accounts.find(a => bankName && a.name.toLowerCase().includes(bankName));
+         if (!bankAcc) {
+            bankAcc = accounts.find(a => a.name.toLowerCase().includes('banco'));
+         }
          const clientesAcc = accounts.find(a => a.code === '11.05.10' || a.name.toLowerCase().includes('clientes'));
          const proveedoresAcc = accounts.find(a => a.code === '21.07.10' || a.name.toLowerCase().includes('proveedores'));
          const honorariosPorPagar = accounts.find(a => a.code === '21.12.15' || a.name.toLowerCase().includes('honorarios por pagar'));
