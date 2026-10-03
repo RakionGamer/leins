@@ -179,12 +179,12 @@ export default function AccountingAccounts() {
    const getSuggestedCode = (type, currentAccounts) => {
       const accountsOfType = currentAccounts.filter(a => a.type === type);
       if (accountsOfType.length === 0) {
-         if (type === 'ACTIVO') return '1.1';
-         if (type === 'PASIVO') return '2.1';
-         if (type === 'PATRIMONIO') return '3.1';
-         if (type === 'INGRESOS') return '4.1';
-         if (type === 'COSTOS') return '5.1';
-         if (type === 'GASTOS') return '6.1';
+         if (type === 'ACTIVO') return '10.00.00';
+         if (type === 'PASIVO') return '20.00.00';
+         if (type === 'PATRIMONIO') return '30.00.00';
+         if (type === 'INGRESOS') return '40.00.00';
+         if (type === 'COSTOS') return '50.00.00';
+         if (type === 'GASTOS') return '60.00.00';
          return '';
       }
       accountsOfType.sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
@@ -192,10 +192,20 @@ export default function AccountingAccounts() {
       const parts = lastCode.split('.');
       const lastNum = parseInt(parts[parts.length - 1], 10);
       if (!isNaN(lastNum)) {
-         parts[parts.length - 1] = (lastNum + 1).toString();
+         // Si tiene ceros a la izquierda (ej: 00), mantenemos el padding si es necesario
+         const isPadded = parts[parts.length - 1].length > 1 && parts[parts.length - 1].startsWith('0');
+         let nextNum = lastNum + 10;
+         
+         // Si al sumar 10 nos pasamos a un número redondo como 100, no lo recortamos pero tampoco obligamos padding
+         let nextStr = nextNum.toString();
+         if (isPadded && nextStr.length < parts[parts.length - 1].length) {
+             nextStr = nextStr.padStart(parts[parts.length - 1].length, '0');
+         }
+         
+         parts[parts.length - 1] = nextStr;
          return parts.join('.');
       }
-      return lastCode + '.1';
+      return lastCode + '.10';
    };
 
    const openEditModal = (acc) => {
