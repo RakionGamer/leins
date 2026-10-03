@@ -125,6 +125,7 @@ export default function AccountingRules() {
    const [modalOpen, setModalOpen] = useState(false);
    const [formData, setFormData] = useState({
       account_id: '',
+      glosa: '',
       cost_center: '',
       ruts: [{ rut: '', name: '' }],
    });
@@ -213,6 +214,7 @@ export default function AccountingRules() {
       const ruts = group.rules.map(r => ({ rut: r.counterparty_rut || '', name: r.counterparty_name || '' }));
       setFormData({
          account_id: group.account ? group.account.id : '',
+         glosa: group.rules[0]?.glosa || '',
          cost_center: group.rules[0]?.cost_center || '',
          ruts: ruts.length ? ruts : [{ rut: '', name: '' }],
       });

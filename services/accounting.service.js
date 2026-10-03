@@ -2803,7 +2803,7 @@ class AccountingService {
             const items = [];
 
             const docTypeName = Number(doc.doc_type_code) === 1002 ? 'BH' : 'Factura';
-            const glosaCompra = `${docTypeName} ${name || rut} Folio ${doc.folio || "-"}`.trim();
+            const glosaCompra = rule && rule.glosa ? rule.glosa.trim() : `${docTypeName} ${name || rut} Folio ${doc.folio || "-"}`.trim();
 
             // Debe: Gasto/Activo (Neto o Total si exenta)
             items.push({
@@ -2859,7 +2859,7 @@ class AccountingService {
             const ctaCliente = isBoleta ? clientesBoletas : clientes;
 
             const docTypeName = isBoleta ? 'Boleta' : 'Factura';
-            const glosaVenta = `${docTypeName} ${name || rut} Folio ${doc.folio || "-"}`.trim();
+            const rule = ruleMap.get(rut); const glosaVenta = rule && rule.glosa ? rule.glosa.trim() : `${docTypeName} ${name || rut} Folio ${doc.folio || "-"}`.trim();
 
             // Debe: Clientes por Cobrar (Total)
             items.push({
