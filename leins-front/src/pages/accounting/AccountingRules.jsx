@@ -390,7 +390,7 @@ export default function AccountingRules() {
                      <thead className="bg-surface-1 border-b border-border-subtle text-text-soft font-semibold text-xs uppercase tracking-wider">
                         <tr>
                            <th className="p-4 pl-6 w-1/3">Proveedores</th>
-                           <th className="p-4">Glosa (Centro de Costo)</th>
+                           <th className="p-4 w-1/3">Glosa / C.C.</th>
                            <th className="p-4">Cuenta</th>
                            <th className="p-4 text-center">Acciones</th>
                         </tr>
@@ -415,17 +415,22 @@ export default function AccountingRules() {
                                        ))}
                                     </div>
                                  </td>
-                                 <td className="p-4 text-text-soft font-medium">
-                                    {group.rules[0]?.cost_center || <span className="italic text-xs text-text-soft/70">No asignada</span>}
+                                 <td className="p-4">
+                                    <div className="flex flex-col gap-1">
+                                       <span className="font-semibold text-text-main">{group.account ? group.account.name : 'Sin cuenta'}</span>
+                                       {group.rules[0]?.cost_center && (
+                                          <span className="text-xs text-text-soft flex items-center gap-1">
+                                             <span className="w-1.5 h-1.5 rounded-full bg-brand/40"></span>
+                                             C.C: {group.rules[0].cost_center}
+                                          </span>
+                                       )}
+                                    </div>
                                  </td>
                                  <td className="p-4">
                                     {group.account ? (
-                                       <div className="flex flex-col gap-1">
-                                          <span className="font-bold text-text-main">{group.account.code}</span>
-                                          <span className="text-xs text-text-soft truncate max-w-[200px]">{group.account.name}</span>
-                                       </div>
+                                       <span className="font-mono font-bold text-text-main bg-surface-2 px-2 py-1 rounded-md text-xs">{group.account.code}</span>
                                     ) : (
-                                       <span className="italic text-xs text-text-soft/70">Sin cuenta</span>
+                                       <span className="italic text-xs text-text-soft/70">--</span>
                                     )}
                                  </td>
                                  <td className="p-4 text-center">
