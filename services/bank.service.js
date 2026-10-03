@@ -258,12 +258,12 @@ class BankService {
    #readWorkbook(buffer) {
       try {
          const wb = xlsx.read(buffer, { type: 'buffer' });
-         if (!wb.SheetNames?.length) throw boom.badRequest('The Excel file contains no sheets.');
+         if (!wb.SheetNames?.length) throw boom.badRequest('El archivo Excel no contiene hojas.');
          return wb;
       } catch (e) {
          if (e.isBoom) throw e;
          logError('BANK_EXCEL_READ_FAILED', { message: e.message, stack: e.stack });
-         throw boom.badRequest('Invalid or corrupted Excel file.');
+         throw boom.badRequest('Archivo Excel inválido o corrupto.');
       }
    }
 
@@ -1316,7 +1316,7 @@ class BankService {
       if (!entityId) throw boom.badRequest("entityId is required");
       if (!bank_transaction_id) throw boom.badRequest("bank_transaction_id is required");
       if (!document_id) throw boom.badRequest("document_id is required");
-      if (amount != null && !(Number(amount) > 0)) throw boom.badRequest("amount must be a positive number");
+      if (amount != null && !(Number(amount) > 0)) throw boom.badRequest("El monto debe ser un número positivo");
 
       return await sequelize.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED }, async (t) => {
          return await this.#reconcileWithTx({ entityId, bank_transaction_id, document_id, amount, method: 'manual', t });
@@ -1341,7 +1341,7 @@ class BankService {
          { replacements: { sourceId, entityId: parsedEntityId }, type: QueryTypes.SELECT }
       );
 
-      if (!source) throw boom.notFound("bank transaction not found for the given entity");
+      if (!source) throw boom.notFound("Movimiento bancario no encontrado para la entidad");
       const sourceRemaining = Number(source.remaining_amount || 0);
       if (!(sourceRemaining > 0)) return { ok: true, rows: [], total: 0 };
 
@@ -1432,8 +1432,8 @@ class BankService {
       if (!Number.isInteger(parsedEntityId) || parsedEntityId <= 0) throw boom.badRequest("entityId is required");
       if (!Number.isInteger(sourceId) || sourceId <= 0) throw boom.badRequest("bank_transaction_id is required");
       if (!Number.isInteger(targetId) || targetId <= 0) throw boom.badRequest("target_bank_transaction_id is required");
-      if (sourceId === targetId) throw boom.badRequest("cannot reconcile a transaction with itself");
-      if (amount != null && !(Number(amount) > 0)) throw boom.badRequest("amount must be a positive number");
+      if (sourceId === targetId) throw boom.badRequest("No se puede conciliar un movimiento consigo mismo");
+      if (amount != null && !(Number(amount) > 0)) throw boom.badRequest("El monto debe ser un número positivo");
 
       const remainingSQL = BankService.#bankRemainingSql("bt");
       const loadTx = async (id) => {
@@ -1453,19 +1453,19 @@ class BankService {
 
       const source = await loadTx(sourceId);
       const target = await loadTx(targetId);
-      if (!source) throw boom.notFound("bank transaction not found for the given entity");
-      if (!target) throw boom.notFound("target bank transaction not found for the given entity");
-      if (source.type === target.type) throw boom.badRequest("bank transactions must have opposite types");
+      if (!source) throw boom.notFound("Movimiento bancario no encontrado para la entidad");
+      if (!target) throw boom.notFound("Movimiento bancario destino no encontrado para la entidad");
+      if (source.type === target.type) throw boom.badRequest("Los movimientos bancarios deben ser de tipos opuestos (Abono vs Cargo)");
 
       const sourceRemaining = Number(source.remaining_amount || 0);
       const targetRemaining = Number(target.remaining_amount || 0);
-      if (sourceRemaining <= 0) throw boom.conflict("bank transaction has no remaining balance");
-      if (targetRemaining <= 0) throw boom.conflict("target bank transaction has no remaining balance");
+      if (sourceRemaining <= 0) throw boom.conflict("El movimiento bancario no tiene saldo disponible para conciliar");
+      if (targetRemaining <= 0) throw boom.conflict("El movimiento bancario destino no tiene saldo disponible para conciliar");
 
       let toApply = amount != null ? Number(amount) : Math.min(sourceRemaining, targetRemaining);
-      if (!Number.isFinite(toApply) || toApply <= 0) throw boom.badRequest("invalid amount to apply");
-      if (toApply > sourceRemaining + 1e-6) throw boom.conflict("amount exceeds bank transaction remaining balance");
-      if (toApply > targetRemaining + 1e-6) throw boom.conflict("amount exceeds target bank transaction remaining balance");
+      if (!Number.isFinite(toApply) || toApply <= 0) throw boom.badRequest("El monto a aplicar es inválido");
+      if (toApply > sourceRemaining + 1e-6) throw boom.conflict("El monto excede el saldo disponible del movimiento bancario");
+      if (toApply > targetRemaining + 1e-6) throw boom.conflict("El monto excede el saldo disponible del movimiento bancario destino");
 
       const dup = await models.BankTransactionMatch.findOne({
          where: {
@@ -1477,7 +1477,7 @@ class BankService {
          transaction: t,
          lock: t.LOCK.UPDATE,
       });
-      if (dup) throw boom.conflict("an identical bank reconciliation already exists for this pair and amount");
+      if (dup) throw boom.conflict("Ya existe una conciliación idéntica para este par y monto");
 
       const link = await models.BankTransactionMatch.create({
          source_bank_transaction_id: sourceId,
@@ -1541,7 +1541,7 @@ class BankService {
                transaction: t,
                lock: t.LOCK.UPDATE,
             });
-            if (!link) throw boom.notFound('reconciliation not found');
+            if (!link) throw boom.notFound('Conciliación no encontrada');
 
             // validacion de pertenencia: join para verificar entity_id en ambos extremos del cruce
             const [own] = await sequelize.query(`
@@ -1553,7 +1553,7 @@ class BankService {
             LIMIT 1
             `, { type: QueryTypes.SELECT, transaction: t, replacements: { id, e: entityId } });
 
-            if (!own) throw boom.forbidden('reconciliation does not belong to the given entity');
+            if (!own) throw boom.forbidden('La conciliación no pertenece a la entidad');
 
             await link.destroy({ transaction: t });
 
@@ -1567,7 +1567,7 @@ class BankService {
             transaction: t,
             lock: t.LOCK.UPDATE,
          });
-         if (!link) throw boom.notFound('reconciliation not found');
+         if (!link) throw boom.notFound('Conciliación no encontrada');
 
          // validacion de pertenencia: join para verificar entity_id en ambos lados
          const [own] = await sequelize.query(`
@@ -1579,7 +1579,7 @@ class BankService {
          LIMIT 1
          `, { type: QueryTypes.SELECT, transaction: t, replacements: { id, e: entityId } });
 
-         if (!own) throw boom.forbidden('reconciliation does not belong to the given entity');
+         if (!own) throw boom.forbidden('La conciliación no pertenece a la entidad');
 
          await link.destroy({ transaction: t });
 
@@ -1690,7 +1690,7 @@ class BankService {
          transaction: t,
          lock: t.LOCK.UPDATE,
       });
-      if (!bankTx) throw boom.notFound("bank transaction not found for the given entity");
+      if (!bankTx) throw boom.notFound("Movimiento bancario no encontrado para la entidad");
 
       const doc = await models.EntitySiiDocument.findOne({
          where: { id: document_id, entity_id: entityId },
@@ -1698,7 +1698,7 @@ class BankService {
          transaction: t,
          lock: t.LOCK.UPDATE,
       });
-      if (!doc) throw boom.notFound("document not found for the given entity");
+      if (!doc) throw boom.notFound("Documento no encontrado para la entidad");
 
 
 
@@ -1726,11 +1726,11 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
 
       if (bankTx.type === "expense") {
          if (!isPurchaseDoc) {
-            throw boom.badRequest("only purchase documents are allowed for expense transactions");
+            throw boom.badRequest("Solo se permiten documentos de compra (gastos) para movimientos de cargo");
          }
       } else if (bankTx.type === "income") {
          if (!isIncomeDoc) {
-            throw boom.badRequest("purchase documents cannot be reconciled with income transactions");
+            throw boom.badRequest("No se pueden conciliar documentos de compra con movimientos de abono");
          }
       }
 
@@ -1754,17 +1754,17 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
          { type: QueryTypes.SELECT, transaction: t, replacements: { bankTxId: bankTx.id, docId: doc.id, entityId } }
       );
 
-      if (!agg) throw boom.badImplementation("could not compute balances");
+      if (!agg) throw boom.badImplementation("No se pudieron calcular los saldos");
 
       const bankRemaining = Number(agg.bank_remaining ?? 0);
       const docRemaining = Number(agg.doc_remaining ?? 0);
-      if (bankRemaining <= 0) throw boom.conflict("bank transaction has no remaining balance");
-      if (docRemaining <= 0) throw boom.conflict("document has no remaining balance");
+      if (bankRemaining <= 0) throw boom.conflict("El movimiento bancario no tiene saldo disponible para conciliar");
+      if (docRemaining <= 0) throw boom.conflict("El documento no tiene saldo disponible para conciliar");
 
       let toApply = amount != null ? Number(amount) : Math.min(bankRemaining, docRemaining);
-      if (!Number.isFinite(toApply) || toApply <= 0) throw boom.badRequest("invalid amount to apply");
-      if (toApply > bankRemaining + 1e-6) throw boom.conflict("amount exceeds bank transaction remaining balance");
-      if (toApply > docRemaining + 1e-6) throw boom.conflict("amount exceeds document remaining balance");
+      if (!Number.isFinite(toApply) || toApply <= 0) throw boom.badRequest("El monto a aplicar es inválido");
+      if (toApply > bankRemaining + 1e-6) throw boom.conflict("El monto excede el saldo disponible del movimiento bancario");
+      if (toApply > docRemaining + 1e-6) throw boom.conflict("El monto excede el saldo disponible del documento");
 
       const dup = await models.BankTransactionDocument.findOne({
          where: {
@@ -1775,7 +1775,7 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
          transaction: t,
          lock: t.LOCK.UPDATE,
       });
-      if (dup) { throw boom.conflict("an identical reconciliation already exists for this pair and amount"); }
+      if (dup) { throw boom.conflict("Ya existe una conciliación idéntica para este par y monto"); }
 
       const link = await models.BankTransactionDocument.create(
          {
@@ -1933,7 +1933,7 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
 
             if (!bank_transaction_id) throw boom.badRequest("bank_transaction_id is required");
             if (!document_id && !target_bank_transaction_id) throw boom.badRequest("document_id or target_bank_transaction_id is required");
-            if (amount != null && !(amount > 0)) throw boom.badRequest("amount must be a positive number");
+            if (amount != null && !(amount > 0)) throw boom.badRequest("El monto debe ser un número positivo");
 
             if (target_bank_transaction_id) {
                const out = await this.#reconcileBankWithTx({
@@ -1972,7 +1972,7 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
          where: { id: bank_transaction_id, entity_id: entityId },
          attributes: ['id', 'entity_id', 'type', 'amount', 'issued_at', 'description'],
       });
-      if (!bankTx) throw boom.notFound('bank transaction not found for the given entity');
+      if (!bankTx) throw boom.notFound('Movimiento bancario no encontrado para la entidad');
 
       // 1) monto objetivo (positivo, porque total_amount es positivo)
       const bankAmt = Math.abs(Number(bankTx.amount || 0));
