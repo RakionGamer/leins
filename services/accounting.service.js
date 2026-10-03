@@ -2412,6 +2412,7 @@ class AccountingService {
                   counterparty_rut: rutClean,
                   counterparty_name: name?.trim() || null,
                   account_id,
+                  glosa: glosa?.trim() || null,
                   cost_center: cost_center?.trim() || null,
                },
                transaction: t
@@ -2420,6 +2421,7 @@ class AccountingService {
             if (!created) {
                rule.account_id = account_id;
                if (name) rule.counterparty_name = name.trim();
+               rule.glosa = glosa?.trim() || null;
                rule.cost_center = cost_center?.trim() || null;
                await rule.save({ transaction: t });
             }
