@@ -2755,7 +2755,7 @@ class AccountingService {
                const retencionMonto = Number(doc.amount_tax_no_credit || 0);
                const liquido = bruto - retencionMonto;
 
-               const glosaBHE = rule && rule.glosa ? rule.glosa : `BH Nro ${doc.folio || "-"} ${name || rut}`.trim();
+               const baseGlosaBHE = `BH Nro ${doc.folio || "-"} ${name || rut}`.trim(); const glosaBHE = rule && rule.glosa ? `${baseGlosaBHE} - ${rule.glosa.trim()}` : baseGlosaBHE;
 
                items.push({
                   account_id: honorariosGasto.id,
@@ -2803,7 +2803,7 @@ class AccountingService {
             const items = [];
 
             const docTypeName = Number(doc.doc_type_code) === 1002 ? 'BH' : 'Factura';
-            const glosaCompra = rule && rule.glosa ? rule.glosa.trim() : `${docTypeName} ${name || rut} Folio ${doc.folio || "-"}`.trim();
+            const baseGlosaCompra = `${docTypeName} ${name || rut} Folio ${doc.folio || "-"}`.trim(); const glosaCompra = rule && rule.glosa ? `${baseGlosaCompra} - ${rule.glosa.trim()}` : baseGlosaCompra;
 
             // Debe: Gasto/Activo (Neto o Total si exenta)
             items.push({
@@ -2859,7 +2859,7 @@ class AccountingService {
             const ctaCliente = isBoleta ? clientesBoletas : clientes;
 
             const docTypeName = isBoleta ? 'Boleta' : 'Factura';
-            const rule = ruleMap.get(rut); const glosaVenta = rule && rule.glosa ? rule.glosa.trim() : `${docTypeName} ${name || rut} Folio ${doc.folio || "-"}`.trim();
+            const rule = ruleMap.get(rut); const baseGlosaVenta = `${docTypeName} ${name || rut} Folio ${doc.folio || "-"}`.trim(); const glosaVenta = rule && rule.glosa ? `${baseGlosaVenta} - ${rule.glosa.trim()}` : baseGlosaVenta;
 
             // Debe: Clientes por Cobrar (Total)
             items.push({
