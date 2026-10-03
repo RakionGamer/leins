@@ -2914,7 +2914,7 @@ class AccountingService {
          ]
       });
 
-      const bankAcc = allAccounts.find(a => a.code === '11.02.50' || a.name.toLowerCase().includes('banco chile')) || allAccounts.find(a => a.name.toLowerCase().includes('banco'));
+
 
       for (const recon of historicalRecons) {
          const bankTx = recon.tx;
@@ -2925,7 +2925,14 @@ class AccountingService {
             where: { entity_id: entityId, source_type: 'BANK_MOVEMENT', source_id: bankTx.id, status: 'POSTED' }
          });
          
-         if (!existingEntry && bankAcc) {
+         if (!existingEntry) {
+            const entityBankAcc = await models.EntityBankAccount.findByPk(bankTx.entity_bank_account_id);
+            const bankName = entityBankAcc ? entityBankAcc.bank_name.toLowerCase() : '';
+            let bankAcc = allAccounts.find(a => bankName && a.name.toLowerCase().includes(bankName));
+            if (!bankAcc) {
+               bankAcc = allAccounts.find(a => a.name.toLowerCase().includes('banco'));
+            }
+            if (bankAcc) {
             const rut = (doc.counterparty_rut || '').toUpperCase();
             // Prioridad: nombre del documento SII > nombre del banco (si está en descripción) > vacío
             const name = doc.counterparty_name || bankTx.description || '';
@@ -3008,6 +3015,7 @@ class AccountingService {
                }
             }
          }
+       }
       }
 
       return { createdCount, skippedCount, totalDocs: docs.length + historicalRecons.length };
