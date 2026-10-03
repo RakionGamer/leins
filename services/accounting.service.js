@@ -2375,7 +2375,7 @@ class AccountingService {
       return { id };
    }
 
-   async upsertBulkRules(entityId, { account_id, cost_center, ruts, replace_account = false }) {
+   async upsertBulkRules(entityId, { account_id, glosa, cost_center, ruts, replace_account = false }) {
       const account = await models.AccountingAccount.findOne({
          where: { id: account_id, entity_id: entityId },
       });
@@ -2753,7 +2753,7 @@ class AccountingService {
                const retencionMonto = Number(doc.amount_tax_no_credit || 0);
                const liquido = bruto - retencionMonto;
 
-               const glosaBHE = `BH Nro ${doc.folio || "-"} ${name || rut}`.trim();
+               const glosaBHE = rule && rule.glosa ? rule.glosa : `BH Nro ${doc.folio || "-"} ${name || rut}`.trim();
 
                items.push({
                   account_id: honorariosGasto.id,

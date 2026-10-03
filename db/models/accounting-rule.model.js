@@ -10,6 +10,7 @@ const AccountingRuleSchema = {
    counterparty_rut: { allowNull: false, type: DataTypes.STRING(16) },
    counterparty_name: { allowNull: true, type: DataTypes.STRING(255) },
    account_id: { allowNull: false, type: DataTypes.INTEGER },
+   glosa: { allowNull: true, type: DataTypes.STRING(255) },
    cost_center: { allowNull: true, type: DataTypes.STRING(100) },
 };
 

@@ -218,6 +218,7 @@ export default function AccountingRules() {
          await upsertBulkRules({
             entityId,
             account_id: Number(formData.account_id),
+            glosa: formData.glosa,
             cost_center: formData.cost_center,
             ruts,
             replace_account: true
@@ -416,7 +417,12 @@ export default function AccountingRules() {
                                     </div>
                                  </td>
                                  <td className="p-4 text-text-main font-medium">
-                                    {group.rules[0]?.cost_center || <span className="italic text-xs text-text-soft/70">Sin glosa específica</span>}
+                                    {group.rules[0]?.glosa || <span className="italic text-xs text-text-soft/70">Sin glosa específica</span>}
+                                    {group.rules[0]?.cost_center && (
+                                       <div className="mt-1 text-[10px] text-text-soft border border-border-subtle rounded-md px-1.5 py-0.5 inline-block bg-surface-2 font-normal">
+                                          CC: {group.rules[0].cost_center}
+                                       </div>
+                                    )}
                                  </td>
                                  <td className="p-4 text-text-main">
                                     {group.account ? (
@@ -461,7 +467,7 @@ export default function AccountingRules() {
                         setFormData(prev => ({
                            ...prev, 
                            account_id: newAccId,
-                           cost_center: prev.cost_center ? prev.cost_center : (selectedAcc ? selectedAcc.name : '')
+                           glosa: prev.glosa ? prev.glosa : (selectedAcc ? selectedAcc.name : '')
                         }));
                      }}
                   >
@@ -519,7 +525,18 @@ export default function AccountingRules() {
                      type="text"
                      placeholder="Ej: Insumos Médicos"
                      className={ctrl}
-                     value={formData.cost_center}
+                     value={formData.glosa || ''}
+                     onChange={(e) => setFormData({ ...formData, glosa: e.target.value })}
+                  />
+               </div>
+               
+               <div>
+                  <label className="block text-xs font-semibold uppercase text-text-soft mb-1">Centro de Costo (Opcional)</label>
+                  <input
+                     type="text"
+                     placeholder="Ej: Proyecto Alpha"
+                     className={ctrl}
+                     value={formData.cost_center || ''}
                      onChange={(e) => setFormData({ ...formData, cost_center: e.target.value })}
                   />
                </div>
