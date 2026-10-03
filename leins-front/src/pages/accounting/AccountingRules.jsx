@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useEntityRequired } from '../../hooks/useEntityRequired';
 import EntityRequiredNotice from '../../components/EntityRequiredNotice';
 import Modal from '../../components/Modal';
+import AccountSelect from '../../components/accounting/AccountSelect';
 import { toast } from '../../components/Toaster';
 import {
    getRules,
@@ -360,16 +361,13 @@ export default function AccountingRules() {
                   </div>
                   <div className="space-y-1.5 md:col-span-4">
                      <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider">Filtrar por Cuenta Contable</label>
-                     <select 
-                        className={selectCtrl}
+                     <AccountSelect
+                        accounts={accounts}
                         value={accountFilter}
-                        onChange={(e) => setAccountFilter(e.target.value)}
-                     >
-                        <option value="">Todas las cuentas</option>
-                        {accounts.map(acc => (
-                           <option key={acc.id} value={acc.id}>{acc.code} - {acc.name}</option>
-                        ))}
-                     </select>
+                        onChange={(val) => setAccountFilter(val)}
+                        placeholder="Todas las cuentas"
+                        allowClear={true}
+                     />
                   </div>
                   <div className="space-y-1.5 md:col-span-4">
                      <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider">Rol (Tipo de Entidad)</label>
@@ -468,19 +466,13 @@ export default function AccountingRules() {
             <form onSubmit={handleSubmit} className="space-y-4">
                <div>
                   <label className="block text-xs font-semibold uppercase text-text-soft mb-1">1. Cuenta Contable Destino</label>
-                  <select
-                     required
-                     className={selectCtrl}
+                  <AccountSelect
+                     accounts={accounts}
                      value={formData.account_id}
-                     onChange={(e) => setFormData({ ...formData, account_id: e.target.value })}
-                  >
-                     <option value="">Seleccionar cuenta...</option>
-                     {accounts.map((acc) => (
-                        <option key={acc.id} value={acc.id}>
-                           {acc.code} - {acc.name} ({acc.type})
-                        </option>
-                     ))}
-                  </select>
+                     onChange={(newAccId) => {
+                        setFormData({ ...formData, account_id: newAccId });
+                     }}
+                  />
                </div>
 
                <div>
