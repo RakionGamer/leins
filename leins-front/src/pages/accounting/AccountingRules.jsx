@@ -460,16 +460,7 @@ export default function AccountingRules() {
                      required
                      className={selectCtrl}
                      value={formData.account_id}
-                     onChange={(e) => {
-                        const newAccId = e.target.value;
-                        const selectedAcc = accounts.find(a => String(a.id) === String(newAccId));
-                        
-                        setFormData(prev => ({
-                           ...prev, 
-                           account_id: newAccId,
-                           glosa: prev.glosa ? prev.glosa : (selectedAcc ? selectedAcc.name : '')
-                        }));
-                     }}
+                     onChange={(e) => setFormData({ ...formData, account_id: e.target.value })}
                   >
                      <option value="">Seleccionar cuenta...</option>
                      {accounts.map((acc) => (
