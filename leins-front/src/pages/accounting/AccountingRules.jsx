@@ -390,8 +390,8 @@ export default function AccountingRules() {
                      <thead className="bg-surface-1 border-b border-border-subtle text-text-soft font-semibold text-xs uppercase tracking-wider">
                         <tr>
                            <th className="p-4 pl-6 w-1/3">Proveedores</th>
-                           <th className="p-4 w-1/3">Glosa / C.C.</th>
-                           <th className="p-4">Cuenta</th>
+                           <th className="p-4 w-1/4">Glosa</th>
+                           <th className="p-4">Cuentas</th>
                            <th className="p-4 text-center">Acciones</th>
                         </tr>
                      </thead>
@@ -415,20 +415,12 @@ export default function AccountingRules() {
                                        ))}
                                     </div>
                                  </td>
-                                 <td className="p-4">
-                                    <div className="flex flex-col gap-1">
-                                       <span className="font-semibold text-text-main">{group.account ? group.account.name : 'Sin cuenta'}</span>
-                                       {group.rules[0]?.cost_center && (
-                                          <span className="text-xs text-text-soft flex items-center gap-1">
-                                             <span className="w-1.5 h-1.5 rounded-full bg-brand/40"></span>
-                                             C.C: {group.rules[0].cost_center}
-                                          </span>
-                                       )}
-                                    </div>
+                                 <td className="p-4 text-text-main font-medium">
+                                    {group.rules[0]?.cost_center || <span className="italic text-xs text-text-soft/70">Sin glosa específica</span>}
                                  </td>
                                  <td className="p-4 text-text-main">
                                     {group.account ? (
-                                       <span>{group.account.name} - {group.account.code}</span>
+                                       <span>{group.account.code} - {group.account.name}</span>
                                     ) : (
                                        <span className="italic text-xs text-text-soft/70">--</span>
                                     )}
@@ -462,7 +454,16 @@ export default function AccountingRules() {
                      required
                      className={selectCtrl}
                      value={formData.account_id}
-                     onChange={(e) => setFormData({ ...formData, account_id: e.target.value })}
+                     onChange={(e) => {
+                        const newAccId = e.target.value;
+                        const selectedAcc = accounts.find(a => String(a.id) === String(newAccId));
+                        
+                        setFormData(prev => ({
+                           ...prev, 
+                           account_id: newAccId,
+                           cost_center: prev.cost_center ? prev.cost_center : (selectedAcc ? selectedAcc.name : '')
+                        }));
+                     }}
                   >
                      <option value="">Seleccionar cuenta...</option>
                      {accounts.map((acc) => (
@@ -513,10 +514,10 @@ export default function AccountingRules() {
                </div>
 
                <div>
-                  <label className="block text-xs font-semibold uppercase text-text-soft mb-1">Centro de Costo (Opcional)</label>
+                  <label className="block text-xs font-semibold uppercase text-text-soft mb-1">Glosa (Opcional)</label>
                   <input
                      type="text"
-                     placeholder="Ej: Casa Matriz / Proyecto Alpha"
+                     placeholder="Ej: Insumos Médicos"
                      className={ctrl}
                      value={formData.cost_center}
                      onChange={(e) => setFormData({ ...formData, cost_center: e.target.value })}
