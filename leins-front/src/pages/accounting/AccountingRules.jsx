@@ -426,9 +426,9 @@ export default function AccountingRules() {
                                        )}
                                     </div>
                                  </td>
-                                 <td className="p-4">
+                                 <td className="p-4 text-text-main">
                                     {group.account ? (
-                                       <span className="font-mono font-bold text-text-main bg-surface-2 px-2 py-1 rounded-md text-xs">{group.account.code}</span>
+                                       <span>{group.account.name} - {group.account.code}</span>
                                     ) : (
                                        <span className="italic text-xs text-text-soft/70">--</span>
                                     )}
