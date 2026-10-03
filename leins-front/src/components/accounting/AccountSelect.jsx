@@ -46,9 +46,13 @@ const AccountSelect = ({ accounts = [], value, onChange, className = '', placeho
             className="flex items-center justify-between w-full px-3 py-2.5 text-sm bg-surface-1 border border-border-subtle rounded-xl cursor-pointer hover:border-brand/30 transition focus:outline-none focus:ring-2 focus:ring-brand/20"
          >
             {selectedAccount ? (
-               <div className="flex items-center gap-2 truncate pr-6">
-                  <span className="font-mono font-bold text-xs bg-surface-2 px-1.5 py-0.5 rounded text-text-main">{selectedAccount.code}</span>
-                  <span className="font-semibold text-text-main truncate">{selectedAccount.name}</span>
+               <div className="flex items-center gap-3 truncate pr-6">
+                  <span className="font-semibold text-[11px] bg-surface-2/60 px-2 py-1 rounded text-text-soft border border-border-subtle/50">
+                     {selectedAccount.code}
+                  </span>
+                  <span className="font-semibold text-text-main text-sm truncate">
+                     {selectedAccount.name}
+                  </span>
                </div>
             ) : (
                <span className="text-text-soft truncate pr-6">{placeholder}</span>
@@ -84,7 +88,7 @@ const AccountSelect = ({ accounts = [], value, onChange, className = '', placeho
                   </div>
                </div>
                
-               <div className="max-h-60 overflow-y-auto overscroll-contain p-1">
+               <div className="max-h-[300px] overflow-y-auto overscroll-contain pb-1 bg-surface-1">
                   {filteredAccounts.length === 0 ? (
                      <div className="p-4 text-center text-xs text-text-soft italic">
                         No se encontraron cuentas contables
@@ -101,20 +105,22 @@ const AccountSelect = ({ accounts = [], value, onChange, className = '', placeho
                                  setIsOpen(false);
                                  setSearch('');
                               }}
-                              className={`flex flex-col gap-1 w-full px-3 py-2 text-left hover:bg-brand/5 rounded-lg cursor-pointer transition ${String(value) === String(acc.id) ? 'bg-brand/10' : ''}`}
+                              className={`group flex items-center justify-between w-full px-4 py-2.5 text-left border-b border-border-subtle/30 hover:bg-brand/5 cursor-pointer transition-all last:border-b-0 ${String(value) === String(acc.id) ? 'bg-brand/10 border-l-4 border-l-brand' : 'border-l-4 border-l-transparent'}`}
                            >
-                              <div className="flex items-center justify-between gap-2">
-                                 <div className="flex items-center gap-2 truncate">
-                                    <span className="font-mono font-bold text-xs bg-surface-2 px-1.5 py-0.5 rounded shadow-sm border border-border-subtle/30 text-text-main">{acc.code}</span>
-                                    <span className="font-semibold text-text-main truncate text-sm">{acc.name}</span>
-                                 </div>
+                              <div className="flex items-center gap-3 truncate pr-4">
+                                 <span className="font-semibold text-[11px] bg-surface-2/60 px-2 py-1 rounded text-text-soft min-w-[70px] text-center border border-border-subtle/50">
+                                    {acc.code}
+                                 </span>
+                                 <span className={`truncate text-sm ${acc.is_title ? 'font-bold text-text-main' : 'font-medium text-text-main/90'}`}>
+                                    {acc.name}
+                                 </span>
                               </div>
-                              <div className="flex items-center gap-2">
-                                 <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wide ${typeStyle}`}>
+                              <div className="flex items-center gap-1.5 shrink-0 opacity-80 group-hover:opacity-100 transition-opacity">
+                                 <span className={`text-[9px] px-2 py-0.5 rounded-sm font-bold uppercase tracking-wider ${typeStyle}`}>
                                     {acc.type.replace('_', ' ')}
                                  </span>
                                  {acc.is_title && (
-                                    <span className="text-[10px] bg-amber-500/10 text-amber-700 px-1.5 py-0.5 rounded font-bold">
+                                    <span className="text-[9px] bg-amber-500/10 text-amber-700 border border-amber-500/20 px-2 py-0.5 rounded-sm font-bold tracking-wider">
                                        AGRUPADOR
                                     </span>
                                  )}
