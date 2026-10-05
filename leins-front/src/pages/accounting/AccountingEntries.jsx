@@ -681,168 +681,170 @@ export default function AccountingEntries() {
 
          {/* Modal Nuevo Asiento Manual */}
          <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title="Nuevo Asiento Contable Manual" maxWidth="max-w-4xl">
-            <form onSubmit={handleSubmitManual} className="space-y-4">
-               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                     <label className="block text-xs font-semibold uppercase text-[var(--text-soft)] mb-1">Fecha</label>
-                     <DateInput
-                        required
-                        className={ctrl}
-                        value={formData.entry_date}
-                        onChange={(v) => setFormData({ ...formData, entry_date: v })}
-                     />
-                  </div>
-                  <div className="md:col-span-2">
-                     <label className="block text-xs font-semibold uppercase text-[var(--text-soft)] mb-1">Concepto / Glosa General</label>
-                     <input
-                        type="text"
-                        required
-                        placeholder="Ej: Pago arriendo oficina septiembre"
-                        className={ctrl}
-                        value={formData.concept}
-                        onChange={(e) => setFormData({ ...formData, concept: e.target.value })}
-                     />
-                  </div>
-               </div>
-
-               <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                     <h4 className="text-xs uppercase font-bold text-[var(--text-soft)]">Movimientos (Debe y Haber)</h4>
-                     <button
-                        type="button"
-                        onClick={addRow}
-                        className="text-xs font-bold text-[var(--brand)] hover:underline flex items-center gap-1"
-                     >
-                        <PlusIcon className="w-4 h-4" /> Agregar Línea
-                     </button>
+            <form onSubmit={handleSubmitManual} className="flex flex-col h-full max-h-[calc(90vh-4rem)]">
+               <div className="p-4 overflow-y-auto space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                     <div>
+                        <label className="block text-xs font-semibold uppercase text-[var(--text-soft)] mb-1">Fecha</label>
+                        <DateInput
+                           required
+                           className={ctrl}
+                           value={formData.entry_date}
+                           onChange={(v) => setFormData({ ...formData, entry_date: v })}
+                        />
+                     </div>
+                     <div className="md:col-span-2">
+                        <label className="block text-xs font-semibold uppercase text-[var(--text-soft)] mb-1">Concepto / Glosa General</label>
+                        <input
+                           type="text"
+                           required
+                           placeholder="Ej: Pago arriendo oficina septiembre"
+                           className={ctrl}
+                           value={formData.concept}
+                           onChange={(e) => setFormData({ ...formData, concept: e.target.value })}
+                        />
+                     </div>
                   </div>
 
-                  <div className="overflow-x-auto rounded-lg border border-[var(--border-subtle)]">
-                     <table className="min-w-full text-xs text-left">
-                        <thead className="bg-[var(--surface-2)] text-[var(--text-soft)] font-semibold">
-                           <tr>
-                              <th className="py-2.5 px-3">Cuenta Contable</th>
-                              <th className="py-2.5 px-3">Detalle</th>
-                              <th className="py-2.5 px-3">RUT Contraparte</th>
-                              <th className="py-2.5 px-3 w-28 text-right">Debe ($)</th>
-                              <th className="py-2.5 px-3 w-28 text-right">Haber ($)</th>
-                              <th className="py-2.5 px-2 w-10 text-center"></th>
-                           </tr>
-                        </thead>
-                        <tbody className="divide-y divide-[var(--border-subtle)]">
-                           {formData.items.map((row, idx) => {
-                              const issues = getRowIssues(row);
-                              const bad = 'border-red-500 ring-1 ring-red-500/40';
-                              return (
-                              <tr key={idx}>
-                                 <td className="p-2">
-                                    <select
-                                       required
-                                       className={`${selectCtrl} h-9 text-xs ${issues.account ? bad : ''}`}
-                                       value={row.account_id}
-                                       onChange={(e) => updateRow(idx, 'account_id', e.target.value)}
-                                    >
-                                       <option value="">Seleccionar cuenta...</option>
-                                       {accounts.map((acc) => (
-                                          <option key={acc.id} value={acc.id}>
-                                             {acc.code} - {acc.name} ({acc.type})
-                                          </option>
-                                       ))}
-                                    </select>
-                                    {issues.account && <p className="text-[10px] text-red-500 mt-1">{issues.account}</p>}
-                                 </td>
-                                 <td className="p-2">
-                                    <input
-                                       type="text"
-                                       placeholder={accountById.get(String(row.account_id))?.require_reference ? 'Glosa obligatoria *' : 'Glosa opcional'}
-                                       className={`${ctrl} h-9 text-xs ${issues.description ? bad : ''}`}
-                                       value={row.description}
-                                       onChange={(e) => updateRow(idx, 'description', e.target.value)}
-                                    />
-                                 </td>
-                                 <td className="p-2">
-                                    <input
-                                       type="text"
-                                       placeholder={accountById.get(String(row.account_id))?.require_rut ? 'RUT obligatorio *' : '12.345.678-9'}
-                                       className={`${ctrl} h-9 text-xs ${issues.rut ? bad : ''}`}
-                                       value={row.counterparty_rut}
-                                       onChange={(e) => updateRow(idx, 'counterparty_rut', e.target.value)}
-                                    />
-                                    {issues.rut && <p className="text-[10px] text-red-500 mt-1">{issues.rut}</p>}
-                                 </td>
-                                 <td className="p-2">
-                                    <input
-                                       type="number"
-                                       min="0"
-                                       step="any"
-                                       placeholder="0"
-                                       className={`${ctrl} h-9 text-xs text-right font-mono`}
-                                       value={row.debit}
-                                       onChange={(e) => updateRow(idx, 'debit', e.target.value)}
-                                    />
-                                 </td>
-                                 <td className="p-2">
-                                    <input
-                                       type="number"
-                                       min="0"
-                                       step="any"
-                                       placeholder="0"
-                                       className={`${ctrl} h-9 text-xs text-right font-mono`}
-                                       value={row.credit}
-                                       onChange={(e) => updateRow(idx, 'credit', e.target.value)}
-                                    />
-                                 </td>
-                                 <td className="p-2 text-center">
-                                    {formData.items.length > 2 && (
-                                       <button
-                                          type="button"
-                                          onClick={() => removeRow(idx)}
-                                          className="text-[var(--text-soft)] hover:text-[var(--danger)] p-1"
-                                       >
-                                          <TrashIcon className="w-4 h-4" />
-                                       </button>
-                                    )}
-                                 </td>
+                  <div className="space-y-3">
+                     <div className="flex items-center justify-between">
+                        <h4 className="text-xs uppercase font-bold text-[var(--text-soft)]">Movimientos (Debe y Haber)</h4>
+                        <button
+                           type="button"
+                           onClick={addRow}
+                           className="text-xs font-bold text-[var(--brand)] hover:underline flex items-center gap-1"
+                        >
+                           <PlusIcon className="w-4 h-4" /> Agregar Línea
+                        </button>
+                     </div>
+
+                     <div className="overflow-x-auto rounded-lg border border-[var(--border-subtle)]">
+                        <table className="min-w-full text-xs text-left">
+                           <thead className="bg-[var(--surface-2)] text-[var(--text-soft)] font-semibold">
+                              <tr>
+                                 <th className="py-2.5 px-3">Cuenta Contable</th>
+                                 <th className="py-2.5 px-3">Detalle</th>
+                                 <th className="py-2.5 px-3">RUT Contraparte</th>
+                                 <th className="py-2.5 px-3 w-28 text-right">Debe ($)</th>
+                                 <th className="py-2.5 px-3 w-28 text-right">Haber ($)</th>
+                                 <th className="py-2.5 px-2 w-10 text-center"></th>
                               </tr>
-                              );
-                           })}
-                        </tbody>
-                     </table>
+                           </thead>
+                           <tbody className="divide-y divide-[var(--border-subtle)]">
+                              {formData.items.map((row, idx) => {
+                                 const issues = getRowIssues(row);
+                                 const bad = 'border-red-500 ring-1 ring-red-500/40';
+                                 return (
+                                 <tr key={idx}>
+                                    <td className="p-2">
+                                       <select
+                                          required
+                                          className={`${selectCtrl} h-9 text-xs ${issues.account ? bad : ''}`}
+                                          value={row.account_id}
+                                          onChange={(e) => updateRow(idx, 'account_id', e.target.value)}
+                                       >
+                                          <option value="">Seleccionar cuenta...</option>
+                                          {accounts.map((acc) => (
+                                             <option key={acc.id} value={acc.id}>
+                                                {acc.code} - {acc.name} ({acc.type})
+                                             </option>
+                                          ))}
+                                       </select>
+                                       {issues.account && <p className="text-[10px] text-red-500 mt-1">{issues.account}</p>}
+                                    </td>
+                                    <td className="p-2">
+                                       <input
+                                          type="text"
+                                          placeholder={accountById.get(String(row.account_id))?.require_reference ? 'Glosa obligatoria *' : 'Glosa opcional'}
+                                          className={`${ctrl} h-9 text-xs ${issues.description ? bad : ''}`}
+                                          value={row.description}
+                                          onChange={(e) => updateRow(idx, 'description', e.target.value)}
+                                       />
+                                    </td>
+                                    <td className="p-2">
+                                       <input
+                                          type="text"
+                                          placeholder={accountById.get(String(row.account_id))?.require_rut ? 'RUT obligatorio *' : '12.345.678-9'}
+                                          className={`${ctrl} h-9 text-xs ${issues.rut ? bad : ''}`}
+                                          value={row.counterparty_rut}
+                                          onChange={(e) => updateRow(idx, 'counterparty_rut', e.target.value)}
+                                       />
+                                       {issues.rut && <p className="text-[10px] text-red-500 mt-1">{issues.rut}</p>}
+                                    </td>
+                                    <td className="p-2">
+                                       <input
+                                          type="number"
+                                          min="0"
+                                          step="any"
+                                          placeholder="0"
+                                          className={`${ctrl} h-9 text-xs text-right font-mono`}
+                                          value={row.debit}
+                                          onChange={(e) => updateRow(idx, 'debit', e.target.value)}
+                                       />
+                                    </td>
+                                    <td className="p-2">
+                                       <input
+                                          type="number"
+                                          min="0"
+                                          step="any"
+                                          placeholder="0"
+                                          className={`${ctrl} h-9 text-xs text-right font-mono`}
+                                          value={row.credit}
+                                          onChange={(e) => updateRow(idx, 'credit', e.target.value)}
+                                       />
+                                    </td>
+                                    <td className="p-2 text-center">
+                                       {formData.items.length > 2 && (
+                                          <button
+                                             type="button"
+                                             onClick={() => removeRow(idx)}
+                                             className="text-[var(--text-soft)] hover:text-[var(--danger)] p-1"
+                                          >
+                                             <TrashIcon className="w-4 h-4" />
+                                          </button>
+                                       )}
+                                    </td>
+                                 </tr>
+                                 );
+                              })}
+                           </tbody>
+                        </table>
+                     </div>
                   </div>
+
+                  <div className="p-3.5 rounded-lg bg-[var(--surface-1)] border border-[var(--border-subtle)] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                     <div className="flex items-center gap-4">
+                        <div>
+                           <span className="text-[10px] text-[var(--text-soft)] block uppercase font-semibold">Total Debe</span>
+                           <span className="text-sm font-bold text-[var(--heading)] font-mono">{clp(modalTotals.debit)}</span>
+                        </div>
+                        <div>
+                           <span className="text-[10px] text-[var(--text-soft)] block uppercase font-semibold">Total Haber</span>
+                           <span className="text-sm font-bold text-[var(--heading)] font-mono">{clp(modalTotals.credit)}</span>
+                        </div>
+                     </div>
+
+                     <div>
+                        {modalTotals.diff === 0 ? (
+                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border bg-[var(--success)]/10 text-[var(--success)] border-[var(--success)]/20">
+                              <CheckCircleIcon className="w-3.5 h-3.5" /> Asiento Cuadrado
+                           </span>
+                        ) : (
+                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border bg-[var(--danger)]/10 text-[var(--danger)] border-[var(--danger)]/20">
+                              Diferencia: {clp(modalTotals.diff)}
+                           </span>
+                        )}
+                     </div>
+                  </div>
+
+                  {modalErr && (
+                     <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-600 dark:text-red-400 text-sm font-medium shrink-0">
+                        {modalErr}
+                     </div>
+                  )}
                </div>
 
-               <div className="p-3.5 rounded-lg bg-[var(--surface-1)] border border-[var(--border-subtle)] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                  <div className="flex items-center gap-4">
-                     <div>
-                        <span className="text-[10px] text-[var(--text-soft)] block uppercase font-semibold">Total Debe</span>
-                        <span className="text-sm font-bold text-[var(--heading)] font-mono">{clp(modalTotals.debit)}</span>
-                     </div>
-                     <div>
-                        <span className="text-[10px] text-[var(--text-soft)] block uppercase font-semibold">Total Haber</span>
-                        <span className="text-sm font-bold text-[var(--heading)] font-mono">{clp(modalTotals.credit)}</span>
-                     </div>
-                  </div>
-
-                  <div>
-                     {modalTotals.diff === 0 ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border bg-[var(--success)]/10 text-[var(--success)] border-[var(--success)]/20">
-                           <CheckCircleIcon className="w-3.5 h-3.5" /> Asiento Cuadrado
-                        </span>
-                     ) : (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border bg-[var(--danger)]/10 text-[var(--danger)] border-[var(--danger)]/20">
-                           Diferencia: {clp(modalTotals.diff)}
-                        </span>
-                     )}
-                  </div>
-               </div>
-
-               {modalErr && (
-                  <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-600 dark:text-red-400 text-sm font-medium">
-                     {modalErr}
-                  </div>
-               )}
-
-               <div className="flex justify-end gap-2 pt-4 border-t border-[var(--border-subtle)]">
+               <div className="p-4 border-t border-[var(--border-subtle)] bg-[var(--bg-content)] shrink-0 flex justify-end gap-2">
                   <button
                      type="button"
                      onClick={handleImportBankTx}
