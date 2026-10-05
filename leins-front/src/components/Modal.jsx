@@ -7,8 +7,8 @@ export default function Modal({ isOpen, onClose, title, children, maxWidth = 'ma
    return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
          {/* inyectamos la clase de tailwind dinamicamente */}
-         <div className={`w-full ${maxWidth} bg-bg-content rounded-2xl shadow-xl border border-border-subtle overflow-hidden transition-all`}>
-            <div className="flex items-center justify-between p-4 border-b border-border-subtle bg-surface-1">
+         <div className={`w-full ${maxWidth} bg-bg-content rounded-2xl shadow-xl border border-border-subtle overflow-hidden transition-all flex flex-col max-h-[90vh]`}>
+            <div className="flex items-center justify-between p-4 border-b border-border-subtle bg-surface-1 shrink-0">
                <h3 className="text-lg font-semibold text-heading">{title}</h3>
                <button
                   onClick={onClose}
@@ -18,7 +18,7 @@ export default function Modal({ isOpen, onClose, title, children, maxWidth = 'ma
                   ✕
                </button>
             </div>
-            <div className="p-4">
+            <div className="p-4 overflow-y-auto">
                {children}
             </div>
          </div>
