@@ -24,16 +24,14 @@ const TypePill = ({ type }) => {
    const s = getTypeStyle(type);
    if (!s.label) return null;
    return (
-      <span className={`inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ring-1 ring-inset ${s.pill}`}>
-         <span className={`h-1.5 w-1.5 rounded-full ${s.dot}`} />
+      <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ring-1 ring-inset ${s.pill}`}>
          {s.label}
       </span>
    );
 };
 
 const GroupPill = () => (
-   <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600 ring-1 ring-inset ring-slate-500/20 dark:bg-slate-500/10 dark:text-slate-300">
-      <Squares2X2Icon className="h-3 w-3" />
+   <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600 ring-1 ring-inset ring-slate-500/20 dark:bg-slate-500/10 dark:text-slate-300">
       Agrupador
    </span>
 );

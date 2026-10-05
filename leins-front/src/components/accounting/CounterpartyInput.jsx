@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { BuildingOffice2Icon } from '@heroicons/react/24/outline';
 import { searchCounterparties } from '../../services/accountingApi';
 
 /**
@@ -127,9 +126,6 @@ const CounterpartyInput = ({ entityId, value, onChange, onSelect, placeholder, c
                               onMouseEnter={() => setActive(i)}
                               className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer border-l-4 transition-colors ${i === active ? 'bg-brand/10 border-l-brand' : 'border-l-transparent'}`}
                            >
-                              <div className="p-1.5 rounded-lg bg-surface-2 text-text-soft shrink-0">
-                                 <BuildingOffice2Icon className="w-4 h-4" />
-                              </div>
                               <div className="min-w-0 flex-1">
                                  <div className="text-sm font-semibold text-text-main truncate">
                                     {r.name ? highlight(r.name) : <span className="italic font-normal text-text-soft">Sin razón social</span>}
