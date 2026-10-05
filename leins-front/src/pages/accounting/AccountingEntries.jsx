@@ -144,6 +144,7 @@ export default function AccountingEntries() {
       ],
    });
    const [submitting, setSubmitting] = useState(false);
+   const [modalErr, setModalErr] = useState(null);
 
    const loadData = useCallback(async () => {
       if (!entityId) return;
@@ -222,8 +223,37 @@ export default function AccountingEntries() {
       setFormData({ ...formData, items: newItems });
    };
 
+   const accountById = useMemo(() => new Map(accounts.map((a) => [String(a.id), a])), [accounts]);
+
+   const getRowIssues = (row) => {
+      const acc = accountById.get(String(row.account_id));
+      const issues = {};
+      if (!acc) return issues;
+      if (acc.is_title) issues.account = 'Cuenta título: no acepta movimientos';
+      else if (acc.is_active === false) issues.account = 'Cuenta bloqueada';
+      if (acc.require_rut && !String(row.counterparty_rut || '').trim()) issues.rut = 'RUT obligatorio';
+      if (acc.require_reference && !String(row.description || '').trim()) issues.description = 'Glosa obligatoria';
+      if (acc.cost_center_requirement === 'REQUIRED' && !String(row.cost_center || '').trim()) issues.cost_center = 'Centro de costo obligatorio';
+      return issues;
+   };
+
    const handleSubmitManual = async (e) => {
       e.preventDefault();
+      setModalErr(null);
+
+      for (let i = 0; i < formData.items.length; i++) {
+         const row = formData.items[i];
+         if (!row.account_id) continue;
+         const first = Object.values(getRowIssues(row))[0];
+         if (first) {
+            const acc = accountById.get(String(row.account_id));
+            const msg = `Línea ${i + 1} (${acc.code} - ${acc.name}): ${first}.`;
+            setModalErr(msg);
+            toast.error(msg);
+            return;
+         }
+      }
+
       if (modalTotals.diff > 0.05) {
          toast.error('El asiento no está cuadrado. La suma del Debe debe ser igual a la suma del Haber.');
          return;
@@ -259,7 +289,9 @@ export default function AccountingEntries() {
          setModalOpen(false);
          loadData();
       } catch (e) {
-         setErr(e.message || 'Error al registrar asiento contable');
+         const msg = e?.response?.data?.message || e?.message || 'Error al registrar asiento contable';
+         setModalErr(msg);
+         toast.error(msg);
       } finally {
          setSubmitting(false);
       }
@@ -396,6 +428,7 @@ export default function AccountingEntries() {
                               { account_id: '', description: '', debit: '', credit: '', counterparty_rut: '', cost_center: '' },
                            ],
                         });
+                        setModalErr(null);
                         setModalOpen(true);
                      }}
                      className="h-11 flex items-center justify-center gap-2 px-4 rounded-2xl border border-brand/20 bg-brand/5 text-brand text-sm font-semibold transition shadow-sm hover:bg-brand hover:text-white focus:outline-none focus:ring-2 focus:ring-brand cursor-pointer"
@@ -697,12 +730,15 @@ export default function AccountingEntries() {
                            </tr>
                         </thead>
                         <tbody className="divide-y divide-[var(--border-subtle)]">
-                           {formData.items.map((row, idx) => (
+                           {formData.items.map((row, idx) => {
+                              const issues = getRowIssues(row);
+                              const bad = 'border-red-500 ring-1 ring-red-500/40';
+                              return (
                               <tr key={idx}>
                                  <td className="p-2">
                                     <select
                                        required
-                                       className={`${selectCtrl} h-9 text-xs`}
+                                       className={`${selectCtrl} h-9 text-xs ${issues.account ? bad : ''}`}
                                        value={row.account_id}
                                        onChange={(e) => updateRow(idx, 'account_id', e.target.value)}
                                     >
@@ -713,12 +749,13 @@ export default function AccountingEntries() {
                                           </option>
                                        ))}
                                     </select>
+                                    {issues.account && <p className="text-[10px] text-red-500 mt-1">{issues.account}</p>}
                                  </td>
                                  <td className="p-2">
                                     <input
                                        type="text"
-                                       placeholder="Glosa opcional"
-                                       className={`${ctrl} h-9 text-xs`}
+                                       placeholder={accountById.get(String(row.account_id))?.require_reference ? 'Glosa obligatoria *' : 'Glosa opcional'}
+                                       className={`${ctrl} h-9 text-xs ${issues.description ? bad : ''}`}
                                        value={row.description}
                                        onChange={(e) => updateRow(idx, 'description', e.target.value)}
                                     />
@@ -726,11 +763,12 @@ export default function AccountingEntries() {
                                  <td className="p-2">
                                     <input
                                        type="text"
-                                       placeholder="12.345.678-9"
-                                       className={`${ctrl} h-9 text-xs`}
+                                       placeholder={accountById.get(String(row.account_id))?.require_rut ? 'RUT obligatorio *' : '12.345.678-9'}
+                                       className={`${ctrl} h-9 text-xs ${issues.rut ? bad : ''}`}
                                        value={row.counterparty_rut}
                                        onChange={(e) => updateRow(idx, 'counterparty_rut', e.target.value)}
                                     />
+                                    {issues.rut && <p className="text-[10px] text-red-500 mt-1">{issues.rut}</p>}
                                  </td>
                                  <td className="p-2">
                                     <input
@@ -766,7 +804,8 @@ export default function AccountingEntries() {
                                     )}
                                  </td>
                               </tr>
-                           ))}
+                              );
+                           })}
                         </tbody>
                      </table>
                   </div>
@@ -796,6 +835,12 @@ export default function AccountingEntries() {
                      )}
                   </div>
                </div>
+
+               {modalErr && (
+                  <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-600 dark:text-red-400 text-sm font-medium">
+                     {modalErr}
+                  </div>
+               )}
 
                <div className="flex justify-end gap-2 pt-4 border-t border-[var(--border-subtle)]">
                   <button

@@ -360,37 +360,15 @@ export const getEntryById = async (id, entityId) => {
 };
 
 export const createEntry = async (payload) => {
-   try {
-      const response = await fetchWithAuth('/accounting/entries', {
-         method: 'POST',
-         body: JSON.stringify(payload),
-      });
-      if (response.ok) return parseJsonSafe(response);
-   } catch (e) {}
-
-   const entryNum = DEMO_ENTRIES.length + 101;
-   let totalD = 0;
-   let totalC = 0;
-   const mappedItems = payload.items.map((it, idx) => {
-      const acc = DEMO_ACCOUNTS.find(a => a.id === Number(it.account_id)) || { code: "5.2.1", name: "Gastos General" };
-      totalD += Number(it.debit) || 0;
-      totalC += Number(it.credit) || 0;
-      return { id: Date.now() + idx, account: acc, ...it };
+   const response = await fetchWithAuth('/accounting/entries', {
+      method: 'POST',
+      body: JSON.stringify(payload),
    });
-
-   const newEntry = {
-      id: Date.now(),
-      entry_number: entryNum,
-      entry_date: payload.entry_date,
-      concept: payload.concept,
-      source_type: payload.source_type || "MANUAL",
-      status: "POSTED",
-      total_debit: totalD,
-      total_credit: totalC,
-      items: mappedItems,
-   };
-   DEMO_ENTRIES.unshift(newEntry);
-   return newEntry;
+   if (!response.ok) {
+      const err = await parseJsonSafe(response);
+      throw new Error(err.message || `Error del servidor (${response.status}) al registrar el asiento`);
+   }
+   return parseJsonSafe(response);
 };
 
 export const annulEntry = async (id, entityId) => {
