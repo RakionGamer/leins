@@ -122,6 +122,7 @@ export default function AccountingAccounts() {
       require_reference: false,
       is_auxiliary: false,
       is_title: false,
+      is_active: true,
    });
    const [submitting, setSubmitting] = useState(false);
 
@@ -172,6 +173,7 @@ export default function AccountingAccounts() {
          require_reference: false,
          is_auxiliary: false,
          is_title: false,
+         is_active: true,
       });
       setModalOpen(true);
    };
@@ -220,6 +222,7 @@ export default function AccountingAccounts() {
          require_reference: !!acc.require_reference,
          is_auxiliary: !!acc.is_auxiliary,
          is_title: !!acc.is_title,
+         is_active: acc.is_active !== false,
       });
       setModalOpen(true);
    };
@@ -239,6 +242,7 @@ export default function AccountingAccounts() {
                require_reference: formData.require_reference,
                is_auxiliary: formData.is_auxiliary,
                is_title: formData.is_title,
+               is_active: formData.is_active,
             });
             toast.success('Cuenta actualizada correctamente');
          } else {
@@ -599,6 +603,21 @@ export default function AccountingAccounts() {
                            onChange={(e) => setFormData({ ...formData, is_auxiliary: e.target.checked })}
                         />
                         <span className="text-text-main font-medium">Es Cuenta Auxiliar</span>
+                     </label>
+                  </div>
+               </div>
+               
+               <div className="grid grid-cols-2 gap-4 pt-2">
+                  <div></div>
+                  <div className="flex items-end pb-2">
+                     <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                           type="checkbox"
+                           className="w-4 h-4 rounded text-danger focus:ring-danger border-border-subtle"
+                           checked={!formData.is_active}
+                           onChange={(e) => setFormData({ ...formData, is_active: !e.target.checked })}
+                        />
+                        <span className="text-danger font-medium">Cuenta Bloqueada (Inactiva)</span>
                      </label>
                   </div>
                </div>

@@ -2443,6 +2443,29 @@ class AccountingService {
          throw boom.badRequest("Un asiento contable debe tener al menos 2 movimientos (Debe y Haber)");
       }
 
+      // Validaciones de Atributos Contables
+      const accountIds = items.map(it => it.account_id);
+      const accounts = await models.AccountingAccount.findAll({
+         where: { id: accountIds, entity_id: entityId }
+      });
+      const accountMap = new Map(accounts.map(a => [a.id, a]));
+
+      for (const it of items) {
+         const acc = accountMap.get(it.account_id);
+         if (!acc) throw boom.badRequest(`La cuenta con ID ${it.account_id} no existe o no pertenece a esta entidad.`);
+         if (!acc.is_active) throw boom.badRequest(`La cuenta '${acc.code} - ${acc.name}' está bloqueada y no acepta movimientos.`);
+         if (acc.is_title) throw boom.badRequest(`No puedes contabilizar en la cuenta título '${acc.code} - ${acc.name}'.`);
+         if (acc.require_rut && (!it.counterparty_rut || it.counterparty_rut.trim() === '')) {
+            throw boom.badRequest(`La cuenta '${acc.code} - ${acc.name}' exige RUT de contraparte.`);
+         }
+         if (acc.require_reference && (!it.description || it.description.trim() === '')) {
+            throw boom.badRequest(`La cuenta '${acc.code} - ${acc.name}' exige Documento Referencial (Glosa/Descripción).`);
+         }
+         if (acc.cost_center_requirement === 'REQUIRED' && (!it.cost_center || it.cost_center.trim() === '')) {
+            throw boom.badRequest(`La cuenta '${acc.code} - ${acc.name}' exige un Centro de Costo.`);
+         }
+      }
+
       let totalDebit = 0;
       let totalCredit = 0;
 
