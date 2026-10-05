@@ -3,6 +3,7 @@ import { useEntityRequired } from '../../hooks/useEntityRequired';
 import EntityRequiredNotice from '../../components/EntityRequiredNotice';
 import Modal from '../../components/Modal';
 import AccountSelect from '../../components/accounting/AccountSelect';
+import CounterpartyInput from '../../components/accounting/CounterpartyInput';
 import { toast } from '../../components/Toaster';
 import {
    getRules,
@@ -208,6 +209,13 @@ export default function AccountingRules() {
             }
          }
       }
+   };
+
+   const selectCounterparty = (index, item) => {
+      setFormData(prev => {
+         const newRuts = prev.ruts.map((r, i) => i === index ? { rut: formatRut(item.rut), name: item.name || '' } : r);
+         return { ...prev, ruts: newRuts };
+      });
    };
 
    const handleEditGroup = (group) => {
@@ -482,21 +490,24 @@ export default function AccountingRules() {
                   <div className="space-y-3 max-h-60 overflow-y-auto p-1 pr-2">
                      {formData.ruts.map((r, i) => (
                         <div key={i} className="flex gap-2 items-center">
-                           <input 
-                              type="text" 
-                              placeholder="RUT" 
-                              required
-                              className={`${ctrl} w-1/3 font-mono`} 
-                              value={r.rut} 
-                              onChange={e => updateRutRow(i, 'rut', e.target.value)} 
-                           />
-                           <input 
-                              type="text" 
-                              placeholder="Razón Social (Opcional)" 
-                              className={`${ctrl} w-2/3`} 
-                              value={r.name} 
-                              onChange={e => updateRutRow(i, 'name', e.target.value)} 
-                           />
+                            <CounterpartyInput
+                               entityId={entityId}
+                               placeholder="RUT"
+                               required
+                               mono
+                               className={`${ctrl} w-1/3`}
+                               value={r.rut}
+                               onChange={v => updateRutRow(i, 'rut', v)}
+                               onSelect={item => selectCounterparty(i, item)}
+                            />
+                            <CounterpartyInput
+                               entityId={entityId}
+                               placeholder="Razón Social (Opcional)"
+                               className={`${ctrl} w-2/3`}
+                               value={r.name}
+                               onChange={v => updateRutRow(i, 'name', v)}
+                               onSelect={item => selectCounterparty(i, item)}
+                            />
                            <button 
                               type="button" 
                               onClick={() => removeRutRow(i)} 

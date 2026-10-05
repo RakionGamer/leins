@@ -2346,6 +2346,49 @@ class AccountingService {
    }
 
    
+   // Autocompletado por RUT o razón social (reglas + documentos SII de la entidad)
+   async searchCounterparties(entityId, q, limit = 8) {
+      const term = String(q || "").trim();
+      if (term.length < 2) return [];
+      const cleaned = term.replace(/[.\s]/g, "");
+      const like = { [Op.like]: `%${term}%` };
+      const likeRut = { [Op.like]: `%${cleaned}%` };
+
+      const [rules, docs] = await Promise.all([
+         models.AccountingRule.findAll({
+            where: {
+               entity_id: entityId,
+               [Op.or]: [{ counterparty_rut: likeRut }, { counterparty_name: like }],
+            },
+            attributes: ["counterparty_rut", "counterparty_name"],
+            limit,
+            raw: true,
+         }),
+         models.EntitySiiDocument.findAll({
+            where: {
+               entity_id: entityId,
+               counterparty_rut: { [Op.not]: null },
+               [Op.or]: [{ counterparty_rut: likeRut }, { counterparty_name: like }],
+            },
+            attributes: ["counterparty_rut", "counterparty_name"],
+            group: ["counterparty_rut", "counterparty_name"],
+            limit: limit * 2,
+            raw: true,
+         }),
+      ]);
+
+      const map = new Map();
+      for (const r of [...rules, ...docs]) {
+         const rut = String(r.counterparty_rut || "").toUpperCase();
+         if (!rut) continue;
+         const prev = map.get(rut);
+         if (!prev || (!prev.name && r.counterparty_name)) {
+            map.set(rut, { rut, name: r.counterparty_name || prev?.name || null });
+         }
+      }
+      return [...map.values()].slice(0, limit);
+   }
+
    async searchCounterparty(rut) {
       const cleanRut = String(rut).trim().toUpperCase();
       

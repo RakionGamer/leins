@@ -1,13 +1,48 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { ChevronDownIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
+import { ChevronDownIcon, MagnifyingGlassIcon, XMarkIcon, CheckIcon, Squares2X2Icon } from '@heroicons/react/24/outline';
 
-const typeColors = {
-   ACTIVO: 'bg-emerald-500/10 text-emerald-700',
-   PASIVO: 'bg-rose-500/10 text-rose-700',
-   PATRIMONIO: 'bg-purple-500/10 text-purple-700',
-   RESULTADO_GANANCIA: 'bg-blue-500/10 text-blue-700',
-   RESULTADO_PERDIDA: 'bg-orange-500/10 text-orange-700',
+// Paleta corporativa: tonos sobrios con punto indicador y borde sutil
+const typeStyles = {
+   ACTIVO: { label: 'Activo', pill: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-400/20', dot: 'bg-emerald-500' },
+   PASIVO: { label: 'Pasivo', pill: 'bg-rose-50 text-rose-700 ring-rose-600/20 dark:bg-rose-500/10 dark:text-rose-300 dark:ring-rose-400/20', dot: 'bg-rose-500' },
+   PATRIMONIO: { label: 'Patrimonio', pill: 'bg-violet-50 text-violet-700 ring-violet-600/20 dark:bg-violet-500/10 dark:text-violet-300 dark:ring-violet-400/20', dot: 'bg-violet-500' },
+   INGRESOS: { label: 'Ingresos', pill: 'bg-sky-50 text-sky-700 ring-sky-600/20 dark:bg-sky-500/10 dark:text-sky-300 dark:ring-sky-400/20', dot: 'bg-sky-500' },
+   COSTOS: { label: 'Costos', pill: 'bg-amber-50 text-amber-700 ring-amber-600/20 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-400/20', dot: 'bg-amber-500' },
+   GASTOS: { label: 'Gastos', pill: 'bg-orange-50 text-orange-700 ring-orange-600/20 dark:bg-orange-500/10 dark:text-orange-300 dark:ring-orange-400/20', dot: 'bg-orange-500' },
+   RESULTADO_GANANCIA: { label: 'Ganancia', pill: 'bg-sky-50 text-sky-700 ring-sky-600/20 dark:bg-sky-500/10 dark:text-sky-300 dark:ring-sky-400/20', dot: 'bg-sky-500' },
+   RESULTADO_PERDIDA: { label: 'Pérdida', pill: 'bg-orange-50 text-orange-700 ring-orange-600/20 dark:bg-orange-500/10 dark:text-orange-300 dark:ring-orange-400/20', dot: 'bg-orange-500' },
 };
+const defaultTypeStyle = { label: '', pill: 'bg-slate-100 text-slate-600 ring-slate-500/20 dark:bg-slate-500/10 dark:text-slate-300', dot: 'bg-slate-400' };
+
+const getTypeStyle = (type) => {
+   const s = typeStyles[type];
+   if (s) return s;
+   return { ...defaultTypeStyle, label: String(type || '').replace(/_/g, ' ').toLowerCase().replace(/^\w/, (c) => c.toUpperCase()) };
+};
+
+const TypePill = ({ type }) => {
+   const s = getTypeStyle(type);
+   if (!s.label) return null;
+   return (
+      <span className={`inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ring-1 ring-inset ${s.pill}`}>
+         <span className={`h-1.5 w-1.5 rounded-full ${s.dot}`} />
+         {s.label}
+      </span>
+   );
+};
+
+const GroupPill = () => (
+   <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600 ring-1 ring-inset ring-slate-500/20 dark:bg-slate-500/10 dark:text-slate-300">
+      <Squares2X2Icon className="h-3 w-3" />
+      Agrupador
+   </span>
+);
+
+const CodeChip = ({ children, className = '' }) => (
+   <span className={`inline-block rounded-md border border-border-subtle bg-surface-2/70 px-2 py-0.5 text-center font-mono text-[11px] font-semibold tracking-tight text-text-soft ${className}`}>
+      {children}
+   </span>
+);
 
 const AccountSelect = ({ accounts = [], value, onChange, className = '', placeholder = 'Seleccionar cuenta...', allowClear = false }) => {
    const [isOpen, setIsOpen] = useState(false);
@@ -43,38 +78,35 @@ const AccountSelect = ({ accounts = [], value, onChange, className = '', placeho
       <div className={`relative ${className}`} ref={wrapperRef}>
          <div
             onClick={() => setIsOpen(!isOpen)}
-            className="flex items-center justify-between w-full px-3 py-2.5 text-sm bg-surface-1 border border-border-subtle rounded-xl cursor-pointer hover:border-brand/30 transition focus:outline-none focus:ring-2 focus:ring-brand/20"
+            className={`flex items-center justify-between w-full px-3 py-2.5 text-sm bg-surface-1 border rounded-xl cursor-pointer transition ${isOpen ? 'border-brand ring-2 ring-brand/20' : 'border-border-subtle hover:border-brand/40'}`}
          >
             {selectedAccount ? (
-               <div className="flex items-center gap-3 truncate pr-6">
-                  <span className="font-semibold text-[11px] bg-surface-2/60 px-2 py-1 rounded text-text-soft border border-border-subtle/50">
-                     {selectedAccount.code}
-                  </span>
+               <div className="flex items-center gap-3 truncate pr-10 min-w-0">
+                  <CodeChip>{selectedAccount.code}</CodeChip>
                   <span className="font-semibold text-text-main text-sm truncate">
                      {selectedAccount.name}
                   </span>
+                  <TypePill type={selectedAccount.type} />
                </div>
             ) : (
                <span className="text-text-soft truncate pr-6">{placeholder}</span>
             )}
-            
+
             {allowClear && selectedAccount ? (
-               <div 
+               <div
                   className="absolute right-9 top-1/2 -translate-y-1/2 p-1 hover:bg-surface-2 rounded-md z-10"
                   onClick={(e) => { e.stopPropagation(); onChange(''); setIsOpen(false); }}
                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-text-soft hover:text-rose-500" viewBox="0 0 20 20" fill="currentColor">
-                     <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                  </svg>
+                  <XMarkIcon className="h-4 w-4 text-text-soft hover:text-rose-500" />
                </div>
             ) : null}
-            
-            <ChevronDownIcon className={`w-4 h-4 text-text-soft transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+
+            <ChevronDownIcon className={`w-4 h-4 shrink-0 text-text-soft transition-transform ${isOpen ? 'rotate-180' : ''}`} />
          </div>
 
          {isOpen && (
-            <div className="absolute z-50 w-full mt-2 bg-bg-content border border-border-subtle rounded-xl shadow-lg overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
-               <div className="p-2 border-b border-border-subtle/50 bg-surface-1/50 sticky top-0 z-10 backdrop-blur-md">
+            <div className="absolute z-50 w-full mt-2 bg-bg-content border border-border-subtle rounded-xl shadow-xl overflow-hidden">
+               <div className="p-2.5 border-b border-border-subtle bg-surface-1">
                   <div className="relative">
                      <MagnifyingGlassIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-text-soft" />
                      <input
@@ -86,17 +118,19 @@ const AccountSelect = ({ accounts = [], value, onChange, className = '', placeho
                         className="w-full pl-9 pr-3 py-2 text-sm bg-bg-content border border-border-subtle rounded-lg focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand transition placeholder:text-text-soft/60"
                      />
                   </div>
+                  <div className="mt-2 px-1 text-[10px] font-semibold uppercase tracking-wider text-text-soft">
+                     {filteredAccounts.length} cuenta{filteredAccounts.length !== 1 ? 's' : ''}
+                  </div>
                </div>
-               
-               <div className="max-h-[300px] overflow-y-auto overscroll-contain pb-1 bg-surface-1">
+
+               <div className="max-h-[300px] overflow-y-auto overscroll-contain bg-bg-content">
                   {filteredAccounts.length === 0 ? (
-                     <div className="p-4 text-center text-xs text-text-soft italic">
+                     <div className="p-6 text-center text-xs text-text-soft italic">
                         No se encontraron cuentas contables
                      </div>
                   ) : (
                      filteredAccounts.map(acc => {
-                        const typeStyle = typeColors[acc.type] || 'bg-surface-2 text-text-soft';
-                        
+                        const selected = String(value) === String(acc.id);
                         return (
                            <div
                               key={acc.id}
@@ -105,25 +139,18 @@ const AccountSelect = ({ accounts = [], value, onChange, className = '', placeho
                                  setIsOpen(false);
                                  setSearch('');
                               }}
-                              className={`group flex items-center justify-between w-full px-4 py-2.5 text-left border-b border-border-subtle/30 hover:bg-brand/5 cursor-pointer transition-all last:border-b-0 ${String(value) === String(acc.id) ? 'bg-brand/10 border-l-4 border-l-brand' : 'border-l-4 border-l-transparent'}`}
+                              className={`flex items-center justify-between gap-3 w-full px-4 py-2.5 text-left border-b border-border-subtle/40 last:border-b-0 cursor-pointer transition-colors border-l-[3px] ${selected ? 'bg-brand/10 border-l-brand' : 'border-l-transparent hover:bg-surface-1'} ${acc.is_title ? 'bg-surface-1/60' : ''}`}
                            >
-                              <div className="flex items-center gap-3 truncate pr-4">
-                                 <span className="font-semibold text-[11px] bg-surface-2/60 px-2 py-1 rounded text-text-soft min-w-[70px] text-center border border-border-subtle/50">
-                                    {acc.code}
-                                 </span>
-                                 <span className={`truncate text-sm ${acc.is_title ? 'font-bold text-text-main' : 'font-medium text-text-main/90'}`}>
+                              <div className="flex items-center gap-3 min-w-0">
+                                 <CodeChip className="min-w-[76px]">{acc.code}</CodeChip>
+                                 <span className={`truncate text-sm ${acc.is_title ? 'font-bold uppercase tracking-wide text-[12px] text-text-main' : 'font-medium text-text-main/90'}`}>
                                     {acc.name}
                                  </span>
                               </div>
-                              <div className="flex items-center gap-1.5 shrink-0 opacity-80 group-hover:opacity-100 transition-opacity">
-                                 <span className={`text-[9px] px-2 py-0.5 rounded-sm font-bold uppercase tracking-wider ${typeStyle}`}>
-                                    {acc.type.replace('_', ' ')}
-                                 </span>
-                                 {acc.is_title && (
-                                    <span className="text-[9px] bg-amber-500/10 text-amber-700 border border-amber-500/20 px-2 py-0.5 rounded-sm font-bold tracking-wider">
-                                       AGRUPADOR
-                                    </span>
-                                 )}
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                 {acc.is_title && <GroupPill />}
+                                 <TypePill type={acc.type} />
+                                 {selected && <CheckIcon className="h-4 w-4 text-brand stroke-2" />}
                               </div>
                            </div>
                         );

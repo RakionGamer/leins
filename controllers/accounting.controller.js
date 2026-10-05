@@ -189,8 +189,18 @@ const searchCounterparty = async (req, res, next) => {
    }
 };
 
+const searchCounterparties = async (req, res, next) => {
+   try {
+      const result = await service.searchCounterparties(req.entityId, req.query.q);
+      res.json(result);
+   } catch (error) {
+      next(error);
+   }
+};
+
 module.exports = {
    searchCounterparty,
+   searchCounterparties,
    getAccounts,
    createAccount,
    updateAccount,

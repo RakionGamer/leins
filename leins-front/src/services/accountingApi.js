@@ -91,3 +91,16 @@ export const searchCounterpartyName = async (rut) => {
       return { name: null };
    }
 };
+
+export const searchCounterparties = async ({ entityId, q, signal }) => {
+   try {
+      const response = await fetchWithAuth(`/accounting/rules/counterparties/search?${buildQs({ entityId, q })}`, { signal });
+      if (response.ok) {
+         const data = await parseJsonSafe(response);
+         return Array.isArray(data) ? data : [];
+      }
+      return [];
+   } catch (e) {
+      return [];
+   }
+};
