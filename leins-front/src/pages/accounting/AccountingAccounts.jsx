@@ -99,6 +99,34 @@ function AccountsSummary({ accounts }) {
    );
 }
 
+const pad2 = (n) => String(n).padStart(2, '0');
+
+// Cuenta mayor: siguiente primer segmento del tipo, resto en 00 (63.xx.xx -> 64.00.00)
+function suggestMajorCode(type, accounts) {
+   const base = { ACTIVO: 10, PASIVO: 20, PATRIMONIO: 30, INGRESOS: 40, COSTOS: 50, GASTOS: 60 }[type];
+   const firsts = accounts
+      .filter(a => a.type === type)
+      .map(a => parseInt(String(a.code).split('.')[0], 10))
+      .filter(n => !isNaN(n));
+   if (firsts.length === 0) return base ? `${base}.00.00` : '';
+   return `${pad2(Math.max(...firsts) + 1)}.00.00`;
+}
+
+// Cuenta auxiliar: hijo siguiente de la cuenta padre elegida
+function suggestChildCode(parentCode, accounts) {
+   const [p0, p1] = String(parentCode).split('.');
+   const siblings = accounts.map(a => String(a.code).split('.')).filter(p => p[0] === p0);
+   if (p1 === '00') {
+      // Padre mayor -> subgrupo XX.YY.00 (de 1 en 1)
+      const nums = siblings.filter(p => p[1] !== '00').map(p => parseInt(p[1], 10)).filter(n => !isNaN(n));
+      return `${p0}.${pad2((nums.length ? Math.max(...nums) : 0) + 1)}.00`;
+   }
+   // Padre subgrupo -> detalle XX.YY.ZZ (de 10 en 10)
+   const nums = siblings.filter(p => p[1] === p1 && p[2] !== '00').map(p => parseInt(p[2], 10)).filter(n => !isNaN(n));
+   const next = nums.length ? Math.floor(Math.max(...nums) / 10) * 10 + 10 : 10;
+   return `${p0}.${p1}.${pad2(next)}`;
+}
+
 export default function AccountingAccounts() {
    const { entityId, ready } = useEntityRequired();
 
@@ -125,6 +153,8 @@ export default function AccountingAccounts() {
       is_active: true,
    });
    const [submitting, setSubmitting] = useState(false);
+   const [accountKind, setAccountKind] = useState('AUXILIAR');
+   const [parentCode, setParentCode] = useState('');
 
    const loadAccounts = useCallback(async () => {
       if (!entityId) return;
@@ -159,8 +189,39 @@ export default function AccountingAccounts() {
       }
    };
 
+   // Calcula código y casillas según el tipo de cuenta (mayor/auxiliar) y la cuenta padre
+   const computeKindFields = (type, kind, parent) => {
+      if (kind === 'MAYOR') {
+         return { code: suggestMajorCode(type, accounts), is_title: true, is_auxiliary: false };
+      }
+      if (!parent) {
+         return { code: getSuggestedCode(type, accounts), is_title: false, is_auxiliary: true };
+      }
+      const isSubgroup = parent.endsWith('.00.00');
+      return {
+         code: suggestChildCode(parent, accounts),
+         is_title: isSubgroup,
+         is_auxiliary: !isSubgroup,
+      };
+   };
+
+   // Cuentas que pueden ser padre: terminan en .00 (XX.00.00 o XX.YY.00) del mismo tipo
+   const parentOptions = useMemo(() => (
+      accounts
+         .filter(a => a.type === formData.type && String(a.code).endsWith('.00'))
+         .sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }))
+   ), [accounts, formData.type]);
+
+   const applyKind = (kind, parent = '') => {
+      setAccountKind(kind);
+      setParentCode(parent);
+      setFormData(prev => ({ ...prev, ...computeKindFields(prev.type, kind, parent) }));
+   };
+
    const openCreateModal = () => {
       setEditingAccount(null);
+      setAccountKind('AUXILIAR');
+      setParentCode('');
       const initialType = 'GASTOS';
       const initialNature = 'DEUDORA';
       setFormData({
@@ -174,6 +235,7 @@ export default function AccountingAccounts() {
          is_auxiliary: false,
          is_title: false,
          is_active: true,
+         ...computeKindFields(initialType, 'AUXILIAR', ''),
       });
       setModalOpen(true);
    };
@@ -488,6 +550,20 @@ export default function AccountingAccounts() {
          {/* Create / Edit Modal */}
          <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editingAccount ? 'Editar Cuenta Contable' : 'Crear Nueva Cuenta Contable'} maxWidth="max-w-lg">
             <form onSubmit={handleSubmit} className="space-y-4">
+               {!editingAccount && (
+                  <div className="grid grid-cols-2 gap-2 p-1 rounded-2xl bg-surface-2 border border-border-subtle">
+                     {[['MAYOR', 'Cuenta mayor'], ['AUXILIAR', 'Cuenta auxiliar']].map(([k, label]) => (
+                        <button
+                           key={k}
+                           type="button"
+                           onClick={() => applyKind(k, '')}
+                           className={`h-10 rounded-xl text-sm font-semibold transition ${accountKind === k ? 'bg-brand text-white shadow-sm' : 'text-text-soft hover:text-brand'}`}
+                        >
+                           {label}
+                        </button>
+                     ))}
+                  </div>
+               )}
                <div className="grid grid-cols-2 gap-4">
                   <div>
                      <label className="block text-xs font-semibold uppercase text-text-soft mb-1">Tipo de Cuenta</label>
@@ -497,11 +573,12 @@ export default function AccountingAccounts() {
                         onChange={(e) => {
                            const t = e.target.value;
                            const nat = ['ACTIVO', 'COSTOS', 'GASTOS'].includes(t) ? 'DEUDORA' : 'ACREEDORA';
+                            if (!editingAccount) setParentCode('');
                            setFormData({ 
                               ...formData, 
                               type: t, 
                               nature: nat,
-                              code: editingAccount ? formData.code : getSuggestedCode(t, accounts)
+                              ...(editingAccount ? {} : computeKindFields(t, accountKind, ''))
                            });
                         }}
                      >
@@ -528,7 +605,22 @@ export default function AccountingAccounts() {
                </div>
 
                <div>
-                  <label className="block text-xs font-semibold uppercase text-text-soft mb-1">Código Correlativo Sugerido</label>
+                  {!editingAccount && accountKind === 'AUXILIAR' && (
+                      <div className="mb-4">
+                         <label className="block text-xs font-semibold uppercase text-text-soft mb-1">Cuenta padre</label>
+                         <select
+                            className={selectCtrl}
+                            value={parentCode}
+                            onChange={(e) => applyKind('AUXILIAR', e.target.value)}
+                         >
+                            <option value="">Sin cuenta padre (correlativo simple)</option>
+                            {parentOptions.map(p => (
+                               <option key={p.id} value={p.code}>{p.code} - {p.name}</option>
+                            ))}
+                         </select>
+                      </div>
+                   )}
+                   <label className="block text-xs font-semibold uppercase text-text-soft mb-1">Código Correlativo Sugerido</label>
                   <input
                      type="text"
                      disabled={!!editingAccount}
