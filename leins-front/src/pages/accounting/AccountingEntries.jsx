@@ -178,12 +178,7 @@ export default function AccountingEntries() {
    const [mode, setMode] = useState('month');
    const [fromDate, setFromDate] = useState('');
    const [toDate, setToDate] = useState('');
-   const [filterMonth, setFilterMonth] = useState(() => {
-      if (period?.year && period?.month) {
-         return periodToYYYYMM(period);
-      }
-      return todayYYYYMM();
-   });
+   const [filterMonth, setFilterMonth] = useState(() => todayYYYYMM());
    const [search, setSearch] = useState('');
    const [sourceFilter, setSourceFilter] = useState('');
    const [statusFilter, setStatusFilter] = useState('');
