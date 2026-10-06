@@ -260,13 +260,13 @@ export default function AccountingAccounts() {
          // Si tiene ceros a la izquierda (ej: 00), mantenemos el padding si es necesario
          const isPadded = parts[parts.length - 1].length > 1 && parts[parts.length - 1].startsWith('0');
          let nextNum = lastNum + 10;
-         
+
          // Si al sumar 10 nos pasamos a un número redondo como 100, no lo recortamos pero tampoco obligamos padding
          let nextStr = nextNum.toString();
          if (isPadded && nextStr.length < parts[parts.length - 1].length) {
-             nextStr = nextStr.padStart(parts[parts.length - 1].length, '0');
+            nextStr = nextStr.padStart(parts[parts.length - 1].length, '0');
          }
-         
+
          parts[parts.length - 1] = nextStr;
          return parts.join('.');
       }
@@ -484,66 +484,66 @@ export default function AccountingAccounts() {
                                     {accList.map((acc) => {
                                        const level = String(acc.code).endsWith('.00.00') ? 0 : String(acc.code).endsWith('.00') ? 1 : 2;
                                        return (
-                                       <tr key={acc.id} className={`hover:bg-brand/5 transition-colors group ${level === 0 ? 'bg-surface-1/60 border-t-2 border-border-subtle/80' : ''}`}>
-                                          <td className="py-3 px-4 font-mono text-heading">
-                                             <div className={`flex items-center ${level === 1 ? 'pl-6' : level === 2 ? 'pl-12' : ''}`}>
-                                                {level > 0 && <span className="text-border-subtle mr-2 font-sans opacity-50">└</span>}
-                                                <span className={level === 0 ? 'font-bold text-brand' : level === 1 ? 'font-semibold text-text-main' : 'text-text-soft'}>{acc.code}</span>
-                                             </div>
-                                          </td>
-                                          <td className={`py-3 px-4 text-text-main ${level === 0 ? 'font-bold' : level === 1 ? 'font-medium' : ''}`}>
-                                             {acc.name}
-                                             {acc.is_system && (
-                                                <span className="ml-2 inline-flex px-2 py-0.5 bg-surface-2 rounded-md font-mono text-[10px] font-semibold text-text-soft border border-border-subtle/50">
-                                                   SISTEMA
-                                                </span>
-                                             )}
-                                          </td>
-                                          <td className="py-3 px-4">
-                                             <Pill
-                                                colorClass={
-                                                   acc.nature === 'DEUDORA'
-                                                      ? 'bg-slate-100 text-slate-700 ring-slate-200 dark:bg-slate-500/20 dark:text-slate-300 dark:ring-slate-500/30'
-                                                      : 'bg-slate-100 text-slate-700 ring-slate-200 dark:bg-slate-500/20 dark:text-slate-300 dark:ring-slate-500/30'
-                                                }
-                                             >
-                                                {acc.nature}
-                                             </Pill>
-                                          </td>
-                                          <td className="py-3 px-4 text-text-soft text-xs">
-                                             <div className="flex flex-wrap gap-1">
-                                                {acc.is_title && <Pill colorClass="bg-blue-100 text-blue-700">TÍTULO</Pill>}
-                                                {acc.require_rut && <Pill colorClass="bg-slate-100 text-slate-700">RUT</Pill>}
-                                                {acc.require_reference && <Pill colorClass="bg-slate-100 text-slate-700">Ref</Pill>}
-                                                {acc.is_auxiliary && <Pill colorClass="bg-slate-100 text-slate-700">Aux</Pill>}
-                                                {acc.cost_center_requirement === 'REQUIRED' && <Pill colorClass="bg-brand/10 text-brand">CC Oblig.</Pill>}
-                                                {acc.cost_center_requirement === 'OPTIONAL' && <Pill colorClass="bg-slate-100 text-slate-700">CC Opc.</Pill>}
-                                                {!acc.is_title && !acc.require_rut && !acc.require_reference && !acc.is_auxiliary && acc.cost_center_requirement === 'NONE' && (
-                                                   <span className="text-text-soft/60 italic">Básica</span>
+                                          <tr key={acc.id} className={`hover:bg-brand/5 transition-colors group ${level === 0 ? 'bg-surface-1/60 border-t-2 border-border-subtle/80' : ''}`}>
+                                             <td className="py-3 px-4 font-mono text-heading">
+                                                <div className={`flex items-center ${level === 1 ? 'pl-6' : level === 2 ? 'pl-12' : ''}`}>
+                                                   {level > 0 && <span className="text-border-subtle mr-2 font-sans opacity-50">└</span>}
+                                                   <span className={level === 0 ? 'font-bold text-brand' : level === 1 ? 'font-semibold text-text-main' : 'text-text-soft'}>{acc.code}</span>
+                                                </div>
+                                             </td>
+                                             <td className={`py-3 px-4 text-text-main ${level === 0 ? 'font-bold' : level === 1 ? 'font-medium' : ''}`}>
+                                                {acc.name}
+                                                {acc.is_system && (
+                                                   <span className="ml-2 inline-flex px-2 py-0.5 bg-surface-2 rounded-md font-mono text-[10px] font-semibold text-text-soft border border-border-subtle/50">
+                                                      SISTEMA
+                                                   </span>
                                                 )}
-                                             </div>
-                                          </td>
-                                          <td className="py-3 px-4 text-center">
-                                             <div className="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
-                                                <button
-                                                   onClick={() => openEditModal(acc)}
-                                                   className="p-1.5 rounded-lg text-text-soft hover:text-brand hover:bg-brand/10 transition outline-none focus:ring-2 focus:ring-brand"
-                                                   title="Editar cuenta"
+                                             </td>
+                                             <td className="py-3 px-4">
+                                                <Pill
+                                                   colorClass={
+                                                      acc.nature === 'DEUDORA'
+                                                         ? 'bg-slate-100 text-slate-700 ring-slate-200 dark:bg-slate-500/20 dark:text-slate-300 dark:ring-slate-500/30'
+                                                         : 'bg-slate-100 text-slate-700 ring-slate-200 dark:bg-slate-500/20 dark:text-slate-300 dark:ring-slate-500/30'
+                                                   }
                                                 >
-                                                   <PencilSquareIcon className="w-5 h-5" />
-                                                </button>
-                                                {!acc.is_system && (
+                                                   {acc.nature}
+                                                </Pill>
+                                             </td>
+                                             <td className="py-3 px-4 text-text-soft text-xs">
+                                                <div className="flex flex-wrap gap-1">
+                                                   {acc.is_title && <Pill colorClass="bg-blue-100 text-blue-700">TÍTULO</Pill>}
+                                                   {acc.require_rut && <Pill colorClass="bg-slate-100 text-slate-700">RUT</Pill>}
+                                                   {acc.require_reference && <Pill colorClass="bg-slate-100 text-slate-700">Ref</Pill>}
+                                                   {acc.is_auxiliary && <Pill colorClass="bg-slate-100 text-slate-700">Aux</Pill>}
+                                                   {acc.cost_center_requirement === 'REQUIRED' && <Pill colorClass="bg-brand/10 text-brand">CC Oblig.</Pill>}
+                                                   {acc.cost_center_requirement === 'OPTIONAL' && <Pill colorClass="bg-slate-100 text-slate-700">CC Opc.</Pill>}
+                                                   {!acc.is_title && !acc.require_rut && !acc.require_reference && !acc.is_auxiliary && acc.cost_center_requirement === 'NONE' && (
+                                                      <span className="text-text-soft/60 italic">Básica</span>
+                                                   )}
+                                                </div>
+                                             </td>
+                                             <td className="py-3 px-4 text-center">
+                                                <div className="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                                                    <button
-                                                      onClick={() => handleDelete(acc)}
-                                                      className="p-1.5 rounded-lg text-text-soft hover:text-danger hover:bg-danger/10 transition outline-none focus:ring-2 focus:ring-danger"
-                                                      title="Eliminar cuenta"
+                                                      onClick={() => openEditModal(acc)}
+                                                      className="p-1.5 rounded-lg text-text-soft hover:text-brand hover:bg-brand/10 transition outline-none focus:ring-2 focus:ring-brand"
+                                                      title="Editar cuenta"
                                                    >
-                                                      <TrashIcon className="w-5 h-5" />
+                                                      <PencilSquareIcon className="w-5 h-5" />
                                                    </button>
-                                                )}
-                                             </div>
-                                          </td>
-                                       </tr>
+                                                   {!acc.is_system && (
+                                                      <button
+                                                         onClick={() => handleDelete(acc)}
+                                                         className="p-1.5 rounded-lg text-text-soft hover:text-danger hover:bg-danger/10 transition outline-none focus:ring-2 focus:ring-danger"
+                                                         title="Eliminar cuenta"
+                                                      >
+                                                         <TrashIcon className="w-5 h-5" />
+                                                      </button>
+                                                   )}
+                                                </div>
+                                             </td>
+                                          </tr>
                                        );
                                     })}
                                  </tbody>
@@ -582,10 +582,10 @@ export default function AccountingAccounts() {
                         onChange={(e) => {
                            const t = e.target.value;
                            const nat = ['ACTIVO', 'COSTOS', 'GASTOS'].includes(t) ? 'DEUDORA' : 'ACREEDORA';
-                            if (!editingAccount) setParentCode('');
-                           setFormData({ 
-                              ...formData, 
-                              type: t, 
+                           if (!editingAccount) setParentCode('');
+                           setFormData({
+                              ...formData,
+                              type: t,
                               nature: nat,
                               ...(editingAccount ? {} : computeKindFields(t, accountKind, ''))
                            });
@@ -615,18 +615,18 @@ export default function AccountingAccounts() {
 
                <div>
                   {!editingAccount && accountKind === 'AUXILIAR' && (
-                      <div className="mb-4">
-                         <label className="block text-xs font-semibold uppercase text-text-soft mb-1">Cuenta padre</label>
-                         <AccountSelect
-                            accounts={parentOptions.map(p => ({ ...p, id: p.code }))}
-                            value={parentCode}
-                            onChange={(val) => applyKind('AUXILIAR', val)}
-                            placeholder="Sin cuenta padre (correlativo simple)"
-                            allowClear={true}
-                         />
-                      </div>
-                   )}
-                   <label className="block text-xs font-semibold uppercase text-text-soft mb-1">Código Correlativo Sugerido</label>
+                     <div className="mb-4">
+                        <label className="block text-xs font-semibold uppercase text-text-soft mb-1">Cuenta padre</label>
+                        <AccountSelect
+                           accounts={parentOptions.map(p => ({ ...p, id: p.code }))}
+                           value={parentCode}
+                           onChange={(val) => applyKind('AUXILIAR', val)}
+                           placeholder="Sin cuenta padre (correlativo simple)"
+                           allowClear={true}
+                        />
+                     </div>
+                  )}
+                  <label className="block text-xs font-semibold uppercase text-text-soft mb-1">Código Correlativo Sugerido</label>
                   <input
                      type="text"
                      disabled={!!editingAccount}
@@ -704,7 +704,7 @@ export default function AccountingAccounts() {
                      </label>
                   </div>
                </div>
-               
+
                <div className="grid grid-cols-2 gap-4 pt-2">
                   <div></div>
                   <div className="flex items-end pb-2">
