@@ -110,6 +110,60 @@ function ResumenAsientos({ entries }) {
    );
 }
 
+function periodToYYYYMM({ month, year }) {
+   const m = String(month).padStart(2, '0');
+   return `${year}-${m}`;
+}
+
+function todayYYYYMM() {
+   const d = new Date();
+   const m = String(d.getMonth() + 1).padStart(2, '0');
+   return `${d.getFullYear()}-${m}`;
+}
+
+function ViewModeToggle({ mode, onChange }) {
+   const btn = (key, label) => (
+      <button
+         type="button"
+         onClick={() => onChange(key)}
+         className={`h-9 px-4 text-sm font-medium rounded-xl transition ${mode === key ? 'bg-bg-content shadow ring-1 ring-border-subtle text-heading' : 'text-text-soft hover:text-heading'}`}
+      >
+         {label}
+      </button>
+   );
+   return (
+      <div className="inline-flex p-1 bg-surface-2 rounded-2xl ring-1 ring-border-subtle/40 items-center">
+         {btn('month', 'Por mes')}
+         {btn('range', 'Por rango')}
+      </div>
+   );
+}
+
+function MonthField({ value, contextValue, onChange, disabled = false }) {
+   return (
+      <div className="space-y-1.5 w-full">
+         <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider">Mes de Operación</label>
+         <div className="flex items-center gap-2">
+            <input disabled={disabled} type="month" className={ctrl} value={value || ''} onChange={(e) => onChange(e.target.value)} />
+         </div>
+      </div>
+   );
+}
+
+function DateRangeField({ from, to, onFrom, onTo, disabled = false }) {
+   const invalid = from && to && new Date(to) < new Date(from);
+   return (
+      <div className="space-y-1.5 w-full">
+         <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider">Rango de Fechas</label>
+         <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+            <DateInput disabled={disabled} className={ctrl} value={from || ''} onChange={onFrom} />
+            <span className="hidden sm:inline text-text-soft font-medium shrink-0">-</span>
+            <DateInput disabled={disabled} className={`${ctrl} ${invalid ? 'ring-2 ring-danger border-danger' : ''}`} value={to || ''} onChange={onTo} min={from || undefined} />
+         </div>
+      </div>
+   );
+}
+
 export default function AccountingEntries() {
    const { entityId, ready } = useEntityRequired();
    const { period } = usePeriod();
@@ -121,12 +175,14 @@ export default function AccountingEntries() {
 
    const [expandedEntryId, setExpandedEntryId] = useState(null);
 
+   const [mode, setMode] = useState('month');
+   const [fromDate, setFromDate] = useState('');
+   const [toDate, setToDate] = useState('');
    const [filterMonth, setFilterMonth] = useState(() => {
       if (period?.year && period?.month) {
-         return `${period.year}-${String(period.month).padStart(2, '0')}`;
+         return periodToYYYYMM(period);
       }
-      const d = new Date();
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      return todayYYYYMM();
    });
    const [search, setSearch] = useState('');
    const [sourceFilter, setSourceFilter] = useState('');
@@ -154,7 +210,9 @@ export default function AccountingEntries() {
          const [entriesData, accountsData] = await Promise.all([
             getEntries({
                entityId,
-               month: filterMonth,
+               month: mode === 'month' ? filterMonth : undefined,
+               from: mode === 'range' ? fromDate : undefined,
+               to: mode === 'range' ? toDate : undefined,
                source_type: sourceFilter,
                status: statusFilter,
                q: search,
@@ -169,7 +227,7 @@ export default function AccountingEntries() {
       } finally {
          setLoading(false);
       }
-   }, [entityId, filterMonth, sourceFilter, statusFilter, search]);
+   }, [entityId, filterMonth, sourceFilter, statusFilter, search, mode, fromDate, toDate]);
 
    useEffect(() => {
       if (ready && entityId) {
@@ -307,50 +365,50 @@ export default function AccountingEntries() {
       }
       try {
          const { autofindCandidates, listReconciliations } = await import('../../services/reconcileApi');
-         
+
          const [response, recons] = await Promise.all([
-             autofindCandidates({ entityId, bank_transaction_id: txId, limit: 1 }),
-             listReconciliations({ entityId, bank_transaction_id: txId, limit: 1 }).catch(() => null)
+            autofindCandidates({ entityId, bank_transaction_id: txId, limit: 1 }),
+            listReconciliations({ entityId, bank_transaction_id: txId, limit: 1 }).catch(() => null)
          ]);
-         
+
          if (!response || !response.bank) {
-             toast.error("No se encontró el movimiento con ese ID.");
-             return;
+            toast.error("No se encontró el movimiento con ese ID.");
+            return;
          }
-         
+
          const tx = response.bank;
          const amount = Number(tx.amount || 0);
          // En autofind, el type viene omitido, pero lo deducimos del amount
          const type = amount >= 0 ? 'income' : 'expense';
          const absAmount = Math.abs(amount);
          const date = tx.issued_at ? tx.issued_at.substring(0, 10) : new Date().toISOString().substring(0, 10);
-         
+
          let rut = '';
          let contrapartidaDesc = 'Contrapartida';
          let conceptText = `Importado: ${tx.description || ''}`;
 
          if (recons?.rows?.[0]?.document) {
-             const doc = recons.rows[0].document;
-             rut = doc.counterparty_rut;
-             contrapartidaDesc = `Cancelación Fac. N° ${doc.folio} - ${doc.counterparty_name || ''}`;
-             conceptText = `Pago/Cobro de Factura N° ${doc.folio} (${doc.counterparty_name || ''})`;
+            const doc = recons.rows[0].document;
+            rut = doc.counterparty_rut;
+            contrapartidaDesc = `Cancelación Fac. N° ${doc.folio} - ${doc.counterparty_name || ''}`;
+            conceptText = `Pago/Cobro de Factura N° ${doc.folio} (${doc.counterparty_name || ''})`;
          } else if (response.best) {
-             rut = response.best.counterparty_rut;
-             contrapartidaDesc = `Sugerencia Fac. N° ${response.best.folio}`;
+            rut = response.best.counterparty_rut;
+            contrapartidaDesc = `Sugerencia Fac. N° ${response.best.folio}`;
          }
-         
+
          setFormData({
-             ...formData,
-             entry_date: date,
-             concept: conceptText,
-             items: [
-                 { account_id: '', description: tx.description || '', debit: type === 'income' ? absAmount : '', credit: type === 'expense' ? absAmount : '', counterparty_rut: rut, cost_center: '' },
-                 { account_id: '', description: contrapartidaDesc, debit: type === 'expense' ? absAmount : '', credit: type === 'income' ? absAmount : '', counterparty_rut: rut, cost_center: '' },
-             ]
+            ...formData,
+            entry_date: date,
+            concept: conceptText,
+            items: [
+               { account_id: '', description: tx.description || '', debit: type === 'income' ? absAmount : '', credit: type === 'expense' ? absAmount : '', counterparty_rut: rut, cost_center: '' },
+               { account_id: '', description: contrapartidaDesc, debit: type === 'expense' ? absAmount : '', credit: type === 'income' ? absAmount : '', counterparty_rut: rut, cost_center: '' },
+            ]
          });
          toast.success("Datos importados del banco.");
-      } catch(e) {
-          toast.error(e.message || "Error al importar el movimiento bancario");
+      } catch (e) {
+         toast.error(e.message || "Error al importar el movimiento bancario");
       }
    };
 
@@ -368,20 +426,20 @@ export default function AccountingEntries() {
                <div className="flex flex-wrap items-center gap-3">
                   <button
                      onClick={async () => {
-                         try {
-                             toast.loading("Generando asientos desde el SII...", { id: "sii-sync" });
-                             const { generateSiiEntries } = await import('../../services/accountingApi');
-                             const res = await generateSiiEntries({ entityId });
-                             toast.success(`¡Listo! Se crearon ${res.createdCount || 0} asientos nuevos.`, { id: "sii-sync" });
-                             loadData();
-                         } catch (e) {
-                             toast.error(e.message || "Error al sincronizar SII", { id: "sii-sync" });
-                         }
+                        try {
+                           toast.loading("Generando asientos desde el SII...", { id: "sii-sync" });
+                           const { generateSiiEntries } = await import('../../services/accountingApi');
+                           const res = await generateSiiEntries({ entityId });
+                           toast.success(`¡Listo! Se crearon ${res.createdCount || 0} asientos nuevos.`, { id: "sii-sync" });
+                           loadData();
+                        } catch (e) {
+                           toast.error(e.message || "Error al sincronizar SII", { id: "sii-sync" });
+                        }
                      }}
                      className="h-11 flex items-center justify-center gap-2 px-4 rounded-2xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-semibold transition shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-200"
                   >
                      <ArrowPathIcon className="w-5 h-5 stroke-2" />
-                     <span>Sincronizar SII</span>
+                     <span>Sincronizar</span>
                   </button>
                   <button
                      onClick={async () => {
@@ -439,19 +497,21 @@ export default function AccountingEntries() {
                </div>
             </div>
 
-            {/* Filter Section */}
             <div className="space-y-4">
                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div className="flex items-center gap-2 text-sm font-semibold text-text-main">
                      <FunnelIcon className="w-5 h-5 text-brand" /> Filtros de Búsqueda
                   </div>
-                  <button
-                     onClick={() => { setSearch(''); setSourceFilter(''); setStatusFilter(''); loadData(); }}
-                     disabled={loading}
-                     className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-text-soft hover:text-danger hover:bg-danger/10 rounded-xl transition-colors disabled:opacity-50"
-                  >
-                     <ArrowPathIcon className="w-4 h-4" /> Limpiar Filtros
-                  </button>
+                  <div className="flex items-center gap-3">
+                     <button
+                        onClick={() => { setSearch(''); setSourceFilter(''); setStatusFilter(''); setMode('month'); setFilterMonth(todayYYYYMM()); setFromDate(''); setToDate(''); }}
+                        disabled={loading}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-text-soft hover:text-danger hover:bg-danger/10 rounded-xl transition-colors disabled:opacity-50"
+                     >
+                        <ArrowPathIcon className="w-4 h-4" /> Limpiar Filtros
+                     </button>
+                     <ViewModeToggle mode={mode} onChange={(k) => { setMode(k); if (k === 'month') { setFromDate(''); setToDate(''); if (!filterMonth) setFilterMonth(todayYYYYMM()); } else { setFilterMonth(''); } }} />
+                  </div>
                </div>
 
                <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start bg-surface-1 p-4 rounded-2xl border border-border-subtle/50">
@@ -465,14 +525,12 @@ export default function AccountingEntries() {
                         onChange={(e) => setSearch(e.target.value)}
                      />
                   </div>
-                  <div className="space-y-1.5 md:col-span-3">
-                     <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider">Mes de Operación</label>
-                     <input
-                        type="month"
-                        className={ctrl}
-                        value={filterMonth}
-                        onChange={(e) => setFilterMonth(e.target.value)}
-                     />
+                  <div className="md:col-span-3">
+                     {mode === 'month' ? (
+                        <MonthField value={filterMonth} contextValue={period ? periodToYYYYMM(period) : todayYYYYMM()} onChange={(v) => { setFilterMonth(v); }} disabled={loading} />
+                     ) : (
+                        <DateRangeField from={fromDate} to={toDate} onFrom={(v) => { setFromDate(v); }} onTo={(v) => { setToDate(v); }} disabled={loading} />
+                     )}
                   </div>
                   <div className="space-y-1.5 md:col-span-3">
                      <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider">Origen</label>
@@ -535,149 +593,148 @@ export default function AccountingEntries() {
                            </td>
                         </tr>
                      ) : entries.map((entry) => {
-                           const isExpanded = expandedEntryId === entry.id;
-                           const isAnnulled = entry.status === 'ANNULLED';
-                           const sourceInfo = getSourceInfo(entry);
+                        const isExpanded = expandedEntryId === entry.id;
+                        const isAnnulled = entry.status === 'ANNULLED';
+                        const sourceInfo = getSourceInfo(entry);
 
-                           return (
-                              <React.Fragment key={entry.id}>
-                                 <tr
-                                    className={`hover:bg-brand/5 transition-colors cursor-pointer group ${
-                                       isAnnulled ? 'opacity-60' : ''
+                        return (
+                           <React.Fragment key={entry.id}>
+                              <tr
+                                 className={`hover:bg-brand/5 transition-colors cursor-pointer group ${isAnnulled ? 'opacity-60' : ''
                                     }`}
-                                    onClick={() => setExpandedEntryId(isExpanded ? null : entry.id)}
-                                 >
-                                    <td className="p-4 text-text-soft">
-                                       {isExpanded ? <ChevronDownIcon className="w-4 h-4" /> : <ChevronRightIcon className="w-4 h-4" />}
-                                    </td>
-                                    <td className="p-4 font-mono font-bold text-heading">#{entry.entry_number || entry.id}</td>
-                                    <td className="p-4 font-medium text-text-main whitespace-nowrap">{entry.entry_date}</td>
-                                    <td className="p-4">
-                                       <Pill colorClass={sourceInfo.colorClass}>
-                                          {sourceInfo.label}
-                                       </Pill>
-                                    </td>
-                                    <td className="p-4 font-medium text-text-main truncate max-w-[280px]">{entry.concept}</td>
-                                    <td className="p-4 text-right font-mono font-bold text-heading">{clp(entry.total_debit)}</td>
-                                    <td className="p-4 text-right font-mono font-bold text-heading">{clp(entry.total_credit)}</td>
-                                    <td className="p-4 text-center">
-                                       <Pill colorClass={isAnnulled ? 'bg-rose-100 text-rose-700 ring-rose-200 dark:bg-rose-500/20 dark:text-rose-300 dark:ring-rose-500/30' : 'bg-emerald-100 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-300 dark:ring-emerald-500/30'}>
-                                          {isAnnulled ? 'ANULADO' : 'VIGENTE'}
-                                       </Pill>
-                                    </td>
-                                    <td className="p-4 text-center" onClick={(e) => e.stopPropagation()}>
-                                       {!isAnnulled && (
-                                          <button
-                                             onClick={() => handleAnnul(entry)}
-                                             className="p-1.5 rounded-lg text-text-soft hover:text-danger hover:bg-danger/10 transition outline-none focus:ring-2 focus:ring-danger"
-                                             title="Anular asiento"
-                                          >
-                                             <TrashIcon className="w-5 h-5" />
-                                          </button>
-                                       )}
-                                    </td>
-                                 </tr>
-
-                           {isExpanded && (
-                              <tr>
-                                 <td colSpan={9} className="p-0 bg-surface-1">
-                                    <div className="p-5 space-y-4 border-b border-border-subtle">
-                                       {entry.sii_document && (
-                                          <div className="p-4 rounded-2xl bg-bg-content border border-border-subtle flex flex-wrap gap-6 items-center">
-                                             <div>
-                                                <span className="text-[10px] font-semibold uppercase text-text-soft block">Tipo Doc SII</span>
-                                                <span className="text-xs font-semibold text-heading">{entry.sii_document.document_type}</span>
-                                             </div>
-                                             <div>
-                                                <span className="text-[10px] font-semibold uppercase text-text-soft block">Folio</span>
-                                                <span className="text-xs font-mono font-bold text-heading">N° {entry.sii_document.folio}</span>
-                                             </div>
-                                             <div>
-                                                <span className="text-[10px] font-semibold uppercase text-text-soft block">Monto Neto</span>
-                                                <span className="text-xs font-mono font-medium text-text-main">{clp(entry.sii_document.net_amount)}</span>
-                                             </div>
-                                             <div>
-                                                <span className="text-[10px] font-semibold uppercase text-text-soft block">IVA</span>
-                                                <span className="text-xs font-mono font-medium text-text-main">{clp(entry.sii_document.tax_amount)}</span>
-                                             </div>
-                                             <div>
-                                                <span className="text-[10px] font-semibold uppercase text-text-soft block">Total Documento</span>
-                                                <span className="text-xs font-mono font-bold text-heading">{clp(entry.sii_document.total_amount)}</span>
-                                             </div>
-                                          </div>
-                                       )}
-                                       <h4 className="text-xs uppercase font-bold text-text-soft tracking-wider">
-                                          Movimientos de Libro Diario (N° {entry.entry_number || entry.id})
-                                       </h4>
-                                       <div className="overflow-x-auto rounded-2xl border border-border-subtle bg-bg-content">
-                                          <table className="min-w-full text-[11px] text-left">
-                                             <thead className="bg-surface-2 text-text-soft font-semibold uppercase tracking-wider">
-                                                <tr>
-                                                   <th className="py-2.5 px-3">Fecha</th>
-                                                   <th className="py-2.5 px-3">Cta</th>
-                                                   <th className="py-2.5 px-3">Naturaleza</th>
-                                                   <th className="py-2.5 px-3">Glosa</th>
-                                                   <th className="py-2.5 px-3 text-right">Debe</th>
-                                                   <th className="py-2.5 px-3 text-right">Haber</th>
-                                                   <th className="py-2.5 px-3">RUT</th>
-                                                   <th className="py-2.5 px-3">Razon Social</th>
-                                                   <th className="py-2.5 px-3">Folio</th>
-                                                   <th className="py-2.5 px-3">C.C</th>
-                                                </tr>
-                                             </thead>
-                                             <tbody className="divide-y divide-border-subtle/50">
-                                                {entry.items?.map((it) => {
-                                                   // Format date
-                                                   const dateParts = (entry.entry_date || '').split('-');
-                                                   const dateStr = dateParts.length === 3 ? `${dateParts[2]}-${dateParts[1]}-${dateParts[0].slice(-2)}` : entry.entry_date;
-
-                                                   // Map Naturaleza
-                                                   let nature = '-';
-                                                   if (['INGRESOS', 'COSTOS', 'GASTOS'].includes(it.account?.type)) nature = 'Resultado';
-                                                   else if (it.account?.type === 'ACTIVO') nature = 'Activo';
-                                                   else if (it.account?.type === 'PASIVO') nature = 'Pasivo';
-                                                   else if (it.account?.type === 'PATRIMONIO') nature = 'Patrimonio';
-
-                                                   // Extract Folio
-                                                   let folio = entry.sii_document?.folio || '-';
-                                                   if (folio === '-') {
-                                                      const match = (it.description || entry.concept || '').match(/Nro\s+(\S+)|Folio\s+(\S+)/i);
-                                                      if (match) folio = match[1] || match[2] || '-';
-                                                   }
-
-                                                   return (
-                                                      <tr key={it.id} className="hover:bg-surface-1">
-                                                         <td className="py-2.5 px-3 whitespace-nowrap text-text-soft">{dateStr}</td>
-                                                         <td className="py-2.5 px-3 font-medium text-text-main">{it.account?.name || '-'}</td>
-                                                         <td className="py-2.5 px-3 text-text-soft">{nature}</td>
-                                                         <td className="py-2.5 px-3 text-text-main">{it.description || '-'}</td>
-                                                         <td className="py-2.5 px-3 text-right font-mono font-semibold text-heading whitespace-nowrap">
-                                                            {Number(it.debit) > 0 ? clp(it.debit) : ''}
-                                                         </td>
-                                                         <td className="py-2.5 px-3 text-right font-mono font-semibold text-heading whitespace-nowrap">
-                                                            {Number(it.credit) > 0 ? clp(it.credit) : ''}
-                                                         </td>
-                                                         <td className="py-2.5 px-3 font-mono text-text-soft whitespace-nowrap">{it.counterparty_rut || ''}</td>
-                                                         <td className="py-2.5 px-3 text-text-soft truncate max-w-[120px]">{it.counterparty_name || ''}</td>
-                                                         <td className="py-2.5 px-3 text-text-soft whitespace-nowrap">{folio}</td>
-                                                         <td className="py-2.5 px-3 text-text-soft whitespace-nowrap">{it.cost_center || 'N/P'}</td>
-                                                      </tr>
-                                                   );
-                                                })}
-                                             </tbody>
-                                          </table>
-                                       </div>
-                                    </div>
+                                 onClick={() => setExpandedEntryId(isExpanded ? null : entry.id)}
+                              >
+                                 <td className="p-4 text-text-soft">
+                                    {isExpanded ? <ChevronDownIcon className="w-4 h-4" /> : <ChevronRightIcon className="w-4 h-4" />}
+                                 </td>
+                                 <td className="p-4 font-mono font-bold text-heading">#{entry.entry_number || entry.id}</td>
+                                 <td className="p-4 font-medium text-text-main whitespace-nowrap">{entry.entry_date}</td>
+                                 <td className="p-4">
+                                    <Pill colorClass={sourceInfo.colorClass}>
+                                       {sourceInfo.label}
+                                    </Pill>
+                                 </td>
+                                 <td className="p-4 font-medium text-text-main truncate max-w-[280px]">{entry.concept}</td>
+                                 <td className="p-4 text-right font-mono font-bold text-heading">{clp(entry.total_debit)}</td>
+                                 <td className="p-4 text-right font-mono font-bold text-heading">{clp(entry.total_credit)}</td>
+                                 <td className="p-4 text-center">
+                                    <Pill colorClass={isAnnulled ? 'bg-rose-100 text-rose-700 ring-rose-200 dark:bg-rose-500/20 dark:text-rose-300 dark:ring-rose-500/30' : 'bg-emerald-100 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-300 dark:ring-emerald-500/30'}>
+                                       {isAnnulled ? 'ANULADO' : 'VIGENTE'}
+                                    </Pill>
+                                 </td>
+                                 <td className="p-4 text-center" onClick={(e) => e.stopPropagation()}>
+                                    {!isAnnulled && (
+                                       <button
+                                          onClick={() => handleAnnul(entry)}
+                                          className="p-1.5 rounded-lg text-text-soft hover:text-danger hover:bg-danger/10 transition outline-none focus:ring-2 focus:ring-danger"
+                                          title="Anular asiento"
+                                       >
+                                          <TrashIcon className="w-5 h-5" />
+                                       </button>
+                                    )}
                                  </td>
                               </tr>
-                           )}
-                        </React.Fragment>
-                     );
-                  })}
-               </tbody>
-            </table>
+
+                              {isExpanded && (
+                                 <tr>
+                                    <td colSpan={9} className="p-0 bg-surface-1">
+                                       <div className="p-5 space-y-4 border-b border-border-subtle">
+                                          {entry.sii_document && (
+                                             <div className="p-4 rounded-2xl bg-bg-content border border-border-subtle flex flex-wrap gap-6 items-center">
+                                                <div>
+                                                   <span className="text-[10px] font-semibold uppercase text-text-soft block">Tipo Doc SII</span>
+                                                   <span className="text-xs font-semibold text-heading">{entry.sii_document.document_type}</span>
+                                                </div>
+                                                <div>
+                                                   <span className="text-[10px] font-semibold uppercase text-text-soft block">Folio</span>
+                                                   <span className="text-xs font-mono font-bold text-heading">N° {entry.sii_document.folio}</span>
+                                                </div>
+                                                <div>
+                                                   <span className="text-[10px] font-semibold uppercase text-text-soft block">Monto Neto</span>
+                                                   <span className="text-xs font-mono font-medium text-text-main">{clp(entry.sii_document.net_amount)}</span>
+                                                </div>
+                                                <div>
+                                                   <span className="text-[10px] font-semibold uppercase text-text-soft block">IVA</span>
+                                                   <span className="text-xs font-mono font-medium text-text-main">{clp(entry.sii_document.tax_amount)}</span>
+                                                </div>
+                                                <div>
+                                                   <span className="text-[10px] font-semibold uppercase text-text-soft block">Total Documento</span>
+                                                   <span className="text-xs font-mono font-bold text-heading">{clp(entry.sii_document.total_amount)}</span>
+                                                </div>
+                                             </div>
+                                          )}
+                                          <h4 className="text-xs uppercase font-bold text-text-soft tracking-wider">
+                                             Movimientos de Libro Diario (N° {entry.entry_number || entry.id})
+                                          </h4>
+                                          <div className="overflow-x-auto rounded-2xl border border-border-subtle bg-bg-content">
+                                             <table className="min-w-full text-[11px] text-left">
+                                                <thead className="bg-surface-2 text-text-soft font-semibold uppercase tracking-wider">
+                                                   <tr>
+                                                      <th className="py-2.5 px-3">Fecha</th>
+                                                      <th className="py-2.5 px-3">Cta</th>
+                                                      <th className="py-2.5 px-3">Naturaleza</th>
+                                                      <th className="py-2.5 px-3">Glosa</th>
+                                                      <th className="py-2.5 px-3 text-right">Debe</th>
+                                                      <th className="py-2.5 px-3 text-right">Haber</th>
+                                                      <th className="py-2.5 px-3">RUT</th>
+                                                      <th className="py-2.5 px-3">Razon Social</th>
+                                                      <th className="py-2.5 px-3">Folio</th>
+                                                      <th className="py-2.5 px-3">C.C</th>
+                                                   </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-border-subtle/50">
+                                                   {entry.items?.map((it) => {
+                                                      // Format date
+                                                      const dateParts = (entry.entry_date || '').split('-');
+                                                      const dateStr = dateParts.length === 3 ? `${dateParts[2]}-${dateParts[1]}-${dateParts[0].slice(-2)}` : entry.entry_date;
+
+                                                      // Map Naturaleza
+                                                      let nature = '-';
+                                                      if (['INGRESOS', 'COSTOS', 'GASTOS'].includes(it.account?.type)) nature = 'Resultado';
+                                                      else if (it.account?.type === 'ACTIVO') nature = 'Activo';
+                                                      else if (it.account?.type === 'PASIVO') nature = 'Pasivo';
+                                                      else if (it.account?.type === 'PATRIMONIO') nature = 'Patrimonio';
+
+                                                      // Extract Folio
+                                                      let folio = entry.sii_document?.folio || '-';
+                                                      if (folio === '-') {
+                                                         const match = (it.description || entry.concept || '').match(/Nro\s+(\S+)|Folio\s+(\S+)/i);
+                                                         if (match) folio = match[1] || match[2] || '-';
+                                                      }
+
+                                                      return (
+                                                         <tr key={it.id} className="hover:bg-surface-1">
+                                                            <td className="py-2.5 px-3 whitespace-nowrap text-text-soft">{dateStr}</td>
+                                                            <td className="py-2.5 px-3 font-medium text-text-main">{it.account?.name || '-'}</td>
+                                                            <td className="py-2.5 px-3 text-text-soft">{nature}</td>
+                                                            <td className="py-2.5 px-3 text-text-main">{it.description || '-'}</td>
+                                                            <td className="py-2.5 px-3 text-right font-mono font-semibold text-heading whitespace-nowrap">
+                                                               {Number(it.debit) > 0 ? clp(it.debit) : ''}
+                                                            </td>
+                                                            <td className="py-2.5 px-3 text-right font-mono font-semibold text-heading whitespace-nowrap">
+                                                               {Number(it.credit) > 0 ? clp(it.credit) : ''}
+                                                            </td>
+                                                            <td className="py-2.5 px-3 font-mono text-text-soft whitespace-nowrap">{it.counterparty_rut || ''}</td>
+                                                            <td className="py-2.5 px-3 text-text-soft truncate max-w-[120px]">{it.counterparty_name || ''}</td>
+                                                            <td className="py-2.5 px-3 text-text-soft whitespace-nowrap">{folio}</td>
+                                                            <td className="py-2.5 px-3 text-text-soft whitespace-nowrap">{it.cost_center || 'N/P'}</td>
+                                                         </tr>
+                                                      );
+                                                   })}
+                                                </tbody>
+                                             </table>
+                                          </div>
+                                       </div>
+                                    </td>
+                                 </tr>
+                              )}
+                           </React.Fragment>
+                        );
+                     })}
+                  </tbody>
+               </table>
+            </div>
          </div>
-      </div>
 
          {/* Modal Nuevo Asiento Manual */}
          <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title="Nuevo Asiento Contable Manual" maxWidth="max-w-4xl">
@@ -735,76 +792,76 @@ export default function AccountingEntries() {
                                  const issues = getRowIssues(row);
                                  const bad = 'border-red-500 ring-1 ring-red-500/40';
                                  return (
-                                 <tr key={idx}>
-                                    <td className="p-2">
-                                       <select
-                                          required
-                                          className={`${selectCtrl} h-9 text-xs ${issues.account ? bad : ''}`}
-                                          value={row.account_id}
-                                          onChange={(e) => updateRow(idx, 'account_id', e.target.value)}
-                                       >
-                                          <option value="">Seleccionar cuenta...</option>
-                                          {accounts.map((acc) => (
-                                             <option key={acc.id} value={acc.id}>
-                                                {acc.code} - {acc.name} ({acc.type})
-                                             </option>
-                                          ))}
-                                       </select>
-                                       {issues.account && <p className="text-[10px] text-red-500 mt-1">{issues.account}</p>}
-                                    </td>
-                                    <td className="p-2">
-                                       <input
-                                          type="text"
-                                          placeholder={accountById.get(String(row.account_id))?.require_reference ? 'Glosa obligatoria *' : 'Glosa opcional'}
-                                          className={`${ctrl} h-9 text-xs ${issues.description ? bad : ''}`}
-                                          value={row.description}
-                                          onChange={(e) => updateRow(idx, 'description', e.target.value)}
-                                       />
-                                    </td>
-                                    <td className="p-2">
-                                       <input
-                                          type="text"
-                                          placeholder={accountById.get(String(row.account_id))?.require_rut ? 'RUT obligatorio *' : '12.345.678-9'}
-                                          className={`${ctrl} h-9 text-xs ${issues.rut ? bad : ''}`}
-                                          value={row.counterparty_rut}
-                                          onChange={(e) => updateRow(idx, 'counterparty_rut', e.target.value)}
-                                       />
-                                       {issues.rut && <p className="text-[10px] text-red-500 mt-1">{issues.rut}</p>}
-                                    </td>
-                                    <td className="p-2">
-                                       <input
-                                          type="number"
-                                          min="0"
-                                          step="any"
-                                          placeholder="0"
-                                          className={`${ctrl} h-9 text-xs text-right font-mono`}
-                                          value={row.debit}
-                                          onChange={(e) => updateRow(idx, 'debit', e.target.value)}
-                                       />
-                                    </td>
-                                    <td className="p-2">
-                                       <input
-                                          type="number"
-                                          min="0"
-                                          step="any"
-                                          placeholder="0"
-                                          className={`${ctrl} h-9 text-xs text-right font-mono`}
-                                          value={row.credit}
-                                          onChange={(e) => updateRow(idx, 'credit', e.target.value)}
-                                       />
-                                    </td>
-                                    <td className="p-2 text-center">
-                                       {formData.items.length > 2 && (
-                                          <button
-                                             type="button"
-                                             onClick={() => removeRow(idx)}
-                                             className="text-[var(--text-soft)] hover:text-[var(--danger)] p-1"
+                                    <tr key={idx}>
+                                       <td className="p-2">
+                                          <select
+                                             required
+                                             className={`${selectCtrl} h-9 text-xs ${issues.account ? bad : ''}`}
+                                             value={row.account_id}
+                                             onChange={(e) => updateRow(idx, 'account_id', e.target.value)}
                                           >
-                                             <TrashIcon className="w-4 h-4" />
-                                          </button>
-                                       )}
-                                    </td>
-                                 </tr>
+                                             <option value="">Seleccionar cuenta...</option>
+                                             {accounts.map((acc) => (
+                                                <option key={acc.id} value={acc.id}>
+                                                   {acc.code} - {acc.name} ({acc.type})
+                                                </option>
+                                             ))}
+                                          </select>
+                                          {issues.account && <p className="text-[10px] text-red-500 mt-1">{issues.account}</p>}
+                                       </td>
+                                       <td className="p-2">
+                                          <input
+                                             type="text"
+                                             placeholder={accountById.get(String(row.account_id))?.require_reference ? 'Glosa obligatoria *' : 'Glosa opcional'}
+                                             className={`${ctrl} h-9 text-xs ${issues.description ? bad : ''}`}
+                                             value={row.description}
+                                             onChange={(e) => updateRow(idx, 'description', e.target.value)}
+                                          />
+                                       </td>
+                                       <td className="p-2">
+                                          <input
+                                             type="text"
+                                             placeholder={accountById.get(String(row.account_id))?.require_rut ? 'RUT obligatorio *' : '12.345.678-9'}
+                                             className={`${ctrl} h-9 text-xs ${issues.rut ? bad : ''}`}
+                                             value={row.counterparty_rut}
+                                             onChange={(e) => updateRow(idx, 'counterparty_rut', e.target.value)}
+                                          />
+                                          {issues.rut && <p className="text-[10px] text-red-500 mt-1">{issues.rut}</p>}
+                                       </td>
+                                       <td className="p-2">
+                                          <input
+                                             type="number"
+                                             min="0"
+                                             step="any"
+                                             placeholder="0"
+                                             className={`${ctrl} h-9 text-xs text-right font-mono`}
+                                             value={row.debit}
+                                             onChange={(e) => updateRow(idx, 'debit', e.target.value)}
+                                          />
+                                       </td>
+                                       <td className="p-2">
+                                          <input
+                                             type="number"
+                                             min="0"
+                                             step="any"
+                                             placeholder="0"
+                                             className={`${ctrl} h-9 text-xs text-right font-mono`}
+                                             value={row.credit}
+                                             onChange={(e) => updateRow(idx, 'credit', e.target.value)}
+                                          />
+                                       </td>
+                                       <td className="p-2 text-center">
+                                          {formData.items.length > 2 && (
+                                             <button
+                                                type="button"
+                                                onClick={() => removeRow(idx)}
+                                                className="text-[var(--text-soft)] hover:text-[var(--danger)] p-1"
+                                             >
+                                                <TrashIcon className="w-4 h-4" />
+                                             </button>
+                                          )}
+                                       </td>
+                                    </tr>
                                  );
                               })}
                            </tbody>
