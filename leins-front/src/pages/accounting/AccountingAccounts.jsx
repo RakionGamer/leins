@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useEntityRequired } from '../../hooks/useEntityRequired';
 import EntityRequiredNotice from '../../components/EntityRequiredNotice';
 import Modal from '../../components/Modal';
+import AccountSelect from '../../components/accounting/AccountSelect';
 import { toast } from '../../components/Toaster';
 import {
    getAccounts,
@@ -480,10 +481,17 @@ export default function AccountingAccounts() {
                                     </tr>
                                  </thead>
                                  <tbody className="divide-y divide-border-subtle/50">
-                                    {accList.map((acc) => (
-                                       <tr key={acc.id} className="hover:bg-brand/5 transition-colors group">
-                                          <td className="py-3 px-4 font-mono font-bold text-heading">{acc.code}</td>
-                                          <td className="py-3 px-4 font-medium text-text-main">
+                                    {accList.map((acc) => {
+                                       const level = String(acc.code).endsWith('.00.00') ? 0 : String(acc.code).endsWith('.00') ? 1 : 2;
+                                       return (
+                                       <tr key={acc.id} className={`hover:bg-brand/5 transition-colors group ${level === 0 ? 'bg-surface-1/60 border-t-2 border-border-subtle/80' : ''}`}>
+                                          <td className="py-3 px-4 font-mono text-heading">
+                                             <div className={`flex items-center ${level === 1 ? 'pl-6' : level === 2 ? 'pl-12' : ''}`}>
+                                                {level > 0 && <span className="text-border-subtle mr-2 font-sans opacity-50">└</span>}
+                                                <span className={level === 0 ? 'font-bold text-brand' : level === 1 ? 'font-semibold text-text-main' : 'text-text-soft'}>{acc.code}</span>
+                                             </div>
+                                          </td>
+                                          <td className={`py-3 px-4 text-text-main ${level === 0 ? 'font-bold' : level === 1 ? 'font-medium' : ''}`}>
                                              {acc.name}
                                              {acc.is_system && (
                                                 <span className="ml-2 inline-flex px-2 py-0.5 bg-surface-2 rounded-md font-mono text-[10px] font-semibold text-text-soft border border-border-subtle/50">
@@ -536,7 +544,8 @@ export default function AccountingAccounts() {
                                              </div>
                                           </td>
                                        </tr>
-                                    ))}
+                                       );
+                                    })}
                                  </tbody>
                               </table>
                            </div>
@@ -608,16 +617,13 @@ export default function AccountingAccounts() {
                   {!editingAccount && accountKind === 'AUXILIAR' && (
                       <div className="mb-4">
                          <label className="block text-xs font-semibold uppercase text-text-soft mb-1">Cuenta padre</label>
-                         <select
-                            className={selectCtrl}
+                         <AccountSelect
+                            accounts={parentOptions.map(p => ({ ...p, id: p.code }))}
                             value={parentCode}
-                            onChange={(e) => applyKind('AUXILIAR', e.target.value)}
-                         >
-                            <option value="">Sin cuenta padre (correlativo simple)</option>
-                            {parentOptions.map(p => (
-                               <option key={p.id} value={p.code}>{p.code} - {p.name}</option>
-                            ))}
-                         </select>
+                            onChange={(val) => applyKind('AUXILIAR', val)}
+                            placeholder="Sin cuenta padre (correlativo simple)"
+                            allowClear={true}
+                         />
                       </div>
                    )}
                    <label className="block text-xs font-semibold uppercase text-text-soft mb-1">Código Correlativo Sugerido</label>
