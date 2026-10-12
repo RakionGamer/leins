@@ -2243,74 +2243,78 @@ export default function BankCartolasPage() {
                         </>
                      ) : (
                         <div className="text-sm text-[var(--text-main)] space-y-4">
-                           {/* Resumen de procesamiento */}
-                           <div className="grid grid-cols-3 gap-2.5">
+                           {/* Resumen de procesamiento - Estilo neutro y solido */}
+                           <div className="grid grid-cols-3 gap-3">
                               <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-1)] p-3 text-center">
-                                 <span className="block text-[11px] font-medium text-[var(--text-soft)] uppercase tracking-wider">Filas leídas</span>
-                                 <span className="text-xl font-bold text-[var(--heading)]">{uploadResult.total_rows ?? 0}</span>
+                                 <div className="text-xs font-medium text-[var(--text-soft)]">Filas leídas</div>
+                                 <div className="mt-1 text-2xl font-semibold text-[var(--heading)]">
+                                    {uploadResult.total_rows ?? 0}
+                                 </div>
                               </div>
-                              <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-3 text-center">
-                                 <span className="block text-[11px] font-medium text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">Nuevos guardados</span>
-                                 <span className="text-xl font-bold text-emerald-600 dark:text-emerald-400">
+                              <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-1)] p-3 text-center">
+                                 <div className="text-xs font-medium text-[var(--text-soft)]">Nuevos guardados</div>
+                                 <div className="mt-1 text-2xl font-semibold text-[var(--heading)]">
                                     {uploadResult.saved_rows ?? uploadResult.valid_rows ?? 0}
-                                 </span>
+                                 </div>
                               </div>
-                              <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-3 text-center">
-                                 <span className="block text-[11px] font-medium text-amber-700 dark:text-amber-400 uppercase tracking-wider">Omitidos</span>
-                                 <span className="text-xl font-bold text-amber-600 dark:text-amber-400">
+                              <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-1)] p-3 text-center">
+                                 <div className="text-xs font-medium text-[var(--text-soft)]">Omitidos</div>
+                                 <div className="mt-1 text-2xl font-semibold text-[var(--heading)]">
                                     {uploadResult.skipped_rows ?? 0}
-                                 </span>
+                                 </div>
                               </div>
                            </div>
 
-                           {/* Banner informativo de protección de conciliaciones cuando hay omitidos */}
+                           {/* Banner informativo de proteccion de conciliaciones cuando hay omitidos */}
                            {Number(uploadResult.skipped_rows) > 0 && (
-                              <div className="rounded-lg border border-amber-500/30 bg-amber-50 dark:bg-amber-950/30 p-3.5 text-amber-900 dark:text-amber-200">
+                              <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-1)] p-3.5 space-y-3">
                                  <div className="flex items-start gap-2.5">
-                                    <span className="text-base select-none">🛡️</span>
-                                    <div className="flex-1 text-xs leading-relaxed">
-                                       <div className="font-semibold text-amber-800 dark:text-amber-300">
+                                    <svg className="w-4 h-4 text-[var(--text-soft)] shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                    <div className="text-xs leading-relaxed">
+                                       <div className="font-semibold text-[var(--heading)]">
                                           Protección contra duplicados activa
                                        </div>
-                                       <div className="mt-0.5 text-amber-700 dark:text-amber-400">
+                                       <div className="mt-0.5 text-[var(--text-soft)]">
                                           Estos movimientos no se crearon nuevamente para proteger tus conciliaciones de registros dobles.
                                        </div>
                                     </div>
                                  </div>
 
                                  {uploadResult.skipped_details?.length > 0 && (
-                                    <div className="mt-3 pt-2.5 border-t border-amber-500/20">
+                                    <div className="pt-2 border-t border-[var(--border-subtle)]">
                                        <button
                                           type="button"
                                           onClick={() => setShowSkippedDetails((prev) => !prev)}
-                                          className="text-xs font-semibold text-amber-800 dark:text-amber-300 hover:underline flex items-center gap-1.5 cursor-pointer"
+                                          className="text-xs font-medium text-[var(--text-main)] hover:text-[var(--heading)] flex items-center gap-1.5 cursor-pointer"
                                        >
                                           <span>{showSkippedDetails ? '▲ Ocultar' : '▼ Ver'} detalle de omitidos ({uploadResult.skipped_details.length})</span>
                                        </button>
 
                                        {showSkippedDetails && (
-                                          <div className="mt-2.5 max-h-48 overflow-y-auto rounded-md border border-amber-500/30 bg-[var(--surface-card)]">
-                                             <table className="w-full text-[11px] text-left">
-                                                <thead className="sticky top-0 bg-amber-100/90 dark:bg-amber-900/60 text-[var(--heading)] font-medium">
+                                          <div className="mt-2.5 h-44 max-h-44 overflow-y-auto rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-content)]">
+                                             <table className="w-full text-xs text-left">
+                                                <thead className="sticky top-0 bg-[var(--surface-2)] text-[var(--heading)] font-medium">
                                                    <tr>
-                                                      <th className="p-2">Fila</th>
-                                                      <th className="p-2">Fecha</th>
-                                                      <th className="p-2">Monto</th>
-                                                      <th className="p-2">Descripción</th>
-                                                      <th className="p-2">Motivo</th>
+                                                      <th className="p-2 border-b border-[var(--border-subtle)]">Fila</th>
+                                                      <th className="p-2 border-b border-[var(--border-subtle)]">Fecha</th>
+                                                      <th className="p-2 border-b border-[var(--border-subtle)]">Monto</th>
+                                                      <th className="p-2 border-b border-[var(--border-subtle)]">Descripción</th>
+                                                      <th className="p-2 border-b border-[var(--border-subtle)]">Motivo</th>
                                                    </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-[var(--border-subtle)] text-[var(--text-main)]">
                                                    {uploadResult.skipped_details.map((item, idx) => (
-                                                      <tr key={idx} className="hover:bg-amber-500/5">
+                                                      <tr key={idx} className="hover:bg-[var(--surface-1)]">
                                                          <td className="p-2 font-mono text-[var(--text-soft)]">#{item.rowNumber || idx + 1}</td>
                                                          <td className="p-2 whitespace-nowrap">{item.date || '-'}</td>
                                                          <td className="p-2 font-medium whitespace-nowrap">{fmtCLP(item.amount)}</td>
                                                          <td className="p-2 max-w-[200px] truncate" title={item.description || ''}>
                                                             {item.description || '-'}
                                                          </td>
-                                                         <td className="p-2 text-amber-700 dark:text-amber-400 whitespace-nowrap">
-                                                            {item.enrichedExisting ? 'Ya existía (datos enriquecidos)' : (item.skippedReason || 'Ya registrado en la cuenta')}
+                                                         <td className="p-2 text-[var(--text-soft)] whitespace-nowrap">
+                                                            {item.enrichedExisting ? 'Ya existía (datos actualizados)' : (item.skippedReason || 'Ya registrado en la cuenta')}
                                                          </td>
                                                       </tr>
                                                    ))}
@@ -2329,13 +2333,13 @@ export default function BankCartolasPage() {
                                  <div className="text-xs font-semibold text-[var(--heading)] mb-1.5">
                                     Movimientos registrados recientemente ({uploadResult.preview_valid.length}):
                                  </div>
-                                 <div className="border border-[var(--border-subtle)] rounded-lg overflow-hidden">
+                                 <div className="border border-[var(--border-subtle)] rounded-lg overflow-hidden max-h-44 overflow-y-auto">
                                     <table className="w-full text-xs text-left">
-                                       <thead className="bg-[var(--surface-2)] text-[var(--heading)]">
+                                       <thead className="sticky top-0 bg-[var(--surface-2)] text-[var(--heading)]">
                                           <tr>
-                                             <th className="p-2">Fecha</th>
-                                             <th className="p-2">Monto</th>
-                                             <th className="p-2">Detalle</th>
+                                             <th className="p-2 border-b border-[var(--border-subtle)]">Fecha</th>
+                                             <th className="p-2 border-b border-[var(--border-subtle)]">Monto</th>
+                                             <th className="p-2 border-b border-[var(--border-subtle)]">Detalle</th>
                                           </tr>
                                        </thead>
                                        <tbody className="divide-y divide-[var(--border-subtle)]">
