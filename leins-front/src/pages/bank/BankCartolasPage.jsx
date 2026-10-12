@@ -556,12 +556,14 @@ export default function BankCartolasPage() {
    const [uploadResult, setUploadResult] = useState(null);
    const [uploadAccountId, setUploadAccountId] = useState('');
    const [uploadSplitDebitCredit, setUploadSplitDebitCredit] = useState(false);
+   const [showSkippedDetails, setShowSkippedDetails] = useState(false);
 
    const openUploadModal = () => {
       setUploadFile(null);
       setUploadErr('');
       setUploadResult(null);
       setUploadSplitDebitCredit(false);
+      setShowSkippedDetails(false);
       setUploadAccountId(selectedUploadAccountId ? String(selectedUploadAccountId) : '');
       setShowUploadModal(true);
    };
@@ -569,6 +571,10 @@ export default function BankCartolasPage() {
    const closeUploadModal = () => {
       if (isUploading) return;
       setShowUploadModal(false);
+      setShowSkippedDetails(false);
+      setUploadResult(null);
+      setUploadFile(null);
+      setUploadErr('');
    };
 
    const onPickFile = async (f) => {
@@ -2236,17 +2242,113 @@ export default function BankCartolasPage() {
                            {uploadErr && <div className="mt-3 text-[13px] text-red-500">{uploadErr}</div>}
                         </>
                      ) : (
-                        <div className="text-sm text-[var(--text-main)]">
-                           <div className="grid grid-cols-2 gap-3 mb-4">
-                              <div>Filas totales: <b>{uploadResult.total_rows}</b></div>
-                              <div>Validas: <b className="text-emerald-600">{uploadResult.valid_rows}</b></div>
+                        <div className="text-sm text-[var(--text-main)] space-y-4">
+                           {/* Resumen de procesamiento */}
+                           <div className="grid grid-cols-3 gap-2.5">
+                              <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-1)] p-3 text-center">
+                                 <span className="block text-[11px] font-medium text-[var(--text-soft)] uppercase tracking-wider">Filas leídas</span>
+                                 <span className="text-xl font-bold text-[var(--heading)]">{uploadResult.total_rows ?? 0}</span>
+                              </div>
+                              <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-3 text-center">
+                                 <span className="block text-[11px] font-medium text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">Nuevos guardados</span>
+                                 <span className="text-xl font-bold text-emerald-600 dark:text-emerald-400">
+                                    {uploadResult.saved_rows ?? uploadResult.valid_rows ?? 0}
+                                 </span>
+                              </div>
+                              <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-3 text-center">
+                                 <span className="block text-[11px] font-medium text-amber-700 dark:text-amber-400 uppercase tracking-wider">Omitidos</span>
+                                 <span className="text-xl font-bold text-amber-600 dark:text-amber-400">
+                                    {uploadResult.skipped_rows ?? 0}
+                                 </span>
+                              </div>
                            </div>
+
+                           {/* Banner informativo de protección de conciliaciones cuando hay omitidos */}
+                           {Number(uploadResult.skipped_rows) > 0 && (
+                              <div className="rounded-lg border border-amber-500/30 bg-amber-50 dark:bg-amber-950/30 p-3.5 text-amber-900 dark:text-amber-200">
+                                 <div className="flex items-start gap-2.5">
+                                    <span className="text-base select-none">🛡️</span>
+                                    <div className="flex-1 text-xs leading-relaxed">
+                                       <div className="font-semibold text-amber-800 dark:text-amber-300">
+                                          Protección contra duplicados activa
+                                       </div>
+                                       <div className="mt-0.5 text-amber-700 dark:text-amber-400">
+                                          Estos movimientos no se crearon nuevamente para proteger tus conciliaciones de registros dobles.
+                                       </div>
+                                    </div>
+                                 </div>
+
+                                 {uploadResult.skipped_details?.length > 0 && (
+                                    <div className="mt-3 pt-2.5 border-t border-amber-500/20">
+                                       <button
+                                          type="button"
+                                          onClick={() => setShowSkippedDetails((prev) => !prev)}
+                                          className="text-xs font-semibold text-amber-800 dark:text-amber-300 hover:underline flex items-center gap-1.5 cursor-pointer"
+                                       >
+                                          <span>{showSkippedDetails ? '▲ Ocultar' : '▼ Ver'} detalle de omitidos ({uploadResult.skipped_details.length})</span>
+                                       </button>
+
+                                       {showSkippedDetails && (
+                                          <div className="mt-2.5 max-h-48 overflow-y-auto rounded-md border border-amber-500/30 bg-[var(--surface-card)]">
+                                             <table className="w-full text-[11px] text-left">
+                                                <thead className="sticky top-0 bg-amber-100/90 dark:bg-amber-900/60 text-[var(--heading)] font-medium">
+                                                   <tr>
+                                                      <th className="p-2">Fila</th>
+                                                      <th className="p-2">Fecha</th>
+                                                      <th className="p-2">Monto</th>
+                                                      <th className="p-2">Descripción</th>
+                                                      <th className="p-2">Motivo</th>
+                                                   </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-[var(--border-subtle)] text-[var(--text-main)]">
+                                                   {uploadResult.skipped_details.map((item, idx) => (
+                                                      <tr key={idx} className="hover:bg-amber-500/5">
+                                                         <td className="p-2 font-mono text-[var(--text-soft)]">#{item.rowNumber || idx + 1}</td>
+                                                         <td className="p-2 whitespace-nowrap">{item.date || '-'}</td>
+                                                         <td className="p-2 font-medium whitespace-nowrap">{fmtCLP(item.amount)}</td>
+                                                         <td className="p-2 max-w-[200px] truncate" title={item.description || ''}>
+                                                            {item.description || '-'}
+                                                         </td>
+                                                         <td className="p-2 text-amber-700 dark:text-amber-400 whitespace-nowrap">
+                                                            {item.enrichedExisting ? 'Ya existía (datos enriquecidos)' : (item.skippedReason || 'Ya registrado en la cuenta')}
+                                                         </td>
+                                                      </tr>
+                                                   ))}
+                                                </tbody>
+                                             </table>
+                                          </div>
+                                       )}
+                                    </div>
+                                 )}
+                              </div>
+                           )}
+
+                           {/* Previsualización de movimientos válidos guardados */}
                            {uploadResult.preview_valid?.length > 0 && (
-                              <div className="border border-[var(--border-subtle)] rounded-lg overflow-hidden">
-                                 <table className="w-full text-xs text-left">
-                                    <thead className="bg-[var(--surface-2)] text-[var(--heading)]"><tr><th className="p-2">Fecha</th><th className="p-2">Monto</th><th className="p-2">Detalle</th></tr></thead>
-                                    <tbody>{uploadResult.preview_valid.slice(0, 5).map((r, i) => <tr key={i} className="border-t"><td className="p-2">{r.movementDate}</td><td className="p-2">{fmtCLP(r.amount)}</td><td className="p-2">{r.detail}</td></tr>)}</tbody>
-                                 </table>
+                              <div>
+                                 <div className="text-xs font-semibold text-[var(--heading)] mb-1.5">
+                                    Movimientos registrados recientemente ({uploadResult.preview_valid.length}):
+                                 </div>
+                                 <div className="border border-[var(--border-subtle)] rounded-lg overflow-hidden">
+                                    <table className="w-full text-xs text-left">
+                                       <thead className="bg-[var(--surface-2)] text-[var(--heading)]">
+                                          <tr>
+                                             <th className="p-2">Fecha</th>
+                                             <th className="p-2">Monto</th>
+                                             <th className="p-2">Detalle</th>
+                                          </tr>
+                                       </thead>
+                                       <tbody className="divide-y divide-[var(--border-subtle)]">
+                                          {uploadResult.preview_valid.slice(0, 5).map((r, i) => (
+                                             <tr key={i} className="border-t hover:bg-[var(--surface-1)]">
+                                                <td className="p-2 whitespace-nowrap">{r.movementDate}</td>
+                                                <td className="p-2 font-medium whitespace-nowrap">{fmtCLP(r.amount)}</td>
+                                                <td className="p-2 truncate max-w-[240px]" title={r.detail}>{r.detail}</td>
+                                             </tr>
+                                          ))}
+                                       </tbody>
+                                    </table>
+                                 </div>
                               </div>
                            )}
                         </div>
