@@ -902,9 +902,10 @@ export default function BankCartolasPage() {
          const amountToApply = Math.max(0, Number(assigned || 0));
          if (!(amountToApply > 0)) throw new Error('Ingresa un monto valido a asignar');
 
+         let pairs = [];
          if (selectedDocuments.length > 1) {
             let remainingToApply = amountToApply;
-            const pairs = selectedDocuments
+            pairs = selectedDocuments
                .map((doc) => {
                   const docPending = Math.max(0, Number(doc.remaining_amount || 0));
                   const amount = Math.min(docPending, remainingToApply);
@@ -1017,7 +1018,7 @@ export default function BankCartolasPage() {
    }, [closeConciliarSmooth, entityId, queryClient, reconcileTx]);
 
    const handleSave = React.useCallback(async () => {
-      const hasSelection = selectedTargetKind === 'document' ? selectedDocuments.length > 0 : Boolean(selectedDocId);
+      const hasSelection = selectedDocuments.length > 0 || Boolean(selectedDocId);
       if (!hasSelection || Number(assigned) <= 0 || isSaving) return;
       try {
          setIsSaving(true);
@@ -2054,7 +2055,7 @@ export default function BankCartolasPage() {
                               </div>
                               <div className="mt-3 opacity-60 text-xs">máx: {fmtCLP?.(maxAssignable)}</div>
                               <div className="hidden lg:block mt-6 text-2xl select-none">➜</div>
-                              {(selectedTargetKind === 'document' ? selectedDocuments.length > 0 : selectedDocId) && (
+                              {(selectedDocuments.length > 0 || Boolean(selectedDocId)) && (
                                  <div className="mt-6 w-full flex flex-col items-center">
                                     <button type="button" onClick={handleSave} disabled={isSaving || !assigned || assigned <= 0} className={`px-5 py-3 rounded-md text-white text-sm font-medium transition ${(!assigned || assigned <= 0) ? 'bg-teal-400/60 cursor-not-allowed' : 'bg-teal-500 hover:bg-teal-600'}`}>
                                        {saveState === 'saving' && <span className="inline-flex items-center gap-2"><span className="inline-block w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" /> Guardando…</span>}
