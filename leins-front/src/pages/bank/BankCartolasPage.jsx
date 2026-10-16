@@ -13,6 +13,7 @@ import { getRutFromRow } from '../../utils/validators';
 import { normalizeAmount, fmtCLP, hexToRgba, toYmd } from '../../utils/formatters';
 import { SII_DOCUMENT_TYPES, docTag, getSiiDocumentTypeLabel } from '../../utils/siiConstants';
 import { listDailySalesGroups, listSiiDocuments } from '../../services/siiDocumentsApi';
+import BankCartolaDuplicatesAlert from '../../components/bank/BankCartolaDuplicatesAlert';
 
 // importamos nuestras nuevas herramientas de react query
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -186,21 +187,118 @@ const validateMovementsExcelFile = async (file, { splitDebitCredit = false } = {
 
    const maxRowsToScan = Math.min(rows2D.length, 30);
    const topRows = rows2D.slice(0, maxRowsToScan);
+   let detectedHeader = null;
+   let headerRowIndex = -1;
+
    for (let i = 0; i < topRows.length; i += 1) {
       const row = topRows[i] || [];
       const headerSet = new Set(row.map(normalizeHeaderKey).filter(Boolean));
       const detected = detectMovementsHeader(headerSet, { splitDebitCredit });
       if (detected.ok) {
-         return { ok: true, mode: detected.mode, headerRow: i + 1 };
+         detectedHeader = detected;
+         headerRowIndex = i;
+         break;
       }
    }
 
-   const likely = pickLikelyHeaderRow(topRows);
-   const fallback = detectMovementsHeader(likely?.headerSet || new Set(), { splitDebitCredit });
+   if (!detectedHeader) {
+      const likely = pickLikelyHeaderRow(topRows);
+      const fallback = detectMovementsHeader(likely?.headerSet || new Set(), { splitDebitCredit });
+      return {
+         ...fallback,
+         detectedColumns: likely?.visible || [],
+         headerRow: Number.isInteger(likely?.index) ? likely.index + 1 : null
+      };
+   }
+
+   // Analizar filas de datos y extraer duplicados
+   const headerRow = headerRowIndex + 1;
+   const headers = (rows2D[headerRowIndex] || []).map(normalizeHeaderKey);
+   const colIndex = {
+      fecha: headers.findIndex(h => h === 'fecha'),
+      desc: headers.findIndex(h => hasDescripcionHeader(new Set([h]))),
+      monto: headers.findIndex(h => h === 'monto' || h === 'importe'),
+      abonos: headers.findIndex(h => hasAbonosHeader(new Set([h]))),
+      cargos: headers.findIndex(h => hasCargosHeader(new Set([h]))),
+      doc: headers.findIndex(h => h && h.includes('documento')),
+      saldo: headers.findIndex(h => h === 'saldo'),
+   };
+
+   const dataRows = [];
+   for (let i = headerRow; i < rows2D.length; i += 1) {
+      const r = rows2D[i];
+      if (!r || !r.length) continue;
+      if (r.every(cell => cell === null || cell === undefined || String(cell).trim() === '')) continue;
+
+      const rawDate = colIndex.fecha >= 0 ? r[colIndex.fecha] : null;
+      const rawDesc = colIndex.desc >= 0 ? r[colIndex.desc] : null;
+      const rawMonto = colIndex.monto >= 0 ? r[colIndex.monto] : null;
+      const rawAbono = colIndex.abonos >= 0 ? r[colIndex.abonos] : null;
+      const rawCargo = colIndex.cargos >= 0 ? r[colIndex.cargos] : null;
+      const rawDoc = colIndex.doc >= 0 ? r[colIndex.doc] : null;
+
+      let amount = 0;
+      if (splitDebitCredit) {
+         const a = normalizeAmount(rawAbono);
+         const c = normalizeAmount(rawCargo);
+         if (rawAbono && a > 0) amount = a;
+         else if (rawCargo && c > 0) amount = -c;
+         else amount = 0;
+      } else {
+         amount = normalizeAmount(rawMonto);
+      }
+
+      const d = parseDateToYmd(rawDate) || String(rawDate || '').trim();
+      const desc = String(rawDesc || '').trim();
+
+      dataRows.push({
+         excelRowNumber: i + 1,
+         rowIndex2D: i,
+         date: d,
+         rawDate: String(rawDate || '').trim(),
+         amount,
+         desc,
+         doc: rawDoc ? String(rawDoc).trim() : '',
+      });
+   }
+
+   // Agrupar filas para detectar duplicados (misma fecha, monto y descripción)
+   const groupsMap = new Map();
+   dataRows.forEach((r) => {
+      const cleanDesc = r.desc.toLowerCase().replace(/\s+/g, ' ');
+      const key = `${r.date}__${r.amount}__${cleanDesc}`;
+      if (!groupsMap.has(key)) {
+         groupsMap.set(key, []);
+      }
+      groupsMap.get(key).push(r);
+   });
+
+   const duplicateGroups = [];
+   let groupId = 1;
+   groupsMap.forEach((gRows, key) => {
+      if (gRows.length > 1) {
+         duplicateGroups.push({
+            id: `dup-${groupId++}`,
+            key,
+            date: gRows[0].date || gRows[0].rawDate,
+            amount: gRows[0].amount,
+            desc: gRows[0].desc,
+            rows: gRows,
+            selectedRowNumbers: new Set([gRows[0].excelRowNumber]), // por defecto deja 1
+         });
+      }
+   });
+
    return {
-      ...fallback,
-      detectedColumns: likely?.visible || [],
-      headerRow: Number.isInteger(likely?.index) ? likely.index + 1 : null
+      ok: true,
+      mode: detectedHeader.mode,
+      headerRow,
+      wb,
+      ws,
+      sheetName,
+      rows2D,
+      totalDataRows: dataRows.length,
+      duplicateGroups,
    };
 };
 
@@ -557,11 +655,53 @@ export default function BankCartolasPage() {
    const [uploadAccountId, setUploadAccountId] = useState('');
    const [uploadSplitDebitCredit, setUploadSplitDebitCredit] = useState(false);
    const [showSkippedDetails, setShowSkippedDetails] = useState(false);
+   const [parsedWorkbookInfo, setParsedWorkbookInfo] = useState(null);
+   const [duplicateGroups, setDuplicateGroups] = useState([]);
+
+   const totalOmittedCount = useMemo(() => {
+      let count = 0;
+      duplicateGroups.forEach((g) => {
+         g.rows.forEach((r) => {
+            if (!g.selectedRowNumbers.has(r.excelRowNumber)) {
+               count++;
+            }
+         });
+      });
+      return count;
+   }, [duplicateGroups]);
+
+   const handleUpdateGroupSelection = (groupId, nextSelectedRowNumbers) => {
+      setDuplicateGroups((prev) =>
+         prev.map((g) => (g.id === groupId ? { ...g, selectedRowNumbers: nextSelectedRowNumbers } : g))
+      );
+   };
+
+   const handleOmitAllDuplicates = () => {
+      setDuplicateGroups((prev) =>
+         prev.map((g) => ({
+            ...g,
+            selectedRowNumbers: new Set([g.rows[0].excelRowNumber]),
+         }))
+      );
+      toast.success('Se configuró para omitir las copias repetidas (se subirá 1 de cada grupo).');
+   };
+
+   const handleKeepAllDuplicates = () => {
+      setDuplicateGroups((prev) =>
+         prev.map((g) => ({
+            ...g,
+            selectedRowNumbers: new Set(g.rows.map((r) => r.excelRowNumber)),
+         }))
+      );
+      toast.success('Se configuró para conservar todos los movimientos duplicados.');
+   };
 
    const openUploadModal = () => {
       setUploadFile(null);
       setUploadErr('');
       setUploadResult(null);
+      setParsedWorkbookInfo(null);
+      setDuplicateGroups([]);
       setUploadSplitDebitCredit(false);
       setShowSkippedDetails(false);
       setUploadAccountId(selectedUploadAccountId ? String(selectedUploadAccountId) : '');
@@ -574,11 +714,17 @@ export default function BankCartolasPage() {
       setShowSkippedDetails(false);
       setUploadResult(null);
       setUploadFile(null);
+      setParsedWorkbookInfo(null);
+      setDuplicateGroups([]);
       setUploadErr('');
    };
 
    const onPickFile = async (f) => {
       setUploadErr('');
+      setUploadResult(null);
+      setParsedWorkbookInfo(null);
+      setDuplicateGroups([]);
+
       if (!f) return setUploadFile(null);
       if (!isAllowed(f)) {
          setUploadErr(`Adjunta un Excel .xlsx/.xls de hasta ${MAX_SIZE_MB} MB`);
@@ -596,6 +742,16 @@ export default function BankCartolasPage() {
             setUploadFile(null);
             return;
          }
+
+         setParsedWorkbookInfo({
+            wb: check.wb,
+            ws: check.ws,
+            sheetName: check.sheetName,
+            rows2D: check.rows2D,
+            headerRow: check.headerRow,
+            totalDataRows: check.totalDataRows,
+         });
+         setDuplicateGroups(check.duplicateGroups || []);
       } catch (_err) {
          setUploadErr('No se pudo leer el Excel. Verifica que no este dañado y prueba nuevamente.');
          setUploadFile(null);
@@ -618,10 +774,43 @@ export default function BankCartolasPage() {
       setIsUploading(true);
       setUploadErr('');
       try {
+         let fileToUpload = uploadFile;
+
+         // Si hay duplicados que el usuario decidió omitir, generar el Excel limpio
+         if (totalOmittedCount > 0 && parsedWorkbookInfo?.rows2D) {
+            const omittedIndices = new Set();
+            duplicateGroups.forEach((g) => {
+               g.rows.forEach((r) => {
+                  if (!g.selectedRowNumbers.has(r.excelRowNumber)) {
+                     omittedIndices.add(r.rowIndex2D);
+                  }
+               });
+            });
+
+            if (omittedIndices.size > 0) {
+               const cleanRows2D = parsedWorkbookInfo.rows2D.filter((_, idx) => !omittedIndices.has(idx));
+               const cleanWb = XLSX.utils.book_new();
+               const cleanWs = XLSX.utils.aoa_to_sheet(cleanRows2D);
+               if (parsedWorkbookInfo.ws['!cols']) cleanWs['!cols'] = parsedWorkbookInfo.ws['!cols'];
+               XLSX.utils.book_append_sheet(cleanWb, cleanWs, parsedWorkbookInfo.sheetName || 'Movimientos');
+
+               parsedWorkbookInfo.wb.SheetNames.forEach((sName) => {
+                  if (sName !== parsedWorkbookInfo.sheetName && parsedWorkbookInfo.wb.Sheets[sName]) {
+                     XLSX.utils.book_append_sheet(cleanWb, parsedWorkbookInfo.wb.Sheets[sName], sName);
+                  }
+               });
+
+               const cleanBuffer = XLSX.write(cleanWb, { type: 'array', bookType: 'xlsx' });
+               fileToUpload = new File([cleanBuffer], uploadFile.name, {
+                  type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+               });
+            }
+         }
+
          const resp = await uploadBankExcel({
             entityId,
             accountId: resolvedAccountId,
-            file: uploadFile,
+            file: fileToUpload,
             splitDebitCredit: uploadSplitDebitCredit,
          });
          setUploadResult(resp);
@@ -2233,7 +2422,20 @@ export default function BankCartolasPage() {
                                  <div className="text-sm">
                                     <div className="font-medium mb-1 text-[var(--heading)]">Archivo seleccionado:</div>
                                     <div className="truncate text-[var(--text-main)]">{uploadFile.name}</div>
-                                    <button type="button" className="mt-2 text-[12px] underline text-blue-600" onClick={(e) => { e.preventDefault(); setUploadFile(null); }} disabled={isUploading}>Quitar</button>
+                                    <button
+                                       type="button"
+                                       className="mt-2 text-[12px] underline text-blue-600"
+                                       onClick={(e) => {
+                                          e.preventDefault();
+                                          setUploadFile(null);
+                                          setParsedWorkbookInfo(null);
+                                          setDuplicateGroups([]);
+                                          setUploadErr('');
+                                       }}
+                                       disabled={isUploading}
+                                    >
+                                       Quitar
+                                    </button>
                                  </div>
                               ) : (
                                  <div className="text-sm text-[var(--text-soft)]">Arrastra tu Excel aqui o haz clic para buscar</div>
@@ -2241,6 +2443,18 @@ export default function BankCartolasPage() {
                               <input type="file" accept=".xlsx,.xls" className="hidden" onChange={(e) => onPickFile(e.target.files?.[0] || null)} disabled={isUploading} />
                            </label>
                            {uploadErr && <div className="mt-3 text-[13px] text-red-500">{uploadErr}</div>}
+
+                           {/* Alerta interactiva de movimientos duplicados encontrados en el Excel */}
+                           {duplicateGroups.length > 0 && (
+                              <BankCartolaDuplicatesAlert
+                                 duplicateGroups={duplicateGroups}
+                                 onUpdateGroupSelection={handleUpdateGroupSelection}
+                                 onOmitAllDuplicates={handleOmitAllDuplicates}
+                                 onKeepAllDuplicates={handleKeepAllDuplicates}
+                                 totalDataRows={parsedWorkbookInfo?.totalDataRows || 0}
+                                 totalOmittedCount={totalOmittedCount}
+                              />
+                           )}
                         </>
                      ) : (
                         <div className="text-sm text-[var(--text-main)] space-y-4">
@@ -2363,7 +2577,18 @@ export default function BankCartolasPage() {
                      {!uploadResult ? (
                         <>
                            <button type="button" className="px-4 py-2 rounded-md border border-[var(--border-subtle)] text-[var(--text-main)] hover:bg-[var(--surface-1)]" onClick={closeUploadModal} disabled={isUploading}>Cancelar</button>
-                           <button type="button" onClick={handleUploadExcel} disabled={!uploadFile || isUploading || !(Number(uploadAccountId) > 0 || !!selectedUploadAccountId)} className={`px-4 py-2 rounded-md text-white font-medium ${(!uploadFile || !(Number(uploadAccountId) > 0 || !!selectedUploadAccountId)) ? 'bg-gray-400' : 'bg-teal-500'}`}>{isUploading ? 'Subiendo...' : 'Subir'}</button>
+                           <button
+                              type="button"
+                              onClick={handleUploadExcel}
+                              disabled={!uploadFile || isUploading || !(Number(uploadAccountId) > 0 || !!selectedUploadAccountId)}
+                              className={`px-4 py-2 rounded-md text-white font-medium ${(!uploadFile || !(Number(uploadAccountId) > 0 || !!selectedUploadAccountId)) ? 'bg-gray-400' : 'bg-teal-500 hover:bg-teal-600'}`}
+                           >
+                              {isUploading
+                                 ? 'Subiendo...'
+                                 : totalOmittedCount > 0
+                                    ? `Subir (${(parsedWorkbookInfo?.totalDataRows || 0) - totalOmittedCount} movimientos)`
+                                    : 'Subir'}
+                           </button>
                         </>
                      ) : (
                         <button type="button" className="px-4 py-2 rounded-md bg-teal-600 text-white" onClick={closeUploadModal}>Cerrar y ver resultados</button>
