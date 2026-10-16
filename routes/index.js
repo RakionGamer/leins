@@ -11,6 +11,7 @@ const entitiesRouter = require('./entities.router');
 const notificationsRouter = require('./notifications.router');
 const dashboardRouter = require('./dashboard.router');
 const accountingRouter = require('./accounting.router');
+const contactsRouter = require('./contacts.router');
 
 function routerApi(app) {
    const router = express.Router();
@@ -30,6 +31,7 @@ function routerApi(app) {
    router.use('/notifications', jwtValidate, notificationsRouter);
    router.use('/dashboard', jwtValidate, dashboardRouter);
    router.use('/accounting', jwtValidate, accountingRouter);
+   router.use('/contacts', jwtValidate, contactsRouter);
 }
 
 module.exports = routerApi;

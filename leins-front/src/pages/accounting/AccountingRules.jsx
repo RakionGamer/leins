@@ -4,6 +4,9 @@ import EntityRequiredNotice from '../../components/EntityRequiredNotice';
 import Modal from '../../components/Modal';
 import AccountSelect from '../../components/accounting/AccountSelect';
 import CounterpartyInput from '../../components/accounting/CounterpartyInput';
+import ContactSelect from '../../components/accounting/ContactSelect';
+import ContactsDirectoryModal from '../../components/accounting/ContactsDirectoryModal';
+import ContactsBatchPickerModal from '../../components/accounting/ContactsBatchPickerModal';
 import { toast } from '../../components/Toaster';
 import {
    getRules,
@@ -24,6 +27,7 @@ import {
    FunnelIcon,
    MagnifyingGlassIcon,
    PencilIcon,
+   UserGroupIcon,
 } from '@heroicons/react/24/outline';
 
 const ctrl = 'w-full h-11 px-3 text-sm rounded-2xl border border-border-subtle bg-bg-content text-text-main placeholder-text-soft/70 focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition shadow-sm';
@@ -124,6 +128,8 @@ export default function AccountingRules() {
    };
 
    const [modalOpen, setModalOpen] = useState(false);
+   const [contactsModalOpen, setContactsModalOpen] = useState(false);
+   const [batchPickerOpen, setBatchPickerOpen] = useState(false);
    const [formData, setFormData] = useState({
       account_id: '',
       glosa: '',
@@ -131,6 +137,28 @@ export default function AccountingRules() {
       ruts: [{ rut: '', name: '' }],
    });
    const [submitting, setSubmitting] = useState(false);
+
+   const handleAddBatchContacts = (selectedContacts) => {
+      setFormData((prev) => {
+         const existing = prev.ruts.filter((r) => r.rut && r.rut.trim());
+         const existingRuts = new Set(existing.map((r) => formatRut(r.rut)));
+
+         const newRows = [];
+         for (const c of selectedContacts) {
+            const fRut = formatRut(c.rut);
+            if (!existingRuts.has(fRut)) {
+               newRows.push({ rut: fRut, name: c.name || '' });
+               existingRuts.add(fRut);
+            }
+         }
+
+         return {
+            ...prev,
+            ruts: [...existing, ...newRows].length ? [...existing, ...newRows] : [{ rut: '', name: '' }],
+         };
+      });
+      toast.success(`Se agregaron ${selectedContacts.length} contactos a la asignación`);
+   };
 
    const loadRules = useCallback(async () => {
       if (!entityId) return;
@@ -327,6 +355,14 @@ export default function AccountingRules() {
                </div>
                <div className="flex flex-wrap items-center gap-3">
                   <button
+                     onClick={() => setContactsModalOpen(true)}
+                     className={`${btnCtrl} text-text-main border-border-subtle bg-surface-1 hover:bg-surface-2`}
+                     title="Consultar y gestionar el directorio centralizado de contactos"
+                  >
+                     <UserGroupIcon className="w-5 h-5 text-brand" />
+                     <span>Directorio / Contactos</span>
+                  </button>
+                  <button
                      onClick={() => {
                         setFormData({ account_id: '', cost_center: '', ruts: [{ rut: '', name: '' }] });
                         setModalOpen(true);
@@ -486,45 +522,78 @@ export default function AccountingRules() {
                </div>
 
                <div>
-                  <label className="block text-xs font-semibold uppercase text-text-soft mb-2">2. RUTs y Razones Sociales</label>
+                  <div className="flex items-center justify-between mb-2">
+                     <label className="block text-xs font-semibold uppercase text-text-soft">2. RUTs y Razones Sociales</label>
+                     <button
+                        type="button"
+                        onClick={() => setBatchPickerOpen(true)}
+                        className="text-xs font-semibold text-brand hover:underline flex items-center gap-1"
+                     >
+                        <UserGroupIcon className="w-3.5 h-3.5" />
+                        <span>Selección múltiple desde Directorio</span>
+                     </button>
+                  </div>
+
                   <div className="space-y-3 max-h-60 overflow-y-auto p-1 pr-2">
                      {formData.ruts.map((r, i) => (
                         <div key={i} className="flex gap-2 items-center">
-                            <CounterpartyInput
-                               entityId={entityId}
-                               placeholder="RUT"
-                               required
-                               mono
-                               className={`${ctrl} w-1/3`}
-                               value={r.rut}
-                               onChange={v => updateRutRow(i, 'rut', v)}
-                               onSelect={item => selectCounterparty(i, item)}
-                            />
-                            <CounterpartyInput
-                               entityId={entityId}
-                               placeholder="Razón Social (Opcional)"
-                               className={`${ctrl} w-2/3`}
-                               value={r.name}
-                               onChange={v => updateRutRow(i, 'name', v)}
-                               onSelect={item => selectCounterparty(i, item)}
-                            />
+                           <div className="w-2/5">
+                              <ContactSelect
+                                 entityId={entityId}
+                                 placeholder="RUT o Contacto..."
+                                 required
+                                 className={ctrl}
+                                 value={r.rut}
+                                 onChange={(v) => updateRutRow(i, 'rut', v)}
+                                 onSelect={(item) => {
+                                    setFormData((prev) => {
+                                       const newRuts = [...prev.ruts];
+                                       newRuts[i] = {
+                                          rut: formatRut(item.rut),
+                                          name: item.name || '',
+                                       };
+                                       return { ...prev, ruts: newRuts };
+                                    });
+                                 }}
+                              />
+                           </div>
+                           <div className="w-3/5">
+                              <input
+                                 type="text"
+                                 placeholder="Razón Social (Opcional)"
+                                 className={ctrl}
+                                 value={r.name || ''}
+                                 onChange={(e) => updateRutRow(i, 'name', e.target.value)}
+                              />
+                           </div>
                            <button 
                               type="button" 
                               onClick={() => removeRutRow(i)} 
-                              className="p-2 text-text-soft hover:text-danger hover:bg-danger/10 rounded-xl transition"
+                              className="p-2 text-text-soft hover:text-danger hover:bg-danger/10 rounded-xl transition shrink-0"
+                              title="Eliminar fila"
                            >
                               <TrashIcon className="w-5 h-5" />
                            </button>
                         </div>
                      ))}
                   </div>
-                  <button 
-                     type="button" 
-                     onClick={addRutRow} 
-                     className="mt-3 flex items-center gap-1.5 text-xs font-semibold text-brand hover:text-brand-hover bg-brand/10 hover:bg-brand/20 px-3 py-1.5 rounded-lg transition"
-                  >
-                     <PlusIcon className="w-4 h-4" /> Agregar otro RUT
-                  </button>
+
+                  <div className="mt-3 flex items-center gap-2">
+                     <button 
+                        type="button" 
+                        onClick={addRutRow} 
+                        className="flex items-center gap-1.5 text-xs font-semibold text-brand hover:text-brand-hover bg-brand/10 hover:bg-brand/20 px-3 py-1.5 rounded-lg transition"
+                     >
+                        <PlusIcon className="w-4 h-4" /> Agregar otro RUT
+                     </button>
+                     <button 
+                        type="button" 
+                        onClick={() => setBatchPickerOpen(true)} 
+                        className="flex items-center gap-1.5 text-xs font-semibold text-text-soft hover:text-text-main bg-surface-2 hover:bg-surface-3 px-3 py-1.5 rounded-lg transition"
+                     >
+                        <UserGroupIcon className="w-4 h-4 text-brand" /> Selección múltiple
+                     </button>
+                  </div>
                </div>
 
                <div>
@@ -567,6 +636,23 @@ export default function AccountingRules() {
                </div>
             </form>
          </Modal>
+
+         {/* Directorio Centralizado de Contactos */}
+         <ContactsDirectoryModal
+            isOpen={contactsModalOpen}
+            onClose={() => setContactsModalOpen(false)}
+            entityId={entityId}
+            onContactCreated={() => loadRules()}
+         />
+
+         {/* Selector Múltiple Rápido de Contactos */}
+         <ContactsBatchPickerModal
+            isOpen={batchPickerOpen}
+            onClose={() => setBatchPickerOpen(false)}
+            entityId={entityId}
+            onAddContacts={handleAddBatchContacts}
+            alreadySelectedRuts={formData.ruts.map((r) => r.rut)}
+         />
       </div>
    );
 }

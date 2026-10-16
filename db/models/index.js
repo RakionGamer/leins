@@ -27,6 +27,7 @@ const { AccountingAccount, AccountingAccountSchema } = require('./accounting-acc
 const { AccountingRule, AccountingRuleSchema } = require('./accounting-rule.model');
 const { AccountingEntry, AccountingEntrySchema } = require('./accounting-entry.model');
 const { AccountingEntryItem, AccountingEntryItemSchema } = require('./accounting-entry-item.model');
+const { EntityContact, EntityContactSchema } = require('./entity-contact.model');
 
 function setupModels(sequelize) {
    // 1) init
@@ -57,6 +58,7 @@ function setupModels(sequelize) {
    AccountingRule.init(AccountingRuleSchema, AccountingRule.config(sequelize));
    AccountingEntry.init(AccountingEntrySchema, AccountingEntry.config(sequelize));
    AccountingEntryItem.init(AccountingEntryItemSchema, AccountingEntryItem.config(sequelize));
+   EntityContact.init(EntityContactSchema, EntityContact.config(sequelize));
 
    // 2) associate
    if (State.associate) State.associate(sequelize.models);
@@ -85,6 +87,7 @@ function setupModels(sequelize) {
    if (AccountingRule.associate) AccountingRule.associate(sequelize.models);
    if (AccountingEntry.associate) AccountingEntry.associate(sequelize.models);
    if (AccountingEntryItem.associate) AccountingEntryItem.associate(sequelize.models);
+   if (EntityContact.associate) EntityContact.associate(sequelize.models);
 }
 
 module.exports = setupModels;

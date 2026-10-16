@@ -20,14 +20,14 @@ const CounterpartyInput = ({ entityId, value, onChange, onSelect, placeholder, c
    // Búsqueda con debounce
    useEffect(() => {
       if (justSelected.current) { justSelected.current = false; return; }
-      const q = String(value || '').trim();
-      if (!open || q.length < 2 || !entityId) { setResults([]); setLoading(false); return; }
+      if (!open || !entityId) { setResults([]); setLoading(false); return; }
       setLoading(true);
+      const q = String(value || '').trim();
       const ctrl = new AbortController();
       const t = setTimeout(async () => {
          const data = await searchCounterparties({ entityId, q, signal: ctrl.signal });
-         if (!ctrl.signal.aborted) { setResults(data); setActive(0); setLoading(false); }
-      }, 250);
+         if (!ctrl.signal.aborted) { setResults(Array.isArray(data) ? data : []); setActive(0); setLoading(false); }
+      }, 150);
       return () => { clearTimeout(t); ctrl.abort(); };
    }, [value, open, entityId]);
 
@@ -71,7 +71,7 @@ const CounterpartyInput = ({ entityId, value, onChange, onSelect, placeholder, c
    };
 
    const q = String(value || '').trim();
-   const showMenu = open && rect && q.length >= 2 && (loading || results.length > 0 || !loading);
+   const showMenu = open && rect;
 
    const highlight = (text) => {
       const t = String(text || '');

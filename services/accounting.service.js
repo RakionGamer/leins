@@ -2346,65 +2346,115 @@ class AccountingService {
    }
 
    
-   // Autocompletado por RUT o razón social (reglas + documentos SII de la entidad)
-   async searchCounterparties(entityId, q, limit = 8) {
+   // Autocompletado por RUT o razón social (contactos centralizados + reglas + documentos SII)
+   async searchCounterparties(entityId, q, limit = 50) {
       const term = String(q || "").trim();
-      if (term.length < 2) return [];
-      const cleaned = term.replace(/[.\s]/g, "");
-      const like = { [Op.like]: `%${term}%` };
-      const likeRut = { [Op.like]: `%${cleaned}%` };
+      const whereContact = { entity_id: entityId };
 
-      const [rules, docs] = await Promise.all([
-         models.AccountingRule.findAll({
-            where: {
-               entity_id: entityId,
-               [Op.or]: [{ counterparty_rut: likeRut }, { counterparty_name: like }],
-            },
-            attributes: ["counterparty_rut", "counterparty_name"],
-            limit,
-            raw: true,
-         }),
-         models.EntitySiiDocument.findAll({
-            where: {
-               entity_id: entityId,
-               counterparty_rut: { [Op.not]: null },
-               [Op.or]: [{ counterparty_rut: likeRut }, { counterparty_name: like }],
-            },
-            attributes: ["counterparty_rut", "counterparty_name"],
-            group: ["counterparty_rut", "counterparty_name"],
-            limit: limit * 2,
-            raw: true,
-         }),
-      ]);
+      if (term.length > 0) {
+         const cleaned = term.replace(/[.\s-]/g, "");
+         whereContact[Op.or] = [
+            { name: { [Op.like]: `%${term}%` } },
+            { rut: { [Op.like]: `%${term}%` } },
+            { rut: { [Op.like]: `%${cleaned}%` } },
+         ];
+      }
+
+      // 1. Consultar tabla centralizada EntityContact si existe
+      let contacts = [];
+      try {
+         if (models.EntityContact) {
+            contacts = await models.EntityContact.findAll({
+               where: whereContact,
+               attributes: ["rut", "name", "type"],
+               order: [["name", "ASC"]],
+               limit: Number(limit) || 50,
+               raw: true,
+            });
+         }
+      } catch (err) {
+         // Silencioso por si aun no corre la migracion en este entorno
+      }
 
       const map = new Map();
-      for (const r of [...rules, ...docs]) {
-         const rut = String(r.counterparty_rut || "").toUpperCase();
+      for (const c of contacts) {
+         const rut = String(c.rut || "").toUpperCase();
          if (!rut) continue;
-         const prev = map.get(rut);
-         if (!prev || (!prev.name && r.counterparty_name)) {
-            map.set(rut, { rut, name: r.counterparty_name || prev?.name || null });
+         map.set(rut, { rut, name: c.name || null, type: c.type || "PROVEEDOR" });
+      }
+
+      // Si no hay suficientes o para enriquecer, consultar rules y docs si hubo término de búsqueda
+      if (term.length >= 2 || map.size === 0) {
+         const cleaned = term ? term.replace(/[.\s-]/g, "") : "";
+         const like = term ? { [Op.like]: `%${term}%` } : null;
+         const likeRut = cleaned ? { [Op.like]: `%${cleaned}%` } : null;
+
+         const rulesWhere = { entity_id: entityId };
+         const docsWhere = { entity_id: entityId, counterparty_rut: { [Op.not]: null } };
+
+         if (term) {
+            rulesWhere[Op.or] = [{ counterparty_rut: likeRut }, { counterparty_name: like }];
+            docsWhere[Op.or] = [{ counterparty_rut: likeRut }, { counterparty_name: like }];
+         }
+
+         const [rules, docs] = await Promise.all([
+            models.AccountingRule.findAll({
+               where: rulesWhere,
+               attributes: ["counterparty_rut", "counterparty_name"],
+               limit: Number(limit) || 50,
+               raw: true,
+            }),
+            models.EntitySiiDocument.findAll({
+               where: docsWhere,
+               attributes: ["counterparty_rut", "counterparty_name"],
+               group: ["counterparty_rut", "counterparty_name"],
+               limit: (Number(limit) || 50) * 2,
+               raw: true,
+            }),
+         ]);
+
+         for (const r of [...rules, ...docs]) {
+            const rut = String(r.counterparty_rut || "").toUpperCase();
+            if (!rut) continue;
+            const prev = map.get(rut);
+            if (!prev) {
+               map.set(rut, { rut, name: r.counterparty_name || null, type: "PROVEEDOR" });
+            } else if (!prev.name && r.counterparty_name) {
+               prev.name = r.counterparty_name;
+            }
          }
       }
-      return [...map.values()].slice(0, limit);
+
+      return [...map.values()].slice(0, Number(limit) || 50);
    }
 
    async searchCounterparty(rut) {
       const cleanRut = String(rut).trim().toUpperCase();
       
-      // Check Rules first
+      // 1. Check Contact table first
+      try {
+         if (models.EntityContact) {
+            const contact = await models.EntityContact.findOne({
+               where: { rut: cleanRut, name: { [Op.ne]: null } },
+               attributes: ['name', 'type']
+            });
+            if (contact && contact.name) return { name: contact.name, type: contact.type };
+         }
+      } catch (e) {}
+
+      // 2. Check Rules
       const rule = await models.AccountingRule.findOne({
          where: { counterparty_rut: cleanRut, counterparty_name: { [Op.ne]: null } },
          attributes: ['counterparty_name']
       });
-      if (rule && rule.counterparty_name) return { name: rule.counterparty_name };
+      if (rule && rule.counterparty_name) return { name: rule.counterparty_name, type: 'PROVEEDOR' };
 
-      // Check SII documents globally
+      // 3. Check SII documents globally
       const doc = await models.EntitySiiDocument.findOne({
          where: { counterparty_rut: cleanRut, counterparty_name: { [Op.ne]: null } },
          attributes: ['counterparty_name']
       });
-      if (doc && doc.counterparty_name) return { name: doc.counterparty_name };
+      if (doc && doc.counterparty_name) return { name: doc.counterparty_name, type: 'PROVEEDOR' };
 
       return { name: null };
    }

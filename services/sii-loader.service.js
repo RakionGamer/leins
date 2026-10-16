@@ -322,6 +322,14 @@ class SiiLoaderService {
          }
       });
 
+      // Sincronizar contactos automáticamente tras cargar documentos
+      try {
+         const contactsService = require("./contacts.service");
+         contactsService.syncFromSii(entityId).catch(err => {
+            console.warn("Aviso al auto-sincronizar contactos:", err?.message);
+         });
+      } catch (e) {}
+
       return { totals: { read, processed: records.length, inserted, updated, skipped, skipReasons }, byType };
    }
 

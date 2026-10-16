@@ -18,6 +18,7 @@ class Entity extends Model {
     this.hasMany(models.EntityCashFlowProjection, { as: 'cash_flow_projections', foreignKey: 'entity_id' });
     this.hasMany(models.Credential, { as: 'credentials', foreignKey: 'entity_id' });
     this.hasMany(models.EntityModule, { as: 'entity_modules', foreignKey: 'entity_id' });
+    this.hasMany(models.EntityContact, { as: 'contacts', foreignKey: 'entity_id' });
     this.belongsToMany(models.Admin, { as: 'admins', through: models.AdminEntity, foreignKey: 'entity_id', otherKey: 'admin_id' });
     this.belongsToMany(models.User, { as: 'users', through: models.UserEntity, foreignKey: 'entity_id', otherKey: 'user_id' });
   }
