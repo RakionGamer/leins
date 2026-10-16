@@ -1,17 +1,32 @@
 /**
- * Convierte un valor a número limpio.
- * Maneja strings con símbolos de moneda, puntos de miles y comas decimales.
+ * Convierte un valor a número limpio de forma robusta e idéntica al backend.
+ * Maneja separadores de miles y decimales comunes en Chile y hojas de cálculo.
  */
 export function normalizeAmount(v) {
    if (typeof v === "number") return v;
    if (!v) return 0;
 
-   const s = String(v)
-      .trim()
-      .replace(/[^\d,.-]/g, "") // quita símbolos tipo $ y espacios
-      .replace(/\./g, "")       // quita puntos de miles
-      .replace(",", ".");       // cambia coma decimal a punto
-   const n = Number(s);
+   let s = String(v).trim().replace(/\s+/g, '');
+   s = s.replace(/[^\d\.\,\-]/g, ''); // deja dígitos, ., , y -
+   const hasDot = s.includes('.');
+   const hasComma = s.includes(',');
+   if (hasDot && hasComma) {
+      const lastDot = s.lastIndexOf('.');
+      const lastComma = s.lastIndexOf(',');
+      if (lastComma > lastDot) {
+         s = s.replace(/\./g, '').replace(',', '.'); // 317.533,25 -> 317533.25
+      } else {
+         s = s.replace(/,/g, ''); // 317,533.25 -> 317533.25
+      }
+   } else if (hasComma && !hasDot) {
+      const commaCount = (s.match(/,/g) || []).length;
+      if (commaCount === 1 && /,\d{1,2}$/.test(s)) s = s.replace(',', '.'); // 1,23 -> 1.23
+      else s = s.replace(/,/g, ''); // 15,000 -> 15000 o 59,763 -> 59763
+   } else if (hasDot && !hasComma) {
+      const dotCount = (s.match(/\./g) || []).length;
+      if (dotCount > 1 || /\.\d{3}$/.test(s)) s = s.replace(/\./g, ''); // 50.273 -> 50273
+   }
+   const n = parseFloat(s);
    return Number.isFinite(n) ? n : 0;
 }
 

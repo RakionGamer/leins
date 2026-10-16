@@ -704,7 +704,10 @@ export default function BankCartolasPage() {
       setDuplicateGroups([]);
       setUploadSplitDebitCredit(false);
       setShowSkippedDetails(false);
-      setUploadAccountId(selectedUploadAccountId ? String(selectedUploadAccountId) : '');
+      const initialAcc = selectedUploadAccountId
+         ? String(selectedUploadAccountId)
+         : (cuentasDisponibles.length === 1 ? String(cuentasDisponibles[0].id) : '');
+      setUploadAccountId(initialAcc);
       setShowUploadModal(true);
    };
 
@@ -2383,10 +2386,15 @@ export default function BankCartolasPage() {
                                  </div>
                               )}
                               <div className="flex flex-col gap-1">
-                                 <label htmlFor="upload-account-id" className="text-xs text-[var(--text-soft)]">Cuenta bancaria destino</label>
+                                 <div className="flex items-center justify-between">
+                                    <label htmlFor="upload-account-id" className="text-xs text-[var(--text-soft)]">Cuenta bancaria destino</label>
+                                    {uploadFile && !(Number(uploadAccountId) > 0 || !!selectedUploadAccountId) && (
+                                       <span className="text-[11px] font-medium text-amber-600 dark:text-amber-400">* Selecciona una cuenta para habilitar la subida</span>
+                                    )}
+                                 </div>
                                  <select
                                     id="upload-account-id"
-                                    className="border border-[var(--border-subtle)] bg-[var(--surface-1)] text-[var(--text-main)] rounded-md px-3 py-2 text-sm"
+                                    className={`border bg-[var(--surface-1)] text-[var(--text-main)] rounded-md px-3 py-2 text-sm transition ${uploadFile && !(Number(uploadAccountId) > 0 || !!selectedUploadAccountId) ? "border-amber-500 ring-1 ring-amber-500/20" : "border-[var(--border-subtle)]"}`}
                                     value={uploadAccountId}
                                     onChange={(e) => setUploadAccountId(e.target.value)}
                                     disabled={isUploading}
@@ -2579,15 +2587,34 @@ export default function BankCartolasPage() {
                            <button type="button" className="px-4 py-2 rounded-md border border-[var(--border-subtle)] text-[var(--text-main)] hover:bg-[var(--surface-1)]" onClick={closeUploadModal} disabled={isUploading}>Cancelar</button>
                            <button
                               type="button"
-                              onClick={handleUploadExcel}
-                              disabled={!uploadFile || isUploading || !(Number(uploadAccountId) > 0 || !!selectedUploadAccountId)}
-                              className={`px-4 py-2 rounded-md text-white font-medium ${(!uploadFile || !(Number(uploadAccountId) > 0 || !!selectedUploadAccountId)) ? 'bg-gray-400' : 'bg-teal-500 hover:bg-teal-600'}`}
+                              onClick={() => {
+                                 if (!(Number(uploadAccountId) > 0 || !!selectedUploadAccountId)) {
+                                    toast.error("Por favor, selecciona una cuenta bancaria destino en la lista superior.");
+                                    const el = document.getElementById("upload-account-id");
+                                    if (el) {
+                                       el.scrollIntoView({ behavior: "smooth", block: "center" });
+                                       el.focus();
+                                    }
+                                    return;
+                                 }
+                                 handleUploadExcel();
+                              }}
+                              disabled={!uploadFile || isUploading}
+                              className={`px-4 py-2 rounded-md text-white font-medium transition ${
+                                 !uploadFile
+                                    ? "bg-gray-400 cursor-not-allowed"
+                                    : !(Number(uploadAccountId) > 0 || !!selectedUploadAccountId)
+                                       ? "bg-amber-600 hover:bg-amber-700 cursor-pointer"
+                                       : "bg-teal-600 hover:bg-teal-700 cursor-pointer"
+                              }`}
                            >
                               {isUploading
-                                 ? 'Subiendo...'
-                                 : totalOmittedCount > 0
-                                    ? `Subir (${(parsedWorkbookInfo?.totalDataRows || 0) - totalOmittedCount} movimientos)`
-                                    : 'Subir'}
+                                 ? "Subiendo..."
+                                 : !(Number(uploadAccountId) > 0 || !!selectedUploadAccountId)
+                                    ? "Selecciona una cuenta"
+                                    : totalOmittedCount > 0
+                                       ? `Subir (${(parsedWorkbookInfo?.totalDataRows || 0) - totalOmittedCount} movimientos)`
+                                       : "Subir"}
                            </button>
                         </>
                      ) : (
