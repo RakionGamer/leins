@@ -522,16 +522,8 @@ export default function AccountingRules() {
                </div>
 
                <div>
-                  <div className="flex items-center justify-between mb-2">
+                  <div className="mb-2">
                      <label className="block text-xs font-semibold uppercase text-text-soft">2. RUTs y Razones Sociales</label>
-                     <button
-                        type="button"
-                        onClick={() => setBatchPickerOpen(true)}
-                        className="text-xs font-semibold text-brand hover:underline flex items-center gap-1"
-                     >
-                        <UserGroupIcon className="w-3.5 h-3.5" />
-                        <span>Selección múltiple desde Directorio</span>
-                     </button>
                   </div>
 
                   <div className="space-y-3 max-h-60 overflow-y-auto p-1 pr-2">
@@ -591,7 +583,7 @@ export default function AccountingRules() {
                         onClick={() => setBatchPickerOpen(true)} 
                         className="flex items-center gap-1.5 text-xs font-semibold text-text-soft hover:text-text-main bg-surface-2 hover:bg-surface-3 px-3 py-1.5 rounded-lg transition"
                      >
-                        <UserGroupIcon className="w-4 h-4 text-brand" /> Selección múltiple
+                        <UserGroupIcon className="w-4 h-4 text-brand" /> Selección múltiple (Directorio)
                      </button>
                   </div>
                </div>
