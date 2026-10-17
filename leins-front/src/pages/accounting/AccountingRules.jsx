@@ -147,7 +147,7 @@ export default function AccountingRules() {
          for (const c of selectedContacts) {
             const fRut = formatRut(c.rut);
             if (!existingRuts.has(fRut)) {
-               newRows.push({ rut: fRut, name: c.name || '' });
+               newRows.push({ rut: fRut, name: c.name || '', fromDirectory: Boolean(c.name) });
                existingRuts.add(fRut);
             }
          }
@@ -207,7 +207,11 @@ export default function AccountingRules() {
       
       setFormData(prev => {
          const newRuts = [...prev.ruts];
-         newRuts[index][field] = finalValue;
+         newRuts[index] = {
+            ...newRuts[index],
+            [field]: finalValue,
+            ...(field === 'rut' ? { fromDirectory: false } : {}),
+         };
          return { ...prev, ruts: newRuts };
       });
          
@@ -219,7 +223,10 @@ export default function AccountingRules() {
             if (existing && existing.counterparty_name) {
                setFormData(prev => {
                   const newRuts = [...prev.ruts];
-                  if (!newRuts[index].name) newRuts[index].name = existing.counterparty_name;
+                  if (!newRuts[index].name) {
+                     newRuts[index].name = existing.counterparty_name;
+                     newRuts[index].fromDirectory = true;
+                  }
                   return { ...prev, ruts: newRuts };
                });
                return;
@@ -231,7 +238,10 @@ export default function AccountingRules() {
                setFormData(prev => {
                   const newRuts = [...prev.ruts];
                   // Solo sobreescribe si el usuario no ha escrito nada
-                  if (!newRuts[index].name) newRuts[index].name = result.name;
+                  if (!newRuts[index].name) {
+                     newRuts[index].name = result.name;
+                     newRuts[index].fromDirectory = true;
+                  }
                   return { ...prev, ruts: newRuts };
                });
             }
@@ -241,13 +251,13 @@ export default function AccountingRules() {
 
    const selectCounterparty = (index, item) => {
       setFormData(prev => {
-         const newRuts = prev.ruts.map((r, i) => i === index ? { rut: formatRut(item.rut), name: item.name || '' } : r);
+         const newRuts = prev.ruts.map((r, i) => i === index ? { rut: formatRut(item.rut), name: item.name || '', fromDirectory: Boolean(item.name) } : r);
          return { ...prev, ruts: newRuts };
       });
    };
 
    const handleEditGroup = (group) => {
-      const ruts = group.rules.map(r => ({ rut: r.counterparty_rut || '', name: r.counterparty_name || '' }));
+      const ruts = group.rules.map(r => ({ rut: r.counterparty_rut || '', name: r.counterparty_name || '', fromDirectory: Boolean(r.counterparty_name) }));
       setFormData({
          account_id: group.account ? group.account.id : '',
          glosa: group.rules[0]?.glosa || '',
@@ -543,6 +553,7 @@ export default function AccountingRules() {
                                        newRuts[i] = {
                                           rut: formatRut(item.rut),
                                           name: item.name || '',
+                                          fromDirectory: Boolean(item.name),
                                        };
                                        return { ...prev, ruts: newRuts };
                                     });
@@ -552,9 +563,11 @@ export default function AccountingRules() {
                            <div className="w-3/5">
                               <input
                                  type="text"
-                                 placeholder="Razón Social (Opcional)"
-                                 className={ctrl}
+                                 placeholder={r.fromDirectory ? "Razón Social fija (Directorio)" : "Razón Social (Opcional)"}
+                                 className={`${ctrl} ${r.fromDirectory ? "bg-surface-2 text-text-soft cursor-not-allowed select-none opacity-90" : ""}`}
                                  value={r.name || ''}
+                                 readOnly={Boolean(r.fromDirectory)}
+                                 title={r.fromDirectory ? "Razón Social vinculada desde el Directorio / Contactos" : ""}
                                  onChange={(e) => updateRutRow(i, 'name', e.target.value)}
                               />
                            </div>
