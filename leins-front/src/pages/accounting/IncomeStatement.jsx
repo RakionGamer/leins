@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useEntityRequired } from '../../hooks/useEntityRequired';
 import EntityRequiredNotice from '../../components/EntityRequiredNotice';
 import DateInput from '../../components/DateInput';
@@ -122,6 +123,23 @@ export default function IncomeStatement() {
          loadStatement();
       }
    }, [ready, entityId, loadStatement]);
+
+   // Bloquear scroll de fondo y cerrar con ESC cuando el modal esté abierto
+   useEffect(() => {
+      if (!drillModalOpen) return;
+      const prevOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+
+      const handleKeyDown = (e) => {
+         if (e.key === 'Escape') setDrillModalOpen(false);
+      };
+      window.addEventListener('keydown', handleKeyDown);
+
+      return () => {
+         document.body.style.overflow = prevOverflow;
+         window.removeEventListener('keydown', handleKeyDown);
+      };
+   }, [drillModalOpen]);
 
    const toggleGroup = (groupKey) => {
       setExpandedGroups((prev) => ({
@@ -595,98 +613,105 @@ export default function IncomeStatement() {
          {/* ======================================================== */}
          {/* Modal Mayor Analítico Auxiliar (Drill-down exacto al ejemplo) */}
          {/* ======================================================== */}
-         {drillModalOpen && (
-            <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
-               <div className="w-full max-w-4xl bg-bg-content rounded-2xl shadow-2xl border border-border-subtle overflow-hidden flex flex-col max-h-[90vh]">
-                  {/* Dark Header matching screenshot */}
-                  <div className="bg-[#0f172a] text-white p-5 flex items-start justify-between shrink-0">
-                     <div>
-                        <h3 className="text-base md:text-lg font-bold tracking-tight">
-                           Mayor Analítico Auxiliar: {drillData?.accountName || 'Detalle de Imputaciones'} {drillData?.monthLabel || ''}
-                        </h3>
-                        <p className="text-xs text-slate-400 mt-0.5">
-                           Detalle de movimientos e imputaciones respaldadas en operaciones del SII
-                        </p>
-                     </div>
-                     <button
-                        type="button"
-                        onClick={() => setDrillModalOpen(false)}
-                        className="text-slate-400 hover:text-white transition p-1 rounded-lg hover:bg-slate-800"
-                     >
-                        <XMarkIcon className="w-5 h-5" />
-                     </button>
-                  </div>
-
-                  {/* Body Content */}
-                  <div className="p-5 overflow-y-auto space-y-4">
-                     {/* Monto Total Box */}
-                     <div className="rounded-xl border border-border-subtle bg-surface-1 p-4 flex items-center justify-between">
-                        <span className="text-xs md:text-sm text-text-soft font-medium">
-                           Monto total conciliado a esta celda:
-                        </span>
-                        <span className="text-lg md:text-xl font-extrabold text-heading">
-                           {clp(targetCellAmount)}
-                        </span>
+         {drillModalOpen &&
+            createPortal(
+               <div
+                  onClick={(e) => {
+                     if (e.target === e.currentTarget) setDrillModalOpen(false);
+                  }}
+                  className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-xs p-4 animate-in fade-in duration-200"
+               >
+                  <div className="w-full max-w-4xl bg-bg-content rounded-2xl shadow-2xl border border-border-subtle overflow-hidden flex flex-col max-h-[90vh]">
+                     {/* Dark Header matching screenshot */}
+                     <div className="bg-[#0f172a] text-white p-5 flex items-start justify-between shrink-0">
+                        <div>
+                           <h3 className="text-base md:text-lg font-bold tracking-tight">
+                              Mayor Analítico Auxiliar: {drillData?.accountName || 'Detalle de Imputaciones'} {drillData?.monthLabel || ''}
+                           </h3>
+                           <p className="text-xs text-slate-400 mt-0.5">
+                              Detalle de movimientos e imputaciones respaldadas en operaciones del SII
+                           </p>
+                        </div>
+                        <button
+                           type="button"
+                           onClick={() => setDrillModalOpen(false)}
+                           className="text-slate-400 hover:text-white transition p-1 rounded-lg hover:bg-slate-800"
+                        >
+                           <XMarkIcon className="w-5 h-5" />
+                        </button>
                      </div>
 
-                     {drillLoading ? (
-                        <div className="py-12 flex flex-col items-center justify-center gap-2">
-                           <ArrowPathIcon className="w-7 h-7 animate-spin text-brand" />
-                           <span className="text-xs text-text-soft font-medium">Cargando comprobantes...</span>
+                     {/* Body Content */}
+                     <div className="p-5 overflow-y-auto space-y-4">
+                        {/* Monto Total Box */}
+                        <div className="rounded-xl border border-border-subtle bg-surface-1 p-4 flex items-center justify-between">
+                           <span className="text-xs md:text-sm text-text-soft font-medium">
+                              Monto total conciliado a esta celda:
+                           </span>
+                           <span className="text-lg md:text-xl font-extrabold text-heading">
+                              {clp(targetCellAmount)}
+                           </span>
                         </div>
-                     ) : !drillData?.documents?.length ? (
-                        <div className="py-10 text-center text-text-soft text-xs">
-                           No se encontraron documentos individuales asociados a esta celda en este periodo.
-                        </div>
-                     ) : (
-                        <div className="border border-border-subtle rounded-xl overflow-hidden shadow-xs">
-                           <table className="w-full text-left text-xs">
-                              <thead>
-                                 <tr className="bg-surface-2 text-text-soft font-semibold border-b border-border-subtle">
-                                    <th className="py-2.5 px-3">Fecha</th>
-                                    <th className="py-2.5 px-3">Folio / TRX</th>
-                                    <th className="py-2.5 px-3">RUT / Entidad</th>
-                                    <th className="py-2.5 px-3">Razón Social / Detalle</th>
-                                    <th className="py-2.5 px-3 text-right">Monto Neto</th>
-                                 </tr>
-                              </thead>
-                              <tbody className="divide-y divide-border-subtle font-medium">
-                                 {drillData.documents.map((doc) => (
-                                    <tr key={doc.id} className="hover:bg-surface-1 transition-colors">
-                                       <td className="py-2.5 px-3 text-text-soft whitespace-nowrap">{doc.date}</td>
-                                       <td className="py-2.5 px-3 font-mono font-semibold text-brand whitespace-nowrap">
-                                          {doc.folio_display}
-                                       </td>
-                                       <td className="py-2.5 px-3 font-mono text-text-main whitespace-nowrap">{doc.counterparty_rut}</td>
-                                       <td className="py-2.5 px-3 text-heading truncate max-w-[260px]">{doc.counterparty_name}</td>
-                                       <td className="py-2.5 px-3 text-right font-extrabold text-heading whitespace-nowrap font-mono">
-                                          {clp(doc.amount_net)}
-                                       </td>
+
+                        {drillLoading ? (
+                           <div className="py-12 flex flex-col items-center justify-center gap-2">
+                              <ArrowPathIcon className="w-7 h-7 animate-spin text-brand" />
+                              <span className="text-xs text-text-soft font-medium">Cargando comprobantes...</span>
+                           </div>
+                        ) : !drillData?.documents?.length ? (
+                           <div className="py-10 text-center text-text-soft text-xs">
+                              No se encontraron documentos individuales asociados a esta celda en este periodo.
+                           </div>
+                        ) : (
+                           <div className="border border-border-subtle rounded-xl overflow-hidden shadow-xs">
+                              <table className="w-full text-left text-xs">
+                                 <thead>
+                                    <tr className="bg-surface-2 text-text-soft font-semibold border-b border-border-subtle">
+                                       <th className="py-2.5 px-3">Fecha</th>
+                                       <th className="py-2.5 px-3">Folio / TRX</th>
+                                       <th className="py-2.5 px-3">RUT / Entidad</th>
+                                       <th className="py-2.5 px-3">Razón Social / Detalle</th>
+                                       <th className="py-2.5 px-3 text-right">Monto Neto</th>
                                     </tr>
-                                 ))}
-                              </tbody>
-                           </table>
-                        </div>
-                     )}
-                  </div>
-
-                  {/* Footer matching screenshot */}
-                  <div className="p-4 border-t border-border-subtle bg-surface-1 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
-                     <div className="flex items-center gap-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-                        <CheckCircleIcon className="w-5 h-5 shrink-0" />
-                        <span>Suma de registros cuadra 1:1 con el monto seleccionado ({drillData?.documents?.length || 0} comprobantes)</span>
+                                 </thead>
+                                 <tbody className="divide-y divide-border-subtle font-medium">
+                                    {drillData.documents.map((doc) => (
+                                       <tr key={doc.id} className="hover:bg-surface-1 transition-colors">
+                                          <td className="py-2.5 px-3 text-text-soft whitespace-nowrap">{doc.date}</td>
+                                          <td className="py-2.5 px-3 font-mono font-semibold text-brand whitespace-nowrap">
+                                             {doc.folio_display}
+                                          </td>
+                                          <td className="py-2.5 px-3 font-mono text-text-main whitespace-nowrap">{doc.counterparty_rut}</td>
+                                          <td className="py-2.5 px-3 text-heading truncate max-w-[260px]">{doc.counterparty_name}</td>
+                                          <td className="py-2.5 px-3 text-right font-extrabold text-heading whitespace-nowrap font-mono">
+                                             {clp(doc.amount_net)}
+                                          </td>
+                                       </tr>
+                                    ))}
+                                 </tbody>
+                              </table>
+                           </div>
+                        )}
                      </div>
-                     <button
-                        type="button"
-                        onClick={() => setDrillModalOpen(false)}
-                        className="px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold shadow-sm transition self-end sm:self-auto cursor-pointer"
-                     >
-                        Cerrar Auxiliar
-                     </button>
+
+                     {/* Footer matching screenshot */}
+                     <div className="p-4 border-t border-border-subtle bg-surface-1 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
+                        <div className="flex items-center gap-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                           <CheckCircleIcon className="w-5 h-5 shrink-0" />
+                           <span>Suma de registros cuadra 1:1 con el monto seleccionado ({drillData?.documents?.length || 0} comprobantes)</span>
+                        </div>
+                        <button
+                           type="button"
+                           onClick={() => setDrillModalOpen(false)}
+                           className="px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold shadow-sm transition self-end sm:self-auto cursor-pointer"
+                        >
+                           Cerrar Auxiliar
+                        </button>
+                     </div>
                   </div>
-               </div>
-            </div>
-         )}
+               </div>,
+               document.body
+            )}
       </div>
    );
 }
