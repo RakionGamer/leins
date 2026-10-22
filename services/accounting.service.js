@@ -3332,13 +3332,19 @@ class AccountingService {
       const rules = await models.AccountingRule.findAll({ where: { entity_id: entityId } });
       const ruleMap = new Map(rules.map(r => [(r.counterparty_rut || '').toUpperCase(), r]));
 
-      // Consultar documentos SII en el rango de fechas
+      // Consultar documentos SII en el rango de fechas o periodos
+      const periodConditions = monthsList.map(m => ({
+         period_year: m.year,
+         period_month: m.month
+      }));
+
       const docs = await models.EntitySiiDocument.findAll({
          where: {
             entity_id: entityId,
             [Op.or]: [
                { issue_date: { [Op.between]: [startDate, endDate] } },
-               { received_date: { [Op.between]: [startDate, endDate] } }
+               { received_date: { [Op.between]: [startDate, endDate] } },
+               ...periodConditions
             ]
          },
          attributes: [
@@ -3385,15 +3391,31 @@ class AccountingService {
 
       for (const d of docs) {
          const opType = getDocOpType(d);
-         let dateStr = String(d.issue_date || '').slice(0, 7);
-         if (opType === 'EXPENSE' && d.received_date) {
-            const recMonth = String(d.received_date || '').slice(0, 7);
-            if (monthsList.some(m => m.key === recMonth)) {
-               dateStr = recMonth;
+         let mKey = null;
+
+         // Prioridad para determinar el mes contable/tributario:
+         // 1. Periodo tributario oficial (period_year y period_month)
+         if (d.period_year && d.period_month) {
+            const pKey = `${d.period_year}-${String(d.period_month).padStart(2, '0')}`;
+            if (monthsList.some(m => m.key === pKey)) {
+               mKey = pKey;
             }
          }
-         const mKey = dateStr;
-         if (!monthsList.some(m => m.key === mKey)) continue;
+         // 2. Si es compra y tiene received_date
+         if (!mKey && opType === 'EXPENSE' && d.received_date) {
+            const recMonth = String(d.received_date || '').slice(0, 7);
+            if (monthsList.some(m => m.key === recMonth)) {
+               mKey = recMonth;
+            }
+         }
+         // 3. Fecha de emision (issue_date)
+         if (!mKey) {
+            const issMonth = String(d.issue_date || '').slice(0, 7);
+            if (monthsList.some(m => m.key === issMonth)) {
+               mKey = issMonth;
+            }
+         }
+         if (!mKey) continue;
 
          let total = Number(d.total_amount || 0);
          let vat = Number(d.amount_vat || 0);
@@ -3619,7 +3641,8 @@ class AccountingService {
             entity_id: entityId,
             [Op.or]: [
                { issue_date: { [Op.between]: [startDate, endDate] } },
-               { received_date: { [Op.between]: [startDate, endDate] } }
+               { received_date: { [Op.between]: [startDate, endDate] } },
+               { period_year: targetYear, period_month: targetMonth }
             ]
          },
          attributes: [
@@ -3678,8 +3701,25 @@ class AccountingService {
          else if (groupKey === 'gastos') targetAccountName = 'Gastos Operacionales (OPEX)';
       }
 
+      const targetMonthKey = `${targetYear}-${mStr}`;
+
       for (const d of docs) {
          const opType = getDocOpType(d);
+
+         let docMonth = null;
+         if (d.period_year && d.period_month) {
+            const pKey = `${d.period_year}-${String(d.period_month).padStart(2, '0')}`;
+            if (pKey === targetMonthKey) docMonth = pKey;
+         }
+         if (!docMonth && opType === 'EXPENSE' && d.received_date) {
+            const recMonth = String(d.received_date || '').slice(0, 7);
+            if (recMonth === targetMonthKey) docMonth = recMonth;
+         }
+         if (!docMonth) {
+            const issMonth = String(d.issue_date || '').slice(0, 7);
+            if (issMonth === targetMonthKey) docMonth = issMonth;
+         }
+         if (docMonth !== targetMonthKey) continue;
          let total = Number(d.total_amount || 0);
          let vat = Number(d.amount_vat || 0);
          let net = Number(d.amount_net || 0);

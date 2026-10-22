@@ -480,21 +480,19 @@ export default function IncomeStatement() {
                                  <tr className="bg-bg-content hover:bg-surface-1/60 transition-colors">
                                     <td className="py-3 px-4 font-bold text-heading">
                                        <div className="flex items-center gap-2">
-                                          {reportLevel === 2 ? (
+                                          {reportLevel === 2 && (
                                              <button
                                                 type="button"
                                                 onClick={() => toggleGroup(item.key)}
-                                                className="p-1 rounded hover:bg-surface-2 text-text-soft transition"
+                                                className="p-1 rounded hover:bg-surface-2 text-text-soft transition cursor-pointer"
                                                 title={isExpanded ? 'Colapsar cuentas' : 'Expandir cuentas'}
                                              >
                                                 {isExpanded ? (
-                                                   <ChevronDownIcon className="w-4 h-4" />
+                                                   <ChevronDownIcon className="w-4 h-4 text-brand" />
                                                 ) : (
                                                    <ChevronRightIcon className="w-4 h-4" />
                                                 )}
                                              </button>
-                                          ) : (
-                                             <ChevronDownIcon className="w-4 h-4 text-text-soft opacity-60" />
                                           )}
                                           <span>{item.label}</span>
                                        </div>
