@@ -31,16 +31,27 @@ const clp = (n, showSign = false) => {
    return absFormatted;
 };
 
+const toYmd = (date) => {
+   const year = date.getFullYear();
+   const month = String(date.getMonth() + 1).padStart(2, '0');
+   const day = String(date.getDate()).padStart(2, '0');
+   return `${year}-${month}-${day}`;
+};
+
 export default function IncomeStatement() {
    const { entityId, ready } = useEntityRequired();
 
    // Filtros principales
    const [periodMode, setPeriodMode] = useState('quarter'); // 'current_month' | 'quarter' | 'semester' | 'year' | 'range'
-   const [fromDate, setFromDate] = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`; });
-   const [toDate, setToDate] = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()}`; });
+   const [fromDate, setFromDate] = useState(() => {
+      const now = new Date();
+      return toYmd(new Date(now.getFullYear(), now.getMonth() - 2, 1));
+   });
+   const [toDate, setToDate] = useState(() => {
+      const now = new Date();
+      return toYmd(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+   });
    const [reportLevel, setReportLevel] = useState(1); // 1 = Nivel 1 (Agrupado), 2 = Nivel 2 (Cuentas)
-   const [selectedYear, setSelectedYear] = useState(() => new Date().getFullYear());
-   const [selectedMonth, setSelectedMonth] = useState(() => new Date().getMonth() + 1);
 
    // Estado de datos
    const [statementData, setStatementData] = useState(null);
@@ -60,16 +71,37 @@ export default function IncomeStatement() {
    const [drillData, setDrillData] = useState(null);
    const [targetCellAmount, setTargetCellAmount] = useState(0);
 
+   const handlePreset = (mode) => {
+      const now = new Date();
+      const y = now.getFullYear();
+      const m = now.getMonth();
+      if (mode === 'current_month') {
+         setFromDate(toYmd(new Date(y, m, 1)));
+         setToDate(toYmd(new Date(y, m + 1, 0)));
+      } else if (mode === 'quarter') {
+         setFromDate(toYmd(new Date(y, m - 2, 1)));
+         setToDate(toYmd(new Date(y, m + 1, 0)));
+      } else if (mode === 'semester') {
+         setFromDate(toYmd(new Date(y, m - 5, 1)));
+         setToDate(toYmd(new Date(y, m + 1, 0)));
+      } else if (mode === 'year') {
+         setFromDate(toYmd(new Date(y, 0, 1)));
+         setToDate(toYmd(new Date(y, 11, 31)));
+      }
+      setPeriodMode(mode);
+   };
+
    const loadStatement = useCallback(async () => {
       if (!entityId) return;
       setLoading(true);
       setError(null);
       try {
+         const [tYear, tMonth] = (toDate || '').split('-').map(Number);
          const res = await getIncomeStatement({
             entityId,
             periodMode,
-            year: selectedYear,
-            month: selectedMonth,
+            year: tYear || new Date().getFullYear(),
+            month: tMonth || (new Date().getMonth() + 1),
             from: periodMode === 'range' ? fromDate : undefined,
             to: periodMode === 'range' ? toDate : undefined,
          });
@@ -83,7 +115,7 @@ export default function IncomeStatement() {
       } finally {
          setLoading(false);
       }
-   }, [entityId, periodMode, selectedYear, selectedMonth, fromDate, toDate]);
+   }, [entityId, periodMode, fromDate, toDate]);
 
    useEffect(() => {
       if (ready && entityId) {
@@ -164,7 +196,7 @@ export default function IncomeStatement() {
       const encodedUri = encodeURI(csvContent);
       const link = document.createElement('a');
       link.setAttribute('href', encodedUri);
-      link.setAttribute('download', `Estado_de_Resultados_${selectedYear}_${selectedMonth}.csv`);
+      link.setAttribute('download', `Estado_de_Resultados_${fromDate}_${toDate}.csv`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -176,28 +208,6 @@ export default function IncomeStatement() {
    const months = statementData?.period?.months || [];
    const kpis = statementData?.kpis || {};
    const structure = statementData?.structure || [];
-
-   const yearOptions = [
-      selectedYear - 2,
-      selectedYear - 1,
-      selectedYear,
-      selectedYear + 1,
-   ];
-
-   const monthOptions = [
-      { num: 1, name: 'Enero' },
-      { num: 2, name: 'Febrero' },
-      { num: 3, name: 'Marzo' },
-      { num: 4, name: 'Abril' },
-      { num: 5, name: 'Mayo' },
-      { num: 6, name: 'Junio' },
-      { num: 7, name: 'Julio' },
-      { num: 8, name: 'Agosto' },
-      { num: 9, name: 'Septiembre' },
-      { num: 10, name: 'Octubre' },
-      { num: 11, name: 'Noviembre' },
-      { num: 12, name: 'Diciembre' },
-   ];
 
    return (
       <div className="space-y-6">
@@ -235,12 +245,12 @@ export default function IncomeStatement() {
 
             {/* Selector de Periodo y Reportabilidad */}
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-               {/* Period Pills */}
-               <div className="flex flex-wrap items-center gap-2">
+               {/* Period Pills & Date Range Inputs */}
+               <div className="flex flex-wrap items-center gap-2.5">
                   <div className="inline-flex rounded-xl bg-surface-2 p-1 border border-border-subtle text-xs font-medium">
                      <button
                         type="button"
-                        onClick={() => setPeriodMode('current_month')}
+                        onClick={() => handlePreset('current_month')}
                         className={`px-3 py-1.5 rounded-lg transition ${
                            periodMode === 'current_month'
                               ? 'bg-bg-content text-heading font-semibold shadow-sm'
@@ -251,7 +261,7 @@ export default function IncomeStatement() {
                      </button>
                      <button
                         type="button"
-                        onClick={() => setPeriodMode('quarter')}
+                        onClick={() => handlePreset('quarter')}
                         className={`px-3 py-1.5 rounded-lg transition ${
                            periodMode === 'quarter'
                               ? 'bg-bg-content text-heading font-semibold shadow-sm'
@@ -262,7 +272,7 @@ export default function IncomeStatement() {
                      </button>
                      <button
                         type="button"
-                        onClick={() => setPeriodMode('semester')}
+                        onClick={() => handlePreset('semester')}
                         className={`px-3 py-1.5 rounded-lg transition ${
                            periodMode === 'semester'
                               ? 'bg-bg-content text-heading font-semibold shadow-sm'
@@ -273,7 +283,7 @@ export default function IncomeStatement() {
                      </button>
                      <button
                         type="button"
-                        onClick={() => setPeriodMode('year')}
+                        onClick={() => handlePreset('year')}
                         className={`px-3 py-1.5 rounded-lg transition ${
                            periodMode === 'year'
                               ? 'bg-bg-content text-heading font-semibold shadow-sm'
@@ -282,69 +292,37 @@ export default function IncomeStatement() {
                      >
                         Todo el Año (12 Meses)
                      </button>
-                     <button
-                        type="button"
-                        onClick={() => setPeriodMode('range')}
-                        className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${
-                           periodMode === 'range'
-                              ? 'bg-bg-content text-heading font-semibold shadow-sm'
-                              : 'text-text-soft hover:text-heading'
-                        }`}
-                     >
-                        Rango de Fechas
-                     </button>
                   </div>
 
-                  {/* Si es range: mostramos Desde y Hasta con DateInput. Si no: dropdowns de Mes y Año */}
-                  {periodMode === 'range' ? (
-                     <div className="flex items-center gap-2">
-                        <div className="w-36">
-                           <DateInput
-                              disabled={loading}
-                              className="w-full h-9 flex items-center px-3 text-xs rounded-xl border border-border-subtle bg-bg-content text-text-main shadow-sm hover:border-brand/50 focus:outline-none focus:ring-2 focus:ring-brand font-medium transition cursor-pointer"
-                              value={fromDate}
-                              onChange={setFromDate}
-                              placeholder="Desde"
-                           />
-                        </div>
-                        <span className="text-text-soft font-semibold text-xs">—</span>
-                        <div className="w-36">
-                           <DateInput
-                              disabled={loading}
-                              className="w-full h-9 flex items-center px-3 text-xs rounded-xl border border-border-subtle bg-bg-content text-text-main shadow-sm hover:border-brand/50 focus:outline-none focus:ring-2 focus:ring-brand font-medium transition cursor-pointer"
-                              value={toDate}
-                              onChange={setToDate}
-                              min={fromDate || undefined}
-                              placeholder="Hasta"
-                           />
-                        </div>
+                  {/* Rango de fechas colocado al lado del contenedor de opciones */}
+                  <div className="flex items-center gap-1.5">
+                     <div className="w-32">
+                        <DateInput
+                           disabled={loading}
+                           className="w-full h-9 flex items-center px-3 text-xs rounded-xl border border-border-subtle bg-bg-content text-text-main shadow-sm hover:border-brand/50 focus:outline-none focus:ring-2 focus:ring-brand font-medium transition cursor-pointer"
+                           value={fromDate}
+                           onChange={(val) => {
+                              setFromDate(val);
+                              setPeriodMode('range');
+                           }}
+                           placeholder="Desde"
+                        />
                      </div>
-                  ) : (
-                     <div className="flex items-center gap-2">
-                        <select
-                           value={selectedMonth}
-                           onChange={(e) => setSelectedMonth(Number(e.target.value))}
-                           className="h-9 text-xs rounded-xl border border-border-subtle bg-bg-content text-text-main px-2.5 font-medium focus:outline-none focus:ring-2 focus:ring-brand"
-                        >
-                           {monthOptions.map((m) => (
-                              <option key={m.num} value={m.num}>
-                                 {m.name}
-                              </option>
-                           ))}
-                        </select>
-                        <select
-                           value={selectedYear}
-                           onChange={(e) => setSelectedYear(Number(e.target.value))}
-                           className="h-9 text-xs rounded-xl border border-border-subtle bg-bg-content text-text-main px-2.5 font-medium focus:outline-none focus:ring-2 focus:ring-brand"
-                        >
-                           {yearOptions.map((y) => (
-                              <option key={y} value={y}>
-                                 {y}
-                              </option>
-                           ))}
-                        </select>
+                     <span className="text-text-soft font-semibold text-xs">—</span>
+                     <div className="w-32">
+                        <DateInput
+                           disabled={loading}
+                           className="w-full h-9 flex items-center px-3 text-xs rounded-xl border border-border-subtle bg-bg-content text-text-main shadow-sm hover:border-brand/50 focus:outline-none focus:ring-2 focus:ring-brand font-medium transition cursor-pointer"
+                           value={toDate}
+                           onChange={(val) => {
+                              setToDate(val);
+                              setPeriodMode('range');
+                           }}
+                           min={fromDate || undefined}
+                           placeholder="Hasta"
+                        />
                      </div>
-                  )}
+                  </div>
                </div>
 
                {/* Reportabilidad Pills */}
