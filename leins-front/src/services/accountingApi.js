@@ -82,6 +82,13 @@ export const generateSiiEntries = (payload) =>
 export const getBalances = ({ entityId, type, q, signal } = {}) =>
    request(`/accounting/balances?${buildQs({ entityId, type, q })}`, { signal }, 'Error al cargar los saldos');
 
+// --- Estado de Resultados (Comparativo Mensual) ---
+export const getIncomeStatement = ({ entityId, periodMode, year, month, signal } = {}) =>
+   request(`/accounting/income-statement?${buildQs({ entityId, periodMode, year, month })}`, { signal }, 'Error al cargar el Estado de Resultados');
+
+export const getIncomeStatementDrilldown = ({ entityId, accountCode, groupKey, periodMonth, year, month, signal } = {}) =>
+   request(`/accounting/income-statement/drilldown?${buildQs({ entityId, accountCode, groupKey, periodMonth, year, month })}`, { signal }, 'Error al cargar el Mayor Analítico');
+
 export const searchCounterpartyName = async (rut) => {
    try {
       const response = await fetchWithAuth(`/accounting/rules/counterparty/${encodeURIComponent(rut)}`);

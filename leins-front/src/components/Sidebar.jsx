@@ -122,6 +122,7 @@ export default function Sidebar({ onLogout, onClose, collapsed, setCollapsed }) 
                { label: 'Plan de cuentas', to: '/accounting/accounts' },
                { label: 'Asociación proveedores', to: '/accounting/rules' },
                { label: 'Saldos por RUT', to: '/accounting/balances' },
+               { label: 'Estado de Resultados', to: '/accounting/income-statement' },
             ],
          },
          ];

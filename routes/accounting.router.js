@@ -46,4 +46,8 @@ router.post("/entries/generate-sii", ensureEntityAccess, validatorHandler(genera
 // --- Saldos por RUT ---
 router.get("/balances", ensureEntityAccess, controller.getBalances);
 
+// --- Estado de Resultados (Comparativo Mensual) ---
+router.get("/income-statement", ensureEntityAccess, controller.getIncomeStatement);
+router.get("/income-statement/drilldown", ensureEntityAccess, controller.getIncomeStatementDrilldown);
+
 module.exports = router;

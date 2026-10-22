@@ -198,6 +198,26 @@ const searchCounterparties = async (req, res, next) => {
    }
 };
 
+const getIncomeStatement = async (req, res, next) => {
+   try {
+      const entityId = req.entityId;
+      const result = await service.getIncomeStatement(entityId, req.query);
+      res.json(result);
+   } catch (error) {
+      next(error);
+   }
+};
+
+const getIncomeStatementDrilldown = async (req, res, next) => {
+   try {
+      const entityId = req.entityId;
+      const result = await service.getIncomeStatementDrilldown(entityId, req.query);
+      res.json(result);
+   } catch (error) {
+      next(error);
+   }
+};
+
 module.exports = {
    searchCounterparty,
    searchCounterparties,
@@ -218,4 +238,6 @@ module.exports = {
    deleteAllEntries,
    generateSiiEntries,
    getBalances,
+   getIncomeStatement,
+   getIncomeStatementDrilldown,
 };

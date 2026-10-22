@@ -3256,6 +3256,493 @@ class AccountingService {
 
       return filtered.sort((a, b) => Math.abs(b.balance) - Math.abs(a.balance));
    }
+
+   // --- Estado de Resultados (Comparativo Mensual) ---
+   static #MONTH_NAMES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+
+   async getIncomeStatement(entityId, { periodMode = 'quarter', year, month } = {}) {
+      await this.ensureDefaultPlan(entityId);
+
+      const now = new Date();
+      const currentYear = Number(year) || now.getFullYear();
+      const currentMonth = Number(month) || (now.getMonth() + 1);
+
+      // Calcular lista de meses según periodMode
+      const monthsList = [];
+      if (periodMode === 'current_month') {
+         const mStr = String(currentMonth).padStart(2, '0');
+         monthsList.push({
+            key: `${currentYear}-${mStr}`,
+            year: currentYear,
+            month: currentMonth,
+            label: `${AccountingService.#MONTH_NAMES[currentMonth - 1]} ${currentYear}`
+         });
+      } else if (periodMode === 'year') {
+         for (let m = 1; m <= 12; m++) {
+            const mStr = String(m).padStart(2, '0');
+            monthsList.push({
+               key: `${currentYear}-${mStr}`,
+               year: currentYear,
+               month: m,
+               label: `${AccountingService.#MONTH_NAMES[m - 1]} ${currentYear}`
+            });
+         }
+      } else {
+         const numMonths = periodMode === 'semester' ? 6 : 3;
+         for (let i = numMonths - 1; i >= 0; i--) {
+            const d = new Date(currentYear, currentMonth - 1 - i, 1);
+            const y = d.getFullYear();
+            const m = d.getMonth() + 1;
+            const mStr = String(m).padStart(2, '0');
+            monthsList.push({
+               key: `${y}-${mStr}`,
+               year: y,
+               month: m,
+               label: `${AccountingService.#MONTH_NAMES[m - 1]} ${y}`
+            });
+         }
+      }
+
+      const startMonth = monthsList[0];
+      const endMonth = monthsList[monthsList.length - 1];
+      const startDate = `${startMonth.year}-${String(startMonth.month).padStart(2, '0')}-01`;
+      const lastDayOfEndMonth = new Date(endMonth.year, endMonth.month, 0).getDate();
+      const endDate = `${endMonth.year}-${String(endMonth.month).padStart(2, '0')}-${String(lastDayOfEndMonth).padStart(2, '0')}`;
+
+      // Cargar todas las cuentas contables de resultado
+      const allAccounts = await models.AccountingAccount.findAll({
+         where: {
+            entity_id: entityId,
+            is_active: true,
+            type: { [Op.in]: ['INGRESOS', 'COSTOS', 'GASTOS'] }
+         },
+         order: [['code', 'ASC']]
+      });
+
+      const accountById = new Map(allAccounts.map(a => [a.id, a]));
+      const accountByCode = new Map(allAccounts.map(a => [a.code, a]));
+
+      // Cuentas predeterminadas
+      const defaultSalesAccount = accountByCode.get('51.01.50') || allAccounts.find(a => a.type === 'INGRESOS') || { id: 0, code: '51.01.50', name: 'Ventas', type: 'INGRESOS' };
+      const defaultCostAccount = accountByCode.get('61.01.01') || allAccounts.find(a => a.code.startsWith('61.01')) || { id: 0, code: '61.01.01', name: 'Costo de Venta', type: 'COSTOS' };
+      const defaultHonoraryAccount = accountByCode.get('61.04.04') || allAccounts.find(a => a.name.toLowerCase().includes('honorarios')) || { id: 0, code: '61.04.04', name: 'Honorarios Profesionales', type: 'GASTOS' };
+      const defaultExpenseAccount = accountByCode.get('61.04.30') || allAccounts.find(a => a.type === 'GASTOS') || { id: 0, code: '61.04.30', name: 'Otros Gastos Generales', type: 'GASTOS' };
+
+      // Cargar reglas de proveedores
+      const rules = await models.AccountingRule.findAll({ where: { entity_id: entityId } });
+      const ruleMap = new Map(rules.map(r => [(r.counterparty_rut || '').toUpperCase(), r]));
+
+      // Consultar documentos SII en el rango de fechas
+      const docs = await models.EntitySiiDocument.findAll({
+         where: {
+            entity_id: entityId,
+            issue_date: { [Op.between]: [startDate, endDate] }
+         },
+         attributes: [
+            'id', 'doc_type_code', 'operation_type', 'folio', 'issue_date',
+            'counterparty_rut', 'counterparty_name', 'total_amount', 'amount_net', 'amount_vat', 'amount_exempt'
+         ],
+         order: [['issue_date', 'ASC']]
+      });
+
+      const getDocOpType = (d) => {
+         const op = d.operationType || d.operation_type;
+         if (op) return String(op).toUpperCase();
+         if ([39, 41, 1001].includes(d.doc_type_code)) return "INCOME";
+         if (d.doc_type_code === 1002) return "EXPENSE";
+         if ([33, 34, 61].includes(d.doc_type_code)) {
+            if (d.received_date || d.purchase_type) return "EXPENSE";
+            return "INCOME";
+         }
+         return "EXPENSE";
+      };
+
+      // Estructura de acumulación por cuenta: accountCode -> { account, monthlyAmounts: { 'YYYY-MM': number }, total: number }
+      const accountMovements = new Map();
+
+      const getOrCreateAccMov = (acc) => {
+         if (!accountMovements.has(acc.code)) {
+            const initialMonthly = {};
+            monthsList.forEach(m => { initialMonthly[m.key] = 0; });
+            accountMovements.set(acc.code, {
+               id: acc.id,
+               code: acc.code,
+               name: acc.name,
+               type: acc.type,
+               is_title: Boolean(acc.is_title),
+               monthlyAmounts: initialMonthly,
+               total: 0
+            });
+         }
+         return accountMovements.get(acc.code);
+      };
+
+      for (const d of docs) {
+         const opType = getDocOpType(d);
+         const mKey = String(d.issue_date || '').slice(0, 7);
+         if (!monthsList.some(m => m.key === mKey)) continue;
+
+         let total = Number(d.total_amount || 0);
+         let vat = Number(d.amount_vat || 0);
+         let net = Number(d.amount_net || 0);
+         const exempt = Number(d.amount_exempt || 0);
+
+         if ([33, 39].includes(d.doc_type_code) && vat === 0 && total > 0) {
+            const afecto = total - exempt;
+            if (afecto > 0) net = Math.round(afecto / 1.19);
+         }
+         if (net === 0) net = total - vat;
+
+         const isCreditNote = d.doc_type_code === 61;
+         const rut = (d.counterparty_rut || '').toUpperCase();
+
+         let targetAcc;
+         let amount = 0;
+
+         if (d.doc_type_code === 1002) {
+            // Boleta de Honorarios
+            const rule = ruleMap.get(rut);
+            targetAcc = (rule && accountById.get(rule.account_id)) || defaultHonoraryAccount;
+            amount = Number(d.amount_net || d.total_amount || 0);
+         } else if (opType === 'INCOME') {
+            // Venta
+            const rule = ruleMap.get(rut);
+            targetAcc = (rule && accountById.get(rule.account_id)) || defaultSalesAccount;
+            amount = isCreditNote ? -Math.abs(net) : Math.abs(net);
+         } else {
+            // Compra
+            const rule = ruleMap.get(rut);
+            if (rule && accountById.has(rule.account_id)) {
+               targetAcc = accountById.get(rule.account_id);
+            } else {
+               targetAcc = defaultCostAccount;
+            }
+            amount = isCreditNote ? -Math.abs(net) : Math.abs(net);
+         }
+
+         if (targetAcc) {
+            const entry = getOrCreateAccMov(targetAcc);
+            entry.monthlyAmounts[mKey] = (entry.monthlyAmounts[mKey] || 0) + amount;
+            entry.total += amount;
+         }
+      }
+
+      // Clasificación jerárquica:
+      // 1. Ingresos Operacionales (Cuentas tipo INGRESOS o código 51.*)
+      // 2. Costo Directo de Ventas (Cuentas tipo COSTOS o código 61.01.*)
+      // 3. Gastos Operacionales / OPEX (Cuentas tipo GASTOS 61.02, 61.03, 61.04...)
+      const ingresosAccounts = [];
+      const costosAccounts = [];
+      const gastosAccounts = [];
+
+      for (const item of accountMovements.values()) {
+         if (item.code.startsWith('51') || item.type === 'INGRESOS') {
+            ingresosAccounts.push(item);
+         } else if (item.code.startsWith('61.01') || item.type === 'COSTOS') {
+            costosAccounts.push(item);
+         } else if (item.code.startsWith('61') || item.type === 'GASTOS') {
+            gastosAccounts.push(item);
+         }
+      }
+
+      // Ordenar cuentas por código
+      ingresosAccounts.sort((a, b) => a.code.localeCompare(b.code));
+      costosAccounts.sort((a, b) => a.code.localeCompare(b.code));
+      gastosAccounts.sort((a, b) => a.code.localeCompare(b.code));
+
+      // Calcular subtotales mensuales
+      const calcGroupTotals = (accounts) => {
+         const monthlyTotals = {};
+         monthsList.forEach(m => {
+            monthlyTotals[m.key] = accounts.reduce((sum, a) => sum + (a.monthlyAmounts[m.key] || 0), 0);
+         });
+         const accumulated = Object.values(monthlyTotals).reduce((sum, val) => sum + val, 0);
+         return { monthlyTotals, accumulated };
+      };
+
+      const ingresosGroup = {
+         key: 'ingresos',
+         code: '1',
+         label: '1. INGRESOS OPERACIONALES',
+         accounts: ingresosAccounts,
+         ...calcGroupTotals(ingresosAccounts)
+      };
+
+      const costosGroup = {
+         key: 'costos',
+         code: '2',
+         label: '2. COSTO DIRECTO DE VENTAS',
+         accounts: costosAccounts,
+         ...calcGroupTotals(costosAccounts)
+      };
+
+      // Margen Bruto Operacional = Ingresos - Costos Directos
+      const margenBrutoMonthly = {};
+      const margenBrutoPcts = {};
+      monthsList.forEach(m => {
+         const ing = ingresosGroup.monthlyTotals[m.key] || 0;
+         const cos = costosGroup.monthlyTotals[m.key] || 0;
+         const mb = ing - cos;
+         margenBrutoMonthly[m.key] = mb;
+         margenBrutoPcts[m.key] = ing > 0 ? Math.round((mb / ing) * 1000) / 10 : 0;
+      });
+      const margenBrutoAcc = ingresosGroup.accumulated - costosGroup.accumulated;
+      const margenBrutoAccPct = ingresosGroup.accumulated > 0 ? Math.round((margenBrutoAcc / ingresosGroup.accumulated) * 1000) / 10 : 0;
+
+      const margenBrutoGroup = {
+         key: 'margen_bruto',
+         label: 'MARGEN BRUTO OPERACIONAL',
+         isSubtotal: true,
+         monthlyTotals: margenBrutoMonthly,
+         accumulated: margenBrutoAcc,
+         monthlyPcts: margenBrutoPcts,
+         accumulatedPct: margenBrutoAccPct
+      };
+
+      const gastosGroup = {
+         key: 'gastos',
+         code: '3',
+         label: '3. GASTOS OPERACIONALES (OPEX)',
+         accounts: gastosAccounts,
+         ...calcGroupTotals(gastosAccounts)
+      };
+
+      // Resultado Neto del Periodo (EBITDA) = Margen Bruto - Gastos OPEX
+      const ebitdaMonthly = {};
+      const ebitdaPcts = {};
+      monthsList.forEach(m => {
+         const mb = margenBrutoMonthly[m.key] || 0;
+         const gas = gastosGroup.monthlyTotals[m.key] || 0;
+         const ebitda = mb - gas;
+         const ing = ingresosGroup.monthlyTotals[m.key] || 0;
+         ebitdaMonthly[m.key] = ebitda;
+         ebitdaPcts[m.key] = ing > 0 ? Math.round((ebitda / ing) * 1000) / 10 : 0;
+      });
+      const ebitdaAcc = margenBrutoAcc - gastosGroup.accumulated;
+      const ebitdaAccPct = ingresosGroup.accumulated > 0 ? Math.round((ebitdaAcc / ingresosGroup.accumulated) * 1000) / 10 : 0;
+
+      const ebitdaGroup = {
+         key: 'ebitda',
+         label: 'RESULTADO NETO DEL PERIODO (EBITDA)',
+         isTotal: true,
+         monthlyTotals: ebitdaMonthly,
+         accumulated: ebitdaAcc,
+         monthlyPcts: ebitdaPcts,
+         accumulatedPct: ebitdaAccPct
+      };
+
+      return {
+         ok: true,
+         period: {
+            mode: periodMode,
+            year: currentYear,
+            month: currentMonth,
+            months: monthsList,
+            startDate,
+            endDate
+         },
+         kpis: {
+            totalIngresos: ingresosGroup.accumulated,
+            totalCostos: costosGroup.accumulated,
+            margenBruto: margenBrutoAcc,
+            margenBrutoPct: margenBrutoAccPct,
+            totalGastos: gastosGroup.accumulated,
+            ebitda: ebitdaAcc,
+            ebitdaPct: ebitdaAccPct
+         },
+         structure: [
+            ingresosGroup,
+            costosGroup,
+            margenBrutoGroup,
+            gastosGroup,
+            ebitdaGroup
+         ]
+      };
+   }
+
+   // --- Mayor Analítico Auxiliar (Drill-down de celdas) ---
+   async getIncomeStatementDrilldown(entityId, { accountCode, groupKey, periodMonth, year, month } = {}) {
+      if (!entityId) throw boom.badRequest('entityId es requerido');
+
+      let targetYear = Number(year);
+      let targetMonth = Number(month);
+
+      if (periodMonth && /^\d{4}-\d{2}$/.test(periodMonth)) {
+         const [y, m] = periodMonth.split('-').map(Number);
+         targetYear = y;
+         targetMonth = m;
+      }
+
+      if (!targetYear || !targetMonth) {
+         const now = new Date();
+         targetYear = targetYear || now.getFullYear();
+         targetMonth = targetMonth || (now.getMonth() + 1);
+      }
+
+      const mStr = String(targetMonth).padStart(2, '0');
+      const startDate = `${targetYear}-${mStr}-01`;
+      const lastDay = new Date(targetYear, targetMonth, 0).getDate();
+      const endDate = `${targetYear}-${mStr}-${String(lastDay).padStart(2, '0')}`;
+      const monthLabel = `${AccountingService.#MONTH_NAMES[targetMonth - 1]} ${targetYear}`;
+
+      // Cargar cuentas y reglas
+      const allAccounts = await models.AccountingAccount.findAll({
+         where: { entity_id: entityId, is_active: true }
+      });
+      const accountById = new Map(allAccounts.map(a => [a.id, a]));
+      const accountByCode = new Map(allAccounts.map(a => [a.code, a]));
+
+      const defaultSalesAccount = accountByCode.get('51.01.50') || allAccounts.find(a => a.type === 'INGRESOS') || { id: 0, code: '51.01.50', name: 'Ventas' };
+      const defaultCostAccount = accountByCode.get('61.01.01') || allAccounts.find(a => a.code.startsWith('61.01')) || { id: 0, code: '61.01.01', name: 'Costo de Venta' };
+      const defaultHonoraryAccount = accountByCode.get('61.04.04') || allAccounts.find(a => a.name.toLowerCase().includes('honorarios')) || { id: 0, code: '61.04.04', name: 'Honorarios Profesionales' };
+      const defaultExpenseAccount = accountByCode.get('61.04.30') || allAccounts.find(a => a.type === 'GASTOS') || { id: 0, code: '61.04.30', name: 'Otros Gastos Generales' };
+
+      const rules = await models.AccountingRule.findAll({ where: { entity_id: entityId } });
+      const ruleMap = new Map(rules.map(r => [(r.counterparty_rut || '').toUpperCase(), r]));
+
+      // Documentos del mes
+      const docs = await models.EntitySiiDocument.findAll({
+         where: {
+            entity_id: entityId,
+            issue_date: { [Op.between]: [startDate, endDate] }
+         },
+         attributes: [
+            'id', 'doc_type_code', 'operation_type', 'folio', 'issue_date',
+            'counterparty_rut', 'counterparty_name', 'total_amount', 'amount_net', 'amount_vat', 'amount_exempt'
+         ],
+         order: [['issue_date', 'ASC'], ['folio', 'ASC']]
+      });
+
+      const getDocOpType = (d) => {
+         const op = d.operationType || d.operation_type;
+         if (op) return String(op).toUpperCase();
+         if ([39, 41, 1001].includes(d.doc_type_code)) return "INCOME";
+         if (d.doc_type_code === 1002) return "EXPENSE";
+         if ([33, 34, 61].includes(d.doc_type_code)) {
+            if (d.received_date || d.purchase_type) return "EXPENSE";
+            return "INCOME";
+         }
+         return "EXPENSE";
+      };
+
+      const docTypePrefix = (code) => {
+         switch (Number(code)) {
+            case 33: return 'F';
+            case 34: return 'FE';
+            case 39: return 'B';
+            case 41: return 'BE';
+            case 61: return 'NC';
+            case 1002: return 'BH';
+            default: return 'DOC';
+         }
+      };
+
+      const docTypeLabel = (code) => {
+         switch (Number(code)) {
+            case 33: return 'Factura Electrónica';
+            case 34: return 'Factura No Afecta o Exenta';
+            case 39: return 'Boleta Electrónica';
+            case 41: return 'Boleta Exenta';
+            case 61: return 'Nota de Crédito';
+            case 1002: return 'Boleta de Honorarios';
+            default: return `Doc ${code}`;
+         }
+      };
+
+      const matchedDocs = [];
+      let totalNet = 0;
+
+      let targetAccountName = accountCode ? (accountByCode.get(accountCode)?.name || accountCode) : '';
+      if (!targetAccountName && groupKey) {
+         if (groupKey === 'ingresos') targetAccountName = 'Ingresos Operacionales';
+         else if (groupKey === 'costos') targetAccountName = 'Costo Directo de Ventas';
+         else if (groupKey === 'gastos') targetAccountName = 'Gastos Operacionales (OPEX)';
+      }
+
+      for (const d of docs) {
+         const opType = getDocOpType(d);
+         let total = Number(d.total_amount || 0);
+         let vat = Number(d.amount_vat || 0);
+         let net = Number(d.amount_net || 0);
+         const exempt = Number(d.amount_exempt || 0);
+
+         if ([33, 39].includes(d.doc_type_code) && vat === 0 && total > 0) {
+            const afecto = total - exempt;
+            if (afecto > 0) net = Math.round(afecto / 1.19);
+         }
+         if (net === 0) net = total - vat;
+
+         const isCreditNote = d.doc_type_code === 61;
+         const rut = (d.counterparty_rut || '').toUpperCase();
+
+         let targetAcc;
+         let amount = 0;
+
+         if (d.doc_type_code === 1002) {
+            const rule = ruleMap.get(rut);
+            targetAcc = (rule && accountById.get(rule.account_id)) || defaultHonoraryAccount;
+            amount = Number(d.amount_net || d.total_amount || 0);
+         } else if (opType === 'INCOME') {
+            const rule = ruleMap.get(rut);
+            targetAcc = (rule && accountById.get(rule.account_id)) || defaultSalesAccount;
+            amount = isCreditNote ? -Math.abs(net) : Math.abs(net);
+         } else {
+            const rule = ruleMap.get(rut);
+            if (rule && accountById.has(rule.account_id)) {
+               targetAcc = accountById.get(rule.account_id);
+            } else {
+               targetAcc = defaultCostAccount;
+            }
+            amount = isCreditNote ? -Math.abs(net) : Math.abs(net);
+         }
+
+         let isMatch = false;
+         if (accountCode && targetAcc && targetAcc.code === accountCode) {
+            isMatch = true;
+         } else if (groupKey && targetAcc) {
+            if (groupKey === 'ingresos' && (targetAcc.code.startsWith('51') || targetAcc.type === 'INGRESOS')) isMatch = true;
+            else if (groupKey === 'costos' && (targetAcc.code.startsWith('61.01') || targetAcc.type === 'COSTOS')) isMatch = true;
+            else if (groupKey === 'gastos' && (targetAcc.code.startsWith('61') || targetAcc.type === 'GASTOS') && !targetAcc.code.startsWith('61.01') && targetAcc.type !== 'COSTOS') isMatch = true;
+         }
+
+         if (isMatch) {
+            // Formatear fecha DD-MM-YYYY
+            const rawDate = String(d.issue_date || '').slice(0, 10);
+            const [yPart, mPart, dPart] = rawDate.split('-');
+            const formattedDate = (dPart && mPart && yPart) ? `${dPart}-${mPart}-${yPart}` : rawDate;
+
+            matchedDocs.push({
+               id: d.id,
+               date: formattedDate,
+               rawDate: d.issue_date,
+               folio: d.folio,
+               folio_display: `${docTypePrefix(d.doc_type_code)}-${d.folio || '-'}`,
+               doc_type_code: d.doc_type_code,
+               doc_type_label: docTypeLabel(d.doc_type_code),
+               counterparty_rut: d.counterparty_rut || 'SIN RUT',
+               counterparty_name: d.counterparty_name || '(Sin razón social)',
+               amount_net: amount,
+               amount_vat: vat,
+               total_amount: total,
+               account_code: targetAcc.code,
+               account_name: targetAcc.name
+            });
+            totalNet += amount;
+         }
+      }
+
+      return {
+         ok: true,
+         accountCode: accountCode || null,
+         accountName: targetAccountName,
+         groupKey: groupKey || null,
+         monthKey: `${targetYear}-${mStr}`,
+         monthLabel,
+         totalNet,
+         count: matchedDocs.length,
+         documents: matchedDocs
+      };
+   }
 }
 
 module.exports = AccountingService;
