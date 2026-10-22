@@ -298,18 +298,20 @@ export default function IncomeStatement() {
                   {/* Si es range: mostramos Desde y Hasta con DateInput. Si no: dropdowns de Mes y Año */}
                   {periodMode === 'range' ? (
                      <div className="flex items-center gap-2">
-                        <div className="w-32">
+                        <div className="w-36">
                            <DateInput
                               disabled={loading}
+                              className="w-full h-9 flex items-center px-3 text-xs rounded-xl border border-border-subtle bg-bg-content text-text-main shadow-sm hover:border-brand/50 focus:outline-none focus:ring-2 focus:ring-brand font-medium transition cursor-pointer"
                               value={fromDate}
                               onChange={setFromDate}
                               placeholder="Desde"
                            />
                         </div>
                         <span className="text-text-soft font-semibold text-xs">—</span>
-                        <div className="w-32">
+                        <div className="w-36">
                            <DateInput
                               disabled={loading}
+                              className="w-full h-9 flex items-center px-3 text-xs rounded-xl border border-border-subtle bg-bg-content text-text-main shadow-sm hover:border-brand/50 focus:outline-none focus:ring-2 focus:ring-brand font-medium transition cursor-pointer"
                               value={toDate}
                               onChange={setToDate}
                               min={fromDate || undefined}

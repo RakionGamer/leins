@@ -3634,10 +3634,13 @@ class AccountingService {
       let startDate;
       let endDate;
       let monthLabel;
-      let targetYear;
-      let targetMonth;
+      let targetYear = null;
+      let targetMonth = null;
+      let mStr = null;
+      let targetMonthKey = null;
+      const isRangeMode = Boolean(from && to && /^\d{4}-\d{2}-\d{2}$/.test(String(from).trim()) && /^\d{4}-\d{2}-\d{2}$/.test(String(to).trim()));
 
-      if (from && to && /^\d{4}-\d{2}-\d{2}$/.test(String(from).trim()) && /^\d{4}-\d{2}-\d{2}$/.test(String(to).trim())) {
+      if (isRangeMode) {
          const f = String(from).trim();
          const t = String(to).trim();
          startDate = f <= t ? f : t;
@@ -3659,11 +3662,12 @@ class AccountingService {
             targetMonth = targetMonth || (now.getMonth() + 1);
          }
 
-         const mStr = String(targetMonth).padStart(2, '0');
+         mStr = String(targetMonth).padStart(2, '0');
          startDate = `${targetYear}-${mStr}-01`;
          const lastDay = new Date(targetYear, targetMonth, 0).getDate();
          endDate = `${targetYear}-${mStr}-${String(lastDay).padStart(2, '0')}`;
          monthLabel = `${AccountingService.#MONTH_NAMES[targetMonth - 1]} ${targetYear}`;
+         targetMonthKey = `${targetYear}-${mStr}`;
       }
       // Cargar cuentas y reglas
       const allAccounts = await models.AccountingAccount.findAll({
@@ -3746,25 +3750,31 @@ class AccountingService {
          else if (groupKey === 'gastos') targetAccountName = 'Gastos Operacionales (OPEX)';
       }
 
-      const targetMonthKey = `${targetYear}-${mStr}`;
 
       for (const d of docs) {
          const opType = getDocOpType(d);
 
-         let docMonth = null;
-         if (d.period_year && d.period_month) {
-            const pKey = `${d.period_year}-${String(d.period_month).padStart(2, '0')}`;
-            if (pKey === targetMonthKey) docMonth = pKey;
+         if (isRangeMode) {
+            const rawDate = String(d.issue_date || '').slice(0, 10);
+            const recDate = d.received_date ? String(d.received_date).slice(0, 10) : null;
+            const docEffectiveDate = (opType === 'EXPENSE' && recDate) ? recDate : rawDate;
+            if (docEffectiveDate < startDate || docEffectiveDate > endDate) continue;
+         } else {
+            let docMonth = null;
+            if (d.period_year && d.period_month) {
+               const pKey = `${d.period_year}-${String(d.period_month).padStart(2, '0')}`;
+               if (pKey === targetMonthKey) docMonth = pKey;
+            }
+            if (!docMonth && opType === 'EXPENSE' && d.received_date) {
+               const recMonth = String(d.received_date || '').slice(0, 7);
+               if (recMonth === targetMonthKey) docMonth = recMonth;
+            }
+            if (!docMonth) {
+               const issMonth = String(d.issue_date || '').slice(0, 7);
+               if (issMonth === targetMonthKey) docMonth = issMonth;
+            }
+            if (docMonth !== targetMonthKey) continue;
          }
-         if (!docMonth && opType === 'EXPENSE' && d.received_date) {
-            const recMonth = String(d.received_date || '').slice(0, 7);
-            if (recMonth === targetMonthKey) docMonth = recMonth;
-         }
-         if (!docMonth) {
-            const issMonth = String(d.issue_date || '').slice(0, 7);
-            if (issMonth === targetMonthKey) docMonth = issMonth;
-         }
-         if (docMonth !== targetMonthKey) continue;
          let total = Number(d.total_amount || 0);
          let vat = Number(d.amount_vat || 0);
          let net = Number(d.amount_net || 0);
@@ -3840,7 +3850,7 @@ class AccountingService {
          accountCode: accountCode || null,
          accountName: targetAccountName,
          groupKey: groupKey || null,
-         monthKey: `${targetYear}-${mStr}`,
+         monthKey: isRangeMode ? `${startDate}_${endDate}` : `${targetYear}-${mStr}`,
          monthLabel,
          totalNet,
          count: matchedDocs.length,
