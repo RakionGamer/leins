@@ -472,7 +472,7 @@ export default function IncomeStatement() {
                            }
 
                            // 3. Grupos principales (Ingresos, Costos, Gastos)
-                           const isExpanded = reportLevel === 2 || Boolean(expandedGroups[item.key]);
+                           const isExpanded = reportLevel === 2 && Boolean(expandedGroups[item.key]);
                            const isNegativeCost = item.key === 'costos' || item.key === 'gastos';
 
                            return (
@@ -480,18 +480,22 @@ export default function IncomeStatement() {
                                  <tr className="bg-bg-content hover:bg-surface-1/60 transition-colors">
                                     <td className="py-3 px-4 font-bold text-heading">
                                        <div className="flex items-center gap-2">
-                                          <button
-                                             type="button"
-                                             onClick={() => toggleGroup(item.key)}
-                                             className="p-1 rounded hover:bg-surface-2 text-text-soft transition"
-                                             title={isExpanded ? 'Colapsar cuentas' : 'Expandir cuentas'}
-                                          >
-                                             {isExpanded ? (
-                                                <ChevronDownIcon className="w-4 h-4" />
-                                             ) : (
-                                                <ChevronRightIcon className="w-4 h-4" />
-                                             )}
-                                          </button>
+                                          {reportLevel === 2 ? (
+                                             <button
+                                                type="button"
+                                                onClick={() => toggleGroup(item.key)}
+                                                className="p-1 rounded hover:bg-surface-2 text-text-soft transition"
+                                                title={isExpanded ? 'Colapsar cuentas' : 'Expandir cuentas'}
+                                             >
+                                                {isExpanded ? (
+                                                   <ChevronDownIcon className="w-4 h-4" />
+                                                ) : (
+                                                   <ChevronRightIcon className="w-4 h-4" />
+                                                )}
+                                             </button>
+                                          ) : (
+                                             <ChevronDownIcon className="w-4 h-4 text-text-soft opacity-60" />
+                                          )}
                                           <span>{item.label}</span>
                                        </div>
                                     </td>
@@ -501,18 +505,9 @@ export default function IncomeStatement() {
                                        return (
                                           <td
                                              key={m.key}
-                                             onClick={() =>
-                                                handleOpenDrilldown({
-                                                   groupKey: item.key,
-                                                   monthKey: m.key,
-                                                   accountName: item.label,
-                                                   cellAmount: displayVal,
-                                                })
-                                             }
-                                             className={`py-3 px-3 text-right font-bold cursor-pointer hover:underline hover:text-brand transition ${
+                                             className={`py-3 px-3 text-right font-bold transition ${
                                                 isNegativeCost ? 'text-text-main' : 'text-emerald-600 dark:text-emerald-400'
                                              }`}
-                                             title="Clic para ver Mayor Analítico Auxiliar"
                                           >
                                              {clp(displayVal)}
                                           </td>
@@ -523,8 +518,8 @@ export default function IncomeStatement() {
                                     </td>
                                  </tr>
 
-                                 {/* Cuentas contables hijas (Nivel 2) */}
-                                 {isExpanded &&
+                                 {/* Cuentas contables hijas (Solo visible en Nivel 2) */}
+                                 {reportLevel === 2 && isExpanded &&
                                     item.accounts?.map((acc) => (
                                        <tr
                                           key={`${item.key}-${acc.code}`}

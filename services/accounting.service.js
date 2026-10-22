@@ -3336,25 +3336,31 @@ class AccountingService {
       const docs = await models.EntitySiiDocument.findAll({
          where: {
             entity_id: entityId,
-            issue_date: { [Op.between]: [startDate, endDate] }
+            [Op.or]: [
+               { issue_date: { [Op.between]: [startDate, endDate] } },
+               { received_date: { [Op.between]: [startDate, endDate] } }
+            ]
          },
          attributes: [
-            'id', 'doc_type_code', 'operation_type', 'folio', 'issue_date',
+            'id', 'doc_type_code', 'operationType', 'purchase_type', 'received_date',
+            'period_year', 'period_month', 'folio', 'issue_date',
             'counterparty_rut', 'counterparty_name', 'total_amount', 'amount_net', 'amount_vat', 'amount_exempt'
          ],
          order: [['issue_date', 'ASC']]
       });
 
       const getDocOpType = (d) => {
-         const op = d.operationType || d.operation_type;
-         if (op) return String(op).toUpperCase();
-         if ([39, 41, 1001].includes(d.doc_type_code)) return "INCOME";
-         if (d.doc_type_code === 1002) return "EXPENSE";
-         if ([33, 34, 61].includes(d.doc_type_code)) {
-            if (d.received_date || d.purchase_type) return "EXPENSE";
-            return "INCOME";
+         const rawOp = d.operationType ?? d.getDataValue?.('operationType') ?? d.operation_type;
+         const op = String(rawOp || '').toUpperCase();
+         if (['EXPENSE', 'COMPRA', 'COMPRAS'].includes(op)) return 'EXPENSE';
+         if (['INCOME', 'VENTA', 'VENTAS'].includes(op)) return 'INCOME';
+         if (Number(d.doc_type_code) === 1002) return 'EXPENSE';
+         if ([39, 41, 1001].includes(Number(d.doc_type_code))) return 'INCOME';
+         if ([33, 34, 61].includes(Number(d.doc_type_code))) {
+            if (d.received_date || d.purchase_type) return 'EXPENSE';
+            return 'INCOME';
          }
-         return "EXPENSE";
+         return 'EXPENSE';
       };
 
       // Estructura de acumulación por cuenta: accountCode -> { account, monthlyAmounts: { 'YYYY-MM': number }, total: number }
@@ -3379,7 +3385,14 @@ class AccountingService {
 
       for (const d of docs) {
          const opType = getDocOpType(d);
-         const mKey = String(d.issue_date || '').slice(0, 7);
+         let dateStr = String(d.issue_date || '').slice(0, 7);
+         if (opType === 'EXPENSE' && d.received_date) {
+            const recMonth = String(d.received_date || '').slice(0, 7);
+            if (monthsList.some(m => m.key === recMonth)) {
+               dateStr = recMonth;
+            }
+         }
+         const mKey = dateStr;
          if (!monthsList.some(m => m.key === mKey)) continue;
 
          let total = Number(d.total_amount || 0);
@@ -3429,7 +3442,7 @@ class AccountingService {
 
       // Clasificación jerárquica:
       // 1. Ingresos Operacionales (Cuentas tipo INGRESOS o código 51.*)
-      // 2. Costo Directo de Ventas (Cuentas tipo COSTOS o código 61.01.*)
+      // 2. Costo Directo de Ventas (Cuentas tipo COSTOS o código 61.01.* o nombre con costo)
       // 3. Gastos Operacionales / OPEX (Cuentas tipo GASTOS 61.02, 61.03, 61.04...)
       const ingresosAccounts = [];
       const costosAccounts = [];
@@ -3438,9 +3451,9 @@ class AccountingService {
       for (const item of accountMovements.values()) {
          if (item.code.startsWith('51') || item.type === 'INGRESOS') {
             ingresosAccounts.push(item);
-         } else if (item.code.startsWith('61.01') || item.type === 'COSTOS') {
+         } else if (item.code.startsWith('61.01') || item.type === 'COSTOS' || item.name.toLowerCase().includes('costo')) {
             costosAccounts.push(item);
-         } else if (item.code.startsWith('61') || item.type === 'GASTOS') {
+         } else {
             gastosAccounts.push(item);
          }
       }
@@ -3604,25 +3617,31 @@ class AccountingService {
       const docs = await models.EntitySiiDocument.findAll({
          where: {
             entity_id: entityId,
-            issue_date: { [Op.between]: [startDate, endDate] }
+            [Op.or]: [
+               { issue_date: { [Op.between]: [startDate, endDate] } },
+               { received_date: { [Op.between]: [startDate, endDate] } }
+            ]
          },
          attributes: [
-            'id', 'doc_type_code', 'operation_type', 'folio', 'issue_date',
+            'id', 'doc_type_code', 'operationType', 'purchase_type', 'received_date',
+            'period_year', 'period_month', 'folio', 'issue_date',
             'counterparty_rut', 'counterparty_name', 'total_amount', 'amount_net', 'amount_vat', 'amount_exempt'
          ],
          order: [['issue_date', 'ASC'], ['folio', 'ASC']]
       });
 
       const getDocOpType = (d) => {
-         const op = d.operationType || d.operation_type;
-         if (op) return String(op).toUpperCase();
-         if ([39, 41, 1001].includes(d.doc_type_code)) return "INCOME";
-         if (d.doc_type_code === 1002) return "EXPENSE";
-         if ([33, 34, 61].includes(d.doc_type_code)) {
-            if (d.received_date || d.purchase_type) return "EXPENSE";
-            return "INCOME";
+         const rawOp = d.operationType ?? d.getDataValue?.('operationType') ?? d.operation_type;
+         const op = String(rawOp || '').toUpperCase();
+         if (['EXPENSE', 'COMPRA', 'COMPRAS'].includes(op)) return 'EXPENSE';
+         if (['INCOME', 'VENTA', 'VENTAS'].includes(op)) return 'INCOME';
+         if (Number(d.doc_type_code) === 1002) return 'EXPENSE';
+         if ([39, 41, 1001].includes(Number(d.doc_type_code))) return 'INCOME';
+         if ([33, 34, 61].includes(Number(d.doc_type_code))) {
+            if (d.received_date || d.purchase_type) return 'EXPENSE';
+            return 'INCOME';
          }
-         return "EXPENSE";
+         return 'EXPENSE';
       };
 
       const docTypePrefix = (code) => {
