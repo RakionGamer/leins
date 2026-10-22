@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useEntityRequired } from '../../hooks/useEntityRequired';
 import EntityRequiredNotice from '../../components/EntityRequiredNotice';
+import DateInput from '../../components/DateInput';
 import { toast } from '../../components/Toaster';
 import { getIncomeStatement, getIncomeStatementDrilldown } from '../../services/accountingApi';
 import {
@@ -34,7 +35,9 @@ export default function IncomeStatement() {
    const { entityId, ready } = useEntityRequired();
 
    // Filtros principales
-   const [periodMode, setPeriodMode] = useState('quarter'); // 'current_month' | 'quarter' | 'semester' | 'year'
+   const [periodMode, setPeriodMode] = useState('quarter'); // 'current_month' | 'quarter' | 'semester' | 'year' | 'range'
+   const [fromDate, setFromDate] = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`; });
+   const [toDate, setToDate] = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()}`; });
    const [reportLevel, setReportLevel] = useState(1); // 1 = Nivel 1 (Agrupado), 2 = Nivel 2 (Cuentas)
    const [selectedYear, setSelectedYear] = useState(() => new Date().getFullYear());
    const [selectedMonth, setSelectedMonth] = useState(() => new Date().getMonth() + 1);
@@ -67,6 +70,8 @@ export default function IncomeStatement() {
             periodMode,
             year: selectedYear,
             month: selectedMonth,
+            from: periodMode === 'range' ? fromDate : undefined,
+            to: periodMode === 'range' ? toDate : undefined,
          });
          if (res?.ok) {
             setStatementData(res);
@@ -78,7 +83,7 @@ export default function IncomeStatement() {
       } finally {
          setLoading(false);
       }
-   }, [entityId, periodMode, selectedYear, selectedMonth]);
+   }, [entityId, periodMode, selectedYear, selectedMonth, fromDate, toDate]);
 
    useEffect(() => {
       if (ready && entityId) {
@@ -95,7 +100,7 @@ export default function IncomeStatement() {
 
    // Abrir Mayor Analítico Auxiliar
    const handleOpenDrilldown = async ({ accountCode, groupKey, monthKey, accountName, cellAmount }) => {
-      if (!entityId || !monthKey) return;
+      if (!entityId || (!monthKey && periodMode !== 'range')) return;
       setDrillModalOpen(true);
       setDrillLoading(true);
       setTargetCellAmount(cellAmount);
@@ -107,6 +112,8 @@ export default function IncomeStatement() {
             accountCode,
             groupKey,
             periodMonth: monthKey,
+            from: (!monthKey && periodMode === 'range') ? fromDate : undefined,
+            to: (!monthKey && periodMode === 'range') ? toDate : undefined,
          });
          if (res?.ok) {
             setDrillData({
@@ -275,33 +282,67 @@ export default function IncomeStatement() {
                      >
                         Todo el Año (12 Meses)
                      </button>
+                     <button
+                        type="button"
+                        onClick={() => setPeriodMode('range')}
+                        className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${
+                           periodMode === 'range'
+                              ? 'bg-bg-content text-heading font-semibold shadow-sm'
+                              : 'text-text-soft hover:text-heading'
+                        }`}
+                     >
+                        Rango de Fechas
+                     </button>
                   </div>
 
-                  {/* Dropdowns de Año y Mes de referencia */}
-                  <div className="flex items-center gap-2">
-                     <select
-                        value={selectedMonth}
-                        onChange={(e) => setSelectedMonth(Number(e.target.value))}
-                        className="h-9 text-xs rounded-xl border border-border-subtle bg-bg-content text-text-main px-2.5 font-medium focus:outline-none focus:ring-2 focus:ring-brand"
-                     >
-                        {monthOptions.map((m) => (
-                           <option key={m.num} value={m.num}>
-                              {m.name}
-                           </option>
-                        ))}
-                     </select>
-                     <select
-                        value={selectedYear}
-                        onChange={(e) => setSelectedYear(Number(e.target.value))}
-                        className="h-9 text-xs rounded-xl border border-border-subtle bg-bg-content text-text-main px-2.5 font-medium focus:outline-none focus:ring-2 focus:ring-brand"
-                     >
-                        {yearOptions.map((y) => (
-                           <option key={y} value={y}>
-                              {y}
-                           </option>
-                        ))}
-                     </select>
-                  </div>
+                  {/* Si es range: mostramos Desde y Hasta con DateInput. Si no: dropdowns de Mes y Año */}
+                  {periodMode === 'range' ? (
+                     <div className="flex items-center gap-2">
+                        <div className="w-32">
+                           <DateInput
+                              disabled={loading}
+                              value={fromDate}
+                              onChange={setFromDate}
+                              placeholder="Desde"
+                           />
+                        </div>
+                        <span className="text-text-soft font-semibold text-xs">—</span>
+                        <div className="w-32">
+                           <DateInput
+                              disabled={loading}
+                              value={toDate}
+                              onChange={setToDate}
+                              min={fromDate || undefined}
+                              placeholder="Hasta"
+                           />
+                        </div>
+                     </div>
+                  ) : (
+                     <div className="flex items-center gap-2">
+                        <select
+                           value={selectedMonth}
+                           onChange={(e) => setSelectedMonth(Number(e.target.value))}
+                           className="h-9 text-xs rounded-xl border border-border-subtle bg-bg-content text-text-main px-2.5 font-medium focus:outline-none focus:ring-2 focus:ring-brand"
+                        >
+                           {monthOptions.map((m) => (
+                              <option key={m.num} value={m.num}>
+                                 {m.name}
+                              </option>
+                           ))}
+                        </select>
+                        <select
+                           value={selectedYear}
+                           onChange={(e) => setSelectedYear(Number(e.target.value))}
+                           className="h-9 text-xs rounded-xl border border-border-subtle bg-bg-content text-text-main px-2.5 font-medium focus:outline-none focus:ring-2 focus:ring-brand"
+                        >
+                           {yearOptions.map((y) => (
+                              <option key={y} value={y}>
+                                 {y}
+                              </option>
+                           ))}
+                        </select>
+                     </div>
+                  )}
                </div>
 
                {/* Reportabilidad Pills */}
@@ -432,24 +473,23 @@ export default function IncomeStatement() {
                               return (
                                  <tr
                                     key={item.key}
-                                    className="bg-emerald-50 dark:bg-emerald-950/30 font-bold text-emerald-800 dark:text-emerald-300 border-y border-emerald-200 dark:border-emerald-800/50"
+                                    className="bg-emerald-50/60 dark:bg-emerald-950/20 text-emerald-800 dark:text-emerald-300 border-y border-emerald-200 dark:border-emerald-800/40"
                                  >
-                                    <td className="py-3.5 px-4 text-[13px] tracking-wide">
+                                    <td className="py-3 px-4 font-bold text-heading">
                                        {item.label}
                                     </td>
                                     {months.map((m) => (
-                                       <td key={m.key} className="py-3.5 px-3 text-right font-bold text-[13px]">
+                                       <td key={m.key} className="py-3 px-3 text-right font-bold transition">
                                           {clp(item.monthlyTotals[m.key])}
                                        </td>
                                     ))}
-                                    <td className="py-3.5 px-4 text-right font-extrabold text-[14px] bg-emerald-100/80 dark:bg-emerald-900/40 text-emerald-900 dark:text-emerald-200">
+                                    <td className="py-3 px-4 text-right font-bold text-heading bg-surface-1/80">
                                        {clp(item.accumulated)}
                                     </td>
                                  </tr>
                               );
                            }
 
-                           // 2. Gran Total: Resultado Neto del Periodo (EBITDA)
                            if (item.isTotal) {
                               return (
                                  <tr

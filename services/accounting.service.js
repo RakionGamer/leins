@@ -3260,16 +3260,45 @@ class AccountingService {
    // --- Estado de Resultados (Comparativo Mensual) ---
    static #MONTH_NAMES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 
-   async getIncomeStatement(entityId, { periodMode = 'quarter', year, month } = {}) {
+   async getIncomeStatement(entityId, { periodMode = 'quarter', year, month, from, to } = {}) {
       await this.ensureDefaultPlan(entityId);
 
       const now = new Date();
-      const currentYear = Number(year) || now.getFullYear();
-      const currentMonth = Number(month) || (now.getMonth() + 1);
+      let currentYear = Number(year) || now.getFullYear();
+      let currentMonth = Number(month) || (now.getMonth() + 1);
 
       // Calcular lista de meses según periodMode
       const monthsList = [];
-      if (periodMode === 'current_month') {
+      let startDate;
+      let endDate;
+
+      if ((periodMode === 'range' || periodMode === 'custom_range') && from && to && /^\d{4}-\d{2}-\d{2}$/.test(String(from).trim()) && /^\d{4}-\d{2}-\d{2}$/.test(String(to).trim())) {
+         const f = String(from).trim();
+         const t = String(to).trim();
+         startDate = f <= t ? f : t;
+         endDate = f <= t ? t : f;
+
+         const [yStart, mStart] = startDate.split('-').map(Number);
+         const [yEnd, mEnd] = endDate.split('-').map(Number);
+
+         let cur = new Date(yStart, mStart - 1, 1);
+         const targetEnd = new Date(yEnd, mEnd - 1, 1);
+
+         while (cur <= targetEnd) {
+            const y = cur.getFullYear();
+            const m = cur.getMonth() + 1;
+            const mStr = String(m).padStart(2, '0');
+            monthsList.push({
+               key: `${y}-${mStr}`,
+               year: y,
+               month: m,
+               label: `${AccountingService.#MONTH_NAMES[m - 1]} ${y}`
+            });
+            cur.setMonth(cur.getMonth() + 1);
+         }
+         currentYear = yEnd;
+         currentMonth = mEnd;
+      } else if (periodMode === 'current_month') {
          const mStr = String(currentMonth).padStart(2, '0');
          monthsList.push({
             key: `${currentYear}-${mStr}`,
@@ -3277,6 +3306,9 @@ class AccountingService {
             month: currentMonth,
             label: `${AccountingService.#MONTH_NAMES[currentMonth - 1]} ${currentYear}`
          });
+         startDate = `${currentYear}-${mStr}-01`;
+         const lastDayOfEndMonth = new Date(currentYear, currentMonth, 0).getDate();
+         endDate = `${currentYear}-${mStr}-${String(lastDayOfEndMonth).padStart(2, '0')}`;
       } else if (periodMode === 'year') {
          for (let m = 1; m <= 12; m++) {
             const mStr = String(m).padStart(2, '0');
@@ -3287,6 +3319,8 @@ class AccountingService {
                label: `${AccountingService.#MONTH_NAMES[m - 1]} ${currentYear}`
             });
          }
+         startDate = `${currentYear}-01-01`;
+         endDate = `${currentYear}-12-31`;
       } else {
          const numMonths = periodMode === 'semester' ? 6 : 3;
          for (let i = numMonths - 1; i >= 0; i--) {
@@ -3301,13 +3335,12 @@ class AccountingService {
                label: `${AccountingService.#MONTH_NAMES[m - 1]} ${y}`
             });
          }
+         const startMonth = monthsList[0];
+         const endMonth = monthsList[monthsList.length - 1];
+         startDate = `${startMonth.year}-${String(startMonth.month).padStart(2, '0')}-01`;
+         const lastDayOfEndMonth = new Date(endMonth.year, endMonth.month, 0).getDate();
+         endDate = `${endMonth.year}-${String(endMonth.month).padStart(2, '0')}-${String(lastDayOfEndMonth).padStart(2, '0')}`;
       }
-
-      const startMonth = monthsList[0];
-      const endMonth = monthsList[monthsList.length - 1];
-      const startDate = `${startMonth.year}-${String(startMonth.month).padStart(2, '0')}-01`;
-      const lastDayOfEndMonth = new Date(endMonth.year, endMonth.month, 0).getDate();
-      const endDate = `${endMonth.year}-${String(endMonth.month).padStart(2, '0')}-${String(lastDayOfEndMonth).padStart(2, '0')}`;
 
       // Cargar todas las cuentas contables de resultado
       const allAccounts = await models.AccountingAccount.findAll({
@@ -3596,30 +3629,42 @@ class AccountingService {
    }
 
    // --- Mayor Analítico Auxiliar (Drill-down de celdas) ---
-   async getIncomeStatementDrilldown(entityId, { accountCode, groupKey, periodMonth, year, month } = {}) {
+   async getIncomeStatementDrilldown(entityId, { accountCode, groupKey, periodMonth, from, to, year, month } = {}) {
       if (!entityId) throw boom.badRequest('entityId es requerido');
+      let startDate;
+      let endDate;
+      let monthLabel;
+      let targetYear;
+      let targetMonth;
 
-      let targetYear = Number(year);
-      let targetMonth = Number(month);
+      if (from && to && /^\d{4}-\d{2}-\d{2}$/.test(String(from).trim()) && /^\d{4}-\d{2}-\d{2}$/.test(String(to).trim())) {
+         const f = String(from).trim();
+         const t = String(to).trim();
+         startDate = f <= t ? f : t;
+         endDate = f <= t ? t : f;
+         monthLabel = `Rango ${startDate} al ${endDate}`;
+      } else {
+         targetYear = Number(year);
+         targetMonth = Number(month);
 
-      if (periodMonth && /^\d{4}-\d{2}$/.test(periodMonth)) {
-         const [y, m] = periodMonth.split('-').map(Number);
-         targetYear = y;
-         targetMonth = m;
+         if (periodMonth && /^\d{4}-\d{2}$/.test(periodMonth)) {
+            const [y, m] = periodMonth.split('-').map(Number);
+            targetYear = y;
+            targetMonth = m;
+         }
+
+         if (!targetYear || !targetMonth) {
+            const now = new Date();
+            targetYear = targetYear || now.getFullYear();
+            targetMonth = targetMonth || (now.getMonth() + 1);
+         }
+
+         const mStr = String(targetMonth).padStart(2, '0');
+         startDate = `${targetYear}-${mStr}-01`;
+         const lastDay = new Date(targetYear, targetMonth, 0).getDate();
+         endDate = `${targetYear}-${mStr}-${String(lastDay).padStart(2, '0')}`;
+         monthLabel = `${AccountingService.#MONTH_NAMES[targetMonth - 1]} ${targetYear}`;
       }
-
-      if (!targetYear || !targetMonth) {
-         const now = new Date();
-         targetYear = targetYear || now.getFullYear();
-         targetMonth = targetMonth || (now.getMonth() + 1);
-      }
-
-      const mStr = String(targetMonth).padStart(2, '0');
-      const startDate = `${targetYear}-${mStr}-01`;
-      const lastDay = new Date(targetYear, targetMonth, 0).getDate();
-      const endDate = `${targetYear}-${mStr}-${String(lastDay).padStart(2, '0')}`;
-      const monthLabel = `${AccountingService.#MONTH_NAMES[targetMonth - 1]} ${targetYear}`;
-
       // Cargar cuentas y reglas
       const allAccounts = await models.AccountingAccount.findAll({
          where: { entity_id: entityId, is_active: true }
