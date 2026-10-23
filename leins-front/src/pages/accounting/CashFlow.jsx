@@ -391,128 +391,122 @@ export default function CashFlow() {
             </div>
          </div>
 
-         {/* KPI Cards Row */}
-         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-bg-content rounded-2xl p-4 border border-border-subtle shadow-xs">
-               <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-text-soft">Cobros en Efectivo (Ventas)</span>
-                  <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
-                     <ArrowTrendingUpIcon className="w-4 h-4" />
-                  </div>
+         {/* KPI Summary Cards */}
+         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="rounded-2xl border border-border-subtle bg-surface-1 p-4 shadow-sm flex items-center gap-4">
+               <div className="p-3 bg-emerald-500/10 text-emerald-600 rounded-xl">
+                  <ArrowTrendingUpIcon className="w-6 h-6" />
                </div>
-               <div className="mt-2 text-xl font-black text-heading tracking-tight font-mono">
-                  {clp(kpis.totalIncomes)}
-               </div>
-               <div className="mt-1 text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
-                  <span>Ingresos percibidos en cartola</span>
+               <div>
+                  <div className="text-xs font-semibold text-text-soft uppercase tracking-wide">Cobros en Efectivo</div>
+                  <div className="text-lg md:text-xl font-bold text-heading">{clp(kpis.totalIncomes)}</div>
                </div>
             </div>
 
-            <div className="bg-bg-content rounded-2xl p-4 border border-border-subtle shadow-xs">
-               <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-text-soft">Pagos en Efectivo (Compras/Gastos)</span>
-                  <div className="w-8 h-8 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center">
-                     <ArrowTrendingDownIcon className="w-4 h-4" />
-                  </div>
+            <div className="rounded-2xl border border-border-subtle bg-surface-1 p-4 shadow-sm flex items-center gap-4">
+               <div className="p-3 bg-amber-500/10 text-amber-600 rounded-xl">
+                  <ArrowTrendingDownIcon className="w-6 h-6" />
                </div>
-               <div className="mt-2 text-xl font-black text-heading tracking-tight font-mono">
-                  {clp(kpis.totalExpenses)}
-               </div>
-               <div className="mt-1 text-[11px] text-rose-600 dark:text-rose-400 font-semibold flex items-center gap-1">
-                  <span>Egresos pagados en cartola</span>
+               <div>
+                  <div className="text-xs font-semibold text-text-soft uppercase tracking-wide">Pagos en Efectivo</div>
+                  <div className="text-lg md:text-xl font-bold text-heading">{clp(kpis.totalExpenses)}</div>
                </div>
             </div>
 
-            <div className="bg-bg-content rounded-2xl p-4 border border-border-subtle shadow-xs">
-               <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-text-soft">Flujo Neto Operacional</span>
-                  <div className="w-8 h-8 rounded-xl bg-brand/10 text-brand flex items-center justify-center">
-                     <BanknotesIcon className="w-4 h-4" />
+            <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-4 shadow-sm flex items-center gap-4 ring-1 ring-emerald-500/20">
+               <div className="p-3 bg-emerald-600 text-white rounded-xl">
+                  <BanknotesIcon className="w-6 h-6" />
+               </div>
+               <div>
+                  <div className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 uppercase tracking-wide">
+                     Flujo Neto Operacional
                   </div>
-               </div>
-               <div className={`mt-2 text-xl font-black tracking-tight font-mono ${
-                  (kpis.netOperatingFlow || 0) >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
-               }`}>
-                  {clp(kpis.netOperatingFlow, true)}
-               </div>
-               <div className="mt-1 text-[11px] text-text-soft font-medium">
-                  Cobros menos pagos del período
+                  <div className="text-lg md:text-xl font-bold text-emerald-700 dark:text-emerald-300">
+                     {clp(kpis.netOperatingFlow, true)}
+                  </div>
                </div>
             </div>
 
-            <div className="bg-bg-content rounded-2xl p-4 border border-border-subtle shadow-xs">
-               <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-text-soft">Saldo Disponible en Bancos</span>
-                  <div className="w-8 h-8 rounded-xl bg-brand/10 text-brand flex items-center justify-center">
-                     <CurrencyDollarIcon className="w-4 h-4" />
+            <div className="rounded-2xl border border-brand/30 bg-brand/5 p-4 shadow-sm flex items-center gap-4 ring-1 ring-brand/10">
+               <div className="p-3 bg-brand text-white rounded-xl">
+                  <CurrencyDollarIcon className="w-6 h-6" />
+               </div>
+               <div>
+                  <div className="text-xs font-semibold text-brand uppercase tracking-wide">
+                     Saldo Disponible en Bancos
                   </div>
-               </div>
-               <div className="mt-2 text-xl font-black text-heading tracking-tight font-mono">
-                  {clp(kpis.currentBankBalance)}
-               </div>
-               <div className="mt-1 text-[11px] text-text-soft font-medium">
-                  Saldo disponible según conciliación
+                  <div className="text-lg md:text-xl font-bold text-brand">
+                     {clp(kpis.currentBankBalance)}
+                  </div>
                </div>
             </div>
          </div>
 
          {/* Contenedor Principal de la Tabla */}
          <div className="bg-bg-content rounded-3xl border border-border-subtle shadow-sm overflow-hidden">
-            {loading && (
-               <div className="py-20 flex flex-col items-center justify-center gap-3">
+            {loading ? (
+               <div className="p-16 flex flex-col items-center justify-center gap-3">
                   <ArrowPathIcon className="w-8 h-8 animate-spin text-brand" />
-                  <span className="text-xs font-semibold text-text-soft">Calculando Flujo de Caja desde Cartola Bancaria...</span>
+                  <span className="text-sm text-text-soft font-medium">Calculando Flujo de Caja desde Conciliación Bancaria...</span>
                </div>
-            )}
-
-            {error && (
-               <div className="p-8 text-center">
-                  <p className="text-sm font-semibold text-danger">{error}</p>
+            ) : error ? (
+               <div className="p-12 text-center text-danger">
+                  <p className="font-semibold">{error}</p>
                   <button
                      onClick={loadCashFlow}
-                     className="mt-3 px-4 py-2 bg-brand text-white rounded-xl text-xs font-semibold hover:bg-brand/90 transition cursor-pointer"
+                     className="mt-4 px-4 py-2 rounded-xl bg-brand text-white text-xs font-semibold"
                   >
                      Reintentar
                   </button>
                </div>
-            )}
-
-            {!loading && !error && (
+            ) : structure.length === 0 ? (
+               <div className="p-16 text-center text-text-soft">
+                  <BanknotesIcon className="w-12 h-12 mx-auto mb-3 opacity-40" />
+                  <p className="font-semibold text-heading">No hay movimientos de tesorería registrados en el periodo seleccionado</p>
+                  <p className="text-xs mt-1">Los datos se alimentan automáticamente de los movimientos bancarios conciliados con compras, ventas y honorarios.</p>
+               </div>
+            ) : (
                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse text-xs">
+                  <table className="w-full text-left text-xs border-collapse">
                      <thead>
-                        <tr className="border-b border-border-subtle bg-surface-1/50 text-text-soft font-bold">
-                           <th className="py-3 px-4 min-w-[280px]">Concepto Flujo de Efectivo</th>
+                        <tr className="border-b border-border-subtle bg-surface-1 text-text-soft uppercase tracking-wider font-semibold">
+                           <th className="py-3.5 px-4 min-w-[280px]">Concepto Flujo de Efectivo</th>
                            {months.map((m) => (
-                              <th key={m.key} className="py-3 px-3 text-right font-mono min-w-[110px]">
+                              <th key={m.key} className="py-3.5 px-3 text-right min-w-[120px]">
                                  {m.label}
                               </th>
                            ))}
-                           <th className="py-3 px-4 text-right font-mono min-w-[130px] bg-surface-2/60 text-heading">
+                           <th className="py-3.5 px-4 text-right min-w-[140px] bg-slate-900 text-white font-bold tracking-normal text-[13px]">
                               Total Flujo Neto
                            </th>
                         </tr>
                      </thead>
-                     <tbody className="divide-y divide-border-subtle">
+                     <tbody className="divide-y divide-border-subtle font-medium">
                         {structure.map((group) => {
-                           const isExpanded = expandedGroups[group.key] ?? true;
+                           const isExpanded = reportLevel === 2 && Boolean(expandedGroups[group.key] ?? true);
 
                            return (
                               <React.Fragment key={group.key}>
                                  {/* Fila de Encabezado de Grupo (ACTIVIDADES DE OPERACIÓN) */}
-                                 <tr
-                                    onClick={() => toggleGroup(group.key)}
-                                    className="cursor-pointer transition-colors bg-surface-1/30 hover:bg-surface-2/50 font-bold"
-                                 >
-                                    <td className="py-3 px-4 flex items-center gap-2 text-heading select-none">
-                                       {isExpanded ? (
-                                          <ChevronDownIcon className="w-4 h-4 text-text-soft shrink-0" />
-                                       ) : (
-                                          <ChevronRightIcon className="w-4 h-4 text-text-soft shrink-0" />
-                                       )}
-                                       <span className="tracking-wide uppercase text-xs">
-                                          {group.label}
-                                       </span>
+                                 <tr className="bg-bg-content hover:bg-surface-1/60 transition-colors">
+                                    <td className="py-3 px-4 font-bold text-heading">
+                                       <div className="flex items-center gap-2">
+                                          {reportLevel === 2 && (
+                                             <button
+                                                type="button"
+                                                onClick={() => toggleGroup(group.key)}
+                                                className="p-1 rounded hover:bg-surface-2 text-text-soft transition cursor-pointer"
+                                                title={isExpanded ? 'Colapsar cuentas' : 'Expandir cuentas'}
+                                             >
+                                                {isExpanded ? (
+                                                   <ChevronDownIcon className="w-4 h-4 text-brand" />
+                                                ) : (
+                                                   <ChevronRightIcon className="w-4 h-4" />
+                                                )}
+                                             </button>
+                                          )}
+                                          <span>{group.label}</span>
+                                       </div>
                                     </td>
                                     {months.map((m) => {
                                        const val = group.monthlyAmounts[m.key] || 0;
@@ -530,7 +524,7 @@ export default function CashFlow() {
                                                    });
                                                 }
                                              }}
-                                             className={`py-3 px-3 text-right font-mono transition ${
+                                             className={`py-3 px-3 text-right font-bold transition ${
                                                 val !== 0 ? 'cursor-pointer hover:underline hover:text-brand' : ''
                                              } ${val >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}
                                              title={val !== 0 ? 'Clic para ver Mayor Analítico Auxiliar' : ''}
@@ -539,115 +533,116 @@ export default function CashFlow() {
                                           </td>
                                        );
                                     })}
-                                    <td className={`py-3 px-4 text-right font-mono font-extrabold bg-surface-2/40 ${
-                                       group.total >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
-                                    }`}>
+                                    <td className="py-3 px-4 text-right font-bold text-heading bg-surface-1/80">
                                        {clp(group.total)}
                                     </td>
                                  </tr>
 
                                  {/* Filas de Conceptos (Nivel 1) */}
-                                 {isExpanded &&
-                                    group.items?.map((item) => {
-                                       const isOutflow = item.isOutflow;
+                                 {group.items?.map((item) => {
+                                    const isOutflow = item.isOutflow;
 
-                                       return (
-                                          <React.Fragment key={item.key}>
-                                             <tr className="hover:bg-surface-1/40 transition-colors">
-                                                <td className="py-2.5 px-4 pl-9 text-text-main font-medium">
-                                                   <div className="flex items-center gap-2">
-                                                      <span className="w-1.5 h-1.5 rounded-full bg-text-soft/40"></span>
-                                                      <span>{item.name}</span>
-                                                   </div>
-                                                </td>
-                                                {months.map((m) => {
-                                                   const rawVal = item.monthlyAmounts[m.key] || 0;
-                                                   const displayVal = isOutflow && rawVal > 0 ? -rawVal : rawVal;
+                                    return (
+                                       <React.Fragment key={item.key}>
+                                          <tr className="hover:bg-surface-1/40 transition-colors">
+                                             <td className="py-2.5 px-4 pl-10 text-text-main font-medium">
+                                                <div className="flex items-center gap-2">
+                                                   <span className="w-1.5 h-1.5 rounded-full bg-text-soft/40"></span>
+                                                   <span className="truncate">{item.name}</span>
+                                                </div>
+                                             </td>
+                                             {months.map((m) => {
+                                                const rawVal = item.monthlyAmounts[m.key] || 0;
+                                                const displayVal = isOutflow && rawVal > 0 ? -rawVal : rawVal;
 
-                                                   return (
-                                                      <td
-                                                         key={m.key}
-                                                         onClick={() =>
-                                                            rawVal !== 0 &&
-                                                            handleOpenDrilldown({
-                                                               conceptKey: item.key,
-                                                               accountCode: item.code,
-                                                               monthKey: m.key,
-                                                               conceptName: `${item.name} (${m.label})`,
-                                                               cellAmount: displayVal,
-                                                            })
-                                                         }
-                                                         className={`py-2.5 px-3 text-right font-mono transition ${
-                                                            rawVal !== 0
-                                                               ? 'cursor-pointer hover:underline hover:text-brand hover:font-bold'
-                                                               : 'opacity-40'
-                                                         }`}
-                                                         title={rawVal !== 0 ? 'Clic para ver Mayor Analítico Auxiliar' : ''}
-                                                      >
-                                                         {clp(displayVal)}
-                                                      </td>
-                                                   );
-                                                })}
-                                                <td className="py-2.5 px-4 text-right font-mono font-bold bg-surface-1/30">
-                                                   {clp(isOutflow && item.total > 0 ? -item.total : item.total)}
-                                                </td>
-                                             </tr>
-
-                                             {/* Cuentas contables detalladas (Nivel 2) */}
-                                             {reportLevel === 2 &&
-                                                item.accounts?.map((acc) => (
-                                                   <tr
-                                                      key={acc.code}
-                                                      className="bg-surface-1/20 hover:bg-surface-2/40 text-[11px] text-text-soft transition-colors"
+                                                return (
+                                                   <td
+                                                      key={m.key}
+                                                      onClick={() =>
+                                                         rawVal !== 0 &&
+                                                         handleOpenDrilldown({
+                                                            conceptKey: item.key,
+                                                            accountCode: item.code,
+                                                            monthKey: m.key,
+                                                            conceptName: `${item.name} (${m.label})`,
+                                                            cellAmount: displayVal,
+                                                         })
+                                                      }
+                                                      className={`py-2.5 px-3 text-right font-mono transition ${
+                                                         rawVal !== 0
+                                                            ? 'cursor-pointer hover:underline hover:text-brand hover:font-bold'
+                                                            : 'opacity-40'
+                                                      }`}
+                                                      title={rawVal !== 0 ? 'Clic para ver Mayor Analítico Auxiliar' : ''}
                                                    >
-                                                      <td className="py-2 px-4 pl-14 font-mono truncate max-w-[280px]">
-                                                         <span className="text-text-soft/70 mr-1.5">{acc.code}</span>
-                                                         <span>{acc.name}</span>
-                                                      </td>
-                                                      {months.map((m) => {
-                                                         const accVal = acc.monthlyAmounts[m.key] || 0;
-                                                         const displayAccVal = isOutflow && accVal > 0 ? -accVal : accVal;
+                                                      {clp(displayVal)}
+                                                   </td>
+                                                );
+                                             })}
+                                             <td className="py-2.5 px-4 text-right font-mono font-semibold bg-surface-1/30">
+                                                {clp(isOutflow && item.total > 0 ? -item.total : item.total)}
+                                             </td>
+                                          </tr>
 
-                                                         return (
-                                                            <td
-                                                               key={m.key}
-                                                               onClick={() =>
-                                                                  accVal !== 0 &&
-                                                                  handleOpenDrilldown({
-                                                                     conceptKey: item.key,
-                                                                     accountCode: acc.code,
-                                                                     monthKey: m.key,
-                                                                     conceptName: `${acc.code} ${acc.name} (${m.label})`,
-                                                                     cellAmount: displayAccVal,
-                                                                  })
-                                                               }
-                                                               className={`py-2 px-3 text-right font-mono transition ${
-                                                                  accVal !== 0
-                                                                     ? 'cursor-pointer hover:underline hover:text-brand hover:font-bold'
-                                                                     : 'opacity-40'
-                                                               }`}
-                                                               title={accVal !== 0 ? 'Clic para ver Mayor Analítico Auxiliar' : ''}
-                                                            >
-                                                               {clp(displayAccVal)}
-                                                            </td>
-                                                         );
-                                                      })}
-                                                      <td className="py-2 px-4 text-right font-mono font-semibold bg-surface-1/30">
-                                                         {clp(isOutflow && acc.total > 0 ? -acc.total : acc.total)}
-                                                      </td>
-                                                   </tr>
-                                                ))}
-                                          </React.Fragment>
-                                       );
-                                    })}
+                                          {/* Cuentas contables detalladas (Nivel 2) */}
+                                          {reportLevel === 2 && isExpanded &&
+                                             item.accounts?.map((acc) => (
+                                                <tr
+                                                   key={acc.code}
+                                                   className="text-text-soft hover:bg-surface-1/40 hover:text-heading transition-colors text-[11.5px]"
+                                                >
+                                                   <td className="py-2 px-4 pl-14 font-normal">
+                                                      <div className="flex items-center gap-2">
+                                                         <span className="font-mono text-[10px] bg-surface-2 px-1.5 py-0.5 rounded border border-border-subtle">
+                                                            {acc.code}
+                                                         </span>
+                                                         <span className="truncate">{acc.name}</span>
+                                                      </div>
+                                                   </td>
+                                                   {months.map((m) => {
+                                                      const accVal = acc.monthlyAmounts[m.key] || 0;
+                                                      const displayAccVal = isOutflow && accVal > 0 ? -accVal : accVal;
+
+                                                      return (
+                                                         <td
+                                                            key={m.key}
+                                                            onClick={() =>
+                                                               accVal !== 0 &&
+                                                               handleOpenDrilldown({
+                                                                  conceptKey: item.key,
+                                                                  accountCode: acc.code,
+                                                                  monthKey: m.key,
+                                                                  conceptName: `${acc.code} ${acc.name} (${m.label})`,
+                                                                  cellAmount: displayAccVal,
+                                                               })
+                                                            }
+                                                            className={`py-2 px-3 text-right font-mono transition ${
+                                                               accVal !== 0
+                                                                  ? 'cursor-pointer hover:underline hover:text-brand hover:font-bold'
+                                                                  : 'opacity-40'
+                                                            }`}
+                                                            title={accVal !== 0 ? 'Clic para ver Mayor Analítico Auxiliar' : ''}
+                                                         >
+                                                            {clp(displayAccVal)}
+                                                         </td>
+                                                      );
+                                                   })}
+                                                   <td className="py-2 px-4 text-right font-mono font-semibold bg-surface-1/30">
+                                                      {clp(isOutflow && acc.total > 0 ? -acc.total : acc.total)}
+                                                   </td>
+                                                </tr>
+                                             ))}
+                                       </React.Fragment>
+                                    );
+                                 })}
                               </React.Fragment>
                            );
                         })}
 
                         {/* Fila Destacada: SALDO FINAL EN BANCOS (DISPONIBLE) */}
                         {endingBankBalanceRow && (
-                           <tr className="bg-[#0f172a] text-white font-bold text-xs shadow-md">
-                              <td className="py-3.5 px-4 font-bold tracking-tight uppercase">
+                           <tr className="bg-[#0f172a] text-white font-bold border-t-2 border-slate-800">
+                              <td className="py-4 px-4 text-[13px] tracking-wide text-white uppercase font-bold">
                                  {endingBankBalanceRow.label}
                               </td>
                               {months.map((m) => {
@@ -655,13 +650,13 @@ export default function CashFlow() {
                                  return (
                                     <td
                                        key={m.key}
-                                       className="py-3.5 px-3 text-right font-mono text-emerald-400 font-bold"
+                                       className="py-4 px-3 text-right font-bold text-[13px] text-emerald-400 font-mono"
                                     >
                                        {clp(balanceVal)}
                                     </td>
                                  );
                               })}
-                              <td className="py-3.5 px-4 text-right font-mono font-extrabold text-emerald-400 bg-slate-900 border-l border-slate-800">
+                              <td className="py-4 px-4 text-right font-extrabold text-[15px] bg-slate-950 text-emerald-400 font-mono">
                                  {clp(endingBankBalanceRow.total)}
                               </td>
                            </tr>
