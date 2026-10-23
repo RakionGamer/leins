@@ -468,75 +468,79 @@ export default function PurchaseInvoicesAdapted() {
                      <button onClick={handleClearFilters} disabled={loading} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-text-soft hover:text-danger hover:bg-danger/10 rounded-xl transition-colors disabled:opacity-50">
                         <ArrowPathIcon className="w-4 h-4" /> Limpiar Filtros
                      </button>
-                     <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-xs font-semibold text-text-soft uppercase tracking-wider hidden sm:inline">Centralización:</span>
-                        <div className="inline-flex p-1 bg-surface-2 rounded-2xl ring-1 ring-border-subtle/40 items-center gap-1 text-xs font-medium">
-                           {[
-                              { key: 'all', label: 'Todos' },
-                              { key: 'unreconciled', label: 'Sin conciliar' },
-                              { key: 'unclassified', label: 'Sin clasificar' },
-                              { key: 'pending', label: 'Pendientes' },
-                              { key: 'centralized', label: 'Centralizados' },
-                           ].map((f) => (
-                              <button
-                                 key={f.key}
-                                 type="button"
-                                 onClick={() => { setCentralizationFilter(f.key); resetToFirstPage(); }}
-                                 className={`px-2.5 py-1 rounded-xl transition ${
-                                    centralizationFilter === f.key
-                                       ? 'bg-bg-content shadow ring-1 ring-border-subtle text-heading font-semibold'
-                                       : 'text-text-soft hover:text-heading'
-                                 }`}
-                              >
-                                 {f.label}
-                              </button>
-                           ))}
-                        </div>
-                     </div>
                      <ViewModeToggle mode={mode} onChange={(k) => k === 'month' ? switchToMonth() : switchToRange()} />
                   </div>
                </div>
 
-               <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start bg-surface-1 p-4 rounded-2xl border border-border-subtle/50">
-                  <div className={`space-y-1.5 ${mode === 'range' ? 'md:col-span-1' : 'md:col-span-2'}`}>
-                     <label htmlFor="entityId" className="block text-xs font-semibold text-text-soft uppercase tracking-wider truncate" title="ID Entidad">ID Ent.</label>
-                     <input id="entityId" disabled className={ctrl} type="text" placeholder="Selecciona entidad arriba" value={entityId} />
+               <div className="bg-surface-1 p-4 rounded-2xl border border-border-subtle/50 space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
+                     <div className={`space-y-1.5 ${mode === 'range' ? 'md:col-span-1' : 'md:col-span-2'}`}>
+                        <label htmlFor="entityId" className="block text-xs font-semibold text-text-soft uppercase tracking-wider truncate" title="ID Entidad">ID Ent.</label>
+                        <input id="entityId" disabled className={ctrl} type="text" placeholder="Selecciona entidad arriba" value={entityId} />
+                     </div>
+
+                     <div className={`space-y-1.5 ${mode === 'range' ? 'md:col-span-2' : 'md:col-span-3'}`}>
+                        <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider">Tipo</label>
+                        <select disabled={loading} className={selectCtrl} value={docType} onChange={(e) => { setDocType(e.target.value); resetToFirstPage(); }}>
+                           <option value="">Todos los tipos</option>
+                           {SII_DOCUMENT_FILTERS.expense.map((option) => (
+                              <option key={option.value} value={option.value}>{option.label}</option>
+                           ))}
+                        </select>
+                     </div>
+
+                     <div className="space-y-1.5 md:col-span-2">
+                        <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider">Origen</label>
+                        <select disabled={loading} className={selectCtrl} value={sourceFilter} onChange={(e) => { setSourceFilter(e.target.value); resetToFirstPage(); }}>
+                           <option value="">Todos</option>
+                           <option value="SII">SII</option>
+                           <option value="MANUAL">Manual</option>
+                        </select>
+                     </div>
+
+                     <div className={mode === 'range' ? 'md:col-span-5' : 'md:col-span-3'}>
+                        {mode === 'month' ? (
+                           <MonthField value={filterMonth} contextValue={period ? periodToYYYYMM(period) : todayYYYYMM()} onChange={(v) => { setFilterMonth(v); resetToFirstPage(); }} disabled={loading} />
+                        ) : (
+                           <DateRangeField from={fromDate} to={toDate} onFrom={(v) => { setFromDate(v); resetToFirstPage(); }} onTo={(v) => { setToDate(v); resetToFirstPage(); }} disabled={loading} />
+                        )}
+                     </div>
+
+                     <div className="space-y-1.5 md:col-span-2">
+                        <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider">Por Pág.</label>
+                        <select disabled={loading} className={selectCtrl} value={pageSize} onChange={(e) => { setPageSize(Math.min(200, Number(e.target.value) || 50)); resetToFirstPage(); }}>
+                           <option value={20}>20 filas</option>
+                           <option value={50}>50 filas</option>
+                           <option value={100}>100 filas</option>
+                        </select>
+                     </div>
                   </div>
 
-                  <div className={`space-y-1.5 ${mode === 'range' ? 'md:col-span-2' : 'md:col-span-3'}`}>
-                     <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider">Tipo</label>
-                     <select disabled={loading} className={selectCtrl} value={docType} onChange={(e) => { setDocType(e.target.value); resetToFirstPage(); }}>
-                        <option value="">Todos los tipos</option>
-                        {SII_DOCUMENT_FILTERS.expense.map((option) => (
-                           <option key={option.value} value={option.value}>{option.label}</option>
+                  {/* Filtro de Centralización: abajo del filtrador común, con ellos */}
+                  <div className="pt-3 border-t border-border-subtle/50 flex flex-wrap items-center gap-3">
+                     <span className="text-xs font-semibold text-text-soft uppercase tracking-wider">Centralización:</span>
+                     <div className="inline-flex p-1 bg-surface-2 rounded-2xl ring-1 ring-border-subtle/40 items-center gap-1 text-xs font-medium">
+                        {[
+                           { key: 'all', label: 'Todos' },
+                           { key: 'unreconciled', label: 'Sin conciliar' },
+                           { key: 'unclassified', label: 'Sin clasificar' },
+                           { key: 'pending', label: 'Pendientes' },
+                           { key: 'centralized', label: 'Centralizados' },
+                        ].map((f) => (
+                           <button
+                              key={f.key}
+                              type="button"
+                              onClick={() => { setCentralizationFilter(f.key); resetToFirstPage(); }}
+                              className={`px-3 py-1.5 rounded-xl transition ${
+                                 centralizationFilter === f.key
+                                    ? 'bg-bg-content shadow ring-1 ring-border-subtle text-brand font-semibold'
+                                    : 'text-text-soft hover:text-heading'
+                              }`}
+                           >
+                              {f.label}
+                           </button>
                         ))}
-                     </select>
-                  </div>
-
-                  <div className="space-y-1.5 md:col-span-2">
-                     <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider">Origen</label>
-                     <select disabled={loading} className={selectCtrl} value={sourceFilter} onChange={(e) => { setSourceFilter(e.target.value); resetToFirstPage(); }}>
-                        <option value="">Todos</option>
-                        <option value="SII">SII</option>
-                        <option value="MANUAL">Manual</option>
-                     </select>
-                  </div>
-
-                  <div className={mode === 'range' ? 'md:col-span-5' : 'md:col-span-3'}>
-                     {mode === 'month' ? (
-                        <MonthField value={filterMonth} contextValue={period ? periodToYYYYMM(period) : todayYYYYMM()} onChange={(v) => { setFilterMonth(v); resetToFirstPage(); }} disabled={loading} />
-                     ) : (
-                        <DateRangeField from={fromDate} to={toDate} onFrom={(v) => { setFromDate(v); resetToFirstPage(); }} onTo={(v) => { setToDate(v); resetToFirstPage(); }} disabled={loading} />
-                     )}
-                  </div>
-
-                  <div className="space-y-1.5 md:col-span-2">
-                     <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider">Por Pág.</label>
-                     <select disabled={loading} className={selectCtrl} value={pageSize} onChange={(e) => { setPageSize(Math.min(200, Number(e.target.value) || 50)); resetToFirstPage(); }}>
-                        <option value={20}>20 filas</option>
-                        <option value={50}>50 filas</option>
-                        <option value={100}>100 filas</option>
-                     </select>
+                     </div>
                   </div>
                </div>
             </div>
