@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useLayoutEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { MagnifyingGlassIcon, XMarkIcon, UserIcon } from '@heroicons/react/24/outline';
+import { MagnifyingGlassIcon, XMarkIcon, UserIcon, CheckIcon } from '@heroicons/react/24/outline';
 import { getContactsForSelect } from '../../services/contactsApi';
 import { searchCounterparties } from '../../services/accountingApi';
 
@@ -26,6 +26,7 @@ export default function ContactSelect({
    value,
    onChange,
    onSelect,
+   onSelectMultiple,
    placeholder = 'Buscar o ingresar RUT / Contacto...',
    className = '',
    required = false,
@@ -33,6 +34,7 @@ export default function ContactSelect({
 }) {
    const [open, setOpen] = useState(false);
    const [contacts, setContacts] = useState([]);
+   const [selectedRuts, setSelectedRuts] = useState(new Set());
    const [loading, setLoading] = useState(false);
    const [active, setActive] = useState(0);
    const [rect, setRect] = useState(null);
@@ -45,11 +47,14 @@ export default function ContactSelect({
       if (!entityId) return;
       setLoading(true);
       try {
-         // Intentar consultar endpoint de contactos
-         let data = await getContactsForSelect({ entityId, q: query, limit: 100, signal }).catch(() => null);
+         let searchTerm = String(query || '').trim();
+         if (searchTerm.includes(' - ')) {
+            searchTerm = searchTerm.split(' - ')[0].trim();
+         }
+
+         let data = await getContactsForSelect({ entityId, q: searchTerm, limit: 100, signal }).catch(() => null);
          if (!data || !Array.isArray(data)) {
-            // Fallback a searchCounterparties si contacts aún no está disponible
-            data = await searchCounterparties({ entityId, q: query, signal });
+            data = await searchCounterparties({ entityId, q: searchTerm, signal });
          }
          if (signal && signal.aborted) return;
          setContacts(Array.isArray(data) ? data : []);
@@ -61,7 +66,6 @@ export default function ContactSelect({
       }
    };
 
-   // Al abrir o cambiar valor mientras está abierto
    useEffect(() => {
       if (!open || !entityId) return;
       if (justSelected.current) {
@@ -109,6 +113,25 @@ export default function ContactSelect({
    const handleSelect = (item) => {
       justSelected.current = true;
       if (onSelect) onSelect(item);
+      setSelectedRuts(new Set());
+      setOpen(false);
+   };
+
+   const toggleRut = (rut) => {
+      setSelectedRuts((prev) => {
+         const next = new Set(prev);
+         if (next.has(rut)) next.delete(rut);
+         else next.add(rut);
+         return next;
+      });
+   };
+
+   const handleConfirmMultiple = () => {
+      const selected = contacts.filter((c) => selectedRuts.has(c.rut));
+      if (onSelectMultiple && selected.length > 0) {
+         onSelectMultiple(selected);
+      }
+      setSelectedRuts(new Set());
       setOpen(false);
    };
 
@@ -131,7 +154,11 @@ export default function ContactSelect({
          setActive((a) => (a - 1 + contacts.length) % contacts.length);
       } else if (e.key === 'Enter') {
          e.preventDefault();
-         if (contacts[active]) handleSelect(contacts[active]);
+         if (selectedRuts.size > 0) {
+            handleConfirmMultiple();
+         } else if (contacts[active]) {
+            handleSelect(contacts[active]);
+         }
       } else if (e.key === 'Escape') {
          e.stopPropagation();
          setOpen(false);
@@ -199,15 +226,36 @@ export default function ContactSelect({
                   position: 'fixed',
                   top: rect.bottom + 6,
                   left: rect.left,
-                  minWidth: Math.max(rect.width, 340),
-                  maxWidth: Math.max(rect.width, 450),
+                  minWidth: Math.max(rect.width, 360),
+                  maxWidth: Math.max(rect.width, 500),
                   zIndex: 99999,
                }}
                className="bg-bg-content border border-border-subtle rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-100"
             >
-               <div className="px-3.5 py-2 text-[11px] font-bold uppercase tracking-wider text-text-soft bg-surface-1 border-b border-border-subtle/60 flex items-center justify-between">
-                  <span>Contactos Registrados</span>
-                  <span className="text-brand font-mono font-semibold">{contacts.length} resultado{contacts.length !== 1 ? 's' : ''}</span>
+               <div className="px-3.5 py-2.5 text-[11px] font-bold uppercase tracking-wider text-text-soft bg-surface-1 border-b border-border-subtle/60 flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                     <UserIcon className="w-3.5 h-3.5 text-brand" />
+                     <span>Contactos Registrados</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                     {contacts.length > 0 && onSelectMultiple && (
+                        <button
+                           type="button"
+                           onMouseDown={(e) => {
+                              e.preventDefault();
+                              if (selectedRuts.size === contacts.length) {
+                                 setSelectedRuts(new Set());
+                              } else {
+                                 setSelectedRuts(new Set(contacts.map((c) => c.rut)));
+                              }
+                           }}
+                           className="text-[10px] font-semibold text-brand hover:underline"
+                        >
+                           {selectedRuts.size === contacts.length ? 'Deseleccionar todos' : 'Seleccionar todos'}
+                        </button>
+                     )}
+                     <span className="text-brand font-mono font-semibold">{contacts.length} resultado{contacts.length !== 1 ? 's' : ''}</span>
+                  </div>
                </div>
 
                {loading && contacts.length === 0 ? (
@@ -218,7 +266,7 @@ export default function ContactSelect({
                ) : contacts.length === 0 ? (
                   <div className="p-4 text-center">
                      <p className="text-xs text-text-soft italic">No se encontraron contactos coincidentes.</p>
-                     <p className="text-[11px] text-text-soft/80 mt-1">Puedes continuar ingresándolo manualmente.</p>
+                     <p className="text-[11px] text-text-soft/80 mt-1">Puedes continuar ingresándolo manualmente en el formato "RUT - Razón Social".</p>
                   </div>
                ) : (
                   <ul className="max-h-64 overflow-y-auto divide-y divide-border-subtle/30">
@@ -227,13 +275,32 @@ export default function ContactSelect({
                            key={item.rut + '-' + i}
                            onMouseDown={(e) => {
                               e.preventDefault();
-                              handleSelect(item);
+                              if (selectedRuts.size > 0 || e.target.type === 'checkbox') {
+                                 toggleRut(item.rut);
+                              } else {
+                                 handleSelect(item);
+                              }
                            }}
                            onMouseEnter={() => setActive(i)}
-                           className={`flex items-center justify-between gap-3 px-4 py-2.5 cursor-pointer transition-colors ${
-                              i === active ? 'bg-brand/10 border-l-4 border-l-brand' : 'border-l-4 border-l-transparent hover:bg-surface-2'
+                           className={`flex items-center justify-between gap-3 px-3.5 py-2.5 cursor-pointer transition-colors ${
+                              selectedRuts.has(item.rut)
+                                 ? 'bg-brand/10 border-l-4 border-l-brand'
+                                 : i === active
+                                    ? 'bg-surface-2 border-l-4 border-l-brand/50'
+                                    : 'border-l-4 border-l-transparent hover:bg-surface-2'
                            }`}
                         >
+                           {onSelectMultiple && (
+                              <input
+                                 type="checkbox"
+                                 checked={selectedRuts.has(item.rut)}
+                                 onChange={(e) => {
+                                    e.stopPropagation();
+                                    toggleRut(item.rut);
+                                 }}
+                                 className="w-4 h-4 rounded border-border-subtle text-brand focus:ring-brand cursor-pointer shrink-0"
+                              />
+                           )}
                            <div className="min-w-0 flex-1">
                               <div className="text-sm font-semibold text-text-main truncate">
                                  {item.name ? highlight(item.name) : <span className="italic font-normal text-text-soft">Sin razón social</span>}
@@ -248,6 +315,37 @@ export default function ContactSelect({
                         </li>
                      ))}
                   </ul>
+               )}
+
+               {onSelectMultiple && selectedRuts.size > 0 && (
+                  <div className="p-2.5 bg-surface-1 border-t border-border-subtle/70 flex items-center justify-between gap-3">
+                     <div className="text-xs font-semibold text-text-main">
+                        <span className="text-brand font-bold">{selectedRuts.size}</span> seleccionado{selectedRuts.size !== 1 ? 's' : ''}
+                     </div>
+                     <div className="flex items-center gap-2">
+                        <button
+                           type="button"
+                           onMouseDown={(e) => {
+                              e.preventDefault();
+                              setSelectedRuts(new Set());
+                           }}
+                           className="px-2.5 py-1 text-xs text-text-soft hover:text-danger rounded-lg transition"
+                        >
+                           Limpiar
+                        </button>
+                        <button
+                           type="button"
+                           onMouseDown={(e) => {
+                              e.preventDefault();
+                              handleConfirmMultiple();
+                           }}
+                           className="px-3.5 py-1.5 text-xs font-bold text-white bg-brand hover:bg-brand-hover rounded-xl shadow transition flex items-center gap-1.5"
+                        >
+                           <CheckIcon className="w-4 h-4 stroke-2" />
+                           Agregar ({selectedRuts.size})
+                        </button>
+                     </div>
+                  </div>
                )}
             </div>,
             document.body

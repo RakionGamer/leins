@@ -134,7 +134,7 @@ export default function AccountingRules() {
       account_id: '',
       glosa: '',
       cost_center: '',
-      ruts: [{ rut: '', name: '' }],
+      ruts: [{ rut: '', name: '', displayValue: '' }],
    });
    const [submitting, setSubmitting] = useState(false);
 
@@ -147,14 +147,20 @@ export default function AccountingRules() {
          for (const c of selectedContacts) {
             const fRut = formatRut(c.rut);
             if (!existingRuts.has(fRut)) {
-               newRows.push({ rut: fRut, name: c.name || '', fromDirectory: Boolean(c.name) });
+               const name = c.name || '';
+               newRows.push({
+                  rut: fRut,
+                  name,
+                  displayValue: name ? `${fRut} - ${name}` : fRut,
+                  fromDirectory: Boolean(name),
+               });
                existingRuts.add(fRut);
             }
          }
 
          return {
             ...prev,
-            ruts: [...existing, ...newRows].length ? [...existing, ...newRows] : [{ rut: '', name: '' }],
+            ruts: [...existing, ...newRows].length ? [...existing, ...newRows] : [{ rut: '', name: '', displayValue: '' }],
          };
       });
       toast.success(`Se agregaron ${selectedContacts.length} contactos a la asignación`);
@@ -185,7 +191,7 @@ export default function AccountingRules() {
    }, [ready, entityId, loadRules]);
 
    const addRutRow = () => {
-      setFormData(prev => ({ ...prev, ruts: [...prev.ruts, { rut: '', name: '' }] }));
+      setFormData(prev => ({ ...prev, ruts: [...prev.ruts, { rut: '', name: '', displayValue: '' }] }));
    };
    
    const removeRutRow = (index) => {
@@ -193,7 +199,7 @@ export default function AccountingRules() {
    };
 
    const formatRut = (rut) => {
-      let value = String(rut).replace(/[^0-9kK]/g, '').toUpperCase();
+      let value = String(rut || '').replace(/[^0-9kK]/g, '').toUpperCase();
       if (value.length > 9) value = value.slice(0, 9);
       if (value.length <= 1) return value;
       let body = value.slice(0, -1);
@@ -202,76 +208,198 @@ export default function AccountingRules() {
       return `${body}-${dv}`;
    };
 
-   const updateRutRow = async (index, field, value) => {
-      const finalValue = field === 'rut' ? formatRut(value) : value;
+   const parseRutAndName = (str) => {
+      const val = String(str || '').trim();
+      if (!val) return { rut: '', name: '' };
+
+      const separatorIdx = val.indexOf(' - ');
+      if (separatorIdx !== -1) {
+         const part1 = val.slice(0, separatorIdx).trim();
+         const part2 = val.slice(separatorIdx + 3).trim();
+         return {
+            rut: formatRut(part1),
+            name: part2,
+         };
+      }
+
+      const rutRegex = /^(\d{1,2}(?:\.?\d{3}){2}-?[\dkK]|\d{7,8}-?[\dkK])/i;
+      const match = val.match(rutRegex);
+      if (match) {
+         const rawRut = match[1];
+         const rest = val.slice(match[0].length).replace(/^[\s\-_:,]+/, '').trim();
+         const fRut = formatRut(rawRut);
+         return {
+            rut: fRut,
+            name: rest,
+         };
+      }
+
+      const cleanOnly = val.replace(/[^0-9kK]/g, '');
+      if (cleanOnly.length >= 7 && cleanOnly.length <= 9) {
+         const fRut = formatRut(cleanOnly);
+         return {
+            rut: fRut,
+            name: '',
+         };
+      }
+
+      return {
+         rut: val,
+         name: '',
+      };
+   };
+
+   const handleUnifiedInputChange = async (index, val) => {
+      const parsed = parseRutAndName(val);
       
-      setFormData(prev => {
+      setFormData((prev) => {
          const newRuts = [...prev.ruts];
          newRuts[index] = {
             ...newRuts[index],
-            [field]: finalValue,
-            ...(field === 'rut' ? { fromDirectory: false } : {}),
+            rut: parsed.rut,
+            name: parsed.name,
+            displayValue: val,
+            fromDirectory: false,
          };
          return { ...prev, ruts: newRuts };
       });
-         
-      if (field === 'rut') {
-         const clean = finalValue.replace(/[^0-9kK-]/g, '').toUpperCase();
-         if (clean.length >= 8) {
-            // Check local first
-            const existing = rules.find(r => r.counterparty_rut === clean && r.counterparty_name);
-            if (existing && existing.counterparty_name) {
-               setFormData(prev => {
-                  const newRuts = [...prev.ruts];
-                  if (!newRuts[index].name) {
-                     newRuts[index].name = existing.counterparty_name;
-                     newRuts[index].fromDirectory = true;
-                  }
-                  return { ...prev, ruts: newRuts };
-               });
-               return;
-            }
-            
-            // Check API
-            const result = await searchCounterpartyName(clean);
-            if (result && result.name) {
-               setFormData(prev => {
-                  const newRuts = [...prev.ruts];
-                  // Solo sobreescribe si el usuario no ha escrito nada
-                  if (!newRuts[index].name) {
-                     newRuts[index].name = result.name;
-                     newRuts[index].fromDirectory = true;
-                  }
-                  return { ...prev, ruts: newRuts };
-               });
-            }
+
+      const clean = String(parsed.rut || '').replace(/[^0-9kK]/g, '').toUpperCase();
+      if (clean.length >= 8 && !parsed.name) {
+         const existing = rules.find(r => String(r.counterparty_rut || '').replace(/[^0-9kK]/g, '').toUpperCase() === clean && r.counterparty_name);
+         if (existing && existing.counterparty_name) {
+            setFormData(prev => {
+               const newRuts = [...prev.ruts];
+               if (!newRuts[index].name) {
+                  newRuts[index].name = existing.counterparty_name;
+                  newRuts[index].displayValue = `${formatRut(clean)} - ${existing.counterparty_name}`;
+                  newRuts[index].fromDirectory = true;
+               }
+               return { ...prev, ruts: newRuts };
+            });
+            return;
+         }
+
+         const result = await searchCounterpartyName(clean);
+         if (result && result.name) {
+            setFormData(prev => {
+               const newRuts = [...prev.ruts];
+               if (!newRuts[index].name) {
+                  newRuts[index].name = result.name;
+                  newRuts[index].displayValue = `${formatRut(clean)} - ${result.name}`;
+                  newRuts[index].fromDirectory = true;
+               }
+               return { ...prev, ruts: newRuts };
+            });
          }
       }
    };
 
-   const selectCounterparty = (index, item) => {
-      setFormData(prev => {
-         const newRuts = prev.ruts.map((r, i) => i === index ? { rut: formatRut(item.rut), name: item.name || '', fromDirectory: Boolean(item.name) } : r);
+   const handleContactSelect = (index, item) => {
+      const fRut = formatRut(item.rut);
+      const name = item.name || '';
+      setFormData((prev) => {
+         const newRuts = [...prev.ruts];
+         newRuts[index] = {
+            rut: fRut,
+            name,
+            displayValue: name ? `${fRut} - ${name}` : fRut,
+            fromDirectory: Boolean(name),
+         };
          return { ...prev, ruts: newRuts };
       });
    };
 
+   const handleContactSelectMultiple = (currentIndex, items) => {
+      if (!items || items.length === 0) return;
+
+      setFormData((prev) => {
+         const newRuts = [...prev.ruts];
+         
+         const first = items[0];
+         const fRut = formatRut(first.rut);
+         const firstName = first.name || '';
+         newRuts[currentIndex] = {
+            rut: fRut,
+            name: firstName,
+            displayValue: firstName ? `${fRut} - ${firstName}` : fRut,
+            fromDirectory: Boolean(firstName),
+         };
+
+         const existingRuts = new Set(newRuts.map(r => formatRut(r.rut)));
+
+         for (let i = 1; i < items.length; i++) {
+            const it = items[i];
+            const rutF = formatRut(it.rut);
+            const itName = it.name || '';
+            if (!existingRuts.has(rutF)) {
+               newRuts.push({
+                  rut: rutF,
+                  name: itName,
+                  displayValue: itName ? `${rutF} - ${itName}` : rutF,
+                  fromDirectory: Boolean(itName),
+               });
+               existingRuts.add(rutF);
+            }
+         }
+
+         return { ...prev, ruts: newRuts };
+      });
+
+      toast.success(`Se agregaron ${items.length} contactos a la regla`);
+   };
+
    const handleEditGroup = (group) => {
-      const ruts = group.rules.map(r => ({ rut: r.counterparty_rut || '', name: r.counterparty_name || '', fromDirectory: Boolean(r.counterparty_name) }));
+      const ruts = group.rules.map(r => {
+         const fRut = formatRut(r.counterparty_rut || '');
+         const name = r.counterparty_name || '';
+         return {
+            rut: fRut,
+            name,
+            displayValue: name ? `${fRut} - ${name}` : fRut,
+            fromDirectory: Boolean(name),
+         };
+      });
       setFormData({
          account_id: group.account ? group.account.id : '',
          glosa: group.rules[0]?.glosa || '',
          cost_center: group.rules[0]?.cost_center || '',
-         ruts: ruts.length ? ruts : [{ rut: '', name: '' }],
+         ruts: ruts.length ? ruts : [{ rut: '', name: '', displayValue: '' }],
       });
       setModalOpen(true);
    };
 
    const handleSubmit = async (e) => {
       e.preventDefault();
-      if (!formData.account_id) return;
+      if (!formData.account_id) {
+         toast.error('Debe seleccionar una cuenta contable');
+         return;
+      }
       
-      const ruts = formData.ruts.map(r => ({ rut: String(r.rut).replace(/[^0-9kK-]/g, '').trim(), name: String(r.name).trim() })).filter(r => r.rut);
+      const ruts = formData.ruts
+         .map(r => {
+            let rut = r.rut || '';
+            let name = r.name || '';
+            const raw = r.displayValue || rut;
+
+            if (!name && raw) {
+               const parsed = parseRutAndName(raw);
+               if (parsed.rut) rut = parsed.rut;
+               if (parsed.name) name = parsed.name;
+            }
+
+            const cleanRut = String(rut).replace(/[^0-9kK-]/g, '').trim().toUpperCase();
+            return {
+               rut: cleanRut,
+               name: String(name || '').trim()
+            };
+         })
+         .filter(r => r.rut && r.rut.length >= 8);
+
+      if (ruts.length === 0) {
+         toast.error('Debe ingresar al menos un RUT válido');
+         return;
+      }
 
       setSubmitting(true);
       setErr(null);
@@ -374,7 +502,7 @@ export default function AccountingRules() {
                   </button>
                   <button
                      onClick={() => {
-                        setFormData({ account_id: '', cost_center: '', ruts: [{ rut: '', name: '' }] });
+                        setFormData({ account_id: '', cost_center: '', ruts: [{ rut: '', name: '', displayValue: '' }] });
                         setModalOpen(true);
                      }}
                      className={`${btnCtrl} text-brand border-brand/20 bg-brand/5`}
@@ -532,53 +660,38 @@ export default function AccountingRules() {
                </div>
 
                <div>
-                  <div className="mb-2">
+                  <div className="mb-2 flex items-center justify-between">
                      <label className="block text-xs font-semibold uppercase text-text-soft">2. RUTs y Razones Sociales</label>
+                     <span className="text-[11px] text-text-soft">
+                        Escribe el RUT y la Razón Social en un solo campo, o selecciona desde Contactos Registrados.
+                     </span>
                   </div>
 
                   <div className="space-y-3 max-h-60 overflow-y-auto p-1 pr-2">
                      {formData.ruts.map((r, i) => (
                         <div key={i} className="flex gap-2 items-center">
-                           <div className="w-2/5">
+                           <div className="flex-1">
                               <ContactSelect
                                  entityId={entityId}
-                                 placeholder="RUT o Contacto..."
+                                 placeholder="Escribe RUT y Razón Social (ej: 76.123.456-7 - Empresa SpA)..."
                                  required
                                  className={ctrl}
-                                 value={r.rut}
-                                 onChange={(v) => updateRutRow(i, 'rut', v)}
-                                 onSelect={(item) => {
-                                    setFormData((prev) => {
-                                       const newRuts = [...prev.ruts];
-                                       newRuts[i] = {
-                                          rut: formatRut(item.rut),
-                                          name: item.name || '',
-                                          fromDirectory: Boolean(item.name),
-                                       };
-                                       return { ...prev, ruts: newRuts };
-                                    });
-                                 }}
+                                 value={r.displayValue !== undefined ? r.displayValue : (r.rut ? `${formatRut(r.rut)}${r.name ? ' - ' + r.name : ''}` : '')}
+                                 onChange={(val) => handleUnifiedInputChange(i, val)}
+                                 onSelect={(item) => handleContactSelect(i, item)}
+                                 onSelectMultiple={(items) => handleContactSelectMultiple(i, items)}
                               />
                            </div>
-                           <div className="w-3/5">
-                              <input
-                                 type="text"
-                                 placeholder={r.fromDirectory ? "Razón Social fija (Directorio)" : "Razón Social (Opcional)"}
-                                 className={`${ctrl} ${r.fromDirectory ? "bg-surface-2 text-text-soft cursor-not-allowed select-none opacity-90" : ""}`}
-                                 value={r.name || ''}
-                                 readOnly={Boolean(r.fromDirectory)}
-                                 title={r.fromDirectory ? "Razón Social vinculada desde el Directorio / Contactos" : ""}
-                                 onChange={(e) => updateRutRow(i, 'name', e.target.value)}
-                              />
-                           </div>
-                           <button 
-                              type="button" 
-                              onClick={() => removeRutRow(i)} 
-                              className="p-2 text-text-soft hover:text-danger hover:bg-danger/10 rounded-xl transition shrink-0"
-                              title="Eliminar fila"
-                           >
-                              <TrashIcon className="w-5 h-5" />
-                           </button>
+                           {formData.ruts.length > 1 && (
+                              <button 
+                                 type="button" 
+                                 onClick={() => removeRutRow(i)} 
+                                 className="p-2 text-text-soft hover:text-danger hover:bg-danger/10 rounded-xl transition shrink-0"
+                                 title="Eliminar fila"
+                              >
+                                 <TrashIcon className="w-5 h-5" />
+                              </button>
+                           )}
                         </div>
                      ))}
                   </div>
@@ -596,7 +709,7 @@ export default function AccountingRules() {
                         onClick={() => setBatchPickerOpen(true)} 
                         className="flex items-center gap-1.5 text-xs font-semibold text-text-soft hover:text-text-main bg-surface-2 hover:bg-surface-3 px-3 py-1.5 rounded-lg transition"
                      >
-                        <UserGroupIcon className="w-4 h-4 text-brand" /> Selección múltiple (Directorio)
+                        <UserGroupIcon className="w-4 h-4 text-brand" /> Selección múltiple de Contactos Registrados
                      </button>
                   </div>
                </div>
