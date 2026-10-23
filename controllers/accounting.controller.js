@@ -218,6 +218,26 @@ const getIncomeStatementDrilldown = async (req, res, next) => {
    }
 };
 
+const getCashFlow = async (req, res, next) => {
+   try {
+      const entityId = req.entityId;
+      const result = await service.getCashFlow(entityId, req.query);
+      res.json(result);
+   } catch (error) {
+      next(error);
+   }
+};
+
+const getCashFlowDrilldown = async (req, res, next) => {
+   try {
+      const entityId = req.entityId;
+      const result = await service.getCashFlowDrilldown(entityId, req.query);
+      res.json(result);
+   } catch (error) {
+      next(error);
+   }
+};
+
 module.exports = {
    searchCounterparty,
    searchCounterparties,
@@ -240,4 +260,6 @@ module.exports = {
    getBalances,
    getIncomeStatement,
    getIncomeStatementDrilldown,
+   getCashFlow,
+   getCashFlowDrilldown,
 };

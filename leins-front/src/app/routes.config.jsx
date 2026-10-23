@@ -24,6 +24,7 @@ const AccountingEntries = lazy(() => import('../pages/accounting/AccountingEntri
 const AccountingRules = lazy(() => import('../pages/accounting/AccountingRules'));
 const AccountingBalances = lazy(() => import('../pages/accounting/AccountingBalances'));
 const IncomeStatement = lazy(() => import('../pages/accounting/IncomeStatement'));
+const CashFlow = lazy(() => import('../pages/accounting/CashFlow'));
 
 // layout y fallback
 const DashboardLayout = lazy(() => import('../layouts/DashboardLayout'));
@@ -59,6 +60,7 @@ export const routesConfig = [
          { path: 'accounting/rules', element: <AccountingRules /> },
          { path: 'accounting/balances', element: <AccountingBalances /> },
          { path: 'accounting/income-statement', element: <IncomeStatement /> },
+         { path: 'accounting/cash-flow', element: <CashFlow /> },
          { path: 'profile', element: <Profile /> },
          { path: 'profile/edit', element: <ProfileEdit /> },
          { path: '*', element: <Stub title="No encontrado" /> },
@@ -92,4 +94,5 @@ export const entityScopedPaths = new Set([
    '/accounting/rules',
    '/accounting/balances',
    '/accounting/income-statement',
+   '/accounting/cash-flow',
 ]);

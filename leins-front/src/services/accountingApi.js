@@ -89,6 +89,13 @@ export const getIncomeStatement = ({ entityId, periodMode, year, month, from, to
 export const getIncomeStatementDrilldown = ({ entityId, accountCode, groupKey, periodMonth, from, to, year, month, signal } = {}) =>
    request(`/accounting/income-statement/drilldown?${buildQs({ entityId, accountCode, groupKey, periodMonth, from, to, year, month })}`, { signal }, 'Error al cargar el Mayor Analítico');
 
+// --- Flujo de Caja (Efectivo Directo & Proyectado) ---
+export const getCashFlow = ({ entityId, periodMode, year, month, from, to, signal } = {}) =>
+   request(`/accounting/cash-flow?${buildQs({ entityId, periodMode, year, month, from, to })}`, { signal }, 'Error al cargar el Flujo de Caja');
+
+export const getCashFlowDrilldown = ({ entityId, conceptKey, accountCode, periodMonth, from, to, year, month, signal } = {}) =>
+   request(`/accounting/cash-flow/drilldown?${buildQs({ entityId, conceptKey, accountCode, periodMonth, from, to, year, month })}`, { signal }, 'Error al cargar el Mayor Analítico');
+
 export const searchCounterpartyName = async (rut) => {
    try {
       const response = await fetchWithAuth(`/accounting/rules/counterparty/${encodeURIComponent(rut)}`);

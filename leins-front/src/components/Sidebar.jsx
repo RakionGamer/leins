@@ -123,6 +123,7 @@ export default function Sidebar({ onLogout, onClose, collapsed, setCollapsed }) 
                { label: 'Asociación proveedores', to: '/accounting/rules' },
                { label: 'Saldos por RUT', to: '/accounting/balances' },
                { label: 'Estado de Resultados', to: '/accounting/income-statement' },
+               { label: 'Flujo de Caja', to: '/accounting/cash-flow' },
             ],
          },
          ];

@@ -50,4 +50,8 @@ router.get("/balances", ensureEntityAccess, controller.getBalances);
 router.get("/income-statement", ensureEntityAccess, controller.getIncomeStatement);
 router.get("/income-statement/drilldown", ensureEntityAccess, controller.getIncomeStatementDrilldown);
 
+// --- Flujo de Caja (Efectivo Directo & Proyectado) ---
+router.get("/cash-flow", ensureEntityAccess, controller.getCashFlow);
+router.get("/cash-flow/drilldown", ensureEntityAccess, controller.getCashFlowDrilldown);
+
 module.exports = router;
