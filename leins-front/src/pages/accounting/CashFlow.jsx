@@ -246,21 +246,21 @@ export default function CashFlow() {
       <div className="space-y-6">
          {/* Top Header & Filter Card */}
          <div className="bg-bg-content rounded-3xl p-5 border border-border-subtle shadow-sm">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-5 border-b border-border-subtle">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-5 pb-5 border-b border-border-subtle">
                <div>
-                  <h1 className="text-xl md:text-2xl font-black text-heading tracking-tight flex items-center gap-2.5">
-                     <BanknotesIcon className="w-7 h-7 text-brand" />
-                     <span>Flujo de Caja (Efectivo Directo & Proyectado)</span>
-                  </h1>
-                  <p className="text-xs md:text-sm text-text-soft mt-1">
-                     Comparativo mensualizado de tesorería con drilldown de cartola bancaria
+                  <h2 className="text-2xl font-bold text-heading tracking-tight">Flujo de Caja (Comparativo Mensual)</h2>
+                  <p className="text-sm text-text-soft mt-1">
+                     Visualización de periodos mensualizados con reporte por Nivel 1 (Agrupado) y Nivel 2 (Cuentas) respaldado en la conciliación bancaria.
                   </p>
                </div>
 
                {/* Botones de acción */}
-               <div className="flex items-center gap-2 self-start md:self-auto">
+               <div className="flex flex-wrap items-center gap-3">
                   <button
-                     onClick={loadCashFlow}
+                     onClick={() => {
+                        loadCashFlow();
+                        toast.success('Flujo de Caja actualizado');
+                     }}
                      disabled={loading}
                      className="h-10 flex items-center justify-center gap-2 px-4 rounded-xl border border-border-subtle bg-bg-content text-text-main text-xs font-semibold transition shadow-sm hover:bg-surface-2 hover:text-brand focus:outline-none focus:ring-2 focus:ring-brand cursor-pointer"
                   >
