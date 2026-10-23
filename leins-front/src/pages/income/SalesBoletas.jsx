@@ -167,8 +167,11 @@ function useDebounced(value, delay = 300) {
 }
 
 export default function SalesBoletas() {
-   const [exportingCsv, setExportingCsv] = useState(false);
+   const { period } = usePeriod();
+   const { entityId: activeEntityId, ready } = useEntityRequired();
+   const [sp, setSp] = useSearchParams();
 
+   const [exportingCsv, setExportingCsv] = useState(false);
    const [isManualModalOpen, setIsManualModalOpen] = useState(false);
    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
    const [documentToEdit, setDocumentToEdit] = useState(null);
@@ -180,10 +183,6 @@ export default function SalesBoletas() {
    const [documentToLink, setDocumentToLink] = useState(null);
    const [linkFolio, setLinkFolio] = useState('');
    const [isLinking, setIsLinking] = useState(false);
-
-   const { period } = usePeriod();
-   const { entityId: activeEntityId, ready } = useEntityRequired();
-   const [sp, setSp] = useSearchParams();
 
    const [rows, setRows] = useState([]);
    const [loading, setLoading] = useState(true);
@@ -238,6 +237,15 @@ export default function SalesBoletas() {
 
    const buildListParams = useCallback(({ pageOverride = page, limitOverride = pageSize, signal } = {}) => {
       const effectiveEntityId = debEntityId && /^\d+$/.test(String(debEntityId)) ? Number(debEntityId) : undefined;
+      let reconciliationStatus = undefined;
+      let classificationStatus = undefined;
+      let centralizationStatus = undefined;
+
+      if (centralizationFilter === 'unreconciled') reconciliationStatus = 'unreconciled';
+      else if (centralizationFilter === 'unclassified') classificationStatus = 'unclassified';
+      else if (centralizationFilter === 'pending') centralizationStatus = 'pending';
+      else if (centralizationFilter === 'centralized') centralizationStatus = 'centralized';
+
       return {
          entityId: effectiveEntityId,
          operationType: 'INCOME',
@@ -248,13 +256,16 @@ export default function SalesBoletas() {
          month: mode === 'month' ? effectiveMonth : undefined,
          from: mode === 'range' ? (fromDate || undefined) : undefined,
          to: mode === 'range' ? (toDate || undefined) : undefined,
+         reconciliationStatus,
+         classificationStatus,
+         centralizationStatus,
          page: pageOverride,
          limit: limitOverride,
          sort,
          order,
          signal,
       };
-   }, [docType, page, pageSize, sort, order, mode, effectiveMonth, fromDate, toDate, debEntityId, sourceFilter, debFolioFilter, debClientFilter]);
+   }, [docType, page, pageSize, sort, order, mode, effectiveMonth, fromDate, toDate, debEntityId, sourceFilter, debFolioFilter, debClientFilter, centralizationFilter]);
 
    const rangeInvalid = mode === 'range' && fromDate && toDate && new Date(toDate) < new Date(fromDate);
 
@@ -363,7 +374,15 @@ export default function SalesBoletas() {
                   exento, afecto, iva, total,
                   credit_notes_applied: Number(it.credit_notes_applied || 0),
                   source: it.source,
-                  nce_nde_reference: it.nce_nde_reference
+                  nce_nde_reference: it.nce_nde_reference,
+                  is_reconciled: it.is_reconciled,
+                  reconciliation_status: it.reconciliation_status,
+                  remaining_amount: it.remaining_amount,
+                  is_classified: it.is_classified,
+                  classification_status: it.classification_status,
+                  accounting_account: it.accounting_account,
+                  is_centralized: it.is_centralized,
+                  centralization_status: it.centralization_status
                };
             });
 
