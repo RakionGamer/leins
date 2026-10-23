@@ -451,7 +451,7 @@ export default function CashFlow() {
                   {clp(kpis.currentBankBalance)}
                </div>
                <div className="mt-1 text-[11px] text-text-soft font-medium">
-                  Liquidez total en cuentas bancarias
+                  Saldo disponible según conciliación
                </div>
             </div>
          </div>

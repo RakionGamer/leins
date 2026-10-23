@@ -3941,12 +3941,7 @@ class AccountingService {
          endDate = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(lastDayOfEndMonth).padStart(2, '0')}`;
       }
 
-      // 1. Obtener todas las cuentas bancarias de la entidad
-      const bankAccounts = await models.EntityBankAccount.findAll({
-         where: { entity_id: entityId }
-      });
-
-      // 2. Obtener movimientos bancarios conciliados en el período
+      // 1. Obtener movimientos bancarios conciliados en el período
       const recons = await models.BankTransactionDocument.findAll({
          include: [
             {
@@ -3968,18 +3963,6 @@ class AccountingService {
             }
          ],
          order: [[{ model: models.EntityBankTransaction, as: 'tx' }, 'issued_at', 'ASC']]
-      });
-
-      // 3. También buscar transacciones bancarias directas en el rango
-      const allTxInRange = await models.EntityBankTransaction.findAll({
-         where: {
-            entity_id: entityId,
-            issued_at: {
-               [Op.gte]: new Date(`${startDate}T00:00:00`),
-               [Op.lte]: new Date(`${endDate}T23:59:59`),
-            }
-         },
-         order: [['issued_at', 'ASC']]
       });
 
       // Cargar cuentas contables de la entidad
@@ -4096,30 +4079,35 @@ class AccountingService {
          totalOperacion += net;
       }
 
-      // 5. Calcular saldo de bancos mes a mes
-      // Usamos prioritariamente el saldo real registrado en cartola de la última transacción del mes
-      const initialBankTotal = bankAccounts.reduce((sum, b) => sum + Number(b.initial_balance || 0), 0);
-      let runningBankBalance = initialBankTotal;
+      // 5. Calcular saldo de bancos mes a mes (Opción A: 100% Conciliación Bancaria)
+      // Obtenemos el saldo acumulado de todas las conciliaciones anteriores al inicio del período
+      const priorRecons = await models.BankTransactionDocument.findAll({
+         include: [
+            {
+               model: models.EntityBankTransaction,
+               as: 'tx',
+               where: {
+                  entity_id: entityId,
+                  issued_at: {
+                     [Op.lt]: new Date(`${startDate}T00:00:00`)
+                  }
+               }
+            }
+         ]
+      });
+
+      let runningBankBalance = 0;
+      for (const pr of priorRecons) {
+         const tx = pr.tx;
+         if (!tx) continue;
+         const amt = Number(pr.amount_applied || tx.amount || 0);
+         if (tx.type === 'income') runningBankBalance += amt;
+         else if (tx.type === 'expense') runningBankBalance -= amt;
+      }
 
       const bankBalanceMonthly = {};
       for (const m of monthsList) {
-         const endDay = new Date(m.year, m.month, 0).getDate();
-         const monthEndStr = `${m.year}-${String(m.month).padStart(2, '0')}-${String(endDay).padStart(2, '0')}`;
-
-         const latestTxWithBalance = await models.EntityBankTransaction.findOne({
-            where: {
-               entity_id: entityId,
-               issued_at: { [Op.lte]: new Date(`${monthEndStr}T23:59:59`) },
-               balance: { [Op.ne]: null }
-            },
-            order: [['issued_at', 'DESC'], ['id', 'DESC']]
-         });
-
-         if (latestTxWithBalance && latestTxWithBalance.balance != null) {
-            runningBankBalance = Number(latestTxWithBalance.balance);
-         } else {
-            runningBankBalance += (operacionMonthly[m.key] || 0);
-         }
+         runningBankBalance += (operacionMonthly[m.key] || 0);
          bankBalanceMonthly[m.key] = runningBankBalance;
       }
 
