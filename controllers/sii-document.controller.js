@@ -30,7 +30,7 @@ function buildListPayload(req) {
    const typeCode = q.type !== undefined ? String(q.type) : undefined;
 
    return {
-      entity_id: req.entityId ? Number(req.entityId) : (q.entity_id ? Number(q.entity_id) : undefined),
+      entity_id: req.entityId ? Number(req.entityId) : (q.entity_id ? Number(q.entity_id) : (q.entityId ? Number(q.entityId) : undefined)),
       type: typeCode,
       q: q.q ? String(q.q) : (q.search ? String(q.search) : undefined),
       folio: q.folio ? String(q.folio) : undefined,

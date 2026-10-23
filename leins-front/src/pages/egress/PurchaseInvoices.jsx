@@ -553,28 +553,28 @@ export default function PurchaseInvoicesAdapted() {
                      <thead className="bg-surface-2 border-b border-border-subtle text-text-soft">
                         <tr>
                            <th className={`p-4 font-semibold ${sort === 'issue_date' ? 'text-brand' : ''}`}>
-                              <button type="button" className="flex items-center gap-2 hover:text-brand transition" onClick={() => { setOrder(s => (sort === 'issue_date' ? (s === 'asc' ? 'desc' : 'asc') : 'asc')); setSort('issue_date'); setPage(1); }}>
-                                 <CalendarDaysIcon className="w-4 h-4" /> Fecha {sort === 'issue_date' ? orderArrow(order) : ''}
+                              <button type="button" className="flex items-center gap-1 hover:text-brand transition" onClick={() => { setOrder(s => (sort === 'issue_date' ? (s === 'asc' ? 'desc' : 'asc') : 'asc')); setSort('issue_date'); setPage(1); }}>
+                                 Fecha {sort === 'issue_date' ? orderArrow(order) : ''}
                               </button>
                            </th>
                            <th className={`p-4 font-semibold ${sort === 'folio' ? 'text-brand' : ''}`}>
-                              <button type="button" className="flex items-center gap-2 hover:text-brand transition" onClick={() => { setOrder(s => (sort === 'folio' ? (s === 'asc' ? 'desc' : 'asc') : 'asc')); setSort('folio'); setPage(1); }}>
-                                 <HashtagIcon className="w-4 h-4" /> Folio {sort === 'folio' ? orderArrow(order) : ''}
+                              <button type="button" className="flex items-center gap-1 hover:text-brand transition" onClick={() => { setOrder(s => (sort === 'folio' ? (s === 'asc' ? 'desc' : 'asc') : 'asc')); setSort('folio'); setPage(1); }}>
+                                 Folio {sort === 'folio' ? orderArrow(order) : ''}
                               </button>
                            </th>
-                           <th className="p-4 font-semibold"><div className="flex items-center gap-2 justify-center"><TagIcon className="w-4 h-4" /> Tipo</div></th>
-                           <th className="p-4 font-semibold"><div className="flex items-center gap-2"><IdentificationIcon className="w-4 h-4" /> Proveedor (Opc)</div></th>
+                           <th className="p-4 font-semibold text-center">Tipo</th>
+                           <th className="p-4 font-semibold">Proveedor (Opc)</th>
                            <th className="p-4 font-semibold text-right">Exento</th>
                            <th className="p-4 font-semibold text-right">Afecto</th>
                            <th className="p-4 font-semibold text-right">IVA</th>
                            <th className={`p-4 font-semibold text-right ${sort === 'total_amount' ? 'text-brand' : ''}`}>
-                              <button type="button" className="flex items-center gap-2 justify-end w-full hover:text-brand transition" onClick={() => { setOrder(s => (sort === 'total_amount' ? (s === 'asc' ? 'desc' : 'asc') : 'asc')); setSort('total_amount'); setPage(1); }}>
+                              <button type="button" className="flex items-center gap-1 justify-end w-full hover:text-brand transition" onClick={() => { setOrder(s => (sort === 'total_amount' ? (s === 'asc' ? 'desc' : 'asc') : 'asc')); setSort('total_amount'); setPage(1); }}>
                                  Total {sort === 'total_amount' ? orderArrow(order) : ''}
                               </button>
                            </th>
-                           <th className="p-4 font-semibold text-center"><div className="flex items-center gap-1.5 justify-center"><BanknotesIcon className="w-4 h-4 text-brand" /> Estado Pago</div></th>
-                            <th className="p-4 font-semibold text-center"><div className="flex items-center gap-1.5 justify-center"><TagIcon className="w-4 h-4 text-brand" /> Clasificación Contable</div></th>
-                            <th className="p-4 font-semibold text-center">Acciones</th>
+                           <th className="p-4 font-semibold text-center">Estado Pago</th>
+                           <th className="p-4 font-semibold text-center">Clasificación Contable</th>
+                           <th className="p-4 font-semibold text-center">Acciones</th>
                         </tr>
                      </thead>
                      <tbody className="divide-y divide-border-subtle/50">
@@ -612,6 +612,40 @@ export default function PurchaseInvoicesAdapted() {
                               <td className="p-4 text-right font-mono text-text-soft">{clp(r.afecto)}</td>
                               <td className="p-4 text-right font-mono text-text-soft">{clp(r.iva)}</td>
                               <td className="p-4 text-right font-bold text-text-main">{clp(r.total)}</td>
+                              <td className="p-4 text-center whitespace-nowrap">
+                                 {r.is_reconciled ? (
+                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-600 ring-1 ring-emerald-500/20">
+                                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                       Pagado
+                                    </span>
+                                 ) : (
+                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-600 ring-1 ring-amber-500/20" title={r.remaining_amount ? `Pendiente: ${clp(r.remaining_amount)}` : 'Sin egreso bancario vinculado'}>
+                                       <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                                       Sin conciliar
+                                    </span>
+                                 )}
+                              </td>
+                              <td className="p-4 text-center whitespace-nowrap">
+                                 {r.is_classified ? (
+                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-500/10 text-blue-600 ring-1 ring-blue-500/20" title={r.accounting_account?.name || ''}>
+                                       <span>{r.accounting_account?.code || 'Clasificado'}</span>
+                                       {r.accounting_account?.name && (
+                                          <span className="text-[11px] font-normal text-text-soft truncate max-w-[120px]">
+                                             {r.accounting_account.name}
+                                          </span>
+                                       )}
+                                    </span>
+                                 ) : (
+                                    <button
+                                       type="button"
+                                       onClick={() => handleQuickClassify(r)}
+                                       className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-700 hover:bg-amber-500/25 ring-1 ring-amber-500/30 transition shadow-sm cursor-pointer"
+                                       title="Haga clic para clasificar contraparte"
+                                    >
+                                       + Clasificar
+                                    </button>
+                                 )}
+                              </td>
                               <td className="p-4 text-center">
                                  <div className="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                                     {r.source === 'MANUAL' ? (
@@ -638,7 +672,7 @@ export default function PurchaseInvoicesAdapted() {
                            <td className="p-4 text-right">{clp(pageTotals.afecto)}</td>
                            <td className="p-4 text-right">{clp(pageTotals.iva)}</td>
                            <td className="p-4 text-right text-brand">{clp(pageTotals.total)}</td>
-                           <td></td>
+                           <td colSpan={3}></td>
                         </tr>
                      </tfoot>
                   </table>

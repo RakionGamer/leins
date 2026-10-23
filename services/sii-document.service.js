@@ -391,7 +391,12 @@ class SiiDocumentsService {
       };
    }
 
-   _mapListRow(r) {
+   _mapListRow(r, rule) {
+      const remaining = Number(r.get?.('remaining_amount') ?? r.total_amount ?? 0);
+      const isReconciled = r.doc_type_code === 61 || remaining <= 0;
+      const isClassified = Boolean(rule && rule.account_id);
+      const isCentralized = isReconciled && isClassified;
+
       return {
          id: r.id,
          entity_id: r.entity_id,
@@ -410,13 +415,25 @@ class SiiDocumentsService {
          amount_vat: r.amount_vat,
          amount_exempt: r.amount_exempt,
          amount_tax_no_credit: r.amount_tax_no_credit,
-         remaining_amount: Number(r.get?.('remaining_amount') ?? r.total_amount ?? 0),
+         remaining_amount: remaining,
          credit_notes_applied: Number(r.get?.('credit_notes_applied') || 0),
          source: r.source,
          operation_type: r.operation_type ?? r.operationType ?? null,
          nce_nde_reference: r.nce_nde_reference ?? null,
          created_at: r.created_at,
          updated_at: r.updated_at,
+         is_reconciled: isReconciled,
+         reconciliation_status: isReconciled ? 'reconciled' : 'unreconciled',
+         is_classified: isClassified,
+         classification_status: isClassified ? 'classified' : 'unclassified',
+         accounting_account: rule?.account ? {
+            id: rule.account.id,
+            code: rule.account.code,
+            name: rule.account.name,
+            type: rule.account.type
+         } : null,
+         is_centralized: isCentralized,
+         centralization_status: isCentralized ? 'centralized' : 'pending'
       };
    }
 
@@ -436,13 +453,13 @@ class SiiDocumentsService {
          distinct: true,
       });
 
-      const ruts = [...new Set(rows.map(r => r.counterparty_rut).filter(Boolean))];
+      const entityIdToUse = payload.entity_id || payload.entityId;
       let ruleMap = new Map();
-      if (ruts.length > 0 && payload.entity_id) {
+      if (entityIdToUse) {
+         const cleanRut = (s) => String(s || '').replace(/[^0-9kK]/g, '').toUpperCase();
          const rules = await models.AccountingRule.findAll({
             where: {
-               entity_id: payload.entity_id,
-               counterparty_rut: ruts
+               entity_id: entityIdToUse,
             },
             include: [{
                model: models.AccountingAccount,
@@ -450,10 +467,21 @@ class SiiDocumentsService {
                attributes: ['id', 'code', 'name', 'type']
             }]
          });
-         ruleMap = new Map(rules.map(rule => [String(rule.counterparty_rut || '').toUpperCase(), rule]));
+         rules.forEach(rule => {
+            const rawKey = String(rule.counterparty_rut || '').trim().toUpperCase();
+            const cleanKey = cleanRut(rule.counterparty_rut);
+            if (rawKey) ruleMap.set(rawKey, rule);
+            if (cleanKey) ruleMap.set(cleanKey, rule);
+         });
       }
 
-      return { total: count, page: pageNum, pageSize, items: rows.map((r) => this._mapListRow(r, ruleMap.get(String(r.counterparty_rut || '').toUpperCase()))) };
+      const getRuleForDoc = (r) => {
+         const rawKey = String(r.counterparty_rut || '').trim().toUpperCase();
+         const cleanKey = String(r.counterparty_rut || '').replace(/[^0-9kK]/g, '').toUpperCase();
+         return ruleMap.get(rawKey) || ruleMap.get(cleanKey) || null;
+      };
+
+      return { total: count, page: pageNum, pageSize, items: rows.map((r) => this._mapListRow(r, getRuleForDoc(r))) };
    }
 
    // exportacion sin paginar, para descarga csv (con tope de seguridad)
@@ -467,13 +495,13 @@ class SiiDocumentsService {
          subQuery: false,
       });
 
-      const ruts = [...new Set(rows.map(r => r.counterparty_rut).filter(Boolean))];
+      const entityIdToUse = payload.entity_id || payload.entityId;
       let ruleMap = new Map();
-      if (ruts.length > 0 && payload.entity_id) {
+      if (entityIdToUse) {
+         const cleanRut = (s) => String(s || '').replace(/[^0-9kK]/g, '').toUpperCase();
          const rules = await models.AccountingRule.findAll({
             where: {
-               entity_id: payload.entity_id,
-               counterparty_rut: ruts
+               entity_id: entityIdToUse,
             },
             include: [{
                model: models.AccountingAccount,
@@ -481,10 +509,21 @@ class SiiDocumentsService {
                attributes: ['id', 'code', 'name', 'type']
             }]
          });
-         ruleMap = new Map(rules.map(rule => [String(rule.counterparty_rut || '').toUpperCase(), rule]));
+         rules.forEach(rule => {
+            const rawKey = String(rule.counterparty_rut || '').trim().toUpperCase();
+            const cleanKey = cleanRut(rule.counterparty_rut);
+            if (rawKey) ruleMap.set(rawKey, rule);
+            if (cleanKey) ruleMap.set(cleanKey, rule);
+         });
       }
 
-      return rows.map((r) => this._mapListRow(r, ruleMap.get(String(r.counterparty_rut || '').toUpperCase())));
+      const getRuleForDoc = (r) => {
+         const rawKey = String(r.counterparty_rut || '').trim().toUpperCase();
+         const cleanKey = String(r.counterparty_rut || '').replace(/[^0-9kK]/g, '').toUpperCase();
+         return ruleMap.get(rawKey) || ruleMap.get(cleanKey) || null;
+      };
+
+      return rows.map((r) => this._mapListRow(r, getRuleForDoc(r)));
    }
 
    async dailySalesGroups({ entity_id, from, to }) {
