@@ -3989,7 +3989,7 @@ class AccountingService {
       });
       const accountByCode = new Map(allAccounts.map(a => [a.code, a]));
 
-      // Estructura de conceptos
+      // Estructura de conceptos (Flujo Directo basado estrictamente en conciliaciones bancarias)
       const concepts = [
          {
             key: 'cobros_clientes',
@@ -4011,13 +4011,6 @@ class AccountingService {
             code: '21.12.15',
             type: 'outflow',
             accounts: ['21.12.15']
-         },
-         {
-            key: 'otros_operacionales',
-            name: 'Otros Flujos Operativos de Tesorería',
-            code: '52.01.10',
-            type: 'outflow',
-            accounts: ['52.01.10', '11.02.10']
          }
       ];
 
@@ -4046,14 +4039,11 @@ class AccountingService {
          }
       }
 
-      // Procesar reconciliaciones
-      const reconciledTxIds = new Set();
-
+      // Procesar exclusivamente los movimientos con conciliación bancaria
       for (const r of recons) {
          const tx = r.tx;
          const doc = r.doc;
          if (!tx) continue;
-         reconciledTxIds.add(tx.id);
 
          const txDate = tx.issued_at ? String(tx.issued_at.toISOString ? tx.issued_at.toISOString() : tx.issued_at).slice(0, 10) : '';
          const mKey = txDate.slice(0, 7);
@@ -4061,9 +4051,9 @@ class AccountingService {
 
          const amount = Number(r.amount_applied || tx.amount || 0);
          const docTypeCode = doc ? Number(doc.doc_type_code) : null;
-         const opType = doc ? String(doc.operation_type || '').toUpperCase() : '';
 
-         if (tx.type === 'income' || opType === 'INCOME' || [33, 34, 39, 41, 1001].includes(docTypeCode)) {
+         if (tx.type === 'income') {
+            // Abono en banco conciliado con documento de venta
             const targetAcc = (docTypeCode === 39 || docTypeCode === 41) ? '11.05.20' : '11.05.10';
             conceptData.cobros_clientes.monthly[mKey] = (conceptData.cobros_clientes.monthly[mKey] || 0) + amount;
             conceptData.cobros_clientes.total += amount;
@@ -4071,44 +4061,24 @@ class AccountingService {
                conceptData.cobros_clientes.accounts[targetAcc].monthly[mKey] += amount;
                conceptData.cobros_clientes.accounts[targetAcc].total += amount;
             }
-         } else if (docTypeCode === 1002) {
-            conceptData.pagos_honorarios.monthly[mKey] = (conceptData.pagos_honorarios.monthly[mKey] || 0) + amount;
-            conceptData.pagos_honorarios.total += amount;
-            if (conceptData.pagos_honorarios.accounts['21.12.15']) {
-               conceptData.pagos_honorarios.accounts['21.12.15'].monthly[mKey] += amount;
-               conceptData.pagos_honorarios.accounts['21.12.15'].total += amount;
-            }
-         } else {
-            conceptData.pagos_proveedores.monthly[mKey] = (conceptData.pagos_proveedores.monthly[mKey] || 0) + amount;
-            conceptData.pagos_proveedores.total += amount;
-            if (conceptData.pagos_proveedores.accounts['21.07.10']) {
-               conceptData.pagos_proveedores.accounts['21.07.10'].monthly[mKey] += amount;
-               conceptData.pagos_proveedores.accounts['21.07.10'].total += amount;
-            }
-         }
-      }
-
-      // Procesar movimientos bancarios no conciliados como "Otros Operativos"
-      for (const tx of allTxInRange) {
-         if (reconciledTxIds.has(tx.id)) continue;
-         const txDate = tx.issued_at ? String(tx.issued_at.toISOString ? tx.issued_at.toISOString() : tx.issued_at).slice(0, 10) : '';
-         const mKey = txDate.slice(0, 7);
-         if (!mKey || !monthsList.some(m => m.key === mKey)) continue;
-
-         const amount = Number(tx.amount || 0);
-         if (tx.type === 'income') {
-            conceptData.cobros_clientes.monthly[mKey] = (conceptData.cobros_clientes.monthly[mKey] || 0) + amount;
-            conceptData.cobros_clientes.total += amount;
-            if (conceptData.cobros_clientes.accounts['11.05.10']) {
-               conceptData.cobros_clientes.accounts['11.05.10'].monthly[mKey] += amount;
-               conceptData.cobros_clientes.accounts['11.05.10'].total += amount;
-            }
-         } else {
-            conceptData.otros_operacionales.monthly[mKey] = (conceptData.otros_operacionales.monthly[mKey] || 0) + amount;
-            conceptData.otros_operacionales.total += amount;
-            if (conceptData.otros_operacionales.accounts['52.01.10']) {
-               conceptData.otros_operacionales.accounts['52.01.10'].monthly[mKey] += amount;
-               conceptData.otros_operacionales.accounts['52.01.10'].total += amount;
+         } else if (tx.type === 'expense') {
+            // Cargo en banco
+            if (docTypeCode === 1002) {
+               // Conciliado con Boleta de Honorarios
+               conceptData.pagos_honorarios.monthly[mKey] = (conceptData.pagos_honorarios.monthly[mKey] || 0) + amount;
+               conceptData.pagos_honorarios.total += amount;
+               if (conceptData.pagos_honorarios.accounts['21.12.15']) {
+                  conceptData.pagos_honorarios.accounts['21.12.15'].monthly[mKey] += amount;
+                  conceptData.pagos_honorarios.accounts['21.12.15'].total += amount;
+               }
+            } else {
+               // Conciliado con Factura de Compra / Proveedores
+               conceptData.pagos_proveedores.monthly[mKey] = (conceptData.pagos_proveedores.monthly[mKey] || 0) + amount;
+               conceptData.pagos_proveedores.total += amount;
+               if (conceptData.pagos_proveedores.accounts['21.07.10']) {
+                  conceptData.pagos_proveedores.accounts['21.07.10'].monthly[mKey] += amount;
+                  conceptData.pagos_proveedores.accounts['21.07.10'].total += amount;
+               }
             }
          }
       }
@@ -4120,34 +4090,36 @@ class AccountingService {
          const cobros = conceptData.cobros_clientes.monthly[m.key] || 0;
          const proveedores = conceptData.pagos_proveedores.monthly[m.key] || 0;
          const honorarios = conceptData.pagos_honorarios.monthly[m.key] || 0;
-         const otros = conceptData.otros_operacionales.monthly[m.key] || 0;
 
-         const net = cobros - proveedores - honorarios - otros;
+         const net = cobros - proveedores - honorarios;
          operacionMonthly[m.key] = net;
          totalOperacion += net;
       }
 
       // 5. Calcular saldo de bancos mes a mes
+      // Usamos prioritariamente el saldo real registrado en cartola de la última transacción del mes
       const initialBankTotal = bankAccounts.reduce((sum, b) => sum + Number(b.initial_balance || 0), 0);
-
-      // Movimientos históricos anteriores a startDate
-      const priorTxSum = await models.EntityBankTransaction.findAll({
-         attributes: [
-            [sequelize.literal("SUM(CASE WHEN type = 'income' THEN amount ELSE -amount END)"), 'net']
-         ],
-         where: {
-            entity_id: entityId,
-            issued_at: { [Op.lt]: new Date(`${startDate}T00:00:00`) }
-         },
-         raw: true
-      });
-      const priorNet = Number(priorTxSum?.[0]?.net || 0);
-      let runningBankBalance = initialBankTotal + priorNet;
+      let runningBankBalance = initialBankTotal;
 
       const bankBalanceMonthly = {};
       for (const m of monthsList) {
-         const netMonth = operacionMonthly[m.key] || 0;
-         runningBankBalance += netMonth;
+         const endDay = new Date(m.year, m.month, 0).getDate();
+         const monthEndStr = `${m.year}-${String(m.month).padStart(2, '0')}-${String(endDay).padStart(2, '0')}`;
+
+         const latestTxWithBalance = await models.EntityBankTransaction.findOne({
+            where: {
+               entity_id: entityId,
+               issued_at: { [Op.lte]: new Date(`${monthEndStr}T23:59:59`) },
+               balance: { [Op.ne]: null }
+            },
+            order: [['issued_at', 'DESC'], ['id', 'DESC']]
+         });
+
+         if (latestTxWithBalance && latestTxWithBalance.balance != null) {
+            runningBankBalance = Number(latestTxWithBalance.balance);
+         } else {
+            runningBankBalance += (operacionMonthly[m.key] || 0);
+         }
          bankBalanceMonthly[m.key] = runningBankBalance;
       }
 
@@ -4201,20 +4173,6 @@ class AccountingService {
                      monthlyAmounts: a.monthly,
                      total: a.total
                   }))
-               },
-               {
-                  key: 'otros_operacionales',
-                  code: '52.01.10',
-                  name: 'Otros Flujos Operativos de Tesorería',
-                  isOutflow: true,
-                  monthlyAmounts: conceptData.otros_operacionales.monthly,
-                  total: conceptData.otros_operacionales.total,
-                  accounts: Object.values(conceptData.otros_operacionales.accounts).map(a => ({
-                     code: a.code,
-                     name: a.name,
-                     monthlyAmounts: a.monthly,
-                     total: a.total
-                  }))
                }
             ]
          }
@@ -4232,7 +4190,7 @@ class AccountingService {
          },
          kpis: {
             totalIncomes: conceptData.cobros_clientes.total,
-            totalExpenses: conceptData.pagos_proveedores.total + conceptData.pagos_honorarios.total + conceptData.otros_operacionales.total,
+            totalExpenses: conceptData.pagos_proveedores.total + conceptData.pagos_honorarios.total,
             netOperatingFlow: totalOperacion,
             currentBankBalance: runningBankBalance
          },
@@ -4291,7 +4249,7 @@ class AccountingService {
          targetMonthKey = `${targetYear}-${mStr}`;
       }
 
-      // Obtener reconciliaciones en el rango
+      // Obtener exclusivamente las reconciliaciones bancarias en el rango
       const recons = await models.BankTransactionDocument.findAll({
          include: [
             {
@@ -4315,20 +4273,6 @@ class AccountingService {
          order: [[{ model: models.EntityBankTransaction, as: 'tx' }, 'issued_at', 'ASC']]
       });
 
-      // También obtener transacciones sin reconciliar para "otros" o "cobros"
-      const allTx = await models.EntityBankTransaction.findAll({
-         where: {
-            entity_id: entityId,
-            issued_at: {
-               [Op.gte]: new Date(`${startDate}T00:00:00`),
-               [Op.lte]: new Date(`${endDate}T23:59:59`),
-            }
-         },
-         order: [['issued_at', 'ASC']]
-      });
-
-      const reconciledTxIds = new Set(recons.map(r => r.tx?.id).filter(Boolean));
-
       let matchedDocs = [];
       let totalNet = 0;
       let targetConceptName = 'Detalle de Movimientos de Tesorería';
@@ -4339,8 +4283,6 @@ class AccountingService {
          targetConceptName = 'Pagos Efectivos a Proveedores';
       } else if (conceptKey === 'pagos_honorarios' || accountCode === '21.12.15') {
          targetConceptName = 'Pagos Efectivos de Honorarios';
-      } else if (conceptKey === 'otros_operacionales' || accountCode === '52.01.10') {
-         targetConceptName = 'Otros Flujos Operativos de Tesorería';
       }
 
       // Filtrar según el conceptKey / accountCode
@@ -4351,20 +4293,19 @@ class AccountingService {
 
          const amount = Number(r.amount_applied || tx.amount || 0);
          const docTypeCode = doc ? Number(doc.doc_type_code) : null;
-         const opType = doc ? String(doc.operation_type || '').toUpperCase() : '';
 
          let match = false;
 
          if (conceptKey === 'cobros_clientes' || accountCode === '11.05.10' || accountCode === '11.05.20') {
             if (accountCode === '11.05.20') {
-               match = [39, 41].includes(docTypeCode);
+               match = tx.type === 'income' && [39, 41].includes(docTypeCode);
             } else if (accountCode === '11.05.10') {
-               match = tx.type === 'income' || opType === 'INCOME' || [33, 34, 1001].includes(docTypeCode);
+               match = tx.type === 'income' && (docTypeCode !== 39 && docTypeCode !== 41);
             } else {
-               match = tx.type === 'income' || opType === 'INCOME' || [33, 34, 39, 41, 1001].includes(docTypeCode);
+               match = tx.type === 'income';
             }
          } else if (conceptKey === 'pagos_honorarios' || accountCode === '21.12.15') {
-            match = docTypeCode === 1002;
+            match = tx.type === 'expense' && docTypeCode === 1002;
          } else if (conceptKey === 'pagos_proveedores' || accountCode === '21.07.10') {
             match = tx.type === 'expense' && (docTypeCode !== 1002);
          } else if (conceptKey === 'operacion') {
@@ -4383,30 +4324,6 @@ class AccountingService {
                folio_display: tx.document_ref || (doc?.folio ? `FE-${doc.folio}` : `TRX-${tx.id}`),
                counterparty_rut: doc?.counterparty_rut || 'SIN RUT',
                counterparty_name: doc?.counterparty_name || tx.description || 'Movimiento de Cartola Bancaria',
-               amount_net: amount,
-               type: tx.type
-            });
-            totalNet += amount;
-         }
-      }
-
-      // Si es "otros_operacionales" o "operacion", incluir movimientos no conciliados
-      if (conceptKey === 'otros_operacionales' || conceptKey === 'operacion' || accountCode === '52.01.10') {
-         for (const tx of allTx) {
-            if (reconciledTxIds.has(tx.id)) continue;
-            const amount = Number(tx.amount || 0);
-
-            const rawDate = tx.issued_at ? String(tx.issued_at.toISOString ? tx.issued_at.toISOString() : tx.issued_at).slice(0, 10) : '';
-            const [y, m, d] = (rawDate || '').split('-');
-            const formattedDate = (y && m && d) ? `${d}-${m}-${y}` : rawDate;
-
-            matchedDocs.push({
-               id: `tx-${tx.id}`,
-               date: formattedDate,
-               rawDate: tx.issued_at,
-               folio_display: tx.document_ref || `TRX-${tx.id}`,
-               counterparty_rut: 'CARTOLA',
-               counterparty_name: tx.description || 'Movimiento Bancario',
                amount_net: amount,
                type: tx.type
             });
