@@ -4079,32 +4079,8 @@ class AccountingService {
          totalOperacion += net;
       }
 
-      // 5. Calcular saldo de bancos mes a mes (Opción A: 100% Conciliación Bancaria)
-      // Obtenemos el saldo acumulado de todas las conciliaciones anteriores al inicio del período
-      const priorRecons = await models.BankTransactionDocument.findAll({
-         include: [
-            {
-               model: models.EntityBankTransaction,
-               as: 'tx',
-               where: {
-                  entity_id: entityId,
-                  issued_at: {
-                     [Op.lt]: new Date(`${startDate}T00:00:00`)
-                  }
-               }
-            }
-         ]
-      });
-
+      // 5. Calcular saldo acumulado de bancos mes a mes en el período seleccionado
       let runningBankBalance = 0;
-      for (const pr of priorRecons) {
-         const tx = pr.tx;
-         if (!tx) continue;
-         const amt = Number(pr.amount_applied || tx.amount || 0);
-         if (tx.type === 'income') runningBankBalance += amt;
-         else if (tx.type === 'expense') runningBankBalance -= amt;
-      }
-
       const bankBalanceMonthly = {};
       for (const m of monthsList) {
          runningBankBalance += (operacionMonthly[m.key] || 0);
