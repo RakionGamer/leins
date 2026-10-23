@@ -20,6 +20,9 @@ export const listSiiDocuments = async ({
    client,
    source,
    status,
+   reconciliationStatus,
+   classificationStatus,
+   centralizationStatus,
    pendingOnly = false,
    page = 1,
    limit = 500,
@@ -46,6 +49,9 @@ export const listSiiDocuments = async ({
    if (source) qs.set('source', source);
    if (pendingOnly) qs.set('pendingOnly', '1');
    if (status) qs.set('status', status);
+   if (reconciliationStatus) qs.set('reconciliation_status', reconciliationStatus);
+   if (classificationStatus) qs.set('classification_status', classificationStatus);
+   if (centralizationStatus) qs.set('centralization_status', centralizationStatus);
 
    const response = await fetchWithAuth(`/sii-documents?${qs.toString()}`, { signal });
    await ensureOk(response, 'No se pudieron listar documentos');
@@ -75,6 +81,9 @@ export const exportSiiDocumentsCsv = async ({
    client,
    source,
    status,
+   reconciliationStatus,
+   classificationStatus,
+   centralizationStatus,
    pendingOnly = false,
    sort = 'issue_date',
    order = 'asc',
@@ -94,6 +103,9 @@ export const exportSiiDocumentsCsv = async ({
    if (source) qs.set('source', source);
    if (pendingOnly) qs.set('pendingOnly', '1');
    if (status) qs.set('status', status);
+   if (reconciliationStatus) qs.set('reconciliation_status', reconciliationStatus);
+   if (classificationStatus) qs.set('classification_status', classificationStatus);
+   if (centralizationStatus) qs.set('centralization_status', centralizationStatus);
 
    const response = await fetchWithAuth(`/sii-documents/export?${qs.toString()}`, { signal });
    if (!response.ok) {

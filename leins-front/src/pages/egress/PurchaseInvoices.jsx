@@ -9,6 +9,7 @@ import DateInput from 'components/DateInput';
 import Modal from 'components/Modal';
 import ManualExpenseForm from './components/ManualExpenseForm';
 import EditExpenseForm from './components/EditExpenseForm';
+import QuickClassifyModal from '../../components/accounting/QuickClassifyModal';
 import { deleteManualIncome, listSiiDocuments } from '../../services/siiDocumentsApi';
 import { SII_DOCUMENT_FILTERS, getSiiDocumentTypeLabel } from '../../utils/siiConstants';
 import { toast } from 'components/Toaster';
@@ -154,6 +155,9 @@ export default function PurchaseInvoicesAdapted() {
    const [isManualModalOpen, setIsManualModalOpen] = useState(false);
    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
    const [documentToEdit, setDocumentToEdit] = useState(null);
+   const [classifyModalOpen, setClassifyModalOpen] = useState(false);
+   const [documentToClassify, setDocumentToClassify] = useState(null);
+   const [centralizationFilter, setCentralizationFilter] = useState(() => sp.get('centralization') || 'all');
 
    const { period } = usePeriod();
    const { entityId: activeEntityId, ready } = useEntityRequired();
@@ -229,6 +233,11 @@ export default function PurchaseInvoicesAdapted() {
    const reloadData = () => setRefreshTrigger(prev => prev + 1);
    const resetToFirstPage = () => setPage(1);
 
+   const handleQuickClassify = (doc) => {
+      setDocumentToClassify(doc);
+      setClassifyModalOpen(true);
+   };
+
    const openEditModal = (row) => {
       setDocumentToEdit(row);
       setIsEditModalOpen(true);
@@ -252,7 +261,7 @@ export default function PurchaseInvoicesAdapted() {
 
    const handleClearFilters = () => {
       setEntityId(activeEntityId ? String(activeEntityId) : ''); setDocType(''); setSourceFilter(''); setMode('month'); setFilterMonth(todayYYYYMM());
-      setFromDate(''); setToDate(''); setPageSize(50); resetToFirstPage();
+      setFromDate(''); setToDate(''); setCentralizationFilter('all'); setPageSize(50); resetToFirstPage();
    };
 
    useEffect(() => {
@@ -323,11 +332,12 @@ export default function PurchaseInvoicesAdapted() {
       if (sourceFilter) p.set('source', sourceFilter);
       if (entityId) p.set('entity_id', String(entityId));
       p.set('mode', mode); p.set('sort', sort); p.set('order', order);
+      if (centralizationFilter && centralizationFilter !== 'all') p.set('centralization', centralizationFilter);
       if (mode === 'month') p.set('month', effectiveMonth);
       else { if (fromDate) p.set('from', fromDate); if (toDate) p.set('to', toDate); }
       p.set('page', String(page)); p.set('limit', String(pageSize));
       setSp(p, { replace: true });
-   }, [docType, sourceFilter, entityId, mode, sort, order, effectiveMonth, fromDate, toDate, page, pageSize, setSp]);
+   }, [docType, sourceFilter, entityId, mode, sort, order, effectiveMonth, fromDate, toDate, page, pageSize, centralizationFilter, setSp]);
 
    const exportCSV = async () => {
       setExportingCsv(true);
@@ -396,6 +406,14 @@ export default function PurchaseInvoicesAdapted() {
             )}
          </Modal>
 
+         <QuickClassifyModal
+            isOpen={classifyModalOpen}
+            onClose={() => setClassifyModalOpen(false)}
+            document={documentToClassify}
+            entityId={entityId}
+            onSuccess={reloadData}
+         />
+
          {/* modal de edicion de compras */}
          <Modal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} title="Editar Compra" maxWidth="max-w-3xl">
             {isEditModalOpen && documentToEdit && (
@@ -430,6 +448,31 @@ export default function PurchaseInvoicesAdapted() {
                      <button onClick={handleClearFilters} disabled={loading} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-text-soft hover:text-danger hover:bg-danger/10 rounded-xl transition-colors disabled:opacity-50">
                         <ArrowPathIcon className="w-4 h-4" /> Limpiar Filtros
                      </button>
+                     <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-xs font-semibold text-text-soft uppercase tracking-wider hidden sm:inline">Centralización:</span>
+                        <div className="inline-flex p-1 bg-surface-2 rounded-2xl ring-1 ring-border-subtle/40 items-center gap-1 text-xs font-medium">
+                           {[
+                              { key: 'all', label: 'Todos' },
+                              { key: 'unreconciled', label: 'Sin conciliar' },
+                              { key: 'unclassified', label: 'Sin clasificar' },
+                              { key: 'pending', label: 'Pendientes' },
+                              { key: 'centralized', label: 'Centralizados' },
+                           ].map((f) => (
+                              <button
+                                 key={f.key}
+                                 type="button"
+                                 onClick={() => { setCentralizationFilter(f.key); resetToFirstPage(); }}
+                                 className={`px-2.5 py-1 rounded-xl transition ${
+                                    centralizationFilter === f.key
+                                       ? 'bg-bg-content shadow ring-1 ring-border-subtle text-heading font-semibold'
+                                       : 'text-text-soft hover:text-heading'
+                                 }`}
+                              >
+                                 {f.label}
+                              </button>
+                           ))}
+                        </div>
+                     </div>
                      <ViewModeToggle mode={mode} onChange={(k) => k === 'month' ? switchToMonth() : switchToRange()} />
                   </div>
                </div>
@@ -510,12 +553,14 @@ export default function PurchaseInvoicesAdapted() {
                                  Total {sort === 'total_amount' ? orderArrow(order) : ''}
                               </button>
                            </th>
-                           <th className="p-4 font-semibold text-center">Acciones</th>
+                           <th className="p-4 font-semibold text-center"><div className="flex items-center gap-1.5 justify-center"><BanknotesIcon className="w-4 h-4 text-brand" /> Estado Pago</div></th>
+                            <th className="p-4 font-semibold text-center"><div className="flex items-center gap-1.5 justify-center"><TagIcon className="w-4 h-4 text-brand" /> Clasificación Contable</div></th>
+                            <th className="p-4 font-semibold text-center">Acciones</th>
                         </tr>
                      </thead>
                      <tbody className="divide-y divide-border-subtle/50">
                         {rows.length === 0 ? (
-                           <tr><td colSpan={9} className="p-10 text-center text-text-soft italic">no se encontraron registros para los filtros aplicados.</td></tr>
+                           <tr><td colSpan={11} className="p-10 text-center text-text-soft italic">no se encontraron registros para los filtros aplicados.</td></tr>
                         ) : rows.map(r => (
                            <tr key={r.id} className="hover:bg-brand/5 transition-colors group">
                               <td className="p-4 whitespace-nowrap">

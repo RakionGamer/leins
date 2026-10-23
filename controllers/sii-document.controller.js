@@ -46,6 +46,9 @@ function buildListPayload(req) {
       order,
       pendingOnly: ['1', 'true', 'yes'].includes(String(q.pendingOnly || '').toLowerCase()),
       status: q.status ? String(q.status).toLowerCase() : undefined,
+      reconciliation_status: q.reconciliation_status ? String(q.reconciliation_status).toLowerCase() : undefined,
+      classification_status: q.classification_status ? String(q.classification_status).toLowerCase() : undefined,
+      centralization_status: q.centralization_status ? String(q.centralization_status).toLowerCase() : undefined,
    };
 }
 

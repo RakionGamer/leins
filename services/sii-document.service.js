@@ -96,7 +96,7 @@ class SiiDocumentsService {
    }
 
    // construye where/attributes/order compartidos entre listado paginado y exportacion csv
-   _buildListQuery({ entity_id, type, q, folio, client, source, operation_type, month, from, to, sort = 'issue_date', order = 'desc', pendingOnly = false, status }) {
+   _buildListQuery({ entity_id, type, q, folio, client, source, operation_type, month, from, to, sort = 'issue_date', order = 'desc', pendingOnly = false, status, reconciliation_status, classification_status, centralization_status }) {
       const where = {};
       const parsedEntityId = Number(entity_id);
       if (!Number.isInteger(parsedEntityId) || parsedEntityId <= 0) {
@@ -306,14 +306,16 @@ class SiiDocumentsService {
       const remainingSQL = `((${reconcileAmountSQL}) - ${appliedSumSQL} - ${creditNotesSumSQL})`;
       const totalAmountSQL = `COALESCE(${baseQuoted}.total_amount, 0)`;
 
-      const statusFilter = String(status || '').toLowerCase();
-      if (statusFilter === 'paid') {
+      const classificationRuleSubquery = `(SELECT ar.account_id FROM accounting_counterparty_rules ar WHERE ar.entity_id = ${baseQuoted}.entity_id AND UPPER(ar.counterparty_rut) = UPPER(${baseQuoted}.counterparty_rut) LIMIT 1)`;
+
+      const reconStatus = String(reconciliation_status || status || '').toLowerCase();
+      if (reconStatus === 'paid' || reconStatus === 'reconciled') {
          if (!where[Op.and]) where[Op.and] = [];
          where[Op.and].push(
             sequelize.where(sequelize.literal(remainingSQL), { [Op.lte]: 0 }),
             { doc_type_code: { [Op.ne]: 61 } }
          );
-      } else if (statusFilter === 'pending') {
+      } else if (reconStatus === 'pending' || reconStatus === 'unreconciled') {
          if (!where[Op.and]) where[Op.and] = [];
          where[Op.and].push(
             sequelize.where(sequelize.literal(remainingSQL), { [Op.gt]: 0 }),
@@ -333,6 +335,37 @@ class SiiDocumentsService {
             });
          }
       }
+
+      const classStatus = String(classification_status || '').toLowerCase();
+      if (classStatus === 'classified') {
+         if (!where[Op.and]) where[Op.and] = [];
+         where[Op.and].push(
+            sequelize.where(sequelize.literal(classificationRuleSubquery), { [Op.ne]: null })
+         );
+      } else if (classStatus === 'unclassified') {
+         if (!where[Op.and]) where[Op.and] = [];
+         where[Op.and].push(
+            sequelize.where(sequelize.literal(classificationRuleSubquery), { [Op.is]: null })
+         );
+      }
+
+      const centralStatus = String(centralization_status || '').toLowerCase();
+      if (centralStatus === 'pending') {
+         if (!where[Op.and]) where[Op.and] = [];
+         where[Op.and].push({
+            [Op.or]: [
+               sequelize.where(sequelize.literal(remainingSQL), { [Op.gt]: 0 }),
+               sequelize.where(sequelize.literal(classificationRuleSubquery), { [Op.is]: null })
+            ]
+         });
+      } else if (centralStatus === 'centralized') {
+         if (!where[Op.and]) where[Op.and] = [];
+         where[Op.and].push(
+            sequelize.where(sequelize.literal(remainingSQL), { [Op.lte]: 0 }),
+            sequelize.where(sequelize.literal(classificationRuleSubquery), { [Op.ne]: null })
+         );
+      }
+
 
       const attributes = [
          'id', 'entity_id', 'doc_type_code', 'counterparty_rut', 'counterparty_name', 'folio',
@@ -403,7 +436,24 @@ class SiiDocumentsService {
          distinct: true,
       });
 
-      return { total: count, page: pageNum, pageSize, items: rows.map((r) => this._mapListRow(r)) };
+      const ruts = [...new Set(rows.map(r => r.counterparty_rut).filter(Boolean))];
+      let ruleMap = new Map();
+      if (ruts.length > 0 && payload.entity_id) {
+         const rules = await models.AccountingRule.findAll({
+            where: {
+               entity_id: payload.entity_id,
+               counterparty_rut: ruts
+            },
+            include: [{
+               model: models.AccountingAccount,
+               as: 'account',
+               attributes: ['id', 'code', 'name', 'type']
+            }]
+         });
+         ruleMap = new Map(rules.map(rule => [String(rule.counterparty_rut || '').toUpperCase(), rule]));
+      }
+
+      return { total: count, page: pageNum, pageSize, items: rows.map((r) => this._mapListRow(r, ruleMap.get(String(r.counterparty_rut || '').toUpperCase()))) };
    }
 
    // exportacion sin paginar, para descarga csv (con tope de seguridad)
@@ -417,7 +467,24 @@ class SiiDocumentsService {
          subQuery: false,
       });
 
-      return rows.map((r) => this._mapListRow(r));
+      const ruts = [...new Set(rows.map(r => r.counterparty_rut).filter(Boolean))];
+      let ruleMap = new Map();
+      if (ruts.length > 0 && payload.entity_id) {
+         const rules = await models.AccountingRule.findAll({
+            where: {
+               entity_id: payload.entity_id,
+               counterparty_rut: ruts
+            },
+            include: [{
+               model: models.AccountingAccount,
+               as: 'account',
+               attributes: ['id', 'code', 'name', 'type']
+            }]
+         });
+         ruleMap = new Map(rules.map(rule => [String(rule.counterparty_rut || '').toUpperCase(), rule]));
+      }
+
+      return rows.map((r) => this._mapListRow(r, ruleMap.get(String(r.counterparty_rut || '').toUpperCase())));
    }
 
    async dailySalesGroups({ entity_id, from, to }) {
