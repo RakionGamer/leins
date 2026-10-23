@@ -187,9 +187,8 @@ export default function ContactsBatchPickerModal({
                      const config = typeConfig[c.type] || typeConfig.PROVEEDOR;
 
                      return (
-                        <div
+                        <label
                            key={c.rut}
-                           onClick={() => toggleRut(c.rut)}
                            className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer transition select-none ${
                               isChecked ? 'bg-brand/10' : 'hover:bg-surface-2'
                            }`}
@@ -197,7 +196,7 @@ export default function ContactsBatchPickerModal({
                            <input
                               type="checkbox"
                               checked={isChecked}
-                              onChange={() => {}} // controlado por el contenedor
+                              onChange={() => toggleRut(c.rut)}
                               className="w-4 h-4 text-brand rounded border-border-subtle focus:ring-brand cursor-pointer"
                            />
                            <div className="min-w-0 flex-1">
@@ -218,7 +217,7 @@ export default function ContactsBatchPickerModal({
                            <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${config.pill}`}>
                               {config.label}
                            </span>
-                        </div>
+                        </label>
                      );
                   })
                )}

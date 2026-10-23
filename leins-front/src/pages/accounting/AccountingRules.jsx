@@ -310,6 +310,19 @@ export default function AccountingRules() {
       });
    };
 
+   const handleClearContact = (index) => {
+      setFormData((prev) => {
+         const newRuts = [...prev.ruts];
+         newRuts[index] = {
+            rut: '',
+            name: '',
+            displayValue: '',
+            fromDirectory: false,
+         };
+         return { ...prev, ruts: newRuts };
+      });
+   };
+
    const handleContactSelectMultiple = (currentIndex, items) => {
       if (!items || items.length === 0) return;
 
@@ -676,10 +689,14 @@ export default function AccountingRules() {
                                  placeholder="Escribe RUT y Razón Social (ej: 76.123.456-7 - Empresa SpA)..."
                                  required
                                  className={ctrl}
+                                 rut={r.rut}
+                                 name={r.name}
+                                 isLocked={Boolean(r.rut && r.name)}
                                  value={r.displayValue !== undefined ? r.displayValue : (r.rut ? `${formatRut(r.rut)}${r.name ? ' - ' + r.name : ''}` : '')}
                                  onChange={(val) => handleUnifiedInputChange(i, val)}
                                  onSelect={(item) => handleContactSelect(i, item)}
                                  onSelectMultiple={(items) => handleContactSelectMultiple(i, items)}
+                                 onClear={() => handleClearContact(i)}
                               />
                            </div>
                            {formData.ruts.length > 1 && (

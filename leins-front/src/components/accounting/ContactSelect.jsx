@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useLayoutEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { MagnifyingGlassIcon, XMarkIcon, UserIcon, CheckIcon } from '@heroicons/react/24/outline';
+import { MagnifyingGlassIcon, XMarkIcon, UserIcon, CheckIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
 import { getContactsForSelect } from '../../services/contactsApi';
 import { searchCounterparties } from '../../services/accountingApi';
 
@@ -24,9 +24,13 @@ const ContactBadge = ({ type }) => {
 export default function ContactSelect({
    entityId,
    value,
+   rut,
+   name,
+   isLocked: propIsLocked,
    onChange,
    onSelect,
    onSelectMultiple,
+   onClear,
    placeholder = 'Buscar o ingresar RUT / Contacto...',
    className = '',
    required = false,
@@ -38,9 +42,16 @@ export default function ContactSelect({
    const [loading, setLoading] = useState(false);
    const [active, setActive] = useState(0);
    const [rect, setRect] = useState(null);
+   const [dropdownSearch, setDropdownSearch] = useState('');
    const inputRef = useRef(null);
    const menuRef = useRef(null);
+   const dropdownSearchInputRef = useRef(null);
    const justSelected = useRef(false);
+
+   // Determinar si está bloqueado (un contacto ya está seleccionado y fijado)
+   const isLocked = propIsLocked !== undefined 
+      ? propIsLocked 
+      : Boolean(rut && name);
 
    // Carga inicial o por búsqueda
    const loadContacts = async (query = '', signal) => {
@@ -48,6 +59,7 @@ export default function ContactSelect({
       setLoading(true);
       try {
          let searchTerm = String(query || '').trim();
+         // Si es un formato "RUT - Nombre", solo buscar por RUT para no fallar
          if (searchTerm.includes(' - ')) {
             searchTerm = searchTerm.split(' - ')[0].trim();
          }
@@ -66,12 +78,38 @@ export default function ContactSelect({
       }
    };
 
+   // Cuando se abre el dropdown
    useEffect(() => {
       if (!open || !entityId) return;
       if (justSelected.current) {
          justSelected.current = false;
          return;
       }
+
+      setDropdownSearch('');
+      const ctrl = new AbortController();
+      // Si el campo ya tiene un contacto fijado, cargamos TODOS los contactos para permitir elegir otro sin filtro previo
+      const q = isLocked ? '' : (value || '');
+      loadContacts(q, ctrl.signal);
+
+      // Si está bloqueado y abrimos, enfocar el buscador interno del dropdown
+      if (isLocked) {
+         setTimeout(() => {
+            if (dropdownSearchInputRef.current) {
+               dropdownSearchInputRef.current.focus();
+            }
+         }, 50);
+      }
+
+      return () => {
+         ctrl.abort();
+      };
+   }, [open, isLocked, entityId]);
+
+   // Búsqueda mientras se escribe en modo desbloqueado
+   useEffect(() => {
+      if (!open || isLocked || !entityId) return;
+      if (justSelected.current) return;
 
       const ctrl = new AbortController();
       const t = setTimeout(() => {
@@ -82,7 +120,7 @@ export default function ContactSelect({
          clearTimeout(t);
          ctrl.abort();
       };
-   }, [open, value, entityId]);
+   }, [value, open, isLocked, entityId]);
 
    const updateRect = () => {
       if (inputRef.current) {
@@ -117,11 +155,11 @@ export default function ContactSelect({
       setOpen(false);
    };
 
-   const toggleRut = (rut) => {
+   const toggleRut = (rutVal) => {
       setSelectedRuts((prev) => {
          const next = new Set(prev);
-         if (next.has(rut)) next.delete(rut);
-         else next.add(rut);
+         if (next.has(rutVal)) next.delete(rutVal);
+         else next.add(rutVal);
          return next;
       });
    };
@@ -133,6 +171,17 @@ export default function ContactSelect({
       }
       setSelectedRuts(new Set());
       setOpen(false);
+   };
+
+   const handleClear = (e) => {
+      e.stopPropagation();
+      if (onClear) {
+         onClear();
+      } else if (onChange) {
+         onChange('');
+      }
+      setOpen(false);
+      if (inputRef.current) inputRef.current.focus();
    };
 
    const onKeyDown = (e) => {
@@ -165,11 +214,12 @@ export default function ContactSelect({
       }
    };
 
-   const q = String(value || '').trim();
+   const highlightQuery = isLocked ? dropdownSearch : String(value || '').trim();
 
    const highlight = (text) => {
       const t = String(text || '');
-      const idx = t.toLowerCase().indexOf(q.toLowerCase());
+      const q = highlightQuery.toLowerCase().trim();
+      const idx = t.toLowerCase().indexOf(q);
       if (!q || idx < 0) return t;
       return (
          <>
@@ -182,7 +232,18 @@ export default function ContactSelect({
 
    return (
       <div className="relative w-full">
-         <div className="relative">
+         <div 
+            className="relative cursor-pointer"
+            onClick={(e) => {
+               if (disabled) return;
+               if (e.target.closest('button')) return;
+               if (isLocked) {
+                  setOpen((prev) => !prev);
+               } else {
+                  setOpen(true);
+               }
+            }}
+         >
             <input
                ref={inputRef}
                type="text"
@@ -190,35 +251,58 @@ export default function ContactSelect({
                disabled={disabled}
                placeholder={placeholder}
                required={required}
-               className={`${className} pr-7`}
+               readOnly={isLocked}
+               className={`${className} ${
+                  isLocked 
+                     ? 'bg-surface-2 text-text-main font-semibold cursor-pointer select-none pl-9 pr-14 border-brand/40 shadow-xs' 
+                     : 'pr-8'
+               }`}
                value={value || ''}
                onChange={(e) => {
-                  onChange(e.target.value);
-                  setOpen(true);
+                  if (!isLocked && onChange) {
+                     onChange(e.target.value);
+                     setOpen(true);
+                  }
                }}
                onFocus={() => {
-                  setOpen(true);
-                  if (contacts.length === 0) loadContacts(value || '');
+                  if (!disabled && !isLocked) {
+                     setOpen(true);
+                  }
                }}
                onKeyDown={onKeyDown}
             />
-            {value && (
+
+            {/* Ícono de contacto fijado a la izquierda si está bloqueado */}
+            {isLocked && (
+               <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-brand">
+                  <UserIcon className="w-4 h-4" />
+               </div>
+            )}
+
+            {/* Acciones en el extremo derecho: Botón X para desvincular y Flecha Dropdown */}
+            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+               {value && (
+                  <button
+                     type="button"
+                     tabIndex={-1}
+                     onClick={handleClear}
+                     className="p-1 rounded-md text-text-soft hover:text-danger hover:bg-surface-3 transition"
+                     title="Quitar contacto y seleccionar otro"
+                  >
+                     <XMarkIcon className="w-4 h-4" />
+                  </button>
+               )}
                <button
                   type="button"
                   tabIndex={-1}
-                  onClick={(e) => {
-                     e.stopPropagation();
-                     onChange('');
-                     if (inputRef.current) inputRef.current.focus();
-                  }}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-text-soft hover:text-danger p-0.5"
-                  title="Limpiar"
+                  className="p-1 text-text-soft hover:text-text-main transition pointer-events-none"
                >
-                  <XMarkIcon className="w-4 h-4" />
+                  <ChevronDownIcon className="w-4 h-4" />
                </button>
-            )}
+            </div>
          </div>
 
+         {/* Menú Dropdown en Portal */}
          {open && rect && createPortal(
             <div
                ref={menuRef}
@@ -226,12 +310,13 @@ export default function ContactSelect({
                   position: 'fixed',
                   top: rect.bottom + 6,
                   left: rect.left,
-                  minWidth: Math.max(rect.width, 360),
-                  maxWidth: Math.max(rect.width, 500),
+                  minWidth: Math.max(rect.width, 380),
+                  maxWidth: Math.max(rect.width, 520),
                   zIndex: 99999,
                }}
                className="bg-bg-content border border-border-subtle rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-100"
             >
+               {/* Barra superior del menú */}
                <div className="px-3.5 py-2.5 text-[11px] font-bold uppercase tracking-wider text-text-soft bg-surface-1 border-b border-border-subtle/60 flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
                      <UserIcon className="w-3.5 h-3.5 text-brand" />
@@ -258,15 +343,40 @@ export default function ContactSelect({
                   </div>
                </div>
 
+               {/* Buscador interno dentro del dropdown cuando el campo está bloqueado */}
+               {isLocked && (
+                  <div className="p-2 border-b border-border-subtle/60 bg-surface-1">
+                     <div className="relative">
+                        <MagnifyingGlassIcon className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-text-soft" />
+                        <input
+                           ref={dropdownSearchInputRef}
+                           type="text"
+                           placeholder="Filtrar por RUT o Razón Social..."
+                           className="w-full pl-8 pr-3 py-1.5 text-xs bg-bg-content border border-border-subtle rounded-lg text-text-main focus:outline-none focus:ring-1 focus:ring-brand"
+                           value={dropdownSearch}
+                           onChange={(e) => {
+                              setDropdownSearch(e.target.value);
+                              loadContacts(e.target.value);
+                           }}
+                           onClick={(e) => e.stopPropagation()}
+                           onMouseDown={(e) => e.stopPropagation()}
+                        />
+                     </div>
+                  </div>
+               )}
+
+               {/* Lista de resultados */}
                {loading && contacts.length === 0 ? (
-                  <div className="px-4 py-4 text-xs text-text-soft flex items-center justify-center gap-2">
+                  <div className="px-4 py-6 text-xs text-text-soft flex items-center justify-center gap-2">
                      <span className="w-4 h-4 border-2 border-brand/30 border-t-brand rounded-full animate-spin" />
                      <span>Cargando contactos...</span>
                   </div>
                ) : contacts.length === 0 ? (
-                  <div className="p-4 text-center">
+                  <div className="p-5 text-center">
                      <p className="text-xs text-text-soft italic">No se encontraron contactos coincidentes.</p>
-                     <p className="text-[11px] text-text-soft/80 mt-1">Puedes continuar ingresándolo manualmente en el formato "RUT - Razón Social".</p>
+                     <p className="text-[11px] text-text-soft/80 mt-1">
+                        {isLocked ? 'Prueba con otro término de búsqueda.' : 'Puedes ingresar el contacto manualmente si es nuevo.'}
+                     </p>
                   </div>
                ) : (
                   <ul className="max-h-64 overflow-y-auto divide-y divide-border-subtle/30">
@@ -274,8 +384,10 @@ export default function ContactSelect({
                         <li
                            key={item.rut + '-' + i}
                            onMouseDown={(e) => {
+                              // Si el clic fue directamente en el checkbox, dejamos que el evento del checkbox lo maneje sin conflicto
+                              if (e.target.type === 'checkbox') return;
                               e.preventDefault();
-                              if (selectedRuts.size > 0 || e.target.type === 'checkbox') {
+                              if (onSelectMultiple && selectedRuts.size > 0) {
                                  toggleRut(item.rut);
                               } else {
                                  handleSelect(item);
@@ -294,6 +406,8 @@ export default function ContactSelect({
                               <input
                                  type="checkbox"
                                  checked={selectedRuts.has(item.rut)}
+                                 onMouseDown={(e) => e.stopPropagation()}
+                                 onClick={(e) => e.stopPropagation()}
                                  onChange={(e) => {
                                     e.stopPropagation();
                                     toggleRut(item.rut);
@@ -317,6 +431,7 @@ export default function ContactSelect({
                   </ul>
                )}
 
+               {/* Barra de acción cuando hay selección múltiple activa */}
                {onSelectMultiple && selectedRuts.size > 0 && (
                   <div className="p-2.5 bg-surface-1 border-t border-border-subtle/70 flex items-center justify-between gap-3">
                      <div className="text-xs font-semibold text-text-main">
