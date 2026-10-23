@@ -24,8 +24,12 @@ const buildQs = (params = {}) => {
 };
 
 // --- Plan de cuentas ---
-export const getAccounts = ({ entityId, type, q, signal } = {}) =>
-   request(`/accounting/accounts?${buildQs({ entityId, type, q })}`, { signal }, 'Error al cargar el plan de cuentas');
+export const getAccounts = (param = {}) => {
+   const options = typeof param === 'object' && param !== null
+      ? param
+      : { entityId: param };
+   return request(`/accounting/accounts?${buildQs(options)}`, { signal: options?.signal }, 'Error al cargar el plan de cuentas');
+};
 
 export const createAccount = (payload) =>
    request('/accounting/accounts', { method: 'POST', body: JSON.stringify(payload) }, 'Error al crear la cuenta');

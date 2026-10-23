@@ -183,7 +183,7 @@ export default function PurchaseInvoicesAdapted() {
    const [filterMonth, setFilterMonth] = useState(() => sp.get('month') || todayYYYYMM());
    const [fromDate, setFromDate] = useState(() => sp.get('from') || '');
    const [toDate, setToDate] = useState(() => sp.get('to') || '');
-   const [entityId, setEntityId] = useState(() => sp.get('entity_id') || (activeEntityId ? String(activeEntityId) : ''));
+   const [entityId, setEntityId] = useState(() => sp.get('entityId') || sp.get('entity_id') || (activeEntityId ? String(activeEntityId) : ''));
 
    const ALLOWED_SORT = new Set(['issue_date', 'folio', 'total_amount', 'created_at', 'updated_at']);
    const ALLOWED_ORDER = new Set(['asc', 'desc']);
@@ -276,12 +276,13 @@ export default function PurchaseInvoicesAdapted() {
    };
 
    useEffect(() => {
-      const nextEntity = activeEntityId ? String(activeEntityId) : '';
+      if (!ready || !activeEntityId) return;
+      const nextEntity = String(activeEntityId);
       if (nextEntity !== entityId) {
          setEntityId(nextEntity);
          setPage(1);
       }
-   }, [activeEntityId, entityId]);
+   }, [activeEntityId, entityId, ready]);
 
    useEffect(() => {
       if (!ready || !entityId) {
@@ -349,7 +350,7 @@ export default function PurchaseInvoicesAdapted() {
       const p = new URLSearchParams();
       if (docType) p.set('type', docType);
       if (sourceFilter) p.set('source', sourceFilter);
-      if (entityId) p.set('entity_id', String(entityId));
+      if (entityId) { p.set('entityId', String(entityId)); p.set('entity_id', String(entityId)); }
       p.set('mode', mode); p.set('sort', sort); p.set('order', order);
       if (centralizationFilter && centralizationFilter !== 'all') p.set('centralization', centralizationFilter);
       if (mode === 'month') p.set('month', effectiveMonth);
@@ -418,7 +419,7 @@ export default function PurchaseInvoicesAdapted() {
             {/* destruimos el componente al cerrar para evitar datos fantasma */}
             {isManualModalOpen && (
                <ManualExpenseForm
-                  entityId={entityId}
+                  entityId={entityId || activeEntityId}
                   onSuccess={() => { setIsManualModalOpen(false); reloadData(); }}
                   onCancel={() => setIsManualModalOpen(false)}
                />
@@ -614,13 +615,11 @@ export default function PurchaseInvoicesAdapted() {
                               <td className="p-4 text-right font-bold text-text-main">{clp(r.total)}</td>
                               <td className="p-4 text-center whitespace-nowrap">
                                  {r.is_reconciled ? (
-                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-600 ring-1 ring-emerald-500/20">
-                                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-600 ring-1 ring-emerald-500/20">
                                        Pagado
                                     </span>
                                  ) : (
-                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-600 ring-1 ring-amber-500/20" title={r.remaining_amount ? `Pendiente: ${clp(r.remaining_amount)}` : 'Sin egreso bancario vinculado'}>
-                                       <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-600 ring-1 ring-amber-500/20" title={r.remaining_amount ? `Pendiente: ${clp(r.remaining_amount)}` : 'Sin egreso bancario vinculado'}>
                                        Sin conciliar
                                     </span>
                                  )}

@@ -17,7 +17,7 @@ export default function QuickClassifyModal({ isOpen, onClose, document, entityId
       setSelectedAccountId(document?.accounting_account?.id || null);
       setLoadingAccounts(true);
 
-      getAccounts(entityId)
+      getAccounts({ entityId: Number(entityId) })
          .then((accs) => {
             // Filtrar cuentas imputables (no títulos)
             const postable = Array.isArray(accs) ? accs.filter(a => !a.is_title) : [];

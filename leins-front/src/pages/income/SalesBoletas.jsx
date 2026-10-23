@@ -207,7 +207,7 @@ export default function SalesBoletas() {
    const [filterMonth, setFilterMonth] = useState(() => sp.get('month') || todayYYYYMM());
    const [fromDate, setFromDate] = useState(() => sp.get('from') || '');
    const [toDate, setToDate] = useState(() => sp.get('to') || '');
-   const [entityId, setEntityId] = useState(() => sp.get('entity_id') || (activeEntityId ? String(activeEntityId) : ''));
+   const [entityId, setEntityId] = useState(() => sp.get('entityId') || sp.get('entity_id') || (activeEntityId ? String(activeEntityId) : ''));
 
    const ALLOWED_SORT = new Set(['issue_date', 'folio', 'total_amount', 'created_at', 'updated_at']);
    const ALLOWED_ORDER = new Set(['asc', 'desc']);
@@ -331,12 +331,13 @@ export default function SalesBoletas() {
    };
 
    useEffect(() => {
-      const nextEntity = activeEntityId ? String(activeEntityId) : '';
+      if (!ready || !activeEntityId) return;
+      const nextEntity = String(activeEntityId);
       if (nextEntity !== entityId) {
          setEntityId(nextEntity);
          setPage(1);
       }
-   }, [activeEntityId, entityId]);
+   }, [activeEntityId, entityId, ready]);
 
    useEffect(() => {
       if (!ready || !entityId) {
@@ -406,7 +407,7 @@ export default function SalesBoletas() {
       if (sourceFilter) p.set('source', sourceFilter);
       if (folioFilter.trim()) p.set('folio', folioFilter.trim());
       if (clientFilter.trim()) p.set('client', clientFilter.trim());
-      if (entityId) p.set('entity_id', String(entityId));
+      if (entityId) { p.set('entityId', String(entityId)); p.set('entity_id', String(entityId)); }
       p.set('mode', mode); p.set('sort', sort); p.set('order', order);
       if (centralizationFilter && centralizationFilter !== 'all') p.set('centralization', centralizationFilter);
       if (mode === 'month') p.set('month', effectiveMonth);
@@ -485,7 +486,7 @@ export default function SalesBoletas() {
             {/* el renderizado condicional destruye el formulario al cerrar, limpiando sus estados */}
             {isManualModalOpen && (
                <ManualIncomeForm
-                  entityId={entityId}
+                  entityId={entityId || activeEntityId}
                   onSuccess={() => { setIsManualModalOpen(false); reloadData(); }}
                   onCancel={() => setIsManualModalOpen(false)}
                />
@@ -748,13 +749,11 @@ export default function SalesBoletas() {
                               <td className="p-4 text-right font-bold text-text-main">{clp(r.total)}</td>
                               <td className="p-4 text-center whitespace-nowrap">
                                  {r.is_reconciled ? (
-                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-600 ring-1 ring-emerald-500/20">
-                                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-600 ring-1 ring-emerald-500/20">
                                        Cobrado
                                     </span>
                                  ) : (
-                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-600 ring-1 ring-amber-500/20" title={r.remaining_amount ? `Pendiente: ${clp(r.remaining_amount)}` : 'Sin ingreso bancario vinculado'}>
-                                       <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-600 ring-1 ring-amber-500/20" title={r.remaining_amount ? `Pendiente: ${clp(r.remaining_amount)}` : 'Sin ingreso bancario vinculado'}>
                                        Sin conciliar
                                     </span>
                                  )}
