@@ -27,6 +27,7 @@ export default function ContactSelect({
    rut,
    name,
    isLocked: propIsLocked,
+   alreadySelectedRuts = [],
    onChange,
    onSelect,
    onSelectMultiple,
@@ -47,6 +48,11 @@ export default function ContactSelect({
    const menuRef = useRef(null);
    const dropdownSearchInputRef = useRef(null);
    const justSelected = useRef(false);
+
+   const cleanRut = (r) => String(r || '').replace(/[^0-9kK]/g, '').toUpperCase();
+   const alreadySelectedCleanSet = useMemo(() => {
+      return new Set((alreadySelectedRuts || []).map(cleanRut).filter(Boolean));
+   }, [alreadySelectedRuts]);
 
    // Determinar si está bloqueado (un contacto ya está seleccionado y fijado)
    const isLocked = propIsLocked !== undefined 
@@ -149,6 +155,7 @@ export default function ContactSelect({
    }, []);
 
    const handleSelect = (item) => {
+      if (alreadySelectedCleanSet.has(cleanRut(item.rut))) return;
       justSelected.current = true;
       if (onSelect) onSelect(item);
       setSelectedRuts(new Set());
@@ -156,6 +163,7 @@ export default function ContactSelect({
    };
 
    const toggleRut = (rutVal) => {
+      if (alreadySelectedCleanSet.has(cleanRut(rutVal))) return;
       setSelectedRuts((prev) => {
          const next = new Set(prev);
          if (next.has(rutVal)) next.delete(rutVal);
@@ -165,8 +173,11 @@ export default function ContactSelect({
    };
 
    const handleConfirmMultiple = () => {
-      const selected = contacts.filter((c) => selectedRuts.has(c.rut));
-      if (onSelectMultiple && selected.length > 0) {
+      const selected = contacts.filter((c) => selectedRuts.has(c.rut) && !alreadySelectedCleanSet.has(cleanRut(c.rut)));
+      if (selected.length === 0) return;
+      if (selected.length === 1 && onSelect) {
+         onSelect(selected[0]);
+      } else if (onSelectMultiple) {
          onSelectMultiple(selected);
       }
       setSelectedRuts(new Set());
@@ -328,15 +339,18 @@ export default function ContactSelect({
                            type="button"
                            onMouseDown={(e) => {
                               e.preventDefault();
-                              if (selectedRuts.size === contacts.length) {
+                              const selectable = contacts.filter((c) => !alreadySelectedCleanSet.has(cleanRut(c.rut)));
+                              if (selectable.length > 0 && selectedRuts.size === selectable.length) {
                                  setSelectedRuts(new Set());
                               } else {
-                                 setSelectedRuts(new Set(contacts.map((c) => c.rut)));
+                                 setSelectedRuts(new Set(selectable.map((c) => c.rut)));
                               }
                            }}
                            className="text-[10px] font-semibold text-brand hover:underline"
                         >
-                           {selectedRuts.size === contacts.length ? 'Deseleccionar todos' : 'Seleccionar todos'}
+                           {selectedRuts.size > 0 && selectedRuts.size === contacts.filter((c) => !alreadySelectedCleanSet.has(cleanRut(c.rut))).length
+                              ? 'Deseleccionar todos'
+                              : 'Seleccionar todos'}
                         </button>
                      )}
                      <span className="text-brand font-mono font-semibold">{contacts.length} resultado{contacts.length !== 1 ? 's' : ''}</span>
@@ -379,56 +393,107 @@ export default function ContactSelect({
                      </p>
                   </div>
                ) : (
-                  <ul className="max-h-64 overflow-y-auto divide-y divide-border-subtle/30">
-                     {contacts.map((item, i) => (
-                        <li
-                           key={item.rut + '-' + i}
-                           onMouseDown={(e) => {
-                              // Si el clic fue directamente en el checkbox, dejamos que el evento del checkbox lo maneje sin conflicto
-                              if (e.target.type === 'checkbox') return;
-                              e.preventDefault();
-                              if (onSelectMultiple && selectedRuts.size > 0) {
-                                 toggleRut(item.rut);
-                              } else {
-                                 handleSelect(item);
-                              }
-                           }}
-                           onMouseEnter={() => setActive(i)}
-                           className={`flex items-center justify-between gap-3 px-3.5 py-2.5 cursor-pointer transition-colors ${
-                              selectedRuts.has(item.rut)
-                                 ? 'bg-brand/10 border-l-4 border-l-brand'
-                                 : i === active
+                  <div className="max-h-64 overflow-y-auto divide-y divide-border-subtle/30">
+                     {contacts.map((item, i) => {
+                        const itemCleanRut = cleanRut(item.rut);
+                        const isAlreadyInRule = alreadySelectedCleanSet.has(itemCleanRut);
+                        const isChecked = selectedRuts.has(item.rut);
+
+                        if (isAlreadyInRule) {
+                           return (
+                              <div
+                                 key={item.rut + '-' + i}
+                                 className="flex items-center justify-between gap-3 px-3.5 py-2.5 opacity-50 bg-surface-2/40 cursor-not-allowed select-none"
+                                 title="Este contacto ya está agregado a la regla"
+                              >
+                                 {onSelectMultiple && (
+                                    <input
+                                       type="checkbox"
+                                       disabled
+                                       checked={false}
+                                       className="w-4 h-4 rounded border-border-subtle text-text-soft/40 cursor-not-allowed shrink-0"
+                                    />
+                                 )}
+                                 <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-2">
+                                       <span className="text-sm font-semibold text-text-soft truncate">
+                                          {item.name || 'Sin razón social'}
+                                       </span>
+                                       <span className="text-[10px] bg-surface-3 text-text-soft px-1.5 py-0.5 rounded font-semibold italic shrink-0">
+                                          Ya en la regla
+                                       </span>
+                                    </div>
+                                    <div className="text-xs font-mono font-bold text-text-soft/70 mt-0.5">
+                                       {item.formattedRut || item.rut}
+                                    </div>
+                                 </div>
+                                 <div className="shrink-0">
+                                    <ContactBadge type={item.type} />
+                                 </div>
+                              </div>
+                           );
+                        }
+
+                        if (onSelectMultiple) {
+                           return (
+                              <label
+                                 key={item.rut + '-' + i}
+                                 onMouseEnter={() => setActive(i)}
+                                 className={`flex items-center justify-between gap-3 px-3.5 py-2.5 cursor-pointer select-none transition-colors ${
+                                    isChecked
+                                       ? 'bg-brand/10 border-l-4 border-l-brand'
+                                       : i === active
+                                          ? 'bg-surface-2 border-l-4 border-l-brand/50'
+                                          : 'border-l-4 border-l-transparent hover:bg-surface-2'
+                                 }`}
+                              >
+                                 <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={() => toggleRut(item.rut)}
+                                    className="w-4 h-4 rounded border-border-subtle text-brand focus:ring-brand cursor-pointer shrink-0"
+                                 />
+                                 <div className="min-w-0 flex-1">
+                                    <div className="text-sm font-semibold text-text-main truncate">
+                                       {item.name ? highlight(item.name) : <span className="italic font-normal text-text-soft">Sin razón social</span>}
+                                    </div>
+                                    <div className="text-xs font-mono font-bold text-text-soft mt-0.5">
+                                       {highlight(item.formattedRut || item.rut)}
+                                    </div>
+                                 </div>
+                                 <div className="shrink-0">
+                                    <ContactBadge type={item.type} />
+                                 </div>
+                              </label>
+                           );
+                        }
+
+                        return (
+                           <div
+                              key={item.rut + '-' + i}
+                              onClick={() => handleSelect(item)}
+                              onMouseEnter={() => setActive(i)}
+                              className={`flex items-center justify-between gap-3 px-3.5 py-2.5 cursor-pointer transition-colors ${
+                                 i === active
                                     ? 'bg-surface-2 border-l-4 border-l-brand/50'
                                     : 'border-l-4 border-l-transparent hover:bg-surface-2'
-                           }`}
-                        >
-                           {onSelectMultiple && (
-                              <input
-                                 type="checkbox"
-                                 checked={selectedRuts.has(item.rut)}
-                                 onMouseDown={(e) => e.stopPropagation()}
-                                 onClick={(e) => e.stopPropagation()}
-                                 onChange={(e) => {
-                                    e.stopPropagation();
-                                    toggleRut(item.rut);
-                                 }}
-                                 className="w-4 h-4 rounded border-border-subtle text-brand focus:ring-brand cursor-pointer shrink-0"
-                              />
-                           )}
-                           <div className="min-w-0 flex-1">
-                              <div className="text-sm font-semibold text-text-main truncate">
-                                 {item.name ? highlight(item.name) : <span className="italic font-normal text-text-soft">Sin razón social</span>}
+                              }`}
+                           >
+                              <div className="min-w-0 flex-1">
+                                 <div className="text-sm font-semibold text-text-main truncate">
+                                    {item.name ? highlight(item.name) : <span className="italic font-normal text-text-soft">Sin razón social</span>}
+                                 </div>
+                                 <div className="text-xs font-mono font-bold text-text-soft mt-0.5">
+                                    {highlight(item.formattedRut || item.rut)}
+                                 </div>
                               </div>
-                              <div className="text-xs font-mono font-bold text-text-soft mt-0.5">
-                                 {highlight(item.formattedRut || item.rut)}
+                              <div className="shrink-0">
+                                 <ContactBadge type={item.type} />
                               </div>
                            </div>
-                           <div className="shrink-0">
-                              <ContactBadge type={item.type} />
-                           </div>
-                        </li>
-                     ))}
-                  </ul>
+                        );
+                     })}
+                  </div>
                )}
 
                {/* Barra de acción cuando hay selección múltiple activa */}
@@ -440,24 +505,18 @@ export default function ContactSelect({
                      <div className="flex items-center gap-2">
                         <button
                            type="button"
-                           onMouseDown={(e) => {
-                              e.preventDefault();
-                              setSelectedRuts(new Set());
-                           }}
+                           onClick={() => setSelectedRuts(new Set())}
                            className="px-2.5 py-1 text-xs text-text-soft hover:text-danger rounded-lg transition"
                         >
                            Limpiar
                         </button>
                         <button
                            type="button"
-                           onMouseDown={(e) => {
-                              e.preventDefault();
-                              handleConfirmMultiple();
-                           }}
+                           onClick={handleConfirmMultiple}
                            className="px-3.5 py-1.5 text-xs font-bold text-white bg-brand hover:bg-brand-hover rounded-xl shadow transition flex items-center gap-1.5"
                         >
                            <CheckIcon className="w-4 h-4 stroke-2" />
-                           Agregar ({selectedRuts.size})
+                           {selectedRuts.size === 1 ? 'Agregar' : `Agregar (${selectedRuts.size})`}
                         </button>
                      </div>
                   </div>

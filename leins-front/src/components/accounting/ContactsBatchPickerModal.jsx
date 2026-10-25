@@ -72,7 +72,13 @@ export default function ContactsBatchPickerModal({
       return list;
    }, [contacts, selectedType, search]);
 
+   const cleanRut = (r) => String(r || '').replace(/[^0-9kK]/g, '').toUpperCase();
+   const alreadySelectedClean = useMemo(() => {
+      return new Set((alreadySelectedRuts || []).map(cleanRut).filter(Boolean));
+   }, [alreadySelectedRuts]);
+
    const toggleRut = (rut) => {
+      if (alreadySelectedClean.has(cleanRut(rut))) return;
       setCheckedRuts((prev) => {
          const next = new Set(prev);
          if (next.has(rut)) next.delete(rut);
@@ -84,7 +90,9 @@ export default function ContactsBatchPickerModal({
    const selectAllVisible = () => {
       setCheckedRuts((prev) => {
          const next = new Set(prev);
-         filteredContacts.forEach((c) => next.add(c.rut));
+         filteredContacts
+            .filter((c) => !alreadySelectedClean.has(cleanRut(c.rut)))
+            .forEach((c) => next.add(c.rut));
          return next;
       });
    };
@@ -183,8 +191,41 @@ export default function ContactsBatchPickerModal({
                ) : (
                   filteredContacts.map((c) => {
                      const isChecked = checkedRuts.has(c.rut);
-                     const isAlreadyInRule = alreadySelectedRuts.includes(formatRut(c.rut)) || alreadySelectedRuts.includes(c.rut);
+                     const isAlreadyInRule = alreadySelectedClean.has(cleanRut(c.rut));
                      const config = typeConfig[c.type] || typeConfig.PROVEEDOR;
+
+                     if (isAlreadyInRule) {
+                        return (
+                           <div
+                              key={c.rut}
+                              className="flex items-center gap-3 px-4 py-2.5 opacity-50 bg-surface-2/40 cursor-not-allowed select-none"
+                              title="Este contacto ya está agregado a la regla"
+                           >
+                              <input
+                                 type="checkbox"
+                                 disabled
+                                 checked={false}
+                                 className="w-4 h-4 text-text-soft/40 rounded border-border-subtle cursor-not-allowed"
+                              />
+                              <div className="min-w-0 flex-1">
+                                 <div className="flex items-center gap-2">
+                                    <span className="text-xs font-semibold text-text-soft truncate">
+                                       {c.name}
+                                    </span>
+                                    <span className="text-[10px] text-text-soft italic bg-surface-3 px-1.5 py-0.5 rounded font-medium">
+                                       ya agregado
+                                    </span>
+                                 </div>
+                                 <span className="text-[11px] font-mono text-text-soft/70 font-bold">
+                                    {formatRut(c.rut)}
+                                 </span>
+                              </div>
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${config.pill}`}>
+                                 {config.label}
+                              </span>
+                           </div>
+                        );
+                     }
 
                      return (
                         <label
@@ -200,16 +241,9 @@ export default function ContactsBatchPickerModal({
                               className="w-4 h-4 text-brand rounded border-border-subtle focus:ring-brand cursor-pointer"
                            />
                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-2">
-                                 <span className="text-xs font-semibold text-text-main truncate">
-                                    {c.name}
-                                 </span>
-                                 {isAlreadyInRule && (
-                                    <span className="text-[10px] text-text-soft italic bg-surface-2 px-1.5 py-0.5 rounded">
-                                       ya agregado
-                                    </span>
-                                 )}
-                              </div>
+                              <span className="text-xs font-semibold text-text-main truncate block">
+                                 {c.name}
+                              </span>
                               <span className="text-[11px] font-mono text-text-soft font-bold">
                                  {formatRut(c.rut)}
                               </span>
@@ -238,7 +272,7 @@ export default function ContactsBatchPickerModal({
                   onClick={handleConfirm}
                   className="px-5 py-2 text-xs font-semibold text-white bg-brand hover:bg-brand-hover rounded-xl shadow-sm transition disabled:opacity-50"
                >
-                  Agregar {checkedRuts.size > 0 ? `(${checkedRuts.size}) Contactos` : ''}
+                  {checkedRuts.size === 1 ? 'Agregar Contacto' : `Agregar (${checkedRuts.size}) Contactos`}
                </button>
             </div>
          </div>

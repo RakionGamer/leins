@@ -61,6 +61,18 @@ const getRoleColor = (role) => {
    }
 };
 
+const formatRut = (rut) => {
+   let value = String(rut || '').replace(/[^0-9kK]/g, '').toUpperCase();
+   if (value.length > 9) value = value.slice(0, 9);
+   if (value.length <= 1) return value;
+   let body = value.slice(0, -1);
+   let dv = value.slice(-1);
+   body = body.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+   return `${body}-${dv}`;
+};
+
+const cleanRut = (rut) => String(rut || '').replace(/[^0-9kK]/g, '').toUpperCase();
+
 function ResumenReglas({ rules }) {
    const stats = useMemo(() => {
       const ruts = new Set();
@@ -141,12 +153,13 @@ export default function AccountingRules() {
    const handleAddBatchContacts = (selectedContacts) => {
       setFormData((prev) => {
          const existing = prev.ruts.filter((r) => r.rut && r.rut.trim());
-         const existingRuts = new Set(existing.map((r) => formatRut(r.rut)));
+         const existingCleanRuts = new Set(existing.map((r) => cleanRut(r.rut)));
 
          const newRows = [];
          for (const c of selectedContacts) {
-            const fRut = formatRut(c.rut);
-            if (!existingRuts.has(fRut)) {
+            const cleanC = cleanRut(c.rut);
+            if (!existingCleanRuts.has(cleanC)) {
+               const fRut = formatRut(c.rut);
                const name = c.name || '';
                newRows.push({
                   rut: fRut,
@@ -154,7 +167,7 @@ export default function AccountingRules() {
                   displayValue: name ? `${fRut} - ${name}` : fRut,
                   fromDirectory: Boolean(name),
                });
-               existingRuts.add(fRut);
+               existingCleanRuts.add(cleanC);
             }
          }
 
@@ -198,15 +211,6 @@ export default function AccountingRules() {
       setFormData(prev => ({ ...prev, ruts: prev.ruts.filter((_, i) => i !== index) }));
    };
 
-   const formatRut = (rut) => {
-      let value = String(rut || '').replace(/[^0-9kK]/g, '').toUpperCase();
-      if (value.length > 9) value = value.slice(0, 9);
-      if (value.length <= 1) return value;
-      let body = value.slice(0, -1);
-      let dv = value.slice(-1);
-      body = body.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-      return `${body}-${dv}`;
-   };
 
    const parseRutAndName = (str) => {
       const val = String(str || '').trim();
@@ -296,6 +300,12 @@ export default function AccountingRules() {
    };
 
    const handleContactSelect = (index, item) => {
+      const cleanNewRut = cleanRut(item.rut);
+      const isAlreadyInOtherRow = formData.ruts.some((r, i) => i !== index && cleanRut(r.rut) === cleanNewRut);
+      if (isAlreadyInOtherRow) {
+         toast.warning('Este contacto ya está agregado a esta regla');
+         return;
+      }
       const fRut = formatRut(item.rut);
       const name = item.name || '';
       setFormData((prev) => {
@@ -326,10 +336,28 @@ export default function AccountingRules() {
    const handleContactSelectMultiple = (currentIndex, items) => {
       if (!items || items.length === 0) return;
 
+      const existingCleanRuts = new Set(
+         formData.ruts
+            .map((r, i) => i !== currentIndex ? cleanRut(r.rut) : null)
+            .filter(Boolean)
+      );
+
+      const filteredItems = items.filter(it => !existingCleanRuts.has(cleanRut(it.rut)));
+
+      if (filteredItems.length === 0) {
+         toast.warning('Los contactos seleccionados ya están agregados a esta regla');
+         return;
+      }
+
       setFormData((prev) => {
          const newRuts = [...prev.ruts];
-         
-         const first = items[0];
+         const usedCleanRuts = new Set(
+            newRuts
+               .map((r, i) => i !== currentIndex ? cleanRut(r.rut) : null)
+               .filter(Boolean)
+         );
+
+         const first = filteredItems[0];
          const fRut = formatRut(first.rut);
          const firstName = first.name || '';
          newRuts[currentIndex] = {
@@ -338,28 +366,33 @@ export default function AccountingRules() {
             displayValue: firstName ? `${fRut} - ${firstName}` : fRut,
             fromDirectory: Boolean(firstName),
          };
+         usedCleanRuts.add(cleanRut(first.rut));
 
-         const existingRuts = new Set(newRuts.map(r => formatRut(r.rut)));
-
-         for (let i = 1; i < items.length; i++) {
-            const it = items[i];
-            const rutF = formatRut(it.rut);
-            const itName = it.name || '';
-            if (!existingRuts.has(rutF)) {
+         for (let i = 1; i < filteredItems.length; i++) {
+            const it = filteredItems[i];
+            const cleanIt = cleanRut(it.rut);
+            if (!usedCleanRuts.has(cleanIt)) {
+               const rutF = formatRut(it.rut);
+               const itName = it.name || '';
                newRuts.push({
                   rut: rutF,
                   name: itName,
                   displayValue: itName ? `${rutF} - ${itName}` : rutF,
                   fromDirectory: Boolean(itName),
                });
-               existingRuts.add(rutF);
+               usedCleanRuts.add(cleanIt);
             }
          }
 
          return { ...prev, ruts: newRuts };
       });
 
-      toast.success(`Se agregaron ${items.length} contactos a la regla`);
+      const skipped = items.length - filteredItems.length;
+      if (skipped > 0) {
+         toast.success(`Se agregaron ${filteredItems.length} contactos (${skipped} omitidos por estar repetidos)`);
+      } else {
+         toast.success(`Se agregaron ${filteredItems.length} contactos a la regla`);
+      }
    };
 
    const handleEditGroup = (group) => {
@@ -409,7 +442,18 @@ export default function AccountingRules() {
          })
          .filter(r => r.rut && r.rut.length >= 8);
 
-      if (ruts.length === 0) {
+      // Deduplicar ruts para no enviar repetidos al backend
+      const seenRuts = new Set();
+      const uniqueRuts = [];
+      for (const r of ruts) {
+         const cleanKey = cleanRut(r.rut);
+         if (!seenRuts.has(cleanKey)) {
+            seenRuts.add(cleanKey);
+            uniqueRuts.push(r);
+         }
+      }
+
+      if (uniqueRuts.length === 0) {
          toast.error('Debe ingresar al menos un RUT válido');
          return;
       }
@@ -422,10 +466,10 @@ export default function AccountingRules() {
             account_id: Number(formData.account_id),
             glosa: formData.glosa,
             cost_center: formData.cost_center,
-            ruts,
+            ruts: uniqueRuts,
             replace_account: true
          });
-         toast.success(`Se guardaron ${ruts.length} reglas correctamente`);
+         toast.success(`Se guardaron ${uniqueRuts.length} reglas correctamente`);
          setModalOpen(false);
          loadRules();
       } catch (e) {
@@ -692,6 +736,7 @@ export default function AccountingRules() {
                                  rut={r.rut}
                                  name={r.name}
                                  isLocked={Boolean(r.rut && r.name)}
+                                 alreadySelectedRuts={formData.ruts.map((x, idx) => idx !== i ? x.rut : null).filter(Boolean)}
                                  value={r.displayValue !== undefined ? r.displayValue : (r.rut ? `${formatRut(r.rut)}${r.name ? ' - ' + r.name : ''}` : '')}
                                  onChange={(val) => handleUnifiedInputChange(i, val)}
                                  onSelect={(item) => handleContactSelect(i, item)}
