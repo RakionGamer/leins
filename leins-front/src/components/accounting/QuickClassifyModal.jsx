@@ -90,7 +90,10 @@ export default function QuickClassifyModal({ isOpen, onClose, document, entityId
                   <AccountSelect
                      accounts={accounts}
                      value={selectedAccountId}
-                     onChange={(acc) => setSelectedAccountId(acc?.id || null)}
+                     onChange={(val) => {
+                        const id = typeof val === 'object' && val !== null ? val.id : val;
+                        setSelectedAccountId(id || null);
+                     }}
                      placeholder="Buscar cuenta (ej: 61.01.01 Costo de Venta, 11.07.10 Inventario...)"
                   />
                )}

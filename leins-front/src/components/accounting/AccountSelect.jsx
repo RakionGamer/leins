@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { ChevronDownIcon, MagnifyingGlassIcon, XMarkIcon, CheckIcon, Squares2X2Icon } from '@heroicons/react/24/outline';
+import React, { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
+import { ChevronDownIcon, MagnifyingGlassIcon, XMarkIcon, CheckIcon } from '@heroicons/react/24/outline';
 
 // Paleta corporativa: tonos sobrios con punto indicador y borde sutil
 const typeStyles = {
@@ -45,7 +46,11 @@ const CodeChip = ({ children, className = '' }) => (
 const AccountSelect = ({ accounts = [], value, onChange, className = '', placeholder = 'Seleccionar cuenta...', allowClear = false }) => {
    const [isOpen, setIsOpen] = useState(false);
    const [search, setSearch] = useState('');
-   const wrapperRef = useRef(null);
+   const [coords, setCoords] = useState(null);
+
+   const triggerRef = useRef(null);
+   const menuRef = useRef(null);
+   const searchInputRef = useRef(null);
 
    const selectedAccount = useMemo(() => {
       return accounts.find(a => String(a.id) === String(value)) || null;
@@ -62,9 +67,61 @@ const AccountSelect = ({ accounts = [], value, onChange, className = '', placeho
       });
    }, [accounts, search]);
 
+   const updateCoords = () => {
+      if (!triggerRef.current) return;
+      const r = triggerRef.current.getBoundingClientRect();
+      const viewportHeight = window.innerHeight;
+      const viewportWidth = window.innerWidth;
+
+      const spaceBelow = viewportHeight - r.bottom;
+      const spaceAbove = r.top;
+
+      // Si hay poco espacio abajo (< 260px) y más espacio arriba, abrir hacia arriba
+      const openUpwards = spaceBelow < 260 && spaceAbove > spaceBelow;
+      const availableHeight = openUpwards ? spaceAbove - 16 : spaceBelow - 16;
+      const listMaxHeight = Math.min(320, Math.max(160, availableHeight - 65));
+
+      setCoords({
+         top: openUpwards ? r.top - 6 : r.bottom + 6,
+         left: Math.max(12, Math.min(r.left, viewportWidth - Math.max(r.width, 360) - 12)),
+         width: Math.min(Math.max(r.width, 360), viewportWidth - 24),
+         openUpwards,
+         listMaxHeight,
+      });
+   };
+
+   useLayoutEffect(() => {
+      if (!isOpen) return;
+      updateCoords();
+
+      const handleScroll = () => updateCoords();
+      const handleResize = () => updateCoords();
+
+      window.addEventListener('resize', handleResize);
+      window.addEventListener('scroll', handleScroll, true);
+
+      return () => {
+         window.removeEventListener('resize', handleResize);
+         window.removeEventListener('scroll', handleScroll, true);
+      };
+   }, [isOpen]);
+
+   useEffect(() => {
+      if (isOpen) {
+         setTimeout(() => {
+            searchInputRef.current?.focus();
+         }, 50);
+      } else {
+         setSearch('');
+      }
+   }, [isOpen]);
+
    useEffect(() => {
       const handleClickOutside = (event) => {
-         if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
+         if (
+            triggerRef.current && !triggerRef.current.contains(event.target) &&
+            menuRef.current && !menuRef.current.contains(event.target)
+         ) {
             setIsOpen(false);
          }
       };
@@ -72,11 +129,24 @@ const AccountSelect = ({ accounts = [], value, onChange, className = '', placeho
       return () => document.removeEventListener('mousedown', handleClickOutside);
    }, []);
 
+   useEffect(() => {
+      const handleKeyDown = (e) => {
+         if (e.key === 'Escape' && isOpen) {
+            setIsOpen(false);
+         }
+      };
+      window.addEventListener('keydown', handleKeyDown);
+      return () => window.removeEventListener('keydown', handleKeyDown);
+   }, [isOpen]);
+
    return (
-      <div className={`relative ${className}`} ref={wrapperRef}>
+      <div className={`relative ${className}`}>
          <div
+            ref={triggerRef}
             onClick={() => setIsOpen(!isOpen)}
-            className={`flex items-center justify-between w-full px-3 py-2.5 text-sm bg-surface-1 border rounded-xl cursor-pointer transition ${isOpen ? 'border-brand ring-2 ring-brand/20' : 'border-border-subtle hover:border-brand/40'}`}
+            className={`flex items-center justify-between w-full px-3 py-2.5 text-sm bg-surface-1 border rounded-xl cursor-pointer transition select-none ${
+               isOpen ? 'border-brand ring-2 ring-brand/20' : 'border-border-subtle hover:border-brand/40'
+            }`}
          >
             {selectedAccount ? (
                <div className="flex items-center gap-3 truncate pr-10 min-w-0">
@@ -93,7 +163,12 @@ const AccountSelect = ({ accounts = [], value, onChange, className = '', placeho
             {allowClear && selectedAccount ? (
                <div
                   className="absolute right-9 top-1/2 -translate-y-1/2 p-1 hover:bg-surface-2 rounded-md z-10"
-                  onClick={(e) => { e.stopPropagation(); onChange(''); setIsOpen(false); }}
+                  onClick={(e) => {
+                     e.stopPropagation();
+                     onChange('', null);
+                     setIsOpen(false);
+                  }}
+                  title="Limpiar selección"
                >
                   <XMarkIcon className="h-4 w-4 text-text-soft hover:text-rose-500" />
                </div>
@@ -102,26 +177,50 @@ const AccountSelect = ({ accounts = [], value, onChange, className = '', placeho
             <ChevronDownIcon className={`w-4 h-4 shrink-0 text-text-soft transition-transform ${isOpen ? 'rotate-180' : ''}`} />
          </div>
 
-         {isOpen && (
-            <div className="absolute z-50 w-full mt-2 bg-bg-content border border-border-subtle rounded-xl shadow-xl overflow-hidden">
-               <div className="p-2.5 border-b border-border-subtle bg-surface-1">
+         {/* Menú Dropdown renderizado mediante Portal en document.body para evitar recortes de modal / overflow */}
+         {isOpen && coords && createPortal(
+            <div
+               ref={menuRef}
+               style={{
+                  position: 'fixed',
+                  top: coords.top,
+                  left: coords.left,
+                  width: coords.width,
+                  transform: coords.openUpwards ? 'translateY(-100%)' : undefined,
+                  zIndex: 99999,
+               }}
+               className="bg-bg-content border border-border-subtle rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-100 flex flex-col"
+            >
+               <div className="p-2.5 border-b border-border-subtle bg-surface-1 shrink-0">
                   <div className="relative">
                      <MagnifyingGlassIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-text-soft" />
                      <input
+                        ref={searchInputRef}
                         type="text"
-                        autoFocus
                         placeholder="Buscar por nombre, código o tipo..."
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        className="w-full pl-9 pr-3 py-2 text-sm bg-bg-content border border-border-subtle rounded-lg focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand transition placeholder:text-text-soft/60"
+                        className="w-full pl-9 pr-3 py-2 text-sm bg-bg-content border border-border-subtle rounded-xl focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand transition placeholder:text-text-soft/60"
                      />
                   </div>
-                  <div className="mt-2 px-1 text-[10px] font-semibold uppercase tracking-wider text-text-soft">
-                     {filteredAccounts.length} cuenta{filteredAccounts.length !== 1 ? 's' : ''}
+                  <div className="mt-2 px-1 text-[10px] font-semibold uppercase tracking-wider text-text-soft flex items-center justify-between">
+                     <span>{filteredAccounts.length} cuenta{filteredAccounts.length !== 1 ? 's' : ''} disponible{filteredAccounts.length !== 1 ? 's' : ''}</span>
+                     {search && (
+                        <button
+                           type="button"
+                           onClick={() => setSearch('')}
+                           className="text-brand hover:underline font-semibold"
+                        >
+                           Limpiar filtro
+                        </button>
+                     )}
                   </div>
                </div>
 
-               <div className="max-h-[300px] overflow-y-auto overscroll-contain bg-bg-content">
+               <div
+                  style={{ maxHeight: coords.listMaxHeight }}
+                  className="overflow-y-auto overscroll-contain bg-bg-content divide-y divide-border-subtle/30"
+               >
                   {filteredAccounts.length === 0 ? (
                      <div className="p-6 text-center text-xs text-text-soft italic">
                         No se encontraron cuentas contables
@@ -133,11 +232,15 @@ const AccountSelect = ({ accounts = [], value, onChange, className = '', placeho
                            <div
                               key={acc.id}
                               onClick={() => {
-                                 onChange(acc.id);
+                                 onChange(acc.id, acc);
                                  setIsOpen(false);
                                  setSearch('');
                               }}
-                              className={`flex items-center justify-between gap-3 w-full px-4 py-2.5 text-left border-b border-border-subtle/40 last:border-b-0 cursor-pointer transition-colors border-l-[3px] ${selected ? 'bg-brand/10 border-l-brand' : 'border-l-transparent hover:bg-surface-1'} ${acc.is_title ? 'bg-surface-1/60' : ''}`}
+                              className={`flex items-center justify-between gap-3 w-full px-4 py-2.5 text-left cursor-pointer transition-colors border-l-[3px] select-none ${
+                                 selected
+                                    ? 'bg-brand/10 border-l-brand'
+                                    : 'border-l-transparent hover:bg-surface-1'
+                              } ${acc.is_title ? 'bg-surface-1/60 opacity-80' : ''}`}
                            >
                               <div className="flex items-center gap-3 min-w-0">
                                  <CodeChip className="min-w-[76px]">{acc.code}</CodeChip>
@@ -155,7 +258,8 @@ const AccountSelect = ({ accounts = [], value, onChange, className = '', placeho
                      })
                   )}
                </div>
-            </div>
+            </div>,
+            document.body
          )}
       </div>
    );
