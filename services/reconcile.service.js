@@ -512,6 +512,7 @@ class ReconcileService {
                  SELECT COALESCE(SUM(d2.remaining_amount),0)
                  FROM docs d2
                  WHERE ${doc2MatchesBankType}
+                   AND (d2.counterparty_rut = d.counterparty_rut OR (d.counterparty_rut IS NULL AND d2.issue_date = d.issue_date))
                    AND d2.remaining_amount <= bt.remaining_amount + :amountTolerance
                    AND d2.issue_date BETWEEN DATE(DATE_SUB(bt.issued_at, INTERVAL ${Number(daysWindow)} DAY))
                                          AND DATE(DATE_ADD(bt.issued_at, INTERVAL ${Number(daysWindow)} DAY))
@@ -725,6 +726,7 @@ class ReconcileService {
                   SELECT COALESCE(SUM(d2.remaining_amount),0)
                   FROM docs d2
                   WHERE ${doc2MatchesBankType}
+                    AND (d2.counterparty_rut = d.counterparty_rut OR (d.counterparty_rut IS NULL AND d2.issue_date = d.issue_date))
                     AND d2.remaining_amount <= bt.remaining_amount + :amountTolerance
                     AND d2.issue_date BETWEEN DATE(DATE_SUB(bt.issued_at, INTERVAL ${parsedDaysWindow} DAY))
                                           AND DATE(DATE_ADD(bt.issued_at, INTERVAL ${parsedDaysWindow} DAY))
