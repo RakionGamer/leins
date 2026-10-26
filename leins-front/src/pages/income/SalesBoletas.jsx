@@ -659,7 +659,6 @@ export default function SalesBoletas() {
                            { key: 'unreconciled', label: 'Sin conciliar' },
                            { key: 'unclassified', label: 'Sin clasificar' },
                            { key: 'pending', label: 'Pendientes' },
-                           { key: 'centralized', label: 'Centralizados' },
                         ].map((f) => (
                            <button
                               key={f.key}
@@ -773,14 +772,12 @@ export default function SalesBoletas() {
                                        )}
                                     </span>
                                  ) : (
-                                    <button
-                                       type="button"
-                                       onClick={() => handleQuickClassify(r)}
-                                       className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-700 hover:bg-amber-500/25 ring-1 ring-amber-500/30 transition shadow-sm cursor-pointer"
-                                       title="Haga clic para clasificar contraparte"
+                                    <span
+                                       className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-600 ring-1 ring-amber-500/20"
+                                       title="Sin clasificar"
                                     >
-                                       + Clasificar
-                                    </button>
+                                       Sin clasificar
+                                    </span>
                                  )}
                               </td>
                               <td className="p-4 text-center">
