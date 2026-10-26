@@ -140,6 +140,7 @@ export default function AccountingRules() {
    };
 
    const [modalOpen, setModalOpen] = useState(false);
+   const [editingGroup, setEditingGroup] = useState(null);
    const [contactsModalOpen, setContactsModalOpen] = useState(false);
    const [batchPickerOpen, setBatchPickerOpen] = useState(false);
    const [formData, setFormData] = useState({
@@ -396,6 +397,7 @@ export default function AccountingRules() {
    };
 
    const handleEditGroup = (group) => {
+      setEditingGroup(group);
       const ruts = group.rules.map(r => {
          const fRut = formatRut(r.counterparty_rut || '');
          const name = r.counterparty_name || '';
@@ -471,6 +473,7 @@ export default function AccountingRules() {
          });
          toast.success(`Se guardaron ${uniqueRuts.length} reglas correctamente`);
          setModalOpen(false);
+         setEditingGroup(null);
          loadRules();
       } catch (e) {
          setErr(e.message || 'Error al guardar las reglas');
@@ -479,15 +482,39 @@ export default function AccountingRules() {
       }
    };
 
-   const handleDelete = async (rule) => {
-      if (!window.confirm(`¿Seguro que deseas eliminar la regla para ${rule.counterparty_rut}?`)) return;
+   const handleDeleteGroup = async (group) => {
+      const accountLabel = group.account ? `${group.account.code} - ${group.account.name}` : 'esta cuenta';
+      const count = group.rules?.length || 0;
+      const confirmMsg = count === 1
+         ? `¿Seguro que deseas eliminar el registro para ${group.rules[0]?.counterparty_rut || 'este contacto'} (${accountLabel})?`
+         : `¿Seguro que deseas eliminar el registro de ${accountLabel} con sus ${count} RUTs asociados?`;
+
+      if (!window.confirm(confirmMsg)) return;
+
+      setLoading(true);
+      try {
+         await Promise.all(group.rules.map((r) => deleteRule(r.id, entityId)));
+         toast.success(count === 1 ? 'Registro eliminado correctamente' : `${count} reglas eliminadas correctamente`);
+         await loadRules();
+      } catch (e) {
+         toast.error(e.message || 'Error al eliminar el registro');
+      } finally {
+         setLoading(false);
+      }
+   };
+
+   const handleDeleteSingleRule = async (rule) => {
+      const label = rule.counterparty_name ? `${rule.counterparty_rut} - ${rule.counterparty_name}` : rule.counterparty_rut;
+      if (!window.confirm(`¿Seguro que deseas eliminar la regla para ${label}?`)) return;
+
       setLoading(true);
       try {
          await deleteRule(rule.id, entityId);
-         toast.success('Regla eliminada correctamente');
-         loadRules();
+         toast.success('RUT eliminado de la regla correctamente');
+         await loadRules();
       } catch (e) {
-         setErr(e.message || 'Error al eliminar regla');
+         toast.error(e.message || 'Error al eliminar la regla');
+      } finally {
          setLoading(false);
       }
    };
@@ -559,7 +586,8 @@ export default function AccountingRules() {
                   </button>
                   <button
                      onClick={() => {
-                        setFormData({ account_id: '', cost_center: '', ruts: [{ rut: '', name: '', displayValue: '' }] });
+                        setEditingGroup(null);
+                        setFormData({ account_id: '', glosa: '', cost_center: '', ruts: [{ rut: '', name: '', displayValue: '' }] });
                         setModalOpen(true);
                      }}
                      className={`${btnCtrl} text-brand border-brand/20 bg-brand/5`}
@@ -658,11 +686,26 @@ export default function AccountingRules() {
                            groupedRules.map((group, index) => (
                               <tr key={index} className="hover:bg-brand/5 transition-colors group/row align-top">
                                  <td className="p-4 pl-6">
-                                    <div className="flex flex-col gap-1.5 max-h-48 overflow-y-auto pr-2">
+                                    <div className="flex flex-col gap-1 max-h-48 overflow-y-auto pr-2">
                                        {group.rules.map((rule) => (
-                                          <div key={rule.id} className="text-xs text-text-main flex items-center gap-1.5">
-                                             <span className="font-mono font-bold whitespace-nowrap">{rule.counterparty_rut}</span> 
-                                             {rule.counterparty_name ? <span className="text-text-soft truncate">- {rule.counterparty_name}</span> : ''}
+                                          <div
+                                             key={rule.id}
+                                             className="text-xs text-text-main flex items-center justify-between group/item hover:bg-surface-2/70 px-2 py-1 rounded-lg transition"
+                                          >
+                                             <div className="flex items-center gap-1.5 min-w-0">
+                                                <span className="font-mono font-bold whitespace-nowrap">{rule.counterparty_rut}</span> 
+                                                {rule.counterparty_name ? <span className="text-text-soft truncate">- {rule.counterparty_name}</span> : ''}
+                                             </div>
+                                             {group.rules.length > 1 && (
+                                                <button
+                                                   type="button"
+                                                   onClick={() => handleDeleteSingleRule(rule)}
+                                                   className="text-text-soft hover:text-danger p-1 rounded-md hover:bg-danger/10 opacity-0 group-hover/item:opacity-100 transition shrink-0 ml-1 cursor-pointer"
+                                                   title={`Eliminar asignación de ${rule.counterparty_rut}`}
+                                                >
+                                                   <TrashIcon className="w-3.5 h-3.5" />
+                                                </button>
+                                             )}
                                           </div>
                                        ))}
                                     </div>
@@ -683,13 +726,20 @@ export default function AccountingRules() {
                                     )}
                                  </td>
                                  <td className="p-4 text-center">
-                                    <div className="flex items-center justify-center gap-2 opacity-0 group-hover/row:opacity-100 transition-opacity">
+                                    <div className="flex items-center justify-center gap-2">
                                        <button
                                           onClick={() => handleEditGroup(group)}
-                                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-brand border border-brand/20 bg-brand/5 hover:bg-brand/10 transition text-xs font-semibold shadow-sm"
-                                          title="Editar grupo"
+                                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-brand border border-brand/20 bg-brand/5 hover:bg-brand/10 transition text-xs font-semibold shadow-sm cursor-pointer"
+                                          title="Editar este registro"
                                        >
                                           <PencilIcon className="w-4 h-4" /> Editar
+                                       </button>
+                                       <button
+                                          onClick={() => handleDeleteGroup(group)}
+                                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-danger border border-danger/20 bg-danger/5 hover:bg-danger/10 transition text-xs font-semibold shadow-sm cursor-pointer"
+                                          title="Eliminar este registro"
+                                       >
+                                          <TrashIcon className="w-4 h-4" /> Eliminar
                                        </button>
                                     </div>
                                  </td>
@@ -703,7 +753,7 @@ export default function AccountingRules() {
          </div>
 
          {/* Create Rule Modal */}
-         <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title="Asignación Masiva de RUTs a Cuenta" maxWidth="max-w-xl">
+         <Modal isOpen={modalOpen} onClose={() => { setModalOpen(false); setEditingGroup(null); }} title={editingGroup ? "Editar Registro de Asignación" : "Asignación Masiva de RUTs a Cuenta"} maxWidth="max-w-xl">
             <form onSubmit={handleSubmit} className="space-y-4">
                <div>
                   <label className="block text-xs font-semibold uppercase text-text-soft mb-1">1. Cuenta Contable Destino</label>
@@ -798,21 +848,41 @@ export default function AccountingRules() {
                   />
                </div>
 
-               <div className="flex justify-end gap-3 pt-4 border-t border-border-subtle">
-                  <button
-                     type="button"
-                     onClick={() => setModalOpen(false)}
-                     className="px-4 py-2 text-text-soft font-medium hover:text-text-main hover:bg-surface-2 rounded-xl transition"
-                  >
-                     Cancelar
-                  </button>
-                  <button
-                     type="submit"
-                     disabled={submitting}
-                     className="px-5 py-2 bg-brand text-white font-semibold rounded-xl hover:bg-brand-hover shadow-sm transition disabled:opacity-50"
-                  >
-                     {submitting ? 'Guardando...' : 'Guardar Regla'}
-                  </button>
+               <div className="flex items-center justify-between gap-3 pt-4 border-t border-border-subtle">
+                  {editingGroup ? (
+                     <button
+                        type="button"
+                        onClick={() => {
+                           handleDeleteGroup(editingGroup);
+                           setModalOpen(false);
+                           setEditingGroup(null);
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-danger hover:bg-danger/10 rounded-xl transition cursor-pointer"
+                        title="Eliminar este registro completo"
+                     >
+                        <TrashIcon className="w-4 h-4" /> Eliminar Registro
+                     </button>
+                  ) : <div />}
+
+                  <div className="flex items-center gap-2">
+                     <button
+                        type="button"
+                        onClick={() => {
+                           setModalOpen(false);
+                           setEditingGroup(null);
+                        }}
+                        className="px-4 py-2 text-text-soft text-xs font-semibold hover:text-text-main hover:bg-surface-2 rounded-xl transition cursor-pointer"
+                     >
+                        Cancelar
+                     </button>
+                     <button
+                        type="submit"
+                        disabled={submitting}
+                        className="px-5 py-2 bg-brand text-white text-xs font-semibold rounded-xl hover:bg-brand-hover shadow-sm transition disabled:opacity-50 cursor-pointer"
+                     >
+                        {submitting ? 'Guardando...' : 'Guardar Regla'}
+                     </button>
+                  </div>
                </div>
             </form>
          </Modal>
