@@ -648,11 +648,10 @@ class ReconcileService {
       // en modo countOnly acotamos ademas cuantos movimientos pendientes se examinan
       // (los mas recientes primero), para que el badge nunca dependa del volumen total
       //
-      // fuera de countOnly (listado real del panel) NO exigimos que el movimiento ya
-      // tenga un match (eso es justo el cruce carisimo que no escala con miles de
-      // pendientes de cada lado): paginamos simple por fecha y los candidatos/grupos
-      // se calculan despues solo para esa pagina (pasos 2 y 2b). El frontend ya filtra
-      // los movimientos sin candidatos, asi que el resultado visible no cambia.
+      // Paginamos exclusivamente movimientos bancarios que cuenten con sugerencias potenciales
+      // (WHERE EXISTS en docs). Paginarlos sin ese filtro provocaba que si una pagina (ej. limit=20)
+      // solo contenia movimientos sin calce, el frontend los descartara mostrando "0 resultados"
+      // a pesar de haber sugerencias en la cartola.
       const btCte = `
          WITH bt AS (
             SELECT
@@ -678,7 +677,7 @@ class ReconcileService {
          )
       `;
 
-      const sqlPageMovements = countOnly ? `
+      const sqlPageMovements = `
          ${btCte},
          docs AS (
             SELECT
@@ -698,7 +697,7 @@ class ReconcileService {
             ON btd.entity_sii_document_id = d.id
             WHERE d.entity_id = :entityId
             ${whereDocsByType}
-            -- acotado al rango real de bt (ya limitado a maxCandidates), no a los
+            -- acotado al rango real de bt (ya limitado a maxCandidates si viene), no a los
             -- documentos mas recientes: si las cartolas se suben con menos frecuencia
             -- que la sincronizacion SII, "los mas recientes de cada lado" pueden caer
             -- en fechas distintas y el cruce nunca se encuentra
@@ -735,20 +734,6 @@ class ReconcileService {
                                  AND DATE(DATE_ADD(bt.issued_at, INTERVAL ${parsedDaysWindow} DAY))
             ${whereSearch}
          )
-         ORDER BY bt.issued_at DESC, bt.id DESC
-         LIMIT :limit OFFSET :offset
-      ` : `
-         ${btCte}
-         SELECT /*+ MAX_EXECUTION_TIME(${ReconcileService.SUGGESTIONS_MAX_EXECUTION_TIME_MS}) */
-            bt.id                       AS bank_tx_id,
-            bt.entity_bank_account_id,
-            bt.type,
-            bt.amount,
-            bt.issued_at,
-            bt.description,
-            bt.remaining_amount         AS bank_remaining
-         FROM bt
-         ${search ? "WHERE bt.description LIKE :search" : ""}
          ORDER BY bt.issued_at DESC, bt.id DESC
          LIMIT :limit OFFSET :offset
       `;
