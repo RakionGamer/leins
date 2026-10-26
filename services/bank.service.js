@@ -1324,6 +1324,174 @@ class BankService {
 
    }
 
+   async reconcileDirectExpense({ entityId, bank_transaction_id, account_id, counterparty_rut = null, counterparty_name = null, concept = null, expense_type = 'GASTO', cost_center = null, amount = null }) {
+      const parsedEntityId = Number(entityId);
+      const parsedBankTxId = Number(bank_transaction_id);
+      const parsedAccountId = Number(account_id);
+
+      if (!Number.isInteger(parsedEntityId) || parsedEntityId <= 0) throw boom.badRequest("entityId es requerido");
+      if (!Number.isInteger(parsedBankTxId) || parsedBankTxId <= 0) throw boom.badRequest("bank_transaction_id es requerido");
+      if (!Number.isInteger(parsedAccountId) || parsedAccountId <= 0) throw boom.badRequest("account_id (cuenta contable) es requerido");
+
+      return await sequelize.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED }, async (t) => {
+         // 1) Verificar cuenta contable
+         const accountingAccount = await models.AccountingAccount.findOne({
+            where: { id: parsedAccountId, entity_id: parsedEntityId },
+            transaction: t,
+         });
+         if (!accountingAccount) throw boom.badRequest("Cuenta contable no encontrada para la entidad");
+         if (accountingAccount.is_title) throw boom.badRequest("No se puede imputar a una cuenta título");
+
+         // 2) Bloquear y validar movimiento bancario
+         const bankTx = await models.EntityBankTransaction.findOne({
+            where: { id: parsedBankTxId, entity_id: parsedEntityId },
+            attributes: ["id", "entity_id", "entity_bank_account_id", "type", "amount", "issued_at", "description"],
+            transaction: t,
+            lock: t.LOCK.UPDATE,
+         });
+         if (!bankTx) throw boom.notFound("Movimiento bancario no encontrado para la entidad");
+         if (bankTx.type !== 'expense') throw boom.badRequest("Solo se pueden conciliar como egreso los movimientos bancarios de tipo cargo");
+
+         // 3) Calcular saldo disponible del movimiento bancario
+         const bankRemainingSql = BankService.#bankRemainingSql("bt");
+         const [agg] = await sequelize.query(
+            `
+            SELECT bt.amount AS bank_amount, ${bankRemainingSql} AS bank_remaining
+            FROM entity_bank_transactions bt
+            WHERE bt.id = :bankTxId AND bt.entity_id = :entityId
+            GROUP BY bt.id
+            `,
+            { type: QueryTypes.SELECT, transaction: t, replacements: { bankTxId: bankTx.id, entityId: parsedEntityId } }
+         );
+
+         const bankRemaining = Number(agg?.bank_remaining ?? 0);
+         if (bankRemaining <= 0) throw boom.conflict("El movimiento bancario no tiene saldo disponible para conciliar");
+
+         const toApply = amount != null ? Number(amount) : bankRemaining;
+         if (!Number.isFinite(toApply) || toApply <= 0) throw boom.badRequest("Monto a aplicar inválido");
+         if (toApply > bankRemaining + 1e-6) throw boom.conflict("El monto excede el saldo disponible del movimiento bancario");
+
+         const cleanRut = counterparty_rut ? String(counterparty_rut).trim().toUpperCase() : null;
+         const cleanName = counterparty_name ? String(counterparty_name).trim() : (concept || bankTx.description || 'Gasto Directo');
+         const issueDate = bankTx.issued_at
+            ? (String(bankTx.issued_at.toISOString ? bankTx.issued_at.toISOString() : bankTx.issued_at).slice(0, 10))
+            : new Date().toISOString().slice(0, 10);
+
+         // 4) Crear documento de gasto manual en entity_sii_documents
+         const newDoc = await models.EntitySiiDocument.create(
+            {
+               entity_id: parsedEntityId,
+               operation_type: 'EXPENSE',
+               source: 'MANUAL',
+               doc_type_code: null, // Representa recibo / comprobante de gasto sin DTE
+               folio: null,
+               issue_date: issueDate,
+               due_date: null,
+               counterparty_rut: cleanRut,
+               counterparty_name: cleanName,
+               total_amount: toApply,
+               amount_net: toApply,
+               amount_vat: 0,
+               amount_exempt: toApply,
+               state_id: 1,
+            },
+            { transaction: t }
+         );
+
+         // 5) Enlazar conciliación bancaria
+         const link = await models.BankTransactionDocument.create(
+            {
+               entity_bank_transaction_id: bankTx.id,
+               entity_sii_document_id: newDoc.id,
+               amount_applied: toApply,
+            },
+            { transaction: t }
+         );
+
+         // 6) Si hay RUT, guardar regla contable para recordar la cuenta asignada
+         if (cleanRut) {
+            try {
+               await models.AccountingRule.upsert(
+                  {
+                     entity_id: parsedEntityId,
+                     counterparty_rut: cleanRut,
+                     counterparty_name: cleanName,
+                     account_id: accountingAccount.id,
+                     cost_center: cost_center || null,
+                  },
+                  { transaction: t }
+               );
+            } catch (_) {}
+         }
+
+         // 7) Generación automática de Asiento Contable
+         let createdEntry = null;
+         try {
+            const AccountingService = require('./accounting.service');
+            const accountingService = new AccountingService();
+            await accountingService.ensureDefaultPlan(parsedEntityId);
+            const accounts = await models.AccountingAccount.findAll({ where: { entity_id: parsedEntityId }, transaction: t });
+
+            const entityBankAcc = await models.EntityBankAccount.findByPk(bankTx.entity_bank_account_id, { transaction: t });
+            const bankName = entityBankAcc ? entityBankAcc.bank_name.toLowerCase() : '';
+            let bankAcc = accounts.find(a => bankName && a.name.toLowerCase().includes(bankName));
+            if (!bankAcc) {
+               bankAcc = accounts.find(a => a.name.toLowerCase().includes('banco')) || accounts.find(a => a.code.startsWith('11.02.'));
+            }
+
+            const prefix = expense_type === 'IMPUESTO' ? 'Pago Impuesto' : (expense_type === 'PREVIRED' ? 'Pago Previred' : (expense_type === 'REMUNERACION' ? 'Pago Sueldos' : 'Gasto'));
+            const finalGlosa = concept ? concept.trim() : `${prefix}: ${cleanName || bankTx.description || accountingAccount.name}`.trim();
+
+            if (bankAcc) {
+               createdEntry = await accountingService.createEntry(parsedEntityId, {
+                  entry_date: issueDate,
+                  concept: finalGlosa,
+                  source_type: 'BANK_MOVEMENT',
+                  source_id: bankTx.id,
+                  items: [
+                     {
+                        account_id: accountingAccount.id,
+                        description: finalGlosa,
+                        debit: toApply,
+                        credit: 0,
+                        counterparty_rut: cleanRut,
+                        counterparty_name: cleanName,
+                        cost_center: cost_center || null,
+                     },
+                     {
+                        account_id: bankAcc.id,
+                        description: `Egreso Banco ${bankTx.description || ''}`.trim(),
+                        debit: 0,
+                        credit: toApply,
+                        counterparty_rut: cleanRut,
+                        counterparty_name: cleanName,
+                     }
+                  ]
+               });
+            }
+         } catch (accErr) {
+            console.warn("⚠️ No se pudo generar el asiento contable del egreso directo:", accErr.message);
+         }
+
+         return {
+            ok: true,
+            applied: {
+               id: link.id,
+               bank_transaction_id: bankTx.id,
+               document_id: newDoc.id,
+               amount_applied: toApply,
+            },
+            document: newDoc,
+            entry: createdEntry,
+            bank: {
+               id: bankTx.id,
+               amount: bankTx.amount,
+               remaining_after: Math.max(0, bankRemaining - toApply),
+            }
+         };
+      });
+   }
+
    async searchBankCounterparts({ entityId, bank_transaction_id, q = null, limit = 50 }) {
       const parsedEntityId = Number(entityId);
       const sourceId = Number(bank_transaction_id);
@@ -1571,7 +1739,7 @@ class BankService {
 
          // validacion de pertenencia: join para verificar entity_id en ambos lados
          const [own] = await sequelize.query(`
-         SELECT 1
+         SELECT bt.id AS bank_tx_id, d.id AS doc_id, d.source, d.doc_type_code
          FROM bank_transaction_documents btd
          JOIN entity_bank_transactions bt ON bt.id = btd.entity_bank_transaction_id AND bt.entity_id = :e
          JOIN entity_sii_documents d ON d.id = btd.entity_sii_document_id AND d.entity_id = :e
@@ -1582,6 +1750,22 @@ class BankService {
          if (!own) throw boom.forbidden('La conciliación no pertenece a la entidad');
 
          await link.destroy({ transaction: t });
+
+         // Si fue un gasto directo manual sin DTE, podemos anular el asiento bancario asociado para mantener los libros cuadrados
+         try {
+            await models.AccountingEntry.update(
+               { status: 'ANNULLED' },
+               {
+                  where: {
+                     entity_id: entityId,
+                     source_type: 'BANK_MOVEMENT',
+                     source_id: own.bank_tx_id,
+                     status: 'POSTED'
+                  },
+                  transaction: t
+               }
+            );
+         } catch (_) {}
 
          return { ok: true, removed: id };
       });

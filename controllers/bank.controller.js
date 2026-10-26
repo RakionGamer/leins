@@ -459,6 +459,38 @@ const reconcileTransaction = asyncHandler(async (req, res) => {
    res.json(out);
 });
 
+// controlador para conciliar directamente como egreso / gasto sin soporte tributado
+const reconcileDirectExpense = asyncHandler(async (req, res) => {
+   const { entityId, bank_transaction_id, account_id, counterparty_rut, counterparty_name, concept, expense_type, cost_center, amount } = req.body || {};
+
+   if (!entityId) throw boom.badRequest("entityId es requerido");
+   if (!bank_transaction_id) throw boom.badRequest("bank_transaction_id es requerido");
+   if (!account_id) throw boom.badRequest("account_id es requerido");
+
+   const out = await service.reconcileDirectExpense({
+      entityId: Number(entityId),
+      bank_transaction_id: Number(bank_transaction_id),
+      account_id: Number(account_id),
+      counterparty_rut: counterparty_rut || null,
+      counterparty_name: counterparty_name || null,
+      concept: concept || null,
+      expense_type: expense_type || 'GASTO',
+      cost_center: cost_center || null,
+      amount: amount != null ? Number(amount) : null,
+   });
+
+   logInfo('BANK_TRANSACTION_DIRECT_EXPENSE_RECONCILED', {
+      rid: req.rid,
+      userId: req.user?.sub,
+      entityId,
+      bank_transaction_id,
+      accountId: account_id,
+      amount: out.applied?.amount_applied
+   });
+
+   res.json(out);
+});
+
 const searchBankReconcileCandidates = asyncHandler(async (req, res) => {
    const { entityId, bank_transaction_id, q, limit = '50' } = req.query || {};
 
@@ -582,6 +614,7 @@ module.exports = {
    getSuggestionsFast,
    countSuggestions,
    reconcileTransaction,
+   reconcileDirectExpense,
    searchBankReconcileCandidates,
    reconcileBankTransaction,
    bulkReconcile,

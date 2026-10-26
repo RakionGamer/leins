@@ -5,7 +5,9 @@ import { useEntityRequired } from '../../hooks/useEntityRequired';
 import EntityRequiredNotice from 'components/EntityRequiredNotice';
 import ReconcileSuggestionsPanel from 'components/ReconcileSuggestionsPanel';
 import DateInput from 'components/DateInput'
-import { fetchSuggestionsCount, autofindCandidates, reconcileOne, reconcileBankTransaction, searchBankReconcileCandidates, reconcileBulk, listReconciliations, unreconcile, deleteBankTransaction } from '../../services/reconcileApi';
+import { fetchSuggestionsCount, autofindCandidates, reconcileOne, reconcileDirectExpense, reconcileBankTransaction, searchBankReconcileCandidates, reconcileBulk, listReconciliations, unreconcile, deleteBankTransaction } from '../../services/reconcileApi';
+import { getAccounts } from '../../services/accountingApi';
+import AccountSelect from '../../components/accounting/AccountSelect';
 import { uploadBankExcel, listBankAccounts } from '../../services/entitiesApi';
 import { toast } from 'components/Toaster';
 import PrimaryButton from 'components/PrimaryButton';
@@ -528,6 +530,17 @@ export default function BankCartolasPage() {
 
    const reconciliationDetailRows = reconciliationDetailData?.rows || [];
 
+   // 3. cuentas contables para clasificacion de egresos directos
+   const { data: accountingAccountsData } = useQuery({
+      queryKey: ['accountingAccounts', entityId],
+      queryFn: () => getAccounts({ entityId }),
+      enabled: Boolean(entityId),
+   });
+   const availableAccounts = useMemo(() => {
+      const list = Array.isArray(accountingAccountsData) ? accountingAccountsData : [];
+      return list.filter(a => !a.is_title);
+   }, [accountingAccountsData]);
+
    const handleUndoReconciliation = useCallback(async (row) => {
       if (!window.confirm('Deshacer esta conciliacion?')) return;
 
@@ -881,6 +894,15 @@ export default function BankCartolasPage() {
 
    const txRemaining = Math.max(0, Number(reconcileTx?.raw?.remaining_amount ?? Math.abs(Number(reconcileTx?.monto || 0))));
    const reconcileDocumentSide = Number(reconcileTx?.monto || 0) < 0 ? 'expense' : 'income';
+
+   // Estados de Egreso Directo (estilo Chipax)
+   const [expenseType, setExpenseType] = useState('GASTO');
+   const [expenseAccountId, setExpenseAccountId] = useState(null);
+   const [expenseCounterparty, setExpenseCounterparty] = useState('');
+   const [expenseRut, setExpenseRut] = useState('');
+   const [expenseConcept, setExpenseConcept] = useState('');
+   const [expenseAmount, setExpenseAmount] = useState('');
+   const [isSubmittingExpense, setIsSubmittingExpense] = useState(false);
    const reconcileTxDate = useMemo(() => getBankTransactionDate(reconcileTx), [reconcileTx]);
    const documentCandidates = useMemo(() => {
       const byId = new Map();
@@ -995,8 +1017,67 @@ export default function BankCartolasPage() {
       setDailySalesError('');
       setSavingDailyGroupKey('');
       setReconcileTx(row);
+
+      // Prellenar datos para Egreso Directo (Chipax style)
+      const cleanMonto = Math.max(0, Number(row?.raw?.remaining_amount ?? Math.abs(Number(row?.monto || row?.raw?.amount || 0))));
+      const cleanDesc = row?.descripcion || row?.raw?.description || '';
+      const cleanRut = getRutFromRow(row) || '';
+      setExpenseType('GASTO');
+      setExpenseAccountId(null);
+      setExpenseAmount(cleanMonto ? String(cleanMonto) : '');
+      setExpenseCounterparty(cleanDesc);
+      setExpenseRut(cleanRut);
+      setExpenseConcept(cleanDesc);
+      setIsSubmittingExpense(false);
+
       setMenuDelay(true);
       setTimeout(() => setMenuDelay(false), 600);
+   };
+
+   const handleReconcileDirectExpense = async (e) => {
+      e?.preventDefault();
+      if (!entityId || !reconcileTx) return;
+
+      if (!expenseAccountId) {
+         toast.error('Debes seleccionar una cuenta contable');
+         return;
+      }
+
+      const parsedAmount = Number(expenseAmount);
+      if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+         toast.error('El monto debe ser un número positivo');
+         return;
+      }
+
+      const bankTxId = reconcileTx?.raw?.id ?? (typeof reconcileTx?._id === 'string' && reconcileTx._id.startsWith('tx-') ? Number(reconcileTx._id.replace('tx-', '')) : Number(reconcileTx?._id));
+
+      setIsSubmittingExpense(true);
+      try {
+         await reconcileDirectExpense({
+            entityId,
+            bank_transaction_id: bankTxId,
+            account_id: expenseAccountId,
+            counterparty_rut: expenseRut || null,
+            counterparty_name: expenseCounterparty || null,
+            concept: expenseConcept || null,
+            expense_type: expenseType,
+            amount: parsedAmount,
+         });
+
+         toast.success('Egreso conciliado y asiento contable generado exitosamente');
+         queryClient.invalidateQueries({ queryKey: ['bankTransactions'] });
+         queryClient.invalidateQueries({ queryKey: ['bankTotals'] });
+         queryClient.invalidateQueries({ queryKey: ['sugerenciasCount'] });
+         queryClient.invalidateQueries({ queryKey: ['reconciliations'] });
+         queryClient.invalidateQueries({ queryKey: ['entries'] });
+         queryClient.invalidateQueries({ queryKey: ['cashFlow'] });
+         queryClient.invalidateQueries({ queryKey: ['incomeStatement'] });
+         closeConciliar();
+      } catch (err) {
+         toast.error(err.message || 'Error al conciliar el egreso');
+      } finally {
+         setIsSubmittingExpense(false);
+      }
    };
 
    useEffect(() => {
@@ -1939,49 +2020,89 @@ export default function BankCartolasPage() {
 
                            <section className="lg:col-span-6 flex justify-end">
                               <div className="w-full max-w-[420px]">
-                                 <h3 className="text-[var(--heading)] font-medium mb-2">{selectedTargetKind === 'bank_transaction' ? 'Movimientos de respaldo' : 'Documentos de respaldo'}</h3>
+                                 <h3 className="text-[var(--heading)] font-medium mb-2">
+                                    {selectedTargetKind === 'direct_expense'
+                                       ? 'Resumen del Egreso'
+                                       : selectedTargetKind === 'bank_transaction'
+                                       ? 'Movimientos de respaldo'
+                                       : 'Documentos de respaldo'}
+                                 </h3>
                                  <div className="mb-3 border-t border" />
-                                 <div className="border border-dashed border-[var(--border-subtle)] rounded-xl p-6 text-[var(--text-soft)] text-sm flex items-center justify-center">
-                                    {selectedTargetKind === 'bank_transaction' ? 'Selecciona uno o más movimientos bancarios para cruzar.' : 'Selecciona documentos de respaldo para conciliarlos contra este movimiento bancario'}
-                                 </div>
-                              </div>
-                           </section>
-
-                           <section className="lg:col-span-12">
-                              <div className="flex justify-center min-h-6">
-                                 {selectedDocuments.length > 0 && !menuLoading && !ctaDelay ? (
-                                    <div className="flex flex-col md:flex-row md:items-center justify-center gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-1)] px-4 py-3">
-                                       <div className="text-sm text-[var(--text-main)]">
-                                          <span className="font-semibold">{selectedDocuments.length}</span> {selectedTargetKind === 'bank_transaction' ? 'movimiento(s)' : 'documento(s)'} seleccionados
-                                          <span className="mx-2 text-[var(--text-soft)]">|</span>
-                                          max: <span className="font-semibold">{fmtCLP?.(maxAssignable)}</span>
+                                 {selectedTargetKind === 'direct_expense' ? (
+                                    <div className="relative w-full rounded-md shadow-lg border bg-[var(--surface-1)] border-[var(--border-subtle)] p-3 md:p-4">
+                                       <div className="flex items-start justify-between gap-2">
+                                          <div className="min-w-0">
+                                             <div className="flex items-center gap-2">
+                                                <span className="text-[10px] uppercase tracking-wide text-[var(--text-soft)]">{reconcileTx.fecha || "—"}</span>
+                                                <span className="inline-flex items-center px-1.5 py-[2px] text-[9px] rounded-full font-medium bg-amber-500/10 text-amber-600 border border-amber-500/20">
+                                                   {expenseType}
+                                                </span>
+                                             </div>
+                                             <div className="mt-0.5 font-semibold text-[13px] text-[var(--heading)] truncate">
+                                                {expenseCounterparty || '(Beneficiario no indicado)'}
+                                             </div>
+                                          </div>
+                                          <div className="text-right shrink-0">
+                                             <div className="text-base font-extrabold text-[var(--danger)]">
+                                                {fmtCLP?.(expenseAmount || Math.abs(reconcileTx.monto))}
+                                             </div>
+                                          </div>
                                        </div>
-                                       <div className="flex items-stretch rounded-md overflow-hidden shadow-sm">
-                                          <span className="inline-flex items-center px-3 bg-[var(--surface-2)] border border-[var(--border-subtle)] text-[var(--text-soft)] select-none">$</span>
-                                          <input
-                                             type="number"
-                                             className="h-9 w-40 border border-l-0 border-[var(--border-subtle)] bg-[var(--bg-content)] text-[var(--heading)] px-3 text-right focus:outline-none focus:ring-2 focus:ring-[var(--bankcard-ring)]"
-                                             value={assignAmount}
-                                             min={0}
-                                             max={maxAssignable}
-                                             onChange={handleAssignChange}
-                                             placeholder="0"
-                                          />
+                                       <div className="mt-2 text-[11px] text-[var(--text-soft)] truncate">
+                                          {expenseConcept || 'Sin glosa descriptiva'}
                                        </div>
-                                       <button
-                                          type="button"
-                                          onClick={handleSave}
-                                          disabled={isSaving || !assigned || assigned <= 0}
-                                          className={`px-5 py-2 rounded-md text-white text-sm font-medium transition ${(!assigned || assigned <= 0) ? 'bg-teal-400/60 cursor-not-allowed' : 'bg-teal-500 hover:bg-teal-600'}`}
-                                       >
-                                          {saveState === 'saving' ? 'Guardando...' : 'Guardar conciliacion'}
-                                       </button>
+                                       <div className="mt-2 pt-2 border-t border-[var(--border-subtle)] flex items-center justify-between text-[11px]">
+                                          <span className="text-[var(--text-soft)]">Cuenta contable:</span>
+                                          <span className="font-medium text-[var(--brand)] truncate max-w-[200px]">
+                                             {availableAccounts.find(a => String(a.id) === String(expenseAccountId))?.name || 'Por clasificar...'}
+                                          </span>
+                                       </div>
                                     </div>
-                                 ) : selectedDocuments.length === 0 && !selectedDocId && !menuLoading && !ctaDelay && (
-                                    <button className="px-6 py-2 rounded bg-emerald-400/60 text-white cursor-not-allowed" disabled>No hay nada que guardar</button>
+                                 ) : (
+                                    <div className="border border-dashed border-[var(--border-subtle)] rounded-xl p-6 text-[var(--text-soft)] text-sm flex items-center justify-center">
+                                       {selectedTargetKind === 'bank_transaction' ? 'Selecciona uno o más movimientos bancarios para cruzar.' : 'Selecciona documentos de respaldo para conciliarlos contra este movimiento bancario'}
+                                    </div>
                                  )}
                               </div>
                            </section>
+
+                           {selectedTargetKind !== 'direct_expense' && (
+                              <section className="lg:col-span-12">
+                                 <div className="flex justify-center min-h-6">
+                                    {selectedDocuments.length > 0 && !menuLoading && !ctaDelay ? (
+                                       <div className="flex flex-col md:flex-row md:items-center justify-center gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-1)] px-4 py-3">
+                                          <div className="text-sm text-[var(--text-main)]">
+                                             <span className="font-semibold">{selectedDocuments.length}</span> {selectedTargetKind === 'bank_transaction' ? 'movimiento(s)' : 'documento(s)'} seleccionados
+                                             <span className="mx-2 text-[var(--text-soft)]">|</span>
+                                             max: <span className="font-semibold">{fmtCLP?.(maxAssignable)}</span>
+                                          </div>
+                                          <div className="flex items-stretch rounded-md overflow-hidden shadow-sm">
+                                             <span className="inline-flex items-center px-3 bg-[var(--surface-2)] border border-[var(--border-subtle)] text-[var(--text-soft)] select-none">$</span>
+                                             <input
+                                                type="number"
+                                                className="h-9 w-40 border border-l-0 border-[var(--border-subtle)] bg-[var(--bg-content)] text-[var(--heading)] px-3 text-right focus:outline-none focus:ring-2 focus:ring-[var(--bankcard-ring)]"
+                                                value={assignAmount}
+                                                min={0}
+                                                max={maxAssignable}
+                                                onChange={handleAssignChange}
+                                                placeholder="0"
+                                             />
+                                          </div>
+                                          <button
+                                             type="button"
+                                             onClick={handleSave}
+                                             disabled={isSaving || !assigned || assigned <= 0}
+                                             className={`px-5 py-2 rounded-md text-white text-sm font-medium transition ${(!assigned || assigned <= 0) ? 'bg-teal-400/60 cursor-not-allowed' : 'bg-teal-500 hover:bg-teal-600'}`}
+                                          >
+                                             {saveState === 'saving' ? 'Guardando...' : 'Guardar conciliacion'}
+                                          </button>
+                                       </div>
+                                    ) : selectedDocuments.length === 0 && !selectedDocId && !menuLoading && !ctaDelay && (
+                                       <button className="px-6 py-2 rounded bg-emerald-400/60 text-white cursor-not-allowed" disabled>No hay nada que guardar</button>
+                                    )}
+                                 </div>
+                              </section>
+                           )}
 
                            {reconcileDocumentSide === 'income' && (
                               <section className="lg:col-span-12">
@@ -2074,139 +2195,354 @@ export default function BankCartolasPage() {
                            )}
 
                            <section className="lg:col-span-12">
-                              <div className="flex flex-col md:flex-row md:items-center gap-2 mb-2">
-                                 <select
-                                    value={selectedTargetKind}
-                                    onChange={(e) => {
-                                       setSelectedTargetKind(e.target.value);
-                                       setSelectedDocId(null);
-                                       setSelectedDocIds([]);
-                                       setModalTipo('');
-                                    }}
-                                    className="w-full md:w-[190px] h-8 text-xs border border-[var(--border-subtle)] bg-[var(--surface-1)] rounded-md px-2"
-                                 >
-                                    <option value="document">Documentos SII</option>
-                                    <option value="bank_transaction">Movimientos bancarios</option>
-                                 </select>
-                                 <input
-                                    type="text"
-                                    placeholder={selectedTargetKind === 'bank_transaction' ? 'Buscar por descripcion, banco, referencia o monto' : 'Buscar por folio, RUT, contraparte o monto'}
-                                    value={modalQuery}
-                                    onChange={(e) => setModalQuery(e.target.value)}
-                                    className="w-full md:flex-1 h-8 text-xs border border-[var(--border-subtle)] bg-[var(--surface-1)] rounded-md px-2"
-                                 />
-                                 {selectedTargetKind === 'document' && (
-                                    <select value={modalTipo} onChange={(e) => setModalTipo(e.target.value)} className="w-full md:w-[200px] h-8 text-xs border border-[var(--border-subtle)] bg-[var(--surface-1)] rounded-md px-2">
-                                       {modalTypeOptions.map((option) => (
-                                          <option key={option.value || 'all'} value={option.value}>{option.label}</option>
-                                       ))}
-                                    </select>
-                                 )}
-                              </div>
-                              <div className="border rounded-xl border-[var(--border-subtle)] bg-[var(--surface-1)] overflow-hidden">
-                                 <div className="max-h-[48vh] overflow-auto">
-                                    <table className="min-w-full text-sm table-fixed border-collapse">
-                                       <thead className="sticky top-0 text-[var(--heading)] z-[1]">
-                                          <tr className="border-b border-[var(--border-subtle)] bg-[var(--surface-1)]">
-                                             <th className="px-3 py-2 text-left cursor-pointer hover:bg-[var(--surface-2)] select-none transition-colors" onClick={() => setModalSortConfig(s => ({ key: 'remaining_amount', dir: s.key === 'remaining_amount' ? (s.dir === 'none' ? 'desc' : (s.dir === 'desc' ? 'asc' : 'none')) : 'desc' }))} title="Ordenar por saldo">
-                                                Saldo por Asignar {modalSortConfig.key === 'remaining_amount' ? (modalSortConfig.dir === 'asc' ? '↑' : modalSortConfig.dir === 'desc' ? '↓' : '') : ''}
-                                             </th>
-                                             <th className="px-3 py-2 text-left cursor-pointer hover:bg-[var(--surface-2)] select-none transition-colors" onClick={() => setModalSortConfig(s => ({ key: 'total_amount', dir: s.key === 'total_amount' ? (s.dir === 'none' ? 'desc' : (s.dir === 'desc' ? 'asc' : 'none')) : 'desc' }))} title="Ordenar por monto">
-                                                Monto {modalSortConfig.key === 'total_amount' ? (modalSortConfig.dir === 'asc' ? '↑' : modalSortConfig.dir === 'desc' ? '↓' : '') : ''}
-                                             </th>
-                                             <th
-                                                className="pl-3 pr-1 py-2 text-left w-[120px] cursor-pointer hover:bg-[var(--surface-2)] select-none transition-colors"
-                                                onClick={() => setModalSortConfig(s => ({ key: 'issue_date', dir: s.key === 'issue_date' ? (s.dir === 'none' ? 'desc' : (s.dir === 'desc' ? 'asc' : 'none')) : 'desc' }))}
-                                                title="Ordenar por fecha"
-                                             >
-                                                Fecha {modalSortConfig.key === 'issue_date' ? (modalSortConfig.dir === 'asc' ? '↑' : modalSortConfig.dir === 'desc' ? '↓' : '') : ''}
-                                             </th>
-                                             <th className="pl-1 pr-3 py-2 text-left w-[110px] cursor-pointer hover:bg-[var(--surface-2)] select-none transition-colors" onClick={() => setModalSortConfig(s => ({ key: 'type', dir: s.key === 'type' ? (s.dir === 'none' ? 'desc' : (s.dir === 'desc' ? 'asc' : 'none')) : 'desc' }))} title="Ordenar por tipo">
-                                                Tipo {modalSortConfig.key === 'type' ? (modalSortConfig.dir === 'asc' ? '↑' : modalSortConfig.dir === 'desc' ? '↓' : '') : ''}
-                                             </th>
-                                             <th className="px-3 py-2 text-left cursor-pointer hover:bg-[var(--surface-2)] select-none transition-colors" onClick={() => setModalSortConfig(s => ({ key: 'description', dir: s.key === 'description' ? (s.dir === 'none' ? 'desc' : (s.dir === 'desc' ? 'asc' : 'none')) : 'desc' }))} title="Ordenar por descripción">
-                                                Descripción {modalSortConfig.key === 'description' ? (modalSortConfig.dir === 'asc' ? '↑' : modalSortConfig.dir === 'desc' ? '↓' : '') : ''}
-                                             </th>
-                                             <th className="px-3 py-2 text-right"></th>
-                                          </tr>
-                                       </thead>
-                                       <tbody>
-                                          {menuLoading ? (
-                                             <tr><td className="px-3 py-4" colSpan={6}>{selectedTargetKind === 'bank_transaction' ? 'Buscando movimientos...' : debouncedQuery.length >= 2 ? 'Buscando documentos...' : 'Buscando sugerencias...'}</td></tr>
-                                          ) : (selectedTargetKind === 'bank_transaction' ? bankSearchError : documentSearchError) ? (
-                                             <tr><td className="px-3 py-6 text-center text-[var(--danger)]" colSpan={6}>{selectedTargetKind === 'bank_transaction' ? bankSearchError : documentSearchError}</td></tr>
-                                          ) : modalFiltered.length === 0 ? (
-                                             <tr><td className="px-3 py-6 text-center text-[var(--text-soft)]" colSpan={6}>{selectedTargetKind === 'bank_transaction' ? 'No se encontraron movimientos pendientes para cruzar.' : debouncedQuery ? 'No se encontraron documentos pendientes para la busqueda.' : 'No hay documentos pendientes sugeridos.'}</td></tr>
-                                          ) : (
-                                             modalFiltered.map((d) => (
-                                                <tr key={`${d.target_kind || selectedTargetKind}-${d.id}`} className={`border-b border-[var(--border-subtle)] ${isCandidateSelected(d) ? 'bg-[var(--surface-2)]' : ''}`}>
-                                                   <td className="px-3 py-2">
-                                                      {isCandidateSelected(d) ? (
-                                                         <div className="text-right">
-                                                            <div className="text-[var(--danger)] font-semibold">{fmtCLP?.(Math.max(0, Number(d.remaining_amount || 0) - Number(selectedDocumentAllocation.get(Number(d.id)) ?? assigned)))}</div>
-                                                            <div className="text-[10px] text-[var(--text-soft)] -mt-0.5">Saldo por pagar</div>
-                                                         </div>
-                                                      ) : (fmtCLP?.(d.remaining_amount) ?? d.remaining_amount)}
-                                                   </td>
-                                                   <td className="px-3 py-2">{fmtCLP?.(d.total_amount) ?? d.total_amount}</td>
-                                                   <td className="pl-3 pr-1 py-2">{d.issue_date || "—"}</td>
-                                                   <td className="pl-1 pr-3 py-2 whitespace-nowrap">
-                                                      {(d.target_kind || selectedTargetKind) === 'bank_transaction' ? (
-                                                         <span className="inline-flex items-center px-2 h-5 rounded-md text-[10px] font-semibold bg-[var(--brand)] text-white">
-                                                            {d.bank_type === 'expense' ? 'Cargo' : 'Abono'}
-                                                         </span>
-                                                      ) : (() => {
-                                                         const tag = docTag(d.doc_type_code);
-                                                         const solid = tag.color, light = hexToRgba(tag.color, 0.12), divider = hexToRgba(tag.color, 0.35);
-                                                         if (!d.folio) return <span title={getSiiDocumentTypeLabel(d.doc_type_code)} className="inline-flex items-center px-2 h-5 rounded-md text-[10px] font-semibold" style={{ background: solid, color: '#fff' }}>{tag.abbr}</span>;
-                                                         return (
-                                                            <span title={getSiiDocumentTypeLabel(d.doc_type_code)} className="inline-flex items-stretch rounded-md overflow-hidden text-[10px] font-semibold">
-                                                               <span className="px-2 h-5 flex items-center" style={{ background: solid, color: '#fff' }}>{tag.abbr}</span>
-                                                               <span className="px-2 h-5 flex items-center" style={{ background: light, color: solid, borderLeft: `1px solid ${divider}` }}>{d.folio}</span>
-                                                            </span>
-                                                         );
-                                                      })()}
-                                                   </td>
-                                                   <td className="px-3 py-2">
-                                                      <div className="truncate max-w-[320px]">
-                                                         {d.counterparty_rut || d.counterparty_tax_id || d.rut ? `${d.counterparty_rut || d.counterparty_tax_id || d.rut} - ` : ''}{d.counterparty_name || d.description || "—"}
-                                                      </div>
-                                                      {d.account_label && <div className="text-[10px] text-[var(--text-soft)] truncate max-w-[320px]">{d.account_label}</div>}
-                                                   </td>
-                                                   <td className="px-3 py-2 text-right">
-                                                      <button className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium ${isCandidateSelected(d) ? 'bg-emerald-500 hover:bg-emerald-600 text-white' : 'bg-amber-400 hover:bg-amber-500 text-black'}`} onClick={() => toggleCandidateSelection(d)}>
-                                                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
-                                                         <span>{isCandidateSelected(d) ? 'Seleccionado' : 'Seleccionar'}</span>
-                                                      </button>
-                                                   </td>
-                                                </tr>
-                                             ))
-                                          )}
-                                       </tbody>
-                                    </table>
+                              {/* Tabs de Selección de Tipo de Conciliación (Estilo Chipax) */}
+                              <div className="flex flex-wrap items-center justify-between gap-3 mb-4 pb-2 border-b border-[var(--border-subtle)]">
+                                 <div className="flex items-center gap-1.5 p-1 bg-[var(--surface-2)] rounded-lg">
+                                    <button
+                                       type="button"
+                                       onClick={() => {
+                                          setSelectedTargetKind('document');
+                                          setSelectedDocId(null);
+                                          setSelectedDocIds([]);
+                                          setModalTipo('');
+                                       }}
+                                       className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                                          selectedTargetKind === 'document'
+                                             ? 'bg-[var(--bg-content)] text-[var(--heading)] shadow-sm'
+                                             : 'text-[var(--text-soft)] hover:text-[var(--text-main)]'
+                                       }`}
+                                    >
+                                       Documentos SII
+                                    </button>
+                                    <button
+                                       type="button"
+                                       onClick={() => {
+                                          setSelectedTargetKind('bank_transaction');
+                                          setSelectedDocId(null);
+                                          setSelectedDocIds([]);
+                                          setModalTipo('');
+                                       }}
+                                       className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                                          selectedTargetKind === 'bank_transaction'
+                                             ? 'bg-[var(--bg-content)] text-[var(--heading)] shadow-sm'
+                                             : 'text-[var(--text-soft)] hover:text-[var(--text-main)]'
+                                       }`}
+                                    >
+                                       Movimientos bancarios (Traspaso)
+                                    </button>
+                                    {reconcileDocumentSide === 'expense' && (
+                                       <button
+                                          type="button"
+                                          onClick={() => {
+                                             setSelectedTargetKind('direct_expense');
+                                             setSelectedDocId(null);
+                                             setSelectedDocIds([]);
+                                             setModalTipo('');
+                                          }}
+                                          className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all flex items-center gap-1.5 ${
+                                             selectedTargetKind === 'direct_expense'
+                                                ? 'bg-[var(--brand)] text-white shadow-sm'
+                                                : 'text-[var(--brand)] hover:bg-[var(--surface-3)]'
+                                          }`}
+                                       >
+                                          <span>➕</span>
+                                          <span>Agregar Egreso (Sin Factura SII)</span>
+                                       </button>
+                                    )}
                                  </div>
-                                 {selectedTargetKind === 'document' && modalTotalPages > 1 && (
-                                    <div className="flex items-center justify-between px-4 py-3 bg-[var(--surface-2)] border-t border-[var(--border-subtle)] text-sm text-[var(--text-soft)]">
-                                       <div>Página {modalPage} de {modalTotalPages}</div>
-                                       <div className="flex gap-2">
-                                          <button 
-                                             className="px-2 py-1 rounded border border-[var(--border-subtle)] hover:bg-[var(--surface-3)] disabled:opacity-50"
-                                             disabled={modalPage <= 1}
-                                             onClick={() => setModalPage(p => Math.max(1, p - 1))}
-                                          >
-                                             Anterior
-                                          </button>
-                                          <button 
-                                             className="px-2 py-1 rounded border border-[var(--border-subtle)] hover:bg-[var(--surface-3)] disabled:opacity-50"
-                                             disabled={modalPage >= modalTotalPages}
-                                             onClick={() => setModalPage(p => Math.min(modalTotalPages, p + 1))}
-                                          >
-                                             Siguiente
-                                          </button>
-                                       </div>
+
+                                 {selectedTargetKind !== 'direct_expense' && (
+                                    <div className="flex flex-1 md:flex-initial items-center gap-2">
+                                       <input
+                                          type="text"
+                                          placeholder={selectedTargetKind === 'bank_transaction' ? 'Buscar por descripcion, banco, referencia o monto' : 'Buscar por folio, RUT, contraparte o monto'}
+                                          value={modalQuery}
+                                          onChange={(e) => setModalQuery(e.target.value)}
+                                          className="w-full md:w-64 h-8 text-xs border border-[var(--border-subtle)] bg-[var(--surface-1)] rounded-md px-2"
+                                       />
+                                       {selectedTargetKind === 'document' && (
+                                          <select value={modalTipo} onChange={(e) => setModalTipo(e.target.value)} className="w-full md:w-[200px] h-8 text-xs border border-[var(--border-subtle)] bg-[var(--surface-1)] rounded-md px-2">
+                                             {modalTypeOptions.map((option) => (
+                                                <option key={option.value || 'all'} value={option.value}>{option.label}</option>
+                                             ))}
+                                          </select>
+                                       )}
                                     </div>
                                  )}
                               </div>
+
+                              {selectedTargetKind === 'direct_expense' ? (
+                                 /* Formulario Chipax de Agregar Egreso sin documento tributario */
+                                 <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-1)] p-5 space-y-5">
+                                    <div>
+                                       <label className="block text-xs font-semibold text-[var(--text-soft)] uppercase tracking-wider mb-2">
+                                          Tipo de Egreso
+                                       </label>
+                                       <div className="flex flex-wrap gap-2">
+                                          {[
+                                             { key: 'GASTO', label: 'Gasto General', sub: 'Arriendos, patentes, gastos comunes' },
+                                             { key: 'IMPUESTO', label: 'Impuesto / Tesorería', sub: 'Patente comercial, contribuciones' },
+                                             { key: 'REMUNERACION', label: 'Remuneración', sub: 'Sueldos líquidos, anticipos' },
+                                             { key: 'PREVIRED', label: 'Previred', sub: 'Cotizaciones previsionales' },
+                                             { key: 'HONORARIO', label: 'Honorario', sub: 'Sin retención / pago directo' },
+                                          ].map((t) => (
+                                             <button
+                                                key={t.key}
+                                                type="button"
+                                                onClick={() => setExpenseType(t.key)}
+                                                className={`flex flex-col items-start px-3.5 py-2 rounded-lg border text-left transition-all ${
+                                                   expenseType === t.key
+                                                      ? 'border-[var(--brand)] bg-[var(--brand)]/10 text-[var(--brand-strong)] font-semibold shadow-sm ring-1 ring-[var(--brand)]'
+                                                      : 'border-[var(--border-subtle)] bg-[var(--surface-2)] text-[var(--text-main)] hover:bg-[var(--surface-3)]'
+                                                }`}
+                                             >
+                                                <span className="text-xs">{t.label}</span>
+                                                <span className="text-[10px] text-[var(--text-soft)]">{t.sub}</span>
+                                             </button>
+                                          ))}
+                                       </div>
+                                    </div>
+
+                                    <form onSubmit={handleReconcileDirectExpense} className="space-y-4">
+                                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                          <div>
+                                             <label className="block text-xs font-medium text-[var(--text-soft)] mb-1">
+                                                Monto a Conciliar ($ CLP) *
+                                             </label>
+                                             <div className="relative">
+                                                <span className="absolute left-3 top-2 text-xs text-[var(--text-soft)]">$</span>
+                                                <input
+                                                   type="number"
+                                                   value={expenseAmount}
+                                                   onChange={(e) => setExpenseAmount(e.target.value)}
+                                                   min="1"
+                                                   max={txRemaining || undefined}
+                                                   required
+                                                   className="w-full pl-7 pr-3 py-1.5 text-sm font-semibold rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-content)] text-[var(--heading)] focus:outline-none focus:ring-2 focus:ring-[var(--brand)]"
+                                                   placeholder="0"
+                                                />
+                                             </div>
+                                             <p className="text-[10px] text-[var(--text-soft)] mt-1">
+                                                Saldo disponible del movimiento: <span className="font-semibold">{fmtCLP(txRemaining)}</span>
+                                             </p>
+                                          </div>
+
+                                          <div>
+                                             <label className="block text-xs font-medium text-[var(--text-soft)] mb-1">
+                                                Fecha del Movimiento Bancario
+                                             </label>
+                                             <input
+                                                type="text"
+                                                readOnly
+                                                value={reconcileTx.fecha || '—'}
+                                                className="w-full px-3 py-1.5 text-sm rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-2)] text-[var(--text-soft)] cursor-not-allowed select-none"
+                                             />
+                                             <p className="text-[10px] text-[var(--text-soft)] mt-1">
+                                                Cuenta: <span className="font-semibold">{reconcileTx.cuenta_corriente || '—'}</span>
+                                             </p>
+                                          </div>
+
+                                          <div>
+                                             <label className="block text-xs font-medium text-[var(--text-soft)] mb-1">
+                                                Proveedor / Beneficiario *
+                                             </label>
+                                             <input
+                                                type="text"
+                                                value={expenseCounterparty}
+                                                onChange={(e) => setExpenseCounterparty(e.target.value)}
+                                                required
+                                                placeholder="Ej: Municipalidad de Providencia, Inmobiliaria SpA, Previred..."
+                                                className="w-full px-3 py-1.5 text-sm rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-content)] text-[var(--text-main)] focus:outline-none focus:ring-2 focus:ring-[var(--brand)]"
+                                             />
+                                          </div>
+
+                                          <div>
+                                             <label className="block text-xs font-medium text-[var(--text-soft)] mb-1">
+                                                RUT Beneficiario (Opcional)
+                                             </label>
+                                             <input
+                                                type="text"
+                                                value={expenseRut}
+                                                onChange={(e) => setExpenseRut(e.target.value)}
+                                                placeholder="Ej: 69.070.100-5"
+                                                className="w-full px-3 py-1.5 text-sm rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-content)] text-[var(--text-main)] focus:outline-none focus:ring-2 focus:ring-[var(--brand)]"
+                                             />
+                                          </div>
+
+                                          <div className="md:col-span-2">
+                                             <label className="block text-xs font-medium text-[var(--text-soft)] mb-1">
+                                                Glosa / Concepto del Egreso *
+                                             </label>
+                                             <input
+                                                type="text"
+                                                value={expenseConcept}
+                                                onChange={(e) => setExpenseConcept(e.target.value)}
+                                                required
+                                                placeholder="Ej: Pago arriendo oficina local 101, Patente comercial 2do semestre, Cotizaciones previsionales..."
+                                                className="w-full px-3 py-1.5 text-sm rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-content)] text-[var(--text-main)] focus:outline-none focus:ring-2 focus:ring-[var(--brand)]"
+                                             />
+                                          </div>
+
+                                          <div className="md:col-span-2">
+                                             <div className="flex items-center justify-between mb-1">
+                                                <label className="block text-xs font-semibold text-[var(--heading)] uppercase tracking-wider">
+                                                   Clasificación Contable (Plan de Cuentas) *
+                                                </label>
+                                                <span className="text-[11px] text-[var(--text-soft)]">
+                                                   Cuenta al Debe (Gasto/Costo)
+                                                </span>
+                                             </div>
+                                             <AccountSelect
+                                                accounts={availableAccounts}
+                                                value={expenseAccountId}
+                                                onChange={(val) => setExpenseAccountId(val)}
+                                                placeholder="Buscar y seleccionar cuenta contable (ej: Arriendos, Patentes, Remuneraciones...)"
+                                                allowClear={true}
+                                             />
+                                             <p className="text-[11px] text-[var(--text-soft)] mt-1.5">
+                                                💡 Se generará automáticamente el comprobante contable: <b className="text-[var(--heading)]">Debe: Cuenta de Gasto</b> / <b className="text-[var(--heading)]">Haber: Banco</b>. Aparecerá de inmediato en el Flujo de Caja y en el Estado de Resultados.
+                                             </p>
+                                          </div>
+                                       </div>
+
+                                       <div className="pt-4 border-t border-[var(--border-subtle)] flex items-center justify-end gap-3">
+                                          <button
+                                             type="button"
+                                             onClick={() => setSelectedTargetKind('document')}
+                                             className="px-4 py-2 text-xs font-medium rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--surface-2)] text-[var(--text-main)] transition"
+                                          >
+                                             Cancelar
+                                          </button>
+                                          <button
+                                             type="submit"
+                                             disabled={isSubmittingExpense || !expenseAccountId || !Number(expenseAmount)}
+                                             className={`px-5 py-2 text-xs font-semibold rounded-lg text-white transition flex items-center gap-2 ${
+                                                isSubmittingExpense || !expenseAccountId || !Number(expenseAmount)
+                                                   ? 'bg-[var(--brand)]/50 cursor-not-allowed'
+                                                   : 'bg-[var(--brand)] hover:bg-[var(--brand-strong)] shadow-sm'
+                                             }`}
+                                          >
+                                             {isSubmittingExpense ? (
+                                                <>
+                                                   <span className="inline-block w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                                   <span>Guardando y Conciliando...</span>
+                                                </>
+                                             ) : (
+                                                <>
+                                                   <span>✓</span>
+                                                   <span>Guardar y Conciliar Egreso</span>
+                                                </>
+                                             )}
+                                          </button>
+                                       </div>
+                                    </form>
+                                 </div>
+                              ) : (
+                                 <div className="border rounded-xl border-[var(--border-subtle)] bg-[var(--surface-1)] overflow-hidden">
+                                    <div className="max-h-[48vh] overflow-auto">
+                                       <table className="min-w-full text-sm table-fixed border-collapse">
+                                          <thead className="sticky top-0 text-[var(--heading)] z-[1]">
+                                             <tr className="border-b border-[var(--border-subtle)] bg-[var(--surface-1)]">
+                                                <th className="px-3 py-2 text-left cursor-pointer hover:bg-[var(--surface-2)] select-none transition-colors" onClick={() => setModalSortConfig(s => ({ key: 'remaining_amount', dir: s.key === 'remaining_amount' ? (s.dir === 'none' ? 'desc' : (s.dir === 'desc' ? 'asc' : 'none')) : 'desc' }))} title="Ordenar por saldo">
+                                                   Saldo por Asignar {modalSortConfig.key === 'remaining_amount' ? (modalSortConfig.dir === 'asc' ? '↑' : modalSortConfig.dir === 'desc' ? '↓' : '') : ''}
+                                                </th>
+                                                <th className="px-3 py-2 text-left cursor-pointer hover:bg-[var(--surface-2)] select-none transition-colors" onClick={() => setModalSortConfig(s => ({ key: 'total_amount', dir: s.key === 'total_amount' ? (s.dir === 'none' ? 'desc' : (s.dir === 'desc' ? 'asc' : 'none')) : 'desc' }))} title="Ordenar por monto">
+                                                   Monto {modalSortConfig.key === 'total_amount' ? (modalSortConfig.dir === 'asc' ? '↑' : modalSortConfig.dir === 'desc' ? '↓' : '') : ''}
+                                                </th>
+                                                <th
+                                                   className="pl-3 pr-1 py-2 text-left w-[120px] cursor-pointer hover:bg-[var(--surface-2)] select-none transition-colors"
+                                                   onClick={() => setModalSortConfig(s => ({ key: 'issue_date', dir: s.key === 'issue_date' ? (s.dir === 'none' ? 'desc' : (s.dir === 'desc' ? 'asc' : 'none')) : 'desc' }))}
+                                                   title="Ordenar por fecha"
+                                                >
+                                                   Fecha {modalSortConfig.key === 'issue_date' ? (modalSortConfig.dir === 'asc' ? '↑' : modalSortConfig.dir === 'desc' ? '↓' : '') : ''}
+                                                </th>
+                                                <th className="pl-1 pr-3 py-2 text-left w-[110px] cursor-pointer hover:bg-[var(--surface-2)] select-none transition-colors" onClick={() => setModalSortConfig(s => ({ key: 'type', dir: s.key === 'type' ? (s.dir === 'none' ? 'desc' : (s.dir === 'desc' ? 'asc' : 'none')) : 'desc' }))} title="Ordenar por tipo">
+                                                   Tipo {modalSortConfig.key === 'type' ? (modalSortConfig.dir === 'asc' ? '↑' : modalSortConfig.dir === 'desc' ? '↓' : '') : ''}
+                                                </th>
+                                                <th className="px-3 py-2 text-left cursor-pointer hover:bg-[var(--surface-2)] select-none transition-colors" onClick={() => setModalSortConfig(s => ({ key: 'description', dir: s.key === 'description' ? (s.dir === 'none' ? 'desc' : (s.dir === 'desc' ? 'asc' : 'none')) : 'desc' }))} title="Ordenar por descripción">
+                                                   Descripción {modalSortConfig.key === 'description' ? (modalSortConfig.dir === 'asc' ? '↑' : modalSortConfig.dir === 'desc' ? '↓' : '') : ''}
+                                                </th>
+                                                <th className="px-3 py-2 text-right"></th>
+                                             </tr>
+                                          </thead>
+                                          <tbody>
+                                             {menuLoading ? (
+                                                <tr><td className="px-3 py-4" colSpan={6}>{selectedTargetKind === 'bank_transaction' ? 'Buscando movimientos...' : debouncedQuery.length >= 2 ? 'Buscando documentos...' : 'Buscando sugerencias...'}</td></tr>
+                                             ) : (selectedTargetKind === 'bank_transaction' ? bankSearchError : documentSearchError) ? (
+                                                <tr><td className="px-3 py-6 text-center text-[var(--danger)]" colSpan={6}>{selectedTargetKind === 'bank_transaction' ? bankSearchError : documentSearchError}</td></tr>
+                                             ) : modalFiltered.length === 0 ? (
+                                                <tr><td className="px-3 py-6 text-center text-[var(--text-soft)]" colSpan={6}>{selectedTargetKind === 'bank_transaction' ? 'No se encontraron movimientos pendientes para cruzar.' : debouncedQuery ? 'No se encontraron documentos pendientes para la busqueda.' : 'No hay documentos pendientes sugeridos.'}</td></tr>
+                                             ) : (
+                                                modalFiltered.map((d) => (
+                                                   <tr key={`${d.target_kind || selectedTargetKind}-${d.id}`} className={`border-b border-[var(--border-subtle)] ${isCandidateSelected(d) ? 'bg-[var(--surface-2)]' : ''}`}>
+                                                      <td className="px-3 py-2">
+                                                         {isCandidateSelected(d) ? (
+                                                            <div className="text-right">
+                                                               <div className="text-[var(--danger)] font-semibold">{fmtCLP?.(Math.max(0, Number(d.remaining_amount || 0) - Number(selectedDocumentAllocation.get(Number(d.id)) ?? assigned)))}</div>
+                                                               <div className="text-[10px] text-[var(--text-soft)] -mt-0.5">Saldo por pagar</div>
+                                                            </div>
+                                                         ) : (fmtCLP?.(d.remaining_amount) ?? d.remaining_amount)}
+                                                      </td>
+                                                      <td className="px-3 py-2">{fmtCLP?.(d.total_amount) ?? d.total_amount}</td>
+                                                      <td className="pl-3 pr-1 py-2">{d.issue_date || "—"}</td>
+                                                      <td className="pl-1 pr-3 py-2 whitespace-nowrap">
+                                                         {(d.target_kind || selectedTargetKind) === 'bank_transaction' ? (
+                                                            <span className="inline-flex items-center px-2 h-5 rounded-md text-[10px] font-semibold bg-[var(--brand)] text-white">
+                                                               {d.bank_type === 'expense' ? 'Cargo' : 'Abono'}
+                                                            </span>
+                                                         ) : (() => {
+                                                            const tag = docTag(d.doc_type_code);
+                                                            const solid = tag.color, light = hexToRgba(tag.color, 0.12), divider = hexToRgba(tag.color, 0.35);
+                                                            if (!d.folio) return <span title={getSiiDocumentTypeLabel(d.doc_type_code)} className="inline-flex items-center px-2 h-5 rounded-md text-[10px] font-semibold" style={{ background: solid, color: '#fff' }}>{tag.abbr}</span>;
+                                                            return (
+                                                               <span title={getSiiDocumentTypeLabel(d.doc_type_code)} className="inline-flex items-stretch rounded-md overflow-hidden text-[10px] font-semibold">
+                                                                  <span className="px-2 h-5 flex items-center" style={{ background: solid, color: '#fff' }}>{tag.abbr}</span>
+                                                                  <span className="px-2 h-5 flex items-center" style={{ background: light, color: solid, borderLeft: `1px solid ${divider}` }}>{d.folio}</span>
+                                                               </span>
+                                                            );
+                                                         })()}
+                                                      </td>
+                                                      <td className="px-3 py-2">
+                                                         <div className="truncate max-w-[320px]">
+                                                            {d.counterparty_rut || d.counterparty_tax_id || d.rut ? `${d.counterparty_rut || d.counterparty_tax_id || d.rut} - ` : ''}{d.counterparty_name || d.description || "—"}
+                                                         </div>
+                                                         {d.account_label && <div className="text-[10px] text-[var(--text-soft)] truncate max-w-[320px]">{d.account_label}</div>}
+                                                      </td>
+                                                      <td className="px-3 py-2 text-right">
+                                                         <button className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium ${isCandidateSelected(d) ? 'bg-emerald-500 hover:bg-emerald-600 text-white' : 'bg-amber-400 hover:bg-amber-500 text-black'}`} onClick={() => toggleCandidateSelection(d)}>
+                                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
+                                                            <span>{isCandidateSelected(d) ? 'Seleccionado' : 'Seleccionar'}</span>
+                                                         </button>
+                                                      </td>
+                                                   </tr>
+                                                ))
+                                             )}
+                                          </tbody>
+                                       </table>
+                                    </div>
+                                    {selectedTargetKind === 'document' && modalTotalPages > 1 && (
+                                       <div className="flex items-center justify-between px-4 py-3 bg-[var(--surface-2)] border-t border-[var(--border-subtle)] text-sm text-[var(--text-soft)]">
+                                          <div>Página {modalPage} de {modalTotalPages}</div>
+                                          <div className="flex gap-2">
+                                             <button 
+                                                className="px-2 py-1 rounded border border-[var(--border-subtle)] hover:bg-[var(--surface-3)] disabled:opacity-50"
+                                                disabled={modalPage <= 1}
+                                                onClick={() => setModalPage(p => Math.max(1, p - 1))}
+                                             >
+                                                Anterior
+                                             </button>
+                                             <button 
+                                                className="px-2 py-1 rounded border border-[var(--border-subtle)] hover:bg-[var(--surface-3)] disabled:opacity-50"
+                                                disabled={modalPage >= modalTotalPages}
+                                                onClick={() => setModalPage(p => Math.min(modalTotalPages, p + 1))}
+                                             >
+                                                Siguiente
+                                             </button>
+                                          </div>
+                                       </div>
+                                    )}
+                                 </div>
+                              )}
                            </section>
                         </div>
                      ) : (

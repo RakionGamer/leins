@@ -123,6 +123,27 @@ export async function reconcileOne({ entityId, bank_transaction_id, document_id,
    return (await parseJsonSafe(res)) || {};
 }
 
+export async function reconcileDirectExpense({ entityId, bank_transaction_id, account_id, counterparty_rut, counterparty_name, concept, expense_type, cost_center, amount }) {
+   const body = {
+      entityId,
+      bank_transaction_id,
+      account_id,
+      counterparty_rut,
+      counterparty_name,
+      concept,
+      expense_type,
+      cost_center,
+   };
+   if (amount != null && amount !== '') body.amount = Number(amount);
+
+   const res = await fetchWithAuth(`/banks/reconcile/expense`, {
+      method: 'POST',
+      body: JSON.stringify(body)
+   });
+   await ensureOk(res, 'No se pudo conciliar el egreso');
+   return (await parseJsonSafe(res)) || {};
+}
+
 export async function searchBankReconcileCandidates({ entityId, bank_transaction_id, q = '', limit = 50, signal } = {}) {
    const qs = new URLSearchParams();
    qs.set('entityId', String(entityId));

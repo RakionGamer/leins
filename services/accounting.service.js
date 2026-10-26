@@ -3478,10 +3478,13 @@ class AccountingService {
             targetAcc = (rule && accountById.get(rule.account_id)) || defaultSalesAccount;
             amount = isCreditNote ? -Math.abs(net) : Math.abs(net);
          } else {
-            // Compra
+            // Compra / Gasto
             const rule = ruleMap.get(rut);
             if (rule && accountById.has(rule.account_id)) {
                targetAcc = accountById.get(rule.account_id);
+            } else if (d.doc_type_code == null || d.source === 'MANUAL') {
+               const ruleByName = d.counterparty_name ? Array.from(ruleMap.values()).find(r => r.counterparty_name && r.counterparty_name.toLowerCase() === d.counterparty_name.toLowerCase()) : null;
+               targetAcc = (ruleByName && accountById.get(ruleByName.account_id)) || accountByCode.get('61.04.10') || accountByCode.get('61.04.30') || defaultCostAccount;
             } else {
                targetAcc = defaultCostAccount;
             }
@@ -3994,6 +3997,13 @@ class AccountingService {
             code: '21.12.15',
             type: 'outflow',
             accounts: ['21.12.15']
+         },
+         {
+            key: 'pagos_gastos',
+            name: 'Pagos de Gastos Directos y Operacionales',
+            code: '61.04.00',
+            type: 'outflow',
+            accounts: ['61.04.00', '61.04.10', '61.04.30']
          }
       ];
 
@@ -4054,6 +4064,14 @@ class AccountingService {
                   conceptData.pagos_honorarios.accounts['21.12.15'].monthly[mKey] += amount;
                   conceptData.pagos_honorarios.accounts['21.12.15'].total += amount;
                }
+            } else if (docTypeCode == null || doc?.source === 'MANUAL') {
+               // Gasto Directo / Sin soporte tributado (Arriendo, Patente, etc.)
+               conceptData.pagos_gastos.monthly[mKey] = (conceptData.pagos_gastos.monthly[mKey] || 0) + amount;
+               conceptData.pagos_gastos.total += amount;
+               if (conceptData.pagos_gastos.accounts['61.04.00']) {
+                  conceptData.pagos_gastos.accounts['61.04.00'].monthly[mKey] += amount;
+                  conceptData.pagos_gastos.accounts['61.04.00'].total += amount;
+               }
             } else {
                // Conciliado con Factura de Compra / Proveedores
                conceptData.pagos_proveedores.monthly[mKey] = (conceptData.pagos_proveedores.monthly[mKey] || 0) + amount;
@@ -4073,8 +4091,9 @@ class AccountingService {
          const cobros = conceptData.cobros_clientes.monthly[m.key] || 0;
          const proveedores = conceptData.pagos_proveedores.monthly[m.key] || 0;
          const honorarios = conceptData.pagos_honorarios.monthly[m.key] || 0;
+         const gastos = conceptData.pagos_gastos.monthly[m.key] || 0;
 
-         const net = cobros - proveedores - honorarios;
+         const net = cobros - proveedores - honorarios - gastos;
          operacionMonthly[m.key] = net;
          totalOperacion += net;
       }
@@ -4137,6 +4156,20 @@ class AccountingService {
                      monthlyAmounts: a.monthly,
                      total: a.total
                   }))
+               },
+               {
+                  key: 'pagos_gastos',
+                  code: '61.04.00',
+                  name: 'Pagos de Gastos Directos y Operacionales',
+                  isOutflow: true,
+                  monthlyAmounts: conceptData.pagos_gastos.monthly,
+                  total: conceptData.pagos_gastos.total,
+                  accounts: Object.values(conceptData.pagos_gastos.accounts).map(a => ({
+                     code: a.code,
+                     name: a.name,
+                     monthlyAmounts: a.monthly,
+                     total: a.total
+                  }))
                }
             ]
          }
@@ -4154,7 +4187,7 @@ class AccountingService {
          },
          kpis: {
             totalIncomes: conceptData.cobros_clientes.total,
-            totalExpenses: conceptData.pagos_proveedores.total + conceptData.pagos_honorarios.total,
+            totalExpenses: conceptData.pagos_proveedores.total + conceptData.pagos_honorarios.total + conceptData.pagos_gastos.total,
             netOperatingFlow: totalOperacion,
             currentBankBalance: runningBankBalance
          },
@@ -4247,6 +4280,8 @@ class AccountingService {
          targetConceptName = 'Pagos Efectivos a Proveedores';
       } else if (conceptKey === 'pagos_honorarios' || accountCode === '21.12.15') {
          targetConceptName = 'Pagos Efectivos de Honorarios';
+      } else if (conceptKey === 'pagos_gastos' || accountCode === '61.04.00') {
+         targetConceptName = 'Pagos de Gastos Directos y Operacionales';
       }
 
       // Filtrar según el conceptKey / accountCode
@@ -4270,8 +4305,10 @@ class AccountingService {
             }
          } else if (conceptKey === 'pagos_honorarios' || accountCode === '21.12.15') {
             match = tx.type === 'expense' && docTypeCode === 1002;
+         } else if (conceptKey === 'pagos_gastos' || accountCode === '61.04.00') {
+            match = tx.type === 'expense' && (docTypeCode == null || doc?.source === 'MANUAL');
          } else if (conceptKey === 'pagos_proveedores' || accountCode === '21.07.10') {
-            match = tx.type === 'expense' && (docTypeCode !== 1002);
+            match = tx.type === 'expense' && (docTypeCode !== 1002 && docTypeCode != null && doc?.source !== 'MANUAL');
          } else if (conceptKey === 'operacion') {
             match = true;
          }
