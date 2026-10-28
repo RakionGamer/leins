@@ -2245,7 +2245,7 @@ export default function BankCartolasPage() {
                                                 : 'text-[var(--brand)] hover:bg-[var(--surface-3)]'
                                           }`}
                                        >
-                                          <span>➕</span>
+                                       
                                           <span>Agregar Egreso (Sin Factura SII)</span>
                                        </button>
                                     )}
