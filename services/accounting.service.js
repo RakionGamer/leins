@@ -2248,6 +2248,7 @@ class AccountingService {
       if (payload.require_reference !== undefined) account.require_reference = Boolean(payload.require_reference);
       if (payload.is_auxiliary !== undefined) account.is_auxiliary = Boolean(payload.is_auxiliary);
       if (payload.is_title !== undefined) account.is_title = Boolean(payload.is_title);
+      if (payload.is_active !== undefined) account.is_active = Boolean(payload.is_active);
       if (payload.cash_flow_classification !== undefined) account.cash_flow_classification = payload.cash_flow_classification;
 
       await account.save();

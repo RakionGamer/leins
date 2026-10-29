@@ -37,8 +37,11 @@ export const createAccount = (payload) =>
 export const seedDefaultPlan = ({ entityId }) =>
    request(`/accounting/accounts/seed?${buildQs({ entityId })}`, { method: 'POST' }, 'Error al cargar el plan por defecto');
 
-export const updateAccount = (id, payload) =>
-   request(`/accounting/accounts/${id}`, { method: 'PATCH', body: JSON.stringify(payload) }, 'Error al actualizar la cuenta');
+export const updateAccount = (id, payload, options = {}) => {
+   const entityId = options?.entityId || payload?.entityId;
+   const qs = entityId ? `?${buildQs({ entityId })}` : '';
+   return request(`/accounting/accounts/${id}${qs}`, { method: 'PATCH', body: JSON.stringify(payload) }, 'Error al actualizar la cuenta');
+};
 
 export const deleteAccount = (id, entityId) =>
    request(`/accounting/accounts/${id}?${buildQs({ entityId })}`, { method: 'DELETE' }, 'Error al eliminar la cuenta');

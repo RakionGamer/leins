@@ -49,6 +49,7 @@ function buildListPayload(req) {
       reconciliation_status: q.reconciliation_status ? String(q.reconciliation_status).toLowerCase() : undefined,
       classification_status: q.classification_status ? String(q.classification_status).toLowerCase() : undefined,
       centralization_status: q.centralization_status ? String(q.centralization_status).toLowerCase() : undefined,
+      exclude_type: q.exclude_type ? String(q.exclude_type) : (q.excludeType ? String(q.excludeType) : undefined),
    };
 }
 

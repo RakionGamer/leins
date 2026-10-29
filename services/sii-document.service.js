@@ -96,7 +96,7 @@ class SiiDocumentsService {
    }
 
    // construye where/attributes/order compartidos entre listado paginado y exportacion csv
-   _buildListQuery({ entity_id, type, q, folio, client, source, operation_type, month, from, to, sort = 'issue_date', order = 'desc', pendingOnly = false, status, reconciliation_status, classification_status, centralization_status }) {
+   _buildListQuery({ entity_id, type, exclude_type, excludeType, q, folio, client, source, operation_type, month, from, to, sort = 'issue_date', order = 'desc', pendingOnly = false, status, reconciliation_status, classification_status, centralization_status }) {
       const where = {};
       const parsedEntityId = Number(entity_id);
       if (!Number.isInteger(parsedEntityId) || parsedEntityId <= 0) {
@@ -160,6 +160,30 @@ class SiiDocumentsService {
             where.doc_type_code = { [Op.in]: codes };
          } else {
             where.doc_type_code = Number(type);
+         }
+      }
+
+      const rawExclude = exclude_type || excludeType;
+      if (rawExclude) {
+         const excludeCodes = String(rawExclude).split(',').map((s) => Number(s.trim())).filter(Number.isInteger);
+         if (excludeCodes.length > 0) {
+            if (where.doc_type_code && typeof where.doc_type_code === 'object') {
+               where.doc_type_code = {
+                  ...where.doc_type_code,
+                  [Op.notIn]: excludeCodes,
+               };
+            } else if (where.doc_type_code != null) {
+               if (excludeCodes.includes(Number(where.doc_type_code))) {
+                  where.doc_type_code = -1; // force no match
+               }
+            } else {
+               where.doc_type_code = {
+                  [Op.or]: [
+                     { [Op.notIn]: excludeCodes },
+                     { [Op.is]: null }
+                  ]
+               };
+            }
          }
       }
 
@@ -283,6 +307,11 @@ class SiiDocumentsService {
          issue_date: 'issue_date',
          folio: 'folio',
          total_amount: 'total_amount',
+         doc_type_code: 'doc_type_code',
+         counterparty_rut: 'counterparty_rut',
+         counterparty_name: 'counterparty_name',
+         amount_net: 'amount_net',
+         amount_tax_no_credit: 'amount_tax_no_credit',
          created_at: 'created_at',
          updated_at: 'updated_at',
       };

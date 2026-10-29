@@ -109,7 +109,6 @@ export const DOC_TAGS = Object.fromEntries(
 
 export const SII_DOCUMENT_FILTERS = {
    expense: [
-      { value: '1002', label: SII_DOCUMENT_TYPES[1002].label },
       { value: 'null', label: 'Recibo' },
       { value: '33', label: SII_DOCUMENT_TYPES[33].label },
       { value: '34', label: SII_DOCUMENT_TYPES[34].label },

@@ -15,6 +15,7 @@ export const listSiiDocuments = async ({
    to,
    month,
    type,
+   excludeType,
    q,
    folio,
    client,
@@ -43,6 +44,7 @@ export const listSiiDocuments = async ({
    if (to) qs.set('to', to);
    if (month) qs.set('month', month);
    if (type) qs.set('type', type);
+   if (excludeType) qs.set('exclude_type', String(excludeType));
    if (q) qs.set('q', q);
    if (folio) qs.set('folio', folio);
    if (client) qs.set('client', client);

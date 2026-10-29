@@ -27,7 +27,8 @@ import {
    FunnelIcon,
    ArrowPathIcon,
    TrashIcon,
-   ReceiptRefundIcon
+   ReceiptRefundIcon,
+   MagnifyingGlassIcon
 } from '@heroicons/react/24/outline';
 
 function ResumenPagina({ items }) {
@@ -177,6 +178,8 @@ export default function PurchaseInvoicesAdapted() {
    const allowedPageSizes = [20, 50, 100, 200];
    const [pageSize, setPageSize] = useState(() => { const n = Number(sp.get('limit')); return allowedPageSizes.includes(n) ? n : 50; });
 
+   const [searchQuery, setSearchQuery] = useState(() => sp.get('q') || '');
+   const debSearchQuery = useDebounced(searchQuery, 300);
    const [docType, setDocType] = useState(() => sp.get('type') || '');
    const [sourceFilter, setSourceFilter] = useState(() => sp.get('source') || '');
    const [mode, setMode] = useState(() => (sp.get('mode') === 'range' ? 'range' : 'month'));
@@ -185,7 +188,7 @@ export default function PurchaseInvoicesAdapted() {
    const [toDate, setToDate] = useState(() => sp.get('to') || '');
    const [entityId, setEntityId] = useState(() => sp.get('entityId') || sp.get('entity_id') || (activeEntityId ? String(activeEntityId) : ''));
 
-   const ALLOWED_SORT = new Set(['issue_date', 'folio', 'total_amount', 'created_at', 'updated_at']);
+   const ALLOWED_SORT = new Set(['issue_date', 'folio', 'doc_type_code', 'counterparty_rut', 'counterparty_name', 'total_amount', 'created_at', 'updated_at']);
    const ALLOWED_ORDER = new Set(['asc', 'desc']);
    const [sort, setSort] = useState(() => ALLOWED_SORT.has(sp.get('sort')) ? sp.get('sort') : 'issue_date');
    const [order, setOrder] = useState(() => ALLOWED_ORDER.has(sp.get('order')) ? sp.get('order') : 'desc');
@@ -224,6 +227,8 @@ export default function PurchaseInvoicesAdapted() {
          entityId: effectiveEntityId,
          operationType: 'EXPENSE',
          type: docType || undefined,
+         excludeType: '1002',
+         q: debSearchQuery?.trim() || undefined,
          source: sourceFilter || undefined,
          month: mode === 'month' ? effectiveMonth : undefined,
          from: mode === 'range' ? (fromDate || undefined) : undefined,
@@ -237,7 +242,7 @@ export default function PurchaseInvoicesAdapted() {
          order,
          signal,
       };
-   }, [docType, page, pageSize, sort, order, mode, effectiveMonth, fromDate, toDate, debEntityId, sourceFilter, centralizationFilter]);
+   }, [docType, debSearchQuery, page, pageSize, sort, order, mode, effectiveMonth, fromDate, toDate, debEntityId, sourceFilter, centralizationFilter]);
 
    const rangeInvalid = mode === 'range' && fromDate && toDate && new Date(toDate) < new Date(fromDate);
 
@@ -271,6 +276,7 @@ export default function PurchaseInvoicesAdapted() {
    const switchToRange = () => { setMode('range'); setFilterMonth(''); resetToFirstPage(); };
 
    const handleClearFilters = () => {
+      setSearchQuery('');
       setEntityId(activeEntityId ? String(activeEntityId) : ''); setDocType(''); setSourceFilter(''); setMode('month'); setFilterMonth(todayYYYYMM());
       setFromDate(''); setToDate(''); setCentralizationFilter('all'); setPageSize(50); resetToFirstPage();
    };
@@ -353,11 +359,12 @@ export default function PurchaseInvoicesAdapted() {
       if (entityId) { p.set('entityId', String(entityId)); p.set('entity_id', String(entityId)); }
       p.set('mode', mode); p.set('sort', sort); p.set('order', order);
       if (centralizationFilter && centralizationFilter !== 'all') p.set('centralization', centralizationFilter);
+      if (searchQuery) p.set('q', searchQuery);
       if (mode === 'month') p.set('month', effectiveMonth);
       else { if (fromDate) p.set('from', fromDate); if (toDate) p.set('to', toDate); }
       p.set('page', String(page)); p.set('limit', String(pageSize));
       setSp(p, { replace: true });
-   }, [docType, sourceFilter, entityId, mode, sort, order, effectiveMonth, fromDate, toDate, page, pageSize, centralizationFilter, setSp]);
+   }, [docType, searchQuery, sourceFilter, entityId, mode, sort, order, effectiveMonth, fromDate, toDate, page, pageSize, centralizationFilter, setSp]);
 
    const exportCSV = async () => {
       setExportingCsv(true);
@@ -367,7 +374,7 @@ export default function PurchaseInvoicesAdapted() {
             const s = String(v ?? '');
             return (s.includes(DELIM) || s.includes('"') || s.includes('\n')) ? `"${s.replace(/"/g, '""')}"` : s;
          };
-         const header = ['Fecha', 'Folio', 'Tipo', 'Proveedor', 'Exento_CLP', 'Afecto_CLP', 'IVA_CLP', 'Total_CLP', 'Origen'];
+         const header = ['Fecha', 'Folio', 'Tipo', 'RUT', 'Proveedor', 'Exento_CLP', 'Afecto_CLP', 'IVA_CLP', 'Total_CLP', 'Origen'];
          const perPage = 200;
          const allRows = [];
          let currentPage = 1, totalPagesLocal = 1;
@@ -382,7 +389,7 @@ export default function PurchaseInvoicesAdapted() {
                const iva = Number(it.vat_amount ?? it.amount_vat ?? 0);
                const total = Number(it.total_amount ?? (exento + afecto + iva));
                const typeName = getSiiDocumentTypeLabel(it.doc_type_code);
-               allRows.push([it.issue_date || '', it.folio || '', typeName, it.counterparty_name || it.counterparty_rut || '', exento, afecto, iva, total, it.source || 'SII']);
+               allRows.push([it.issue_date || '', it.folio || '', typeName, it.counterparty_rut || '', it.counterparty_name || '', exento, afecto, iva, total, it.source || 'SII']);
             }
             totalPagesLocal = Number(payload.totalPages ?? 1);
             currentPage += 1;
@@ -474,12 +481,27 @@ export default function PurchaseInvoicesAdapted() {
 
                <div className="bg-surface-1 p-4 rounded-2xl border border-border-subtle/50 space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
-                     <div className={`space-y-1.5 ${mode === 'range' ? 'md:col-span-1' : 'md:col-span-2'}`}>
+                     <div className="space-y-1.5 md:col-span-1">
                         <label htmlFor="entityId" className="block text-xs font-semibold text-text-soft uppercase tracking-wider truncate" title="ID Entidad">ID Ent.</label>
-                        <input id="entityId" disabled className={ctrl} type="text" placeholder="Selecciona entidad arriba" value={entityId} />
+                        <input id="entityId" disabled className={ctrl} type="text" placeholder="Entidad" value={entityId} />
                      </div>
 
-                     <div className={`space-y-1.5 ${mode === 'range' ? 'md:col-span-2' : 'md:col-span-3'}`}>
+                     <div className="space-y-1.5 md:col-span-3">
+                        <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider">Buscar</label>
+                        <div className="relative">
+                           <input
+                              type="text"
+                              className={`${ctrl} pl-9`}
+                              placeholder="Folio, RUT o Razón Social..."
+                              value={searchQuery}
+                              onChange={(e) => { setSearchQuery(e.target.value); resetToFirstPage(); }}
+                              disabled={loading}
+                           />
+                           <MagnifyingGlassIcon className="w-4 h-4 text-text-soft absolute left-3 top-3.5" />
+                        </div>
+                     </div>
+
+                     <div className="space-y-1.5 md:col-span-2">
                         <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider">Tipo</label>
                         <select disabled={loading} className={selectCtrl} value={docType} onChange={(e) => { setDocType(e.target.value); resetToFirstPage(); }}>
                            <option value="">Todos los tipos</option>
@@ -489,7 +511,7 @@ export default function PurchaseInvoicesAdapted() {
                         </select>
                      </div>
 
-                     <div className="space-y-1.5 md:col-span-2">
+                     <div className="space-y-1.5 md:col-span-1">
                         <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider">Origen</label>
                         <select disabled={loading} className={selectCtrl} value={sourceFilter} onChange={(e) => { setSourceFilter(e.target.value); resetToFirstPage(); }}>
                            <option value="">Todos</option>
@@ -498,7 +520,7 @@ export default function PurchaseInvoicesAdapted() {
                         </select>
                      </div>
 
-                     <div className={mode === 'range' ? 'md:col-span-5' : 'md:col-span-3'}>
+                     <div className={mode === 'range' ? 'md:col-span-3' : 'md:col-span-3'}>
                         {mode === 'month' ? (
                            <MonthField value={filterMonth} contextValue={period ? periodToYYYYMM(period) : todayYYYYMM()} onChange={(v) => { setFilterMonth(v); resetToFirstPage(); }} disabled={loading} />
                         ) : (
@@ -512,11 +534,12 @@ export default function PurchaseInvoicesAdapted() {
                            <option value={20}>20 filas</option>
                            <option value={50}>50 filas</option>
                            <option value={100}>100 filas</option>
+                           <option value={200}>200 filas</option>
                         </select>
                      </div>
                   </div>
 
-                  {/* Filtro de Centralización: abajo del filtrador común, con ellos */}
+                  {/* Filtro de Centralizacion: abajo del filtrador comun, con ellos */}
                   <div className="pt-3 border-t border-border-subtle/50 flex flex-wrap items-center gap-3">
                      <span className="text-xs font-semibold text-text-soft uppercase tracking-wider">Centralización:</span>
                      <div className="inline-flex p-1 bg-surface-2 rounded-2xl ring-1 ring-border-subtle/40 items-center gap-1 text-xs font-medium">
@@ -566,8 +589,21 @@ export default function PurchaseInvoicesAdapted() {
                                  Folio {sort === 'folio' ? orderArrow(order) : ''}
                               </button>
                            </th>
-                           <th className="p-4 font-semibold text-center">Tipo</th>
-                           <th className="p-4 font-semibold">Proveedor (Opc)</th>
+                           <th className={`p-4 font-semibold text-center ${sort === 'doc_type_code' ? 'text-brand' : ''}`}>
+                              <button type="button" className="flex items-center justify-center gap-1 w-full hover:text-brand transition" onClick={() => { setOrder(s => (sort === 'doc_type_code' ? (s === 'asc' ? 'desc' : 'asc') : 'asc')); setSort('doc_type_code'); setPage(1); }}>
+                                 Tipo {sort === 'doc_type_code' ? orderArrow(order) : ''}
+                              </button>
+                           </th>
+                           <th className={`p-4 font-semibold ${sort === 'counterparty_rut' ? 'text-brand' : ''}`}>
+                              <button type="button" className="flex items-center gap-1 hover:text-brand transition" onClick={() => { setOrder(s => (sort === 'counterparty_rut' ? (s === 'asc' ? 'desc' : 'asc') : 'asc')); setSort('counterparty_rut'); setPage(1); }}>
+                                 RUT {sort === 'counterparty_rut' ? orderArrow(order) : ''}
+                              </button>
+                           </th>
+                           <th className={`p-4 font-semibold ${sort === 'counterparty_name' ? 'text-brand' : ''}`}>
+                              <button type="button" className="flex items-center gap-1 hover:text-brand transition" onClick={() => { setOrder(s => (sort === 'counterparty_name' ? (s === 'asc' ? 'desc' : 'asc') : 'asc')); setSort('counterparty_name'); setPage(1); }}>
+                                 Proveedor / Razón Social {sort === 'counterparty_name' ? orderArrow(order) : ''}
+                              </button>
+                           </th>
                            <th className="p-4 font-semibold text-right">Exento</th>
                            <th className="p-4 font-semibold text-right">Afecto</th>
                            <th className="p-4 font-semibold text-right">IVA</th>
@@ -583,7 +619,7 @@ export default function PurchaseInvoicesAdapted() {
                      </thead>
                      <tbody className="divide-y divide-border-subtle/50">
                         {rows.length === 0 ? (
-                           <tr><td colSpan={11} className="p-10 text-center text-text-soft italic">no se encontraron registros para los filtros aplicados.</td></tr>
+                           <tr><td colSpan={12} className="p-10 text-center text-text-soft italic">no se encontraron registros para los filtros aplicados.</td></tr>
                         ) : rows.map(r => (
                            <tr key={r.id} className="hover:bg-brand/5 transition-colors group">
                               <td className="p-4 whitespace-nowrap">
@@ -611,7 +647,10 @@ export default function PurchaseInvoicesAdapted() {
                                     </span>
                                  </div>
                               </td>
-                              <td className="p-4 truncate max-w-[200px] text-text-main font-medium">{r.client_name || '-'}</td>
+                              <td className="p-4 whitespace-nowrap font-mono text-xs text-text-soft">{r.counterparty_rut || '-'}</td>
+                              <td className="p-4 truncate max-w-[220px] text-text-main font-medium" title={r.counterparty_name || r.client_name}>
+                                 {r.counterparty_name || r.client_name || '-'}
+                              </td>
                               <td className="p-4 text-right font-mono text-text-soft">{clp(r.exento)}</td>
                               <td className="p-4 text-right font-mono text-text-soft">{clp(r.afecto)}</td>
                               <td className="p-4 text-right font-mono text-text-soft">{clp(r.iva)}</td>

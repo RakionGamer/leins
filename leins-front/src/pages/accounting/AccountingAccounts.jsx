@@ -296,17 +296,22 @@ export default function AccountingAccounts() {
       setErr(null);
       try {
          if (editingAccount) {
-            await updateAccount(editingAccount.id, {
-               name: formData.name,
-               type: formData.type,
-               nature: formData.nature,
-               cost_center_requirement: formData.cost_center_requirement,
-               require_rut: formData.require_rut,
-               require_reference: formData.require_reference,
-               is_auxiliary: formData.is_auxiliary,
-               is_title: formData.is_title,
-               is_active: formData.is_active,
-            });
+            await updateAccount(
+               editingAccount.id,
+               {
+                  entityId,
+                  name: formData.name,
+                  type: formData.type,
+                  nature: formData.nature,
+                  cost_center_requirement: formData.cost_center_requirement,
+                  require_rut: formData.require_rut,
+                  require_reference: formData.require_reference,
+                  is_auxiliary: formData.is_auxiliary,
+                  is_title: formData.is_title,
+                  is_active: formData.is_active,
+               },
+               { entityId }
+            );
             toast.success('Cuenta actualizada correctamente');
          } else {
             await createAccount({

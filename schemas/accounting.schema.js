@@ -17,6 +17,7 @@ const createAccountSchema = joi.object({
 });
 
 const updateAccountSchema = joi.object({
+   entityId: entityId.optional(),
    name: joi.string().max(255).optional(),
    type: joi.string().valid("ACTIVO", "PASIVO", "PATRIMONIO", "INGRESOS", "COSTOS", "GASTOS").optional(),
    nature: joi.string().valid("DEUDORA", "ACREEDORA").optional(),
@@ -25,6 +26,8 @@ const updateAccountSchema = joi.object({
    require_reference: joi.boolean().optional(),
    is_auxiliary: joi.boolean().optional(),
    is_title: joi.boolean().optional(),
+   is_active: joi.boolean().optional(),
+   cash_flow_classification: joi.string().valid("OPERACIONAL", "INVERSION", "FINANCIAMIENTO", "NONE").optional(),
 });
 
 const upsertRuleSchema = joi.object({

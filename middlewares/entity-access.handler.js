@@ -96,7 +96,21 @@ async function isSuperAdminUser(userId) {
 function requireEntityAccess() {
    return async (req, _res, next) => {
       try {
-         const entityId = resolveEntityId(req);
+         let entityId;
+         try {
+            entityId = resolveEntityId(req);
+         } catch (resolveErr) {
+            if (req.params?.id && Number.isInteger(Number(req.params.id))) {
+               const acc = await models.AccountingAccount.findByPk(Number(req.params.id), {
+                  attributes: ['id', 'entity_id'],
+                  raw: true,
+               });
+               if (acc?.entity_id) {
+                  entityId = Number(acc.entity_id);
+               }
+            }
+            if (!entityId) throw resolveErr;
+         }
 
          // Normalizamos para que controladores/servicios usen el mismo scope.
          req.entityId = entityId;

@@ -1,3 +1,4 @@
+// src/pages/income/SalesHonorariumReceipts.jsx
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { usePeriod } from '../../context/PeriodContext';
 import { useEntityRequired } from '../../hooks/useEntityRequired';
@@ -16,6 +17,8 @@ import {
    HashtagIcon,
    IdentificationIcon,
    TagIcon,
+   FunnelIcon,
+   MagnifyingGlassIcon,
 } from '@heroicons/react/24/outline';
 
 const DOC_TYPES = {
@@ -45,6 +48,15 @@ function periodToYYYYMM({ month, year }) {
 function todayYYYYMM() {
    const d = new Date();
    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function useDebounced(value, delay = 300) {
+   const [debounced, setDebounced] = useState(value);
+   useEffect(() => {
+      const handler = setTimeout(() => setDebounced(value), delay);
+      return () => clearTimeout(handler);
+   }, [value, delay]);
+   return debounced;
 }
 
 function ViewModeToggle({ mode, onChange }) {
@@ -90,7 +102,7 @@ function SummaryCard({ label, value, Icon, tone = 'brand' }) {
 function MonthField({ value, onChange, disabled }) {
    return (
       <div className="space-y-1.5 w-full">
-         <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider">Mes</label>
+         <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider">Mes de Operación</label>
          <input disabled={disabled} type="month" className={ctrl} value={value || ''} onChange={(e) => onChange(e.target.value)} />
       </div>
    );
@@ -129,6 +141,14 @@ function normalizeDocument(row) {
       tax_withheld: withheld,
       total_amount: total,
       source: row.source,
+      is_reconciled: row.is_reconciled,
+      reconciliation_status: row.reconciliation_status,
+      remaining_amount: row.remaining_amount,
+      is_classified: row.is_classified,
+      classification_status: row.classification_status,
+      accounting_account: row.accounting_account,
+      is_centralized: row.is_centralized,
+      centralization_status: row.centralization_status,
    };
 }
 
@@ -143,11 +163,16 @@ export default function SalesHonorariumReceipts() {
    const [fromDate, setFromDate] = useState(() => sp.get('from') || '');
    const [toDate, setToDate] = useState(() => sp.get('to') || '');
    const [sourceFilter, setSourceFilter] = useState(() => sp.get('source') || '');
+   const [searchQuery, setSearchQuery] = useState(() => sp.get('q') || '');
+   const debSearchQuery = useDebounced(searchQuery, 300);
+   const [centralizationFilter, setCentralizationFilter] = useState(() => sp.get('centralization') || 'all');
+
    const [page, setPage] = useState(() => Math.max(1, Number(sp.get('page')) || 1));
    const [pageSize, setPageSize] = useState(() => {
       const size = Number(sp.get('limit'));
       return [20, 50, 100, 200].includes(size) ? size : 50;
    });
+
    const [sort, setSort] = useState(() => sp.get('sort') || 'issue_date');
    const [order, setOrder] = useState(() => sp.get('order') === 'asc' ? 'asc' : 'desc');
 
@@ -158,6 +183,9 @@ export default function SalesHonorariumReceipts() {
    const [error, setError] = useState('');
    const [refreshKey, setRefreshKey] = useState(0);
    const [exportingCsv, setExportingCsv] = useState(false);
+
+   const dateFmt = useMemo(() => new Intl.DateTimeFormat('es-CL'), []);
+   const fmtDate = (s) => (s ? dateFmt.format(new Date(s)) : '');
 
    const activeConfig = useMemo(() => (
       TABS.find((tab) => tab.key === activeTab) || TABS[0]
@@ -174,14 +202,27 @@ export default function SalesHonorariumReceipts() {
          return { rows: [], total: 0, totalPages: 1 };
       }
 
+      let reconciliationStatus = undefined;
+      let classificationStatus = undefined;
+      let centralizationStatus = undefined;
+
+      if (centralizationFilter === 'unreconciled') reconciliationStatus = 'unreconciled';
+      else if (centralizationFilter === 'unclassified') classificationStatus = 'unclassified';
+      else if (centralizationFilter === 'pending') centralizationStatus = 'pending';
+      else if (centralizationFilter === 'centralized') centralizationStatus = 'centralized';
+
       const response = await listSiiDocuments({
          entityId: activeEntityId,
          operationType: activeConfig.operationType,
          type: activeConfig.type,
+         q: debSearchQuery?.trim() || undefined,
          source: sourceFilter || undefined,
          month: mode === 'month' ? effectiveMonth : undefined,
          from: mode === 'range' ? fromDate : undefined,
          to: mode === 'range' ? toDate : undefined,
+         reconciliationStatus,
+         classificationStatus,
+         centralizationStatus,
          page: pageOverride || page,
          limit: limitOverride || pageSize,
          sort,
@@ -194,7 +235,7 @@ export default function SalesHonorariumReceipts() {
          total: response.total,
          totalPages: response.totalPages,
       };
-   }, [activeConfig, activeEntityId, effectiveMonth, fromDate, mode, order, page, pageSize, rangeInvalid, ready, sort, sourceFilter, toDate]);
+   }, [activeConfig, activeEntityId, centralizationFilter, debSearchQuery, effectiveMonth, fromDate, mode, order, page, pageSize, rangeInvalid, ready, sort, sourceFilter, toDate]);
 
    useEffect(() => {
       if (!ready || !activeEntityId) {
@@ -243,13 +284,15 @@ export default function SalesHonorariumReceipts() {
       params.set('limit', String(pageSize));
       if (activeEntityId) params.set('entity_id', String(activeEntityId));
       if (sourceFilter) params.set('source', sourceFilter);
+      if (searchQuery) params.set('q', searchQuery);
+      if (centralizationFilter && centralizationFilter !== 'all') params.set('centralization', centralizationFilter);
       if (mode === 'month') params.set('month', effectiveMonth);
       if (mode === 'range') {
          if (fromDate) params.set('from', fromDate);
          if (toDate) params.set('to', toDate);
       }
       setSp(params, { replace: true });
-   }, [activeEntityId, activeTab, effectiveMonth, fromDate, mode, order, page, pageSize, setSp, sort, sourceFilter, toDate]);
+   }, [activeEntityId, activeTab, centralizationFilter, effectiveMonth, fromDate, mode, order, page, pageSize, searchQuery, setSp, sort, sourceFilter, toDate]);
 
    const resetToFirstPage = () => setPage(1);
 
@@ -276,6 +319,8 @@ export default function SalesHonorariumReceipts() {
       setFromDate('');
       setToDate('');
       setSourceFilter('');
+      setSearchQuery('');
+      setCentralizationFilter('all');
       setPageSize(50);
       resetToFirstPage();
    };
@@ -318,16 +363,18 @@ export default function SalesHonorariumReceipts() {
                ? `"${text.replace(/"/g, '""')}"`
                : text;
          };
-         const header = ['Fecha', 'Folio', 'Tipo', 'Contraparte', 'RUT', 'Bruto_CLP', 'Retencion_CLP', 'Liquido_CLP', 'Origen'];
+         const header = ['Fecha', 'Folio', 'Tipo', 'RUT', 'Razon_Social', 'Bruto_CLP', 'Retencion_CLP', 'Liquido_CLP', 'Estado_Pago', 'Clasificacion', 'Origen'];
          const body = allRows.map((row) => [
-            row.issue_date,
-            row.folio,
-            row.doc_type,
-            row.counterparty_name || '',
+            row.issue_date || '',
+            row.folio || '',
+            row.doc_type || '',
             row.counterparty_rut || '',
+            row.counterparty_name || '',
             row.gross_amount,
             row.tax_withheld,
             row.total_amount,
+            row.is_reconciled ? 'Pagado' : 'Sin conciliar',
+            row.accounting_account?.name || (row.is_classified ? 'Clasificado' : 'Sin clasificar'),
             row.source || 'SII',
          ]);
 
@@ -379,20 +426,9 @@ export default function SalesHonorariumReceipts() {
 
             <div className="mt-5 space-y-4">
                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                  {TABS.length > 1 && (
-                     <div className="inline-flex rounded-2xl bg-surface-2 p-1 ring-1 ring-border-subtle/60">
-                        {TABS.map((tab) => (
-                           <button
-                              key={tab.key}
-                              type="button"
-                              onClick={() => switchTab(tab.key)}
-                              className={`h-10 rounded-xl px-4 text-sm font-semibold transition ${activeTab === tab.key ? 'bg-bg-content text-heading shadow-sm ring-1 ring-border-subtle' : 'text-text-soft hover:text-heading'}`}
-                           >
-                              {tab.label}
-                           </button>
-                        ))}
-                     </div>
-                  )}
+                  <div className="flex items-center gap-2 text-sm font-semibold text-text-main">
+                     <FunnelIcon className="w-5 h-5 text-brand" /> Filtros de Búsqueda
+                  </div>
 
                   <div className="flex items-center gap-3">
                      <button type="button" onClick={clearFilters} disabled={loading} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-text-soft hover:text-danger hover:bg-danger/10 rounded-xl transition-colors disabled:opacity-50">
@@ -403,43 +439,86 @@ export default function SalesHonorariumReceipts() {
                   </div>
                </div>
 
-               <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start bg-surface-1 p-4 rounded-2xl border border-border-subtle/50">
-                  <div className="space-y-1.5 md:col-span-2">
-                     <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider">ID Ent.</label>
-                     <input disabled className={ctrl} type="text" value={activeEntityId || ''} placeholder="Selecciona entidad" />
+               <div className="bg-surface-1 p-4 rounded-2xl border border-border-subtle/50 space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
+                     <div className="space-y-1.5 md:col-span-1">
+                        <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider truncate" title="ID Entidad">ID Ent.</label>
+                        <input disabled className={ctrl} type="text" value={activeEntityId || ''} placeholder="Entidad" />
+                     </div>
+
+                     <div className="space-y-1.5 md:col-span-3">
+                        <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider">Buscar</label>
+                        <div className="relative">
+                           <input
+                              type="text"
+                              className={`${ctrl} pl-9`}
+                              placeholder="Folio, RUT o Razón Social..."
+                              value={searchQuery}
+                              onChange={(e) => { setSearchQuery(e.target.value); resetToFirstPage(); }}
+                              disabled={loading}
+                           />
+                           <MagnifyingGlassIcon className="w-4 h-4 text-text-soft absolute left-3 top-3.5" />
+                        </div>
+                     </div>
+
+                     <div className="space-y-1.5 md:col-span-2">
+                        <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider">Origen</label>
+                        <select disabled={loading} className={selectCtrl} value={sourceFilter} onChange={(e) => { setSourceFilter(e.target.value); resetToFirstPage(); }}>
+                           <option value="">Todos</option>
+                           <option value="SII">SII</option>
+                           <option value="MANUAL">Manual</option>
+                        </select>
+                     </div>
+
+                     <div className={mode === 'range' ? 'md:col-span-4' : 'md:col-span-4'}>
+                        {mode === 'month' ? (
+                           <MonthField value={effectiveMonth} onChange={(value) => { setFilterMonth(value); resetToFirstPage(); }} disabled={loading} />
+                        ) : (
+                           <DateRangeField
+                              from={fromDate}
+                              to={toDate}
+                              onFrom={(value) => { setFromDate(value); resetToFirstPage(); }}
+                              onTo={(value) => { setToDate(value); resetToFirstPage(); }}
+                              disabled={loading}
+                           />
+                        )}
+                     </div>
+
+                     <div className="space-y-1.5 md:col-span-2">
+                        <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider">Por pág.</label>
+                        <select disabled={loading} className={selectCtrl} value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value) || 50); resetToFirstPage(); }}>
+                           <option value={20}>20 filas</option>
+                           <option value={50}>50 filas</option>
+                           <option value={100}>100 filas</option>
+                           <option value={200}>200 filas</option>
+                        </select>
+                     </div>
                   </div>
 
-                  <div className="space-y-1.5 md:col-span-2">
-                     <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider">Origen</label>
-                     <select disabled={loading} className={selectCtrl} value={sourceFilter} onChange={(e) => { setSourceFilter(e.target.value); resetToFirstPage(); }}>
-                        <option value="">Todos</option>
-                        <option value="SII">SII</option>
-                        <option value="MANUAL">Manual</option>
-                     </select>
-                  </div>
-
-                  <div className={mode === 'range' ? 'md:col-span-6' : 'md:col-span-5'}>
-                     {mode === 'month' ? (
-                        <MonthField value={effectiveMonth} onChange={(value) => { setFilterMonth(value); resetToFirstPage(); }} disabled={loading} />
-                     ) : (
-                        <DateRangeField
-                           from={fromDate}
-                           to={toDate}
-                           onFrom={(value) => { setFromDate(value); resetToFirstPage(); }}
-                           onTo={(value) => { setToDate(value); resetToFirstPage(); }}
-                           disabled={loading}
-                        />
-                     )}
-                  </div>
-
-                  <div className="space-y-1.5 md:col-span-2">
-                     <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider">Por pag.</label>
-                     <select disabled={loading} className={selectCtrl} value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value) || 50); resetToFirstPage(); }}>
-                        <option value={20}>20 filas</option>
-                        <option value={50}>50 filas</option>
-                        <option value={100}>100 filas</option>
-                        <option value={200}>200 filas</option>
-                     </select>
+                  {/* Filtro de Centralización */}
+                  <div className="pt-3 border-t border-border-subtle/50 flex flex-wrap items-center gap-3">
+                     <span className="text-xs font-semibold text-text-soft uppercase tracking-wider">Centralización:</span>
+                     <div className="inline-flex p-1 bg-surface-2 rounded-2xl ring-1 ring-border-subtle/40 items-center gap-1 text-xs font-medium">
+                        {[
+                           { key: 'all', label: 'Todos' },
+                           { key: 'unreconciled', label: 'Sin conciliar' },
+                           { key: 'unclassified', label: 'Sin clasificar' },
+                           { key: 'pending', label: 'Pendientes' },
+                        ].map((f) => (
+                           <button
+                              key={f.key}
+                              type="button"
+                              onClick={() => { setCentralizationFilter(f.key); resetToFirstPage(); }}
+                              className={`px-3 py-1.5 rounded-xl transition ${
+                                 centralizationFilter === f.key
+                                    ? 'bg-bg-content shadow ring-1 ring-border-subtle text-brand font-semibold'
+                                    : 'text-text-soft hover:text-heading'
+                              }`}
+                           >
+                              {f.label}
+                           </button>
+                        ))}
+                     </div>
                   </div>
                </div>
             </div>
@@ -462,36 +541,57 @@ export default function SalesHonorariumReceipts() {
                      <thead className="bg-surface-2 border-b border-border-subtle text-text-soft">
                         <tr>
                            <th className={`p-4 font-semibold ${sort === 'issue_date' ? 'text-brand' : ''}`}>
-                              <button type="button" className="flex items-center gap-2 hover:text-brand transition" onClick={() => toggleSort('issue_date')}>
-                                 <CalendarDaysIcon className="w-4 h-4" />
+                              <button type="button" className="flex items-center gap-1 hover:text-brand transition" onClick={() => toggleSort('issue_date')}>
                                  Fecha {sort === 'issue_date' ? orderArrow(order) : ''}
                               </button>
                            </th>
                            <th className={`p-4 font-semibold ${sort === 'folio' ? 'text-brand' : ''}`}>
-                              <button type="button" className="flex items-center gap-2 hover:text-brand transition" onClick={() => toggleSort('folio')}>
-                                 <HashtagIcon className="w-4 h-4" />
+                              <button type="button" className="flex items-center gap-1 hover:text-brand transition" onClick={() => toggleSort('folio')}>
                                  Folio {sort === 'folio' ? orderArrow(order) : ''}
                               </button>
                            </th>
-                           <th className="p-4 font-semibold"><div className="flex items-center gap-2 justify-center"><TagIcon className="w-4 h-4" /> Tipo</div></th>
-                           <th className="p-4 font-semibold"><div className="flex items-center gap-2"><IdentificationIcon className="w-4 h-4" /> Contraparte</div></th>
-                           <th className="p-4 font-semibold text-right">Bruto</th>
-                           <th className="p-4 font-semibold text-right">Retencion</th>
-                           <th className={`p-4 font-semibold text-right ${sort === 'total_amount' ? 'text-brand' : ''}`}>
-                              <button type="button" className="flex items-center gap-2 justify-end w-full hover:text-brand transition" onClick={() => toggleSort('total_amount')}>
-                                 Liquido {sort === 'total_amount' ? orderArrow(order) : ''}
+                           <th className={`p-4 font-semibold text-center ${sort === 'doc_type_code' ? 'text-brand' : ''}`}>
+                              <button type="button" className="flex items-center justify-center gap-1 w-full hover:text-brand transition" onClick={() => toggleSort('doc_type_code')}>
+                                 Tipo {sort === 'doc_type_code' ? orderArrow(order) : ''}
                               </button>
                            </th>
+                           <th className={`p-4 font-semibold ${sort === 'counterparty_rut' ? 'text-brand' : ''}`}>
+                              <button type="button" className="flex items-center gap-1 hover:text-brand transition" onClick={() => toggleSort('counterparty_rut')}>
+                                 RUT {sort === 'counterparty_rut' ? orderArrow(order) : ''}
+                              </button>
+                           </th>
+                           <th className={`p-4 font-semibold ${sort === 'counterparty_name' ? 'text-brand' : ''}`}>
+                              <button type="button" className="flex items-center gap-1 hover:text-brand transition" onClick={() => toggleSort('counterparty_name')}>
+                                 Razón Social / Profesional {sort === 'counterparty_name' ? orderArrow(order) : ''}
+                              </button>
+                           </th>
+                           <th className={`p-4 font-semibold text-right ${sort === 'amount_net' ? 'text-brand' : ''}`}>
+                              <button type="button" className="flex items-center gap-1 justify-end w-full hover:text-brand transition" onClick={() => toggleSort('amount_net')}>
+                                 Bruto {sort === 'amount_net' ? orderArrow(order) : ''}
+                              </button>
+                           </th>
+                           <th className={`p-4 font-semibold text-right ${sort === 'amount_tax_no_credit' ? 'text-brand' : ''}`}>
+                              <button type="button" className="flex items-center gap-1 justify-end w-full hover:text-brand transition" onClick={() => toggleSort('amount_tax_no_credit')}>
+                                 Retención {sort === 'amount_tax_no_credit' ? orderArrow(order) : ''}
+                              </button>
+                           </th>
+                           <th className={`p-4 font-semibold text-right ${sort === 'total_amount' ? 'text-brand' : ''}`}>
+                              <button type="button" className="flex items-center gap-1 justify-end w-full hover:text-brand transition" onClick={() => toggleSort('total_amount')}>
+                                 Líquido {sort === 'total_amount' ? orderArrow(order) : ''}
+                              </button>
+                           </th>
+                           <th className="p-4 font-semibold text-center">Estado Pago</th>
+                           <th className="p-4 font-semibold text-center">Clasificación Contable</th>
                            <th className="p-4 font-semibold text-center">Origen</th>
                         </tr>
                      </thead>
                      <tbody className="divide-y divide-border-subtle/50">
                         {rows.length === 0 ? (
                            <tr>
-                              <td colSpan={8} className="p-10 text-center text-text-soft italic">no se encontraron boletas de honorarios para los filtros aplicados.</td>
+                              <td colSpan={11} className="p-10 text-center text-text-soft italic">no se encontraron boletas de honorarios para los filtros aplicados.</td>
                            </tr>
                         ) : rows.map((row) => (
-                           <tr key={row.id} className="hover:bg-brand/5 transition-colors">
+                           <tr key={row.id} className="hover:bg-brand/5 transition-colors group">
                               <td className="p-4 whitespace-nowrap font-medium text-text-main">{row.issue_date || '-'}</td>
                               <td className="p-4 font-mono text-text-soft">{row.folio || '-'}</td>
                               <td className="p-4 text-center">
@@ -499,15 +599,45 @@ export default function SalesHonorariumReceipts() {
                                     {row.doc_type}
                                  </span>
                               </td>
-                              <td className="p-4">
-                                 <div className="font-medium text-text-main truncate max-w-[260px]">{row.counterparty_name || row.counterparty_rut || '-'}</div>
-                                 {row.counterparty_name && row.counterparty_rut && (
-                                    <div className="text-xs text-text-soft font-mono">{row.counterparty_rut}</div>
-                                 )}
+                              <td className="p-4 whitespace-nowrap font-mono text-xs text-text-soft">
+                                 {row.counterparty_rut || '-'}
+                              </td>
+                              <td className="p-4 truncate max-w-[220px] font-medium text-text-main" title={row.counterparty_name}>
+                                 {row.counterparty_name || '-'}
                               </td>
                               <td className="p-4 text-right font-mono text-text-soft">{clp(row.gross_amount)}</td>
                               <td className="p-4 text-right font-mono text-text-soft">{clp(row.tax_withheld)}</td>
                               <td className="p-4 text-right font-bold text-text-main">{clp(row.total_amount)}</td>
+                              <td className="p-4 text-center whitespace-nowrap">
+                                 {row.is_reconciled ? (
+                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-600 ring-1 ring-emerald-500/20">
+                                       Pagado
+                                    </span>
+                                 ) : (
+                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-600 ring-1 ring-amber-500/20" title={row.remaining_amount ? `Pendiente: ${clp(row.remaining_amount)}` : 'Sin egreso bancario vinculado'}>
+                                       Sin conciliar
+                                    </span>
+                                 )}
+                              </td>
+                              <td className="p-4 text-center whitespace-nowrap">
+                                 {row.is_classified ? (
+                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-500/10 text-blue-600 ring-1 ring-blue-500/20" title={row.accounting_account?.name || ''}>
+                                       <span>{row.accounting_account?.code || 'Clasificado'}</span>
+                                       {row.accounting_account?.name && (
+                                          <span className="text-[11px] font-normal text-text-soft truncate max-w-[120px]">
+                                             {row.accounting_account.name}
+                                          </span>
+                                       )}
+                                    </span>
+                                 ) : (
+                                    <span
+                                       className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-600 ring-1 ring-amber-500/20"
+                                       title="Sin clasificar"
+                                    >
+                                       Sin clasificar
+                                    </span>
+                                 )}
+                              </td>
                               <td className="p-4 text-center">
                                  <span className="inline-flex rounded-full bg-brand/10 px-2.5 py-1 text-xs font-semibold text-brand ring-1 ring-brand/20">
                                     {row.source || 'SII'}
