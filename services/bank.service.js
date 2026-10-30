@@ -1593,6 +1593,154 @@ class BankService {
       return { ok: true, rows: mapped, total: mapped.length };
    }
 
+   async searchBankCandidatesForDocument({ entityId, document_id, q = null, limit = 20 }) {
+      const parsedEntityId = Number(entityId);
+      const docId = Number(document_id);
+      if (!Number.isInteger(parsedEntityId) || parsedEntityId <= 0) throw boom.badRequest("entityId is required");
+      if (!Number.isInteger(docId) || docId <= 0) throw boom.badRequest("document_id is required");
+
+      const doc = await models.EntitySiiDocument.findOne({
+         where: { id: docId, entity_id: parsedEntityId }
+      });
+      if (!doc) throw boom.notFound("Documento no encontrado para la entidad");
+
+      const isExpense = doc.operation_type === 'EXPENSE' || [1002, 33, 34, 46, 56, 61].includes(doc.doc_type_code);
+      const bankTxType = isExpense ? 'expense' : 'income';
+
+      const remainingSQL = BankService.#bankRemainingSql("bt");
+      const targetAmount = Math.abs(Number(doc.remaining_amount ?? doc.total_amount ?? 0));
+      const docIssuedAt = doc.issue_date;
+
+      const cleanRut = doc.counterparty_rut ? String(doc.counterparty_rut).replace(/[^0-9kK]/g, '').toUpperCase() : '';
+      const rutWithDots = doc.counterparty_rut ? String(doc.counterparty_rut).trim() : '';
+
+      const nameWords = (doc.counterparty_name || '')
+         .replace(/[^a-zA-Z0-9\s]/g, ' ')
+         .split(/\s+/)
+         .filter(w => w.length > 3 && !['SPA', 'LTDA', 'EIRL', 'SOCIEDAD', 'CHILE', 'LIMITADA', 'INVERSIONES', 'SERVICIOS'].includes(w.toUpperCase()))
+         .slice(0, 3);
+
+      const search = String(q || '').trim();
+
+      let searchClause = '';
+      const replacements = {
+         entityId: parsedEntityId,
+         bankTxType,
+         targetAmount,
+         docIssuedAt: docIssuedAt || new Date().toISOString().slice(0, 10),
+         limit: Math.min(Math.max(Number(limit) || 20, 1), 50),
+      };
+
+      if (search) {
+         searchClause = `AND (
+            bt.description LIKE :searchLike
+            OR bt.document_ref LIKE :searchLike
+            OR ba.bank_name LIKE :searchLike
+            OR CAST(bt.amount AS CHAR) LIKE :searchLike
+         )`;
+         replacements.searchLike = `%${search}%`;
+      }
+
+      replacements.rutCleanLike = cleanRut ? `%${cleanRut}%` : '%__NOMATCH__%';
+      replacements.rutLike = rutWithDots ? `%${rutWithDots}%` : '%__NOMATCH__%';
+
+      const nameConditions = nameWords.map((w, idx) => {
+         const param = `nameWord${idx}`;
+         replacements[param] = `%${w}%`;
+         return `bt.description LIKE :${param}`;
+      });
+      const nameMatchSql = nameConditions.length ? `(${nameConditions.join(' OR ')})` : '0';
+
+      const rows = await sequelize.query(
+         `
+         SELECT
+            bt.id,
+            bt.entity_id,
+            bt.entity_bank_account_id,
+            bt.type,
+            bt.amount,
+            bt.description,
+            bt.document_ref,
+            bt.branch,
+            bt.issued_at,
+            ba.bank_name,
+            ba.account_number,
+            ba.currency,
+            ${remainingSQL} AS remaining_amount,
+            ABS(${remainingSQL} - :targetAmount) AS amount_distance,
+            ABS(DATEDIFF(DATE(bt.issued_at), DATE(:docIssuedAt))) AS date_distance,
+            CASE
+               WHEN ABS(${remainingSQL} - :targetAmount) < 0.01 THEN 1
+               ELSE 0
+            END AS is_exact_amount,
+            CASE
+               WHEN (bt.description LIKE :rutCleanLike OR bt.description LIKE :rutLike) THEN 1
+               ELSE 0
+            END AS is_rut_match,
+            CASE
+               WHEN ${nameMatchSql} THEN 1
+               ELSE 0
+            END AS is_name_match
+         FROM entity_bank_transactions bt
+         JOIN entity_bank_accounts ba ON ba.id = bt.entity_bank_account_id
+         WHERE bt.entity_id = :entityId
+           AND bt.type = :bankTxType
+           ${searchClause}
+         HAVING remaining_amount > 0
+         ORDER BY (is_exact_amount * 3 + is_rut_match * 2 + is_name_match) DESC, amount_distance ASC, date_distance ASC, bt.issued_at DESC, bt.id DESC
+         LIMIT :limit
+         `,
+         {
+            replacements,
+            type: QueryTypes.SELECT,
+         }
+      );
+
+      const mapped = rows.map((row) => {
+         const plain = BankService.#decryptAccountNumberFromStorage(row.account_number);
+         const masked = plain
+            ? BankService.#maskAccountNumber(plain)
+            : (() => {
+               const last4 = BankService.#extractLast4FromStorage(row.account_number);
+               return last4 ? `****${last4}` : '';
+            })();
+         const currencyLabel = row.currency === 'USD' ? 'DOLAR' : row.currency;
+
+         return {
+            id: Number(row.id),
+            bank_type: row.type,
+            issue_date: row.issued_at?.toISOString?.().slice(0, 10) || String(row.issued_at || '').slice(0, 10),
+            description: row.description || '',
+            amount: Number(row.amount || 0),
+            remaining_amount: Number(row.remaining_amount || 0),
+            account_label: [row.bank_name, masked, currencyLabel].filter(Boolean).join(' - '),
+            document_ref: BankService.#normalizeDocumentRef(row.document_ref),
+            is_exact_amount: Boolean(Number(row.is_exact_amount)),
+            is_rut_match: Boolean(Number(row.is_rut_match)),
+            is_name_match: Boolean(Number(row.is_name_match)),
+            amount_distance: Number(row.amount_distance || 0),
+            date_distance: Number(row.date_distance || 0),
+         };
+      });
+
+      return {
+         ok: true,
+         document: {
+            id: doc.id,
+            folio: doc.folio,
+            doc_type_code: doc.doc_type_code,
+            counterparty_name: doc.counterparty_name,
+            counterparty_rut: doc.counterparty_rut,
+            total_amount: Number(doc.total_amount || 0),
+            remaining_amount: targetAmount,
+            issue_date: doc.issue_date,
+            is_reconciled: Boolean(doc.is_reconciled || targetAmount <= 0),
+         },
+         candidates: mapped,
+         total: mapped.length
+      };
+   }
+
    async #reconcileBankWithTx({ entityId, bank_transaction_id, target_bank_transaction_id, amount = null, method = 'manual', t }) {
       const parsedEntityId = Number(entityId);
       const sourceId = Number(bank_transaction_id);

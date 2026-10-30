@@ -507,6 +507,22 @@ const searchBankReconcileCandidates = asyncHandler(async (req, res) => {
    res.json(out);
 });
 
+const searchDocumentReconcileCandidates = asyncHandler(async (req, res) => {
+   const { entityId, document_id, q, limit = '20' } = req.query || {};
+
+   if (!entityId) throw boom.badRequest("entityId requerido");
+   if (!document_id) throw boom.badRequest("document_id requerido");
+
+   const out = await service.searchBankCandidatesForDocument({
+      entityId: Number(entityId),
+      document_id: Number(document_id),
+      q: q || null,
+      limit: Math.min(Math.max(Number(limit) || 20, 1), 50),
+   });
+
+   res.json(out);
+});
+
 const reconcileBankTransaction = asyncHandler(async (req, res) => {
    const { entityId, bank_transaction_id, target_bank_transaction_id, amount } = req.body || {};
 
@@ -616,6 +632,7 @@ module.exports = {
    reconcileTransaction,
    reconcileDirectExpense,
    searchBankReconcileCandidates,
+   searchDocumentReconcileCandidates,
    reconcileBankTransaction,
    bulkReconcile,
    unreconcileTransaction,

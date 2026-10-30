@@ -156,6 +156,18 @@ export async function searchBankReconcileCandidates({ entityId, bank_transaction
    return (await parseJsonSafe(res)) || {};
 }
 
+export async function fetchDocumentReconcileCandidates({ entityId, document_id, q = '', limit = 20, signal } = {}) {
+   const qs = new URLSearchParams();
+   qs.set('entityId', String(entityId));
+   qs.set('document_id', String(document_id));
+   qs.set('limit', String(limit));
+   if (q) qs.set('q', q);
+
+   const res = await fetchWithAuth(`/banks/reconcile/document-candidates?${qs.toString()}`, { signal });
+   await ensureOk(res, 'No se pudieron buscar movimientos bancarios candidatos');
+   return (await parseJsonSafe(res)) || {};
+}
+
 export async function reconcileBankTransaction({ entityId, bank_transaction_id, target_bank_transaction_id, amount }) {
    const body = { entityId, bank_transaction_id, target_bank_transaction_id };
    if (amount != null && amount !== '') body.amount = Number(amount);

@@ -10,6 +10,7 @@ import Modal from 'components/Modal';
 import ManualExpenseForm from './components/ManualExpenseForm';
 import EditExpenseForm from './components/EditExpenseForm';
 import QuickClassifyModal from '../../components/accounting/QuickClassifyModal';
+import DocumentReconcileModal from '../../components/bank/DocumentReconcileModal';
 import { deleteManualIncome, listSiiDocuments } from '../../services/siiDocumentsApi';
 import { SII_DOCUMENT_FILTERS, getSiiDocumentTypeLabel } from '../../utils/siiConstants';
 import { toast } from 'components/Toaster';
@@ -28,7 +29,9 @@ import {
    ArrowPathIcon,
    TrashIcon,
    ReceiptRefundIcon,
-   MagnifyingGlassIcon
+   MagnifyingGlassIcon,
+   LinkIcon,
+   CheckCircleIcon
 } from '@heroicons/react/24/outline';
 
 function ResumenPagina({ items }) {
@@ -161,6 +164,8 @@ export default function PurchaseInvoicesAdapted() {
    const [documentToEdit, setDocumentToEdit] = useState(null);
    const [classifyModalOpen, setClassifyModalOpen] = useState(false);
    const [documentToClassify, setDocumentToClassify] = useState(null);
+   const [reconcileModalOpen, setReconcileModalOpen] = useState(false);
+   const [documentToReconcile, setDocumentToReconcile] = useState(null);
    const [centralizationFilter, setCentralizationFilter] = useState(() => sp.get('centralization') || 'all');
 
    const [rows, setRows] = useState([]);
@@ -253,8 +258,17 @@ export default function PurchaseInvoicesAdapted() {
    const resetToFirstPage = () => setPage(1);
 
    const handleQuickClassify = (doc) => {
-      setDocumentToClassify(doc);
+      setDocumentToClassify({
+         ...doc,
+         counterparty_rut: doc?.counterparty_rut,
+         counterparty_name: doc?.counterparty_name || doc?.client_name || '',
+      });
       setClassifyModalOpen(true);
+   };
+
+   const handleOpenReconcile = (doc) => {
+      setDocumentToReconcile(doc);
+      setReconcileModalOpen(true);
    };
 
    const openEditModal = (row) => {
@@ -443,6 +457,14 @@ export default function PurchaseInvoicesAdapted() {
             onClose={() => setClassifyModalOpen(false)}
             document={documentToClassify}
             entityId={entityId}
+            onSuccess={reloadData}
+         />
+
+         <DocumentReconcileModal
+            isOpen={reconcileModalOpen}
+            onClose={() => setReconcileModalOpen(false)}
+            document={documentToReconcile}
+            entityId={entityId || activeEntityId}
             onSuccess={reloadData}
          />
 
@@ -677,47 +699,101 @@ export default function PurchaseInvoicesAdapted() {
                               <td className="p-4 text-right font-bold text-text-main">{clp(r.total)}</td>
                               <td className="p-4 text-center whitespace-nowrap">
                                  {r.is_reconciled ? (
-                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-600 ring-1 ring-emerald-500/20">
-                                       Pagado
-                                    </span>
+                                    <button
+                                       type="button"
+                                       onClick={() => handleOpenReconcile(r)}
+                                       className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-600 ring-1 ring-emerald-500/20 hover:bg-emerald-500/20 hover:ring-emerald-500/40 transition-all cursor-pointer shadow-none active:scale-95"
+                                       title="Ver movimientos bancarios vinculados o desconciliar"
+                                    >
+                                       <CheckCircleIcon className="w-3.5 h-3.5 shrink-0" />
+                                       <span>Pagado</span>
+                                    </button>
                                  ) : (
-                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-600 ring-1 ring-amber-500/20" title={r.remaining_amount ? `Pendiente: ${clp(r.remaining_amount)}` : 'Sin egreso bancario vinculado'}>
-                                       Sin conciliar
-                                    </span>
+                                    <button
+                                       type="button"
+                                       onClick={() => handleOpenReconcile(r)}
+                                       className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-600 ring-1 ring-amber-500/20 hover:bg-amber-500/20 hover:ring-amber-500/40 transition-all cursor-pointer shadow-none active:scale-95"
+                                       title={r.remaining_amount ? `Pendiente: ${clp(r.remaining_amount)} • Clic para conciliar con banco` : 'Clic para buscar cargo bancario y conciliar'}
+                                    >
+                                       <LinkIcon className="w-3.5 h-3.5 shrink-0" />
+                                       <span>Sin conciliar</span>
+                                    </button>
                                  )}
                               </td>
                               <td className="p-4 text-center whitespace-nowrap">
                                  {r.is_classified ? (
-                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-500/10 text-blue-600 ring-1 ring-blue-500/20" title={r.accounting_account?.name || ''}>
-                                       <span>{r.accounting_account?.code || 'Clasificado'}</span>
+                                    <button
+                                       type="button"
+                                       onClick={() => handleQuickClassify(r)}
+                                       className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-blue-500/10 text-blue-600 ring-1 ring-blue-500/20 hover:bg-blue-500/20 hover:ring-blue-500/40 transition-all cursor-pointer shadow-none active:scale-95 text-left"
+                                       title="Clic para ver o cambiar la regla contable asignada a este proveedor"
+                                    >
+                                       <span className="font-mono">{r.accounting_account?.code || 'Clasificado'}</span>
                                        {r.accounting_account?.name && (
                                           <span className="text-[11px] font-normal text-text-soft truncate max-w-[120px]">
                                              {r.accounting_account.name}
                                           </span>
                                        )}
-                                    </span>
+                                    </button>
                                  ) : (
-                                    <span
-                                       className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-600 ring-1 ring-amber-500/20"
-                                       title="Sin clasificar"
+                                    <button
+                                       type="button"
+                                       onClick={() => handleQuickClassify(r)}
+                                       className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-600 ring-1 ring-amber-500/20 hover:bg-amber-500/20 hover:ring-amber-500/40 transition-all cursor-pointer shadow-none active:scale-95"
+                                       title="Clic para crear regla contable directamente para este proveedor"
                                     >
-                                       Sin clasificar
-                                    </span>
+                                       <TagIcon className="w-3.5 h-3.5 shrink-0" />
+                                       <span>Sin clasificar</span>
+                                    </button>
                                  )}
                               </td>
                               <td className="p-4 text-center">
                                  <div className="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
-                                    {r.source === 'MANUAL' ? (
+                                    <button
+                                       type="button"
+                                       onClick={() => handleOpenReconcile(r)}
+                                       className={`p-1.5 rounded-lg transition outline-none focus:ring-2 focus:ring-brand ${
+                                          r.is_reconciled
+                                             ? 'text-emerald-600 hover:bg-emerald-500/10'
+                                             : 'text-text-soft hover:text-brand hover:bg-brand/10'
+                                       }`}
+                                       title={r.is_reconciled ? "Ver conciliación bancaria" : "Conciliar con banco"}
+                                    >
+                                       <LinkIcon className="w-4 h-4" />
+                                    </button>
+
+                                    <button
+                                       type="button"
+                                       onClick={() => handleQuickClassify(r)}
+                                       className={`p-1.5 rounded-lg transition outline-none focus:ring-2 focus:ring-blue-500 ${
+                                          r.is_classified
+                                             ? 'text-blue-600 hover:bg-blue-500/10'
+                                             : 'text-text-soft hover:text-blue-600 hover:bg-blue-500/10'
+                                       }`}
+                                       title={r.is_classified ? "Editar regla contable" : "Crear regla contable"}
+                                    >
+                                       <TagIcon className="w-4 h-4" />
+                                    </button>
+
+                                    {r.source === 'MANUAL' && (
                                        <>
-                                          <button onClick={() => openEditModal(r)} className="p-1.5 rounded-lg text-text-soft hover:text-brand hover:bg-brand/10 transition outline-none focus:ring-2 focus:ring-brand" title="editar compra">
-                                             <PencilSquareIcon className="w-5 h-5" />
+                                          <button
+                                             type="button"
+                                             onClick={() => openEditModal(r)}
+                                             className="p-1.5 rounded-lg text-text-soft hover:text-brand hover:bg-brand/10 transition outline-none focus:ring-2 focus:ring-brand"
+                                             title="editar compra"
+                                          >
+                                             <PencilSquareIcon className="w-4 h-4" />
                                           </button>
-                                          <button onClick={() => handleDelete(r.id)} className="p-1.5 rounded-lg text-text-soft hover:text-danger hover:bg-danger/10 transition outline-none focus:ring-2 focus:ring-danger" title="eliminar compra">
-                                             <TrashIcon className="w-5 h-5" />
+                                          <button
+                                             type="button"
+                                             onClick={() => handleDelete(r.id)}
+                                             className="p-1.5 rounded-lg text-text-soft hover:text-danger hover:bg-danger/10 transition outline-none focus:ring-2 focus:ring-danger"
+                                             title="eliminar compra"
+                                          >
+                                             <TrashIcon className="w-4 h-4" />
                                           </button>
                                        </>
-                                    ) : (
-                                       <span className="text-xs text-text-soft italic">no editable</span>
                                     )}
                                  </div>
                               </td>
