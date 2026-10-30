@@ -1938,6 +1938,10 @@ class BankService {
             bt.amount AS bank_amount,
             bt.issued_at AS bank_issued_at,
             bt.description AS bank_description,
+            bt.document_ref,
+            ba.bank_name,
+            ba.account_number,
+            ba.currency,
             d.doc_type_code,
             d.folio,
             d.issue_date,
@@ -1945,6 +1949,7 @@ class BankService {
             d.total_amount AS doc_amount
          FROM bank_transaction_documents btd
          JOIN entity_bank_transactions bt ON bt.id = btd.entity_bank_transaction_id AND bt.entity_id = :e
+         LEFT JOIN entity_bank_accounts ba ON ba.id = bt.entity_bank_account_id
          JOIN entity_sii_documents d ON d.id = btd.entity_sii_document_id AND d.entity_id = :e
          WHERE 1=1
             ${whereTx}
@@ -2005,7 +2010,25 @@ class BankService {
          );
       }
 
-      return { total: Number(total || 0) + bankRows.length, rows: [...rows, ...bankRows] };
+      const mappedRows = rows.map((row) => {
+         const plain = BankService.#decryptAccountNumberFromStorage(row.account_number);
+         const masked = plain
+            ? BankService.#maskAccountNumber(plain)
+            : (() => {
+               const last4 = BankService.#extractLast4FromStorage(row.account_number);
+               return last4 ? `****${last4}` : '';
+            })();
+
+         return {
+            ...row,
+            bank_name: row.bank_name || 'Banco',
+            account_label: row.bank_name ? `${row.bank_name} ${masked}`.trim() : masked,
+            issued_at: row.bank_issued_at,
+            description: row.bank_description,
+         };
+      });
+
+      return { total: Number(total || 0) + bankRows.length, rows: [...mappedRows, ...bankRows] };
    }
 
    async #reconcileWithTx({ entityId, bank_transaction_id, document_id, amount = null, method = 'manual', t }) {

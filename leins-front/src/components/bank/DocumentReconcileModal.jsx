@@ -9,15 +9,12 @@ import {
 } from '../../services/reconcileApi';
 import { toast } from '../Toaster';
 import {
-   BanknotesIcon,
    BuildingLibraryIcon,
    CalendarDaysIcon,
    CheckCircleIcon,
    ArrowPathIcon,
    MagnifyingGlassIcon,
    SparklesIcon,
-   TagIcon,
-   XMarkIcon,
    LinkIcon,
    ArrowUturnLeftIcon,
 } from '@heroicons/react/24/outline';
@@ -68,6 +65,8 @@ export default function DocumentReconcileModal({
       }
    };
 
+   const isPaid = Boolean(doc?.is_reconciled);
+
    const loadCandidates = useCallback(async (signal) => {
       if (!entityId || !doc?.id) return;
       setLoadingCandidates(true);
@@ -116,11 +115,16 @@ export default function DocumentReconcileModal({
       }
 
       const ctrl = new AbortController();
-      loadCandidates(ctrl.signal);
+      // Solo buscamos candidatos en cartola si la factura aún NO está totalmente pagada
+      if (!isPaid) {
+         loadCandidates(ctrl.signal);
+      } else {
+         setCandidates([]);
+      }
       loadReconciliations();
 
       return () => ctrl.abort();
-   }, [isOpen, doc, entityId, loadCandidates, loadReconciliations]);
+   }, [isOpen, doc, entityId, isPaid, loadCandidates, loadReconciliations]);
 
    const handleReconcile = async (candidate) => {
       if (!entityId || !doc?.id || !candidate?.id) return;
@@ -148,20 +152,17 @@ export default function DocumentReconcileModal({
    };
 
    const handleUnreconcile = async (recId) => {
-      if (!recId || !entityId) return;
-      const isConfirmed = window.confirm('¿Está seguro de que desea deshacer esta conciliación bancaria?');
-      if (!isConfirmed) return;
-
+      if (!entityId || !recId) return;
       setUnreconcilingId(recId);
       try {
-         await unreconcile({
-            id: recId,
+         await unreconcile(recId, {
             entityId,
             kind: 'document',
          });
          toast.success('Conciliación revertida');
          onSuccess?.();
          loadReconciliations();
+         // Al desconciliar, la factura vuelve a estar pendiente, por lo que cargamos sugerencias de cartola
          loadCandidates();
       } catch (err) {
          toast.error(err.message || 'Error al desconciliar');
@@ -172,21 +173,20 @@ export default function DocumentReconcileModal({
 
    if (!isOpen || !doc) return null;
 
-   const isPaid = doc.is_reconciled;
    const docTotal = Number(doc.total_amount ?? doc.total ?? 0);
    const docRemaining = Number(doc.remaining_amount ?? (isPaid ? 0 : docTotal));
 
    return (
       <Modal isOpen={isOpen} onClose={onClose} title="Conciliación con Banco" maxWidth="max-w-2xl">
-         <div className="space-y-5">
-            {/* Cabecera del Documento */}
-            <div className="bg-surface-1 p-4 rounded-2xl border border-border-subtle/70 space-y-3">
-               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border-subtle/50 pb-2.5">
+         <div className="space-y-4">
+            {/* Header del Documento */}
+            <div className="p-4 rounded-2xl bg-surface-1 border border-border-subtle/80 space-y-3">
+               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border-subtle/50 pb-2">
                   <div className="flex items-center gap-2">
-                     <span className="px-2.5 py-0.5 rounded-lg text-xs font-mono font-semibold bg-brand/10 text-brand">
-                        {doc.doc_type || `Tipo ${doc.doc_type_code || ''}`}
+                     <span className="font-semibold text-xs text-brand font-mono bg-brand/10 px-2 py-0.5 rounded-md">
+                        {doc.doc_type || 'Documento'}
                      </span>
-                     <span className="font-mono text-sm font-bold text-heading">
+                     <span className="font-bold text-heading text-sm">
                         Folio #{doc.folio || doc.id}
                      </span>
                      <span className="text-xs text-text-soft">
@@ -235,7 +235,7 @@ export default function DocumentReconcileModal({
                </div>
             </div>
 
-            {/* Si ya está pagado/conciliado: Mostrar detalle de conciliación actual */}
+            {/* Sección de Movimientos Bancarios Vinculados */}
             {reconciliations.length > 0 && (
                <div className="space-y-2">
                   <div className="flex items-center gap-1.5 text-xs font-semibold text-text-soft uppercase tracking-wider">
@@ -245,20 +245,28 @@ export default function DocumentReconcileModal({
 
                   <div className="divide-y divide-border-subtle/50 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-3 space-y-2">
                      {reconciliations.map((rec) => {
-                        const tx = rec.bank_transaction || rec.BankTransaction || rec;
+                        const bankName = rec.bank_name || rec.bank_account?.bank_name || 'Banco';
+                        const accountLabel = rec.account_label || '';
+                        const txDate = rec.bank_issued_at || rec.issued_at;
+                        const txDesc = rec.bank_description || rec.description;
+                        const txAmount = rec.amount_applied || rec.bank_amount || rec.amount;
+
                         return (
                            <div key={rec.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 first:pt-0">
                               <div className="space-y-0.5 text-xs">
-                                 <div className="font-semibold text-heading flex items-center gap-2">
-                                    <BuildingLibraryIcon className="w-4 h-4 text-brand" />
-                                    <span>{tx.bank_account?.bank_name || 'Banco'}</span>
-                                    <span className="font-mono text-text-soft">{fmtDate(tx.issued_at)}</span>
+                                 <div className="font-semibold text-heading flex flex-wrap items-center gap-2">
+                                    <BuildingLibraryIcon className="w-4 h-4 text-brand shrink-0" />
+                                    <span>{bankName}</span>
+                                    {accountLabel && <span className="font-mono text-text-soft text-[11px]">• {accountLabel}</span>}
+                                    {txDate && <span className="font-mono text-text-soft text-[11px]">• {fmtDate(txDate)}</span>}
                                  </div>
-                                 <div className="text-text-main text-[11.5px] truncate max-w-[360px]" title={tx.description}>
-                                    {tx.description}
-                                 </div>
+                                 {txDesc && (
+                                    <div className="text-text-main text-[11.5px] truncate max-w-[380px]" title={txDesc}>
+                                       {txDesc}
+                                    </div>
+                                 )}
                                  <div className="text-text-soft font-mono text-[11px]">
-                                    Monto pagado: <span className="font-bold text-heading">{clp(rec.amount_applied || tx.amount)}</span>
+                                    Monto pagado: <span className="font-bold text-heading">{clp(txAmount)}</span>
                                  </div>
                               </div>
 
@@ -267,7 +275,7 @@ export default function DocumentReconcileModal({
                                     type="button"
                                     onClick={() => handleUnreconcile(rec.id)}
                                     disabled={unreconcilingId === rec.id}
-                                    className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-danger hover:bg-danger/10 border border-danger/20 rounded-xl transition disabled:opacity-50"
+                                    className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-danger hover:bg-danger/10 border border-danger/20 rounded-xl transition disabled:opacity-50 cursor-pointer"
                                     title="Deshacer esta conciliación"
                                  >
                                     <ArrowUturnLeftIcon className="w-3.5 h-3.5" />
@@ -281,128 +289,141 @@ export default function DocumentReconcileModal({
                </div>
             )}
 
-            {/* Sección de Búsqueda y Sugerencias de Movimientos Bancarios */}
-            <div className="space-y-3">
-               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div className="flex items-center gap-1.5 text-xs font-semibold text-text-soft uppercase tracking-wider">
-                     <SparklesIcon className="w-4 h-4 text-brand" />
-                     {isPaid ? 'Buscar otros movimientos en cartola' : 'Cargos y transferencias en cartola (Sin conciliar)'}
+            {/* Si ya está pagado: Mostramos aviso informativo y NO mostramos la búsqueda de cartola */}
+            {isPaid ? (
+               <div className="p-4 rounded-2xl bg-surface-1 border border-border-subtle/70 text-center space-y-1">
+                  <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-600">
+                     <CheckCircleIcon className="w-4 h-4" />
+                     <span>Esta factura se encuentra totalmente pagada y conciliada con el banco</span>
                   </div>
-
-                  <div className="relative w-full sm:w-64">
-                     <input
-                        type="text"
-                        className="w-full h-9 pl-8 pr-3 text-xs rounded-xl border border-border-subtle bg-bg-content text-text-main placeholder-text-soft/70 focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition shadow-sm"
-                        placeholder="Buscar por monto o glosa..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                     />
-                     <MagnifyingGlassIcon className="w-3.5 h-3.5 text-text-soft absolute left-2.5 top-2.5" />
-                  </div>
+                  <p className="text-[11.5px] text-text-soft">
+                     Para vincularla a un movimiento diferente, primero haz clic en &quot;Desconciliar&quot; en el movimiento superior.
+                  </p>
                </div>
+            ) : (
+               /* Sección de Búsqueda y Sugerencias de Movimientos Bancarios (Solo cuando está Sin Conciliar) */
+               <div className="space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                     <div className="flex items-center gap-1.5 text-xs font-semibold text-text-soft uppercase tracking-wider">
+                        <SparklesIcon className="w-4 h-4 text-brand" />
+                        Cargos y transferencias en cartola (Sin conciliar)
+                     </div>
 
-               {loadingCandidates ? (
-                  <div className="p-8 text-center text-brand font-medium text-xs flex items-center justify-center gap-2">
-                     <ArrowPathIcon className="w-4 h-4 animate-spin" />
-                     Buscando coincidencias en la cartola bancaria...
+                     <div className="relative w-full sm:w-64">
+                        <input
+                           type="text"
+                           className="w-full h-9 pl-8 pr-3 text-xs rounded-xl border border-border-subtle bg-bg-content text-text-main placeholder-text-soft/70 focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition shadow-sm"
+                           placeholder="Buscar por monto o glosa..."
+                           value={searchQuery}
+                           onChange={(e) => setSearchQuery(e.target.value)}
+                        />
+                        <MagnifyingGlassIcon className="w-3.5 h-3.5 text-text-soft absolute left-2.5 top-2.5" />
+                     </div>
                   </div>
-               ) : candidates.length === 0 ? (
-                  <div className="p-8 text-center bg-surface-1 rounded-2xl border border-border-subtle text-text-soft text-xs space-y-1">
-                     <p className="font-semibold text-text-main">No se encontraron cargos bancarios pendientes coincidentes.</p>
-                     <p>Puedes ingresar palabras clave o el monto en el buscador superior para revisar la cartola.</p>
-                  </div>
-               ) : (
-                  <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
-                     {candidates.map((cand) => {
-                        const isReconciling = reconcilingId === cand.id;
-                        return (
-                           <div
-                              key={cand.id}
-                              className="p-3.5 rounded-2xl border border-border-subtle/70 bg-surface-1 hover:border-brand/40 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 group"
-                           >
-                              <div className="space-y-1 text-xs flex-1 min-w-0">
-                                 {/* Badges de Coincidencia */}
-                                 <div className="flex flex-wrap items-center gap-1.5 mb-1">
-                                    {cand.is_exact_amount && (
-                                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-emerald-500/10 text-emerald-600 ring-1 ring-emerald-500/20">
-                                          🎯 Mismo monto
-                                       </span>
-                                    )}
-                                    {cand.is_rut_match && (
-                                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-blue-500/10 text-blue-600 ring-1 ring-blue-500/20">
-                                          🏢 Coincide RUT
-                                       </span>
-                                    )}
-                                    {cand.is_name_match && (
-                                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-purple-500/10 text-purple-600 ring-1 ring-purple-500/20">
-                                          📝 Proveedor en glosa
-                                       </span>
-                                    )}
-                                 </div>
 
-                                 <div className="font-semibold text-heading truncate text-sm" title={cand.description}>
-                                    {cand.description || '(Sin descripción)'}
-                                 </div>
-
-                                 <div className="flex flex-wrap items-center gap-3 text-[11px] text-text-soft font-mono">
-                                    <span className="flex items-center gap-1">
-                                       <CalendarDaysIcon className="w-3.5 h-3.5" />
-                                       {fmtDate(cand.issue_date)}
-                                    </span>
-                                    <span>•</span>
-                                    <span>{cand.account_label || 'Cuenta Bancaria'}</span>
-                                    {cand.document_ref && (
-                                       <>
-                                          <span>•</span>
-                                          <span>N°: {cand.document_ref}</span>
-                                       </>
-                                    )}
-                                 </div>
-                              </div>
-
-                              <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-2 shrink-0">
-                                 <div className="text-right">
-                                    <div className="text-base font-bold text-brand font-mono">
-                                       {clp(cand.remaining_amount || cand.amount)}
+                  {loadingCandidates ? (
+                     <div className="p-8 text-center text-brand font-medium text-xs flex items-center justify-center gap-2">
+                        <ArrowPathIcon className="w-4 h-4 animate-spin" />
+                        Buscando coincidencias en la cartola bancaria...
+                     </div>
+                  ) : candidates.length === 0 ? (
+                     <div className="p-8 text-center bg-surface-1 rounded-2xl border border-border-subtle text-text-soft text-xs space-y-1">
+                        <p className="font-semibold text-text-main">No se encontraron cargos bancarios pendientes coincidentes.</p>
+                        <p>Puedes ingresar palabras clave o el monto en el buscador superior para revisar la cartola.</p>
+                     </div>
+                  ) : (
+                     <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                        {candidates.map((cand) => {
+                           const isReconciling = reconcilingId === cand.id;
+                           return (
+                              <div
+                                 key={cand.id}
+                                 className="p-3.5 rounded-2xl border border-border-subtle/70 bg-surface-1 hover:border-brand/40 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 group"
+                              >
+                                 <div className="space-y-1 text-xs flex-1 min-w-0">
+                                    {/* Badges de Coincidencia (sin emojis) */}
+                                    <div className="flex flex-wrap items-center gap-1.5 mb-1">
+                                       {cand.is_exact_amount && (
+                                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-emerald-500/10 text-emerald-700 ring-1 ring-emerald-500/20">
+                                             Mismo monto
+                                          </span>
+                                       )}
+                                       {cand.is_rut_match && (
+                                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-blue-500/10 text-blue-700 ring-1 ring-blue-500/20">
+                                             Coincide RUT
+                                          </span>
+                                       )}
+                                       {cand.is_name_match && (
+                                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-purple-500/10 text-purple-700 ring-1 ring-purple-500/20">
+                                             Proveedor en glosa
+                                          </span>
+                                       )}
                                     </div>
-                                    {cand.remaining_amount < cand.amount && (
-                                       <div className="text-[10px] text-text-soft">
-                                          Total: {clp(cand.amount)}
-                                       </div>
-                                    )}
+
+                                    <div className="font-semibold text-heading truncate text-sm" title={cand.description}>
+                                       {cand.description || '(Sin descripción)'}
+                                    </div>
+
+                                    <div className="flex flex-wrap items-center gap-3 text-[11px] text-text-soft font-mono">
+                                       <span className="flex items-center gap-1">
+                                          <CalendarDaysIcon className="w-3.5 h-3.5" />
+                                          {fmtDate(cand.issue_date)}
+                                       </span>
+                                       <span>•</span>
+                                       <span>{cand.account_label || 'Cuenta Bancaria'}</span>
+                                       {cand.document_ref && (
+                                          <>
+                                             <span>•</span>
+                                             <span>N°: {cand.document_ref}</span>
+                                          </>
+                                       )}
+                                    </div>
                                  </div>
 
-                                 <button
-                                    type="button"
-                                    onClick={() => handleReconcile(cand)}
-                                    disabled={isReconciling || Boolean(reconcilingId)}
-                                    className="px-3 py-1.5 rounded-xl text-xs font-bold text-white bg-brand hover:opacity-90 shadow-sm transition disabled:opacity-50 flex items-center gap-1.5"
-                                 >
-                                    {isReconciling ? (
-                                       <>
-                                          <ArrowPathIcon className="w-3.5 h-3.5 animate-spin" />
-                                          Conciliando...
-                                       </>
-                                    ) : (
-                                       <>
-                                          <LinkIcon className="w-3.5 h-3.5" />
-                                          Conciliar
-                                       </>
-                                    )}
-                                 </button>
+                                 <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-2 shrink-0">
+                                    <div className="text-right">
+                                       <div className="text-base font-bold text-brand font-mono">
+                                          {clp(cand.remaining_amount || cand.amount)}
+                                       </div>
+                                       {cand.remaining_amount < cand.amount && (
+                                          <div className="text-[10px] text-text-soft">
+                                             Total: {clp(cand.amount)}
+                                          </div>
+                                       )}
+                                    </div>
+
+                                    <button
+                                       type="button"
+                                       onClick={() => handleReconcile(cand)}
+                                       disabled={isReconciling || Boolean(reconcilingId)}
+                                       className="px-3 py-1.5 rounded-xl text-xs font-bold text-white bg-brand hover:opacity-90 shadow-sm transition disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+                                    >
+                                       {isReconciling ? (
+                                          <>
+                                             <ArrowPathIcon className="w-3.5 h-3.5 animate-spin" />
+                                             Conciliando...
+                                          </>
+                                       ) : (
+                                          <>
+                                             <LinkIcon className="w-3.5 h-3.5" />
+                                             Conciliar
+                                          </>
+                                       )}
+                                    </button>
+                                 </div>
                               </div>
-                           </div>
-                        );
-                     })}
-                  </div>
-               )}
-            </div>
+                           );
+                        })}
+                     </div>
+                  )}
+               </div>
+            )}
 
             <div className="flex justify-end pt-2 border-t border-border-subtle/50">
                <button
                   type="button"
                   onClick={onClose}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-text-soft hover:text-heading bg-surface-2 transition"
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-text-soft hover:text-heading bg-surface-2 transition cursor-pointer"
                >
                   Cerrar
                </button>
