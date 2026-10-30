@@ -26,6 +26,27 @@ setupModels(sequelize);
 (async () => {
    try {
       await sequelize.authenticate();
+
+      // Asegurar columna de excepción contable en entity_sii_documents si no existe
+      try {
+         const [results] = await sequelize.query(`
+            SELECT COUNT(*) AS cnt 
+            FROM information_schema.COLUMNS 
+            WHERE TABLE_SCHEMA = DATABASE() 
+              AND TABLE_NAME = 'entity_sii_documents' 
+              AND COLUMN_NAME = 'accounting_account_id'
+         `);
+         const count = Number(results[0]?.cnt || results[0]?.CNT || 0);
+         if (count === 0) {
+            await sequelize.query(`
+               ALTER TABLE entity_sii_documents 
+               ADD COLUMN accounting_account_id INT NULL
+            `);
+         }
+      } catch {
+         // Silently ignore si la tabla aun no existe
+      }
+
       if (!isProd) {
          // Ejecuta sync solo si lo pides explícitamente en dev
          if (process.env.DB_SYNC === 'true') {
