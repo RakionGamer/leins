@@ -704,20 +704,18 @@ export default function PurchaseInvoicesAdapted() {
                                     <button
                                        type="button"
                                        onClick={() => handleOpenReconcile(r)}
-                                       className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-600 ring-1 ring-emerald-500/20 hover:bg-emerald-500/20 hover:ring-emerald-500/40 transition-all cursor-pointer shadow-none active:scale-95"
+                                       className="inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-600 ring-1 ring-emerald-500/20 hover:bg-emerald-500/20 hover:ring-emerald-500/40 transition-all cursor-pointer shadow-none active:scale-95"
                                        title="Ver movimientos bancarios vinculados o desconciliar"
                                     >
-                                       <CheckCircleIcon className="w-3.5 h-3.5 shrink-0" />
                                        <span>Pagado</span>
                                     </button>
                                  ) : (
                                     <button
                                        type="button"
                                        onClick={() => handleOpenReconcile(r)}
-                                       className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-600 ring-1 ring-amber-500/20 hover:bg-amber-500/20 hover:ring-amber-500/40 transition-all cursor-pointer shadow-none active:scale-95"
+                                       className="inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-600 ring-1 ring-amber-500/20 hover:bg-amber-500/20 hover:ring-amber-500/40 transition-all cursor-pointer shadow-none active:scale-95"
                                        title={r.remaining_amount ? `Pendiente: ${clp(r.remaining_amount)} • Clic para conciliar con banco` : 'Clic para buscar cargo bancario y conciliar'}
                                     >
-                                       <LinkIcon className="w-3.5 h-3.5 shrink-0" />
                                        <span>Sin conciliar</span>
                                     </button>
                                  )}

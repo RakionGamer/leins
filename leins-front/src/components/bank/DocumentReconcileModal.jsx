@@ -106,25 +106,33 @@ export default function DocumentReconcileModal({
       }
    }, [entityId, doc?.id]);
 
+   // 1. Cargar conciliaciones existentes (solo cuando se abre el modal o cambia el documento)
+   useEffect(() => {
+      if (!isOpen || !doc?.id || !entityId) {
+         setReconciliations([]);
+         return;
+      }
+      loadReconciliations();
+   }, [isOpen, doc?.id, entityId, loadReconciliations]);
+
+   // 2. Cargar candidatos en cartola (cuando se abre el modal o cambia la búsqueda)
    useEffect(() => {
       if (!isOpen || !doc?.id || !entityId) {
          setCandidates([]);
-         setReconciliations([]);
          setSearchQuery('');
          return;
       }
 
-      const ctrl = new AbortController();
-      // Solo buscamos candidatos en cartola si la factura aún NO está totalmente pagada
-      if (!isPaid) {
-         loadCandidates(ctrl.signal);
-      } else {
+      if (isPaid) {
          setCandidates([]);
+         return;
       }
-      loadReconciliations();
+
+      const ctrl = new AbortController();
+      loadCandidates(ctrl.signal);
 
       return () => ctrl.abort();
-   }, [isOpen, doc?.id, entityId, isPaid, loadCandidates, loadReconciliations]);
+   }, [isOpen, doc?.id, entityId, isPaid, loadCandidates]);
 
    const handleReconcile = async (candidate) => {
       if (!entityId || !doc?.id || !candidate?.id) return;
@@ -236,7 +244,7 @@ export default function DocumentReconcileModal({
             </div>
 
             {/* Sección de Movimientos Bancarios Vinculados */}
-            {(loadingReconciliations || reconciliations.length > 0) && (
+            {((isPaid && loadingReconciliations) || reconciliations.length > 0) && (
                <div className="space-y-2">
                   <div className="flex items-center gap-1.5 text-xs font-semibold text-text-soft uppercase tracking-wider">
                      <LinkIcon className="w-4 h-4 text-emerald-600" />
@@ -316,7 +324,7 @@ export default function DocumentReconcileModal({
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                      <div className="flex items-center gap-1.5 text-xs font-semibold text-text-soft uppercase tracking-wider">
                         <SparklesIcon className="w-4 h-4 text-brand" />
-                        Cargos y transferencias en cartola (Sin conciliar)
+                        Cargos y transferencias en cartola
                      </div>
 
                      <div className="relative w-full sm:w-64">
@@ -345,26 +353,41 @@ export default function DocumentReconcileModal({
                      <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
                         {candidates.map((cand) => {
                            const isReconciling = reconcilingId === cand.id;
+                           // Coincide casi todo: mismo monto + (coincide RUT o nombre de proveedor en glosa)
+                           const isBestSuggestion = Boolean(
+                              (cand.is_exact_amount && (cand.is_rut_match || cand.is_name_match)) ||
+                              (cand.is_rut_match && cand.is_name_match)
+                           );
+
                            return (
                               <div
                                  key={cand.id}
-                                 className="p-3.5 rounded-2xl border border-border-subtle/70 bg-surface-1 hover:border-brand/40 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 group"
+                                 className={`p-3.5 rounded-2xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 group ${
+                                    isBestSuggestion
+                                       ? 'border-emerald-500/50 bg-emerald-500/[0.04] ring-1 ring-emerald-500/25 hover:border-emerald-500/70 hover:bg-emerald-500/[0.07]'
+                                       : 'border-border-subtle/70 bg-surface-1 hover:border-brand/40'
+                                 }`}
                               >
-                                 <div className="space-y-1 text-xs flex-1 min-w-0">
-                                    {/* Badges de Coincidencia (sin emojis) */}
-                                    <div className="flex flex-wrap items-center gap-1.5 mb-1">
+                                 <div className="space-y-1.5 text-xs flex-1 min-w-0">
+                                    {/* Badges de Coincidencia (copiando el estilo de píldora de la tabla, sin iconos) */}
+                                    <div className="flex flex-wrap items-center gap-1.5">
+                                       {isBestSuggestion && (
+                                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-600 text-white shadow-xs">
+                                             Mejor sugerencia
+                                          </span>
+                                       )}
                                        {cand.is_exact_amount && (
-                                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-emerald-500/10 text-emerald-700 ring-1 ring-emerald-500/20">
+                                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-600 ring-1 ring-emerald-500/20">
                                              Mismo monto
                                           </span>
                                        )}
                                        {cand.is_rut_match && (
-                                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-blue-500/10 text-blue-700 ring-1 ring-blue-500/20">
+                                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-sky-500/10 text-sky-600 ring-1 ring-sky-500/20">
                                              Coincide RUT
                                           </span>
                                        )}
                                        {cand.is_name_match && (
-                                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-purple-500/10 text-purple-700 ring-1 ring-purple-500/20">
+                                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-500/10 text-purple-600 ring-1 ring-purple-500/20">
                                              Proveedor en glosa
                                           </span>
                                        )}
@@ -374,11 +397,8 @@ export default function DocumentReconcileModal({
                                        {cand.description || '(Sin descripción)'}
                                     </div>
 
-                                    <div className="flex flex-wrap items-center gap-3 text-[11px] text-text-soft font-mono">
-                                       <span className="flex items-center gap-1">
-                                          <CalendarDaysIcon className="w-3.5 h-3.5" />
-                                          {fmtDate(cand.issue_date)}
-                                       </span>
+                                    <div className="flex flex-wrap items-center gap-2.5 text-[11px] text-text-soft font-mono">
+                                       <span>{fmtDate(cand.issue_date)}</span>
                                        <span>•</span>
                                        <span>{cand.account_label || 'Cuenta Bancaria'}</span>
                                        {cand.document_ref && (
@@ -392,7 +412,7 @@ export default function DocumentReconcileModal({
 
                                  <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-2 shrink-0">
                                     <div className="text-right">
-                                       <div className="text-base font-bold text-brand font-mono">
+                                       <div className={`text-base font-bold font-mono ${isBestSuggestion ? 'text-emerald-600' : 'text-brand'}`}>
                                           {clp(cand.remaining_amount || cand.amount)}
                                        </div>
                                        {cand.remaining_amount < cand.amount && (
@@ -406,7 +426,11 @@ export default function DocumentReconcileModal({
                                        type="button"
                                        onClick={() => handleReconcile(cand)}
                                        disabled={isReconciling || Boolean(reconcilingId)}
-                                       className="px-3 py-1.5 rounded-xl text-xs font-bold text-white bg-brand hover:opacity-90 shadow-sm transition disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+                                       className={`px-3 py-1.5 rounded-xl text-xs font-bold text-white shadow-sm transition disabled:opacity-50 flex items-center gap-1.5 cursor-pointer ${
+                                          isBestSuggestion
+                                             ? 'bg-emerald-600 hover:bg-emerald-700'
+                                             : 'bg-brand hover:opacity-90'
+                                       }`}
                                     >
                                        {isReconciling ? (
                                           <>
