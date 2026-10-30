@@ -1920,6 +1920,57 @@ class BankService {
    }
 
    async listReconciliations({ entityId, bank_transaction_id = null, document_id = null, limit = 50, offset = 0 }) {
+      // Optimización ultra-rápida (sub-milisegundo) al consultar por documento
+      if (document_id && !bank_transaction_id) {
+         const rows = await sequelize.query(
+            `
+            SELECT
+               btd.id,
+               btd.entity_bank_transaction_id AS bank_transaction_id,
+               btd.entity_sii_document_id     AS document_id,
+               btd.amount_applied,
+               bt.type AS bank_type,
+               bt.amount AS bank_amount,
+               bt.issued_at AS bank_issued_at,
+               bt.description AS bank_description,
+               bt.document_ref,
+               ba.bank_name,
+               ba.account_number,
+               ba.currency
+            FROM bank_transaction_documents btd
+            JOIN entity_bank_transactions bt ON bt.id = btd.entity_bank_transaction_id
+            LEFT JOIN entity_bank_accounts ba ON ba.id = bt.entity_bank_account_id
+            WHERE btd.entity_sii_document_id = :docId
+            ORDER BY btd.id DESC
+            LIMIT :limit
+            `,
+            {
+               replacements: { docId: Number(document_id), limit: Math.min(Number(limit) || 10, 50) },
+               type: QueryTypes.SELECT,
+            }
+         );
+
+         const mappedRows = rows.map((row) => {
+            const plain = BankService.#decryptAccountNumberFromStorage(row.account_number);
+            const masked = plain
+               ? BankService.#maskAccountNumber(plain)
+               : (() => {
+                  const last4 = BankService.#extractLast4FromStorage(row.account_number);
+                  return last4 ? `****${last4}` : '';
+               })();
+
+            return {
+               ...row,
+               bank_name: row.bank_name || 'Banco',
+               account_label: row.bank_name ? `${row.bank_name} ${masked}`.trim() : masked,
+               issued_at: row.bank_issued_at,
+               description: row.bank_description,
+            };
+         });
+
+         return { total: mappedRows.length, rows: mappedRows };
+      }
+
       const whereTx = bank_transaction_id ? 'AND btd.entity_bank_transaction_id = :bt' : '';
       const whereDoc = document_id ? 'AND btd.entity_sii_document_id = :doc' : '';
 

@@ -47,6 +47,14 @@ setupModels(sequelize);
          // Silently ignore si la tabla aun no existe
       }
 
+      // Asegurar índices de alto rendimiento para búsqueda instantánea de conciliaciones
+      try {
+         await sequelize.query(`CREATE INDEX idx_btd_doc ON bank_transaction_documents (entity_sii_document_id)`);
+      } catch {}
+      try {
+         await sequelize.query(`CREATE INDEX idx_btd_tx ON bank_transaction_documents (entity_bank_transaction_id)`);
+      } catch {}
+
       if (!isProd) {
          // Ejecuta sync solo si lo pides explícitamente en dev
          if (process.env.DB_SYNC === 'true') {

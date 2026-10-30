@@ -107,7 +107,7 @@ export default function DocumentReconcileModal({
    }, [entityId, doc?.id]);
 
    useEffect(() => {
-      if (!isOpen || !doc || !entityId) {
+      if (!isOpen || !doc?.id || !entityId) {
          setCandidates([]);
          setReconciliations([]);
          setSearchQuery('');
@@ -124,7 +124,7 @@ export default function DocumentReconcileModal({
       loadReconciliations();
 
       return () => ctrl.abort();
-   }, [isOpen, doc, entityId, isPaid, loadCandidates, loadReconciliations]);
+   }, [isOpen, doc?.id, entityId, isPaid, loadCandidates, loadReconciliations]);
 
    const handleReconcile = async (candidate) => {
       if (!entityId || !doc?.id || !candidate?.id) return;
@@ -236,56 +236,66 @@ export default function DocumentReconcileModal({
             </div>
 
             {/* Sección de Movimientos Bancarios Vinculados */}
-            {reconciliations.length > 0 && (
+            {(loadingReconciliations || reconciliations.length > 0) && (
                <div className="space-y-2">
                   <div className="flex items-center gap-1.5 text-xs font-semibold text-text-soft uppercase tracking-wider">
                      <LinkIcon className="w-4 h-4 text-emerald-600" />
                      Movimientos Bancarios Vinculados
                   </div>
 
-                  <div className="divide-y divide-border-subtle/50 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-3 space-y-2">
-                     {reconciliations.map((rec) => {
-                        const bankName = rec.bank_name || rec.bank_account?.bank_name || 'Banco';
-                        const accountLabel = rec.account_label || '';
-                        const txDate = rec.bank_issued_at || rec.issued_at;
-                        const txDesc = rec.bank_description || rec.description;
-                        const txAmount = rec.amount_applied || rec.bank_amount || rec.amount;
+                  {loadingReconciliations ? (
+                     <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4 flex items-center justify-between animate-pulse">
+                        <div className="space-y-2">
+                           <div className="h-4 w-48 bg-emerald-500/20 rounded-md"></div>
+                           <div className="h-3 w-64 bg-emerald-500/10 rounded-md"></div>
+                        </div>
+                        <div className="h-8 w-24 bg-emerald-500/10 rounded-xl"></div>
+                     </div>
+                  ) : (
+                     <div className="divide-y divide-border-subtle/50 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-3 space-y-2">
+                        {reconciliations.map((rec) => {
+                           const bankName = rec.bank_name || rec.bank_account?.bank_name || 'Banco';
+                           const accountLabel = rec.account_label || '';
+                           const txDate = rec.bank_issued_at || rec.issued_at;
+                           const txDesc = rec.bank_description || rec.description;
+                           const txAmount = rec.amount_applied || rec.bank_amount || rec.amount;
 
-                        return (
-                           <div key={rec.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 first:pt-0">
-                              <div className="space-y-0.5 text-xs">
-                                 <div className="font-semibold text-heading flex flex-wrap items-center gap-2">
-                                    <BuildingLibraryIcon className="w-4 h-4 text-brand shrink-0" />
-                                    <span>{bankName}</span>
-                                    {accountLabel && <span className="font-mono text-text-soft text-[11px]">• {accountLabel}</span>}
-                                    {txDate && <span className="font-mono text-text-soft text-[11px]">• {fmtDate(txDate)}</span>}
-                                 </div>
-                                 {txDesc && (
-                                    <div className="text-text-main text-[11.5px] truncate max-w-[380px]" title={txDesc}>
-                                       {txDesc}
+                           return (
+                              <div key={rec.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 first:pt-0">
+                                 <div className="space-y-0.5 text-xs">
+                                    <div className="font-semibold text-heading flex flex-wrap items-center gap-2">
+                                       <BuildingLibraryIcon className="w-4 h-4 text-brand shrink-0" />
+                                       <span>{bankName}</span>
+                                       {accountLabel && <span className="font-mono text-text-soft text-[11px]">• {accountLabel}</span>}
+                                       {txDate && <span className="font-mono text-text-soft text-[11px]">• {fmtDate(txDate)}</span>}
                                     </div>
-                                 )}
-                                 <div className="text-text-soft font-mono text-[11px]">
-                                    Monto pagado: <span className="font-bold text-heading">{clp(txAmount)}</span>
+                                    {txDesc && (
+                                       <div className="text-text-main text-[11.5px] truncate max-w-[380px]" title={txDesc}>
+                                          {txDesc}
+                                       </div>
+                                    )}
+                                    <div className="text-text-soft font-mono text-[11px]">
+                                       Monto pagado: <span className="font-bold text-heading">{clp(txAmount)}</span>
+                                    </div>
+                                 </div>
+
+                                 <div>
+                                    <button
+                                       type="button"
+                                       onClick={() => handleUnreconcile(rec.id)}
+                                       disabled={unreconcilingId === rec.id}
+                                       className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-danger hover:bg-danger/10 border border-danger/20 rounded-xl transition disabled:opacity-50 cursor-pointer"
+                                       title="Deshacer esta conciliación"
+                                    >
+                                       <ArrowUturnLeftIcon className="w-3.5 h-3.5" />
+                                       {unreconcilingId === rec.id ? 'Revirtiendo...' : 'Desconciliar'}
+                                    </button>
                                  </div>
                               </div>
-
-                              <div>
-                                 <button
-                                    type="button"
-                                    onClick={() => handleUnreconcile(rec.id)}
-                                    disabled={unreconcilingId === rec.id}
-                                    className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-danger hover:bg-danger/10 border border-danger/20 rounded-xl transition disabled:opacity-50 cursor-pointer"
-                                    title="Deshacer esta conciliación"
-                                 >
-                                    <ArrowUturnLeftIcon className="w-3.5 h-3.5" />
-                                    {unreconcilingId === rec.id ? 'Revirtiendo...' : 'Desconciliar'}
-                                 </button>
-                              </div>
-                           </div>
-                        );
-                     })}
-                  </div>
+                           );
+                        })}
+                     </div>
+                  )}
                </div>
             )}
 
