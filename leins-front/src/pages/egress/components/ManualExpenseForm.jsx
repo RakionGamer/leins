@@ -202,7 +202,7 @@ const ManualExpenseForm = ({ entityId, onSuccess, onCancel }) => {
 
                      <div>
                         <FormInput
-                           label="Número de folio (Opc)"
+                           label="Número de folio"
                            type="text"
                            placeholder="Ej: 10542"
                            disabled={isSubmitting}

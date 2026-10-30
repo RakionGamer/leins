@@ -701,7 +701,7 @@ export default function SalesBoletas() {
                               </button>
                            </th>
                            <th className="p-4 font-semibold text-center">Tipo</th>
-                           <th className="p-4 font-semibold">Receptor (Opc)</th>
+                           <th className="p-4 font-semibold">Receptor</th>
                            <th className="p-4 font-semibold text-right">Exento</th>
                            <th className="p-4 font-semibold text-right">Afecto</th>
                            <th className="p-4 font-semibold text-right">IVA</th>

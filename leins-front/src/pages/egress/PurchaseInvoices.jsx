@@ -178,7 +178,9 @@ export default function PurchaseInvoicesAdapted() {
    const allowedPageSizes = [20, 50, 100, 200];
    const [pageSize, setPageSize] = useState(() => { const n = Number(sp.get('limit')); return allowedPageSizes.includes(n) ? n : 50; });
 
-   const [searchQuery, setSearchQuery] = useState(() => sp.get('q') || '');
+   const [folioQuery, setFolioQuery] = useState(() => sp.get('folio') || '');
+   const debFolioQuery = useDebounced(folioQuery, 300);
+   const [searchQuery, setSearchQuery] = useState(() => sp.get('client') || sp.get('q') || '');
    const debSearchQuery = useDebounced(searchQuery, 300);
    const [docType, setDocType] = useState(() => sp.get('type') || '');
    const [sourceFilter, setSourceFilter] = useState(() => sp.get('source') || '');
@@ -228,7 +230,8 @@ export default function PurchaseInvoicesAdapted() {
          operationType: 'EXPENSE',
          type: docType || undefined,
          excludeType: '1002',
-         q: debSearchQuery?.trim() || undefined,
+         folio: debFolioQuery?.trim() || undefined,
+         client: debSearchQuery?.trim() || undefined,
          source: sourceFilter || undefined,
          month: mode === 'month' ? effectiveMonth : undefined,
          from: mode === 'range' ? (fromDate || undefined) : undefined,
@@ -242,7 +245,7 @@ export default function PurchaseInvoicesAdapted() {
          order,
          signal,
       };
-   }, [docType, debSearchQuery, page, pageSize, sort, order, mode, effectiveMonth, fromDate, toDate, debEntityId, sourceFilter, centralizationFilter]);
+   }, [docType, debFolioQuery, debSearchQuery, page, pageSize, sort, order, mode, effectiveMonth, fromDate, toDate, debEntityId, sourceFilter, centralizationFilter]);
 
    const rangeInvalid = mode === 'range' && fromDate && toDate && new Date(toDate) < new Date(fromDate);
 
@@ -276,6 +279,7 @@ export default function PurchaseInvoicesAdapted() {
    const switchToRange = () => { setMode('range'); setFilterMonth(''); resetToFirstPage(); };
 
    const handleClearFilters = () => {
+      setFolioQuery('');
       setSearchQuery('');
       setEntityId(activeEntityId ? String(activeEntityId) : ''); setDocType(''); setSourceFilter(''); setMode('month'); setFilterMonth(todayYYYYMM());
       setFromDate(''); setToDate(''); setCentralizationFilter('all'); setPageSize(50); resetToFirstPage();
@@ -359,12 +363,13 @@ export default function PurchaseInvoicesAdapted() {
       if (entityId) { p.set('entityId', String(entityId)); p.set('entity_id', String(entityId)); }
       p.set('mode', mode); p.set('sort', sort); p.set('order', order);
       if (centralizationFilter && centralizationFilter !== 'all') p.set('centralization', centralizationFilter);
-      if (searchQuery) p.set('q', searchQuery);
+      if (folioQuery) p.set('folio', folioQuery);
+      if (searchQuery) p.set('client', searchQuery);
       if (mode === 'month') p.set('month', effectiveMonth);
       else { if (fromDate) p.set('from', fromDate); if (toDate) p.set('to', toDate); }
       p.set('page', String(page)); p.set('limit', String(pageSize));
       setSp(p, { replace: true });
-   }, [docType, searchQuery, sourceFilter, entityId, mode, sort, order, effectiveMonth, fromDate, toDate, page, pageSize, centralizationFilter, setSp]);
+   }, [docType, folioQuery, searchQuery, sourceFilter, entityId, mode, sort, order, effectiveMonth, fromDate, toDate, page, pageSize, centralizationFilter, setSp]);
 
    const exportCSV = async () => {
       setExportingCsv(true);
@@ -486,13 +491,28 @@ export default function PurchaseInvoicesAdapted() {
                         <input id="entityId" disabled className={ctrl} type="text" placeholder="Entidad" value={entityId} />
                      </div>
 
-                     <div className="space-y-1.5 md:col-span-3">
-                        <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider">Buscar</label>
+                     <div className="space-y-1.5 md:col-span-2">
+                        <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider">Folio</label>
                         <div className="relative">
                            <input
                               type="text"
                               className={`${ctrl} pl-9`}
-                              placeholder="Folio, RUT o Razón Social..."
+                              placeholder="N° Folio..."
+                              value={folioQuery}
+                              onChange={(e) => { setFolioQuery(e.target.value); resetToFirstPage(); }}
+                              disabled={loading}
+                           />
+                           <HashtagIcon className="w-4 h-4 text-text-soft absolute left-3 top-3.5" />
+                        </div>
+                     </div>
+
+                     <div className="space-y-1.5 md:col-span-3">
+                        <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider">Proveedor</label>
+                        <div className="relative">
+                           <input
+                              type="text"
+                              className={`${ctrl} pl-9`}
+                              placeholder="RUT o Razón Social..."
                               value={searchQuery}
                               onChange={(e) => { setSearchQuery(e.target.value); resetToFirstPage(); }}
                               disabled={loading}
@@ -520,7 +540,7 @@ export default function PurchaseInvoicesAdapted() {
                         </select>
                      </div>
 
-                     <div className={mode === 'range' ? 'md:col-span-3' : 'md:col-span-3'}>
+                     <div className={mode === 'range' ? 'md:col-span-2' : 'md:col-span-2'}>
                         {mode === 'month' ? (
                            <MonthField value={filterMonth} contextValue={period ? periodToYYYYMM(period) : todayYYYYMM()} onChange={(v) => { setFilterMonth(v); resetToFirstPage(); }} disabled={loading} />
                         ) : (
@@ -528,13 +548,13 @@ export default function PurchaseInvoicesAdapted() {
                         )}
                      </div>
 
-                     <div className="space-y-1.5 md:col-span-2">
+                     <div className="space-y-1.5 md:col-span-1">
                         <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider">Por Pág.</label>
                         <select disabled={loading} className={selectCtrl} value={pageSize} onChange={(e) => { setPageSize(Math.min(200, Number(e.target.value) || 50)); resetToFirstPage(); }}>
-                           <option value={20}>20 filas</option>
-                           <option value={50}>50 filas</option>
-                           <option value={100}>100 filas</option>
-                           <option value={200}>200 filas</option>
+                           <option value={20}>20</option>
+                           <option value={50}>50</option>
+                           <option value={100}>100</option>
+                           <option value={200}>200</option>
                         </select>
                      </div>
                   </div>
