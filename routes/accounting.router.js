@@ -29,6 +29,7 @@ router.delete("/accounts/:id", ensureEntityAccess, validatorHandler(getByIdSchem
 // --- Reglas de proveedores / clientes ---
 router.get("/rules", ensureEntityAccess, controller.getRules);
 router.post("/rules", ensureEntityAccess, validatorHandler(upsertRuleSchema, "body"), controller.upsertRule);
+router.post("/classify-document", ensureEntityAccess, controller.classifyDocument);
 router.post("/rules/bulk", ensureEntityAccess, validatorHandler(upsertBulkRuleSchema, "body"), controller.upsertBulkRules);
 router.get("/rules/counterparties/search", ensureEntityAccess, controller.searchCounterparties);
 router.get("/rules/counterparty/:rut", controller.searchCounterparty);

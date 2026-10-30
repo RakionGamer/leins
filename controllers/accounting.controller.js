@@ -1,7 +1,36 @@
 "use strict";
 
+const boom = require("@hapi/boom");
+const { models } = require("../libs/sequelize");
 const AccountingService = require("../services/accounting.service");
 const service = new AccountingService();
+
+async function assertAccountAdminPermission(req) {
+   const actorId = Number(req.userId || req.user?.sub || req.user?.id);
+   if (!Number.isInteger(actorId) || actorId <= 0) {
+      throw boom.unauthorized("Usuario no autenticado");
+   }
+
+   // 1. SuperAdmin
+   const superAdmin = await models.SuperAdmin.findByPk(actorId, { attributes: ['id', 'state_id'], raw: true });
+   if (superAdmin && Number(superAdmin.state_id) === 1) return true;
+
+   // 2. Scoped Admin
+   const scopedAdmin = await models.Admin.findOne({ where: { super_admin_id: actorId }, attributes: ['id'], raw: true });
+   if (scopedAdmin) return true;
+
+   // 3. User with write access (not read_only)
+   if (req.entityId) {
+      const userEntity = await models.UserEntity.findOne({
+         where: { user_id: actorId, entity_id: req.entityId },
+         attributes: ['read_only'],
+         raw: true
+      });
+      if (userEntity && userEntity.read_only === false) return true;
+   }
+
+   throw boom.forbidden("Solo los usuarios administradores pueden modificar o eliminar cuentas contables");
+}
 
 const getAccounts = async (req, res, next) => {
    try {
@@ -25,6 +54,7 @@ const createAccount = async (req, res, next) => {
 
 const updateAccount = async (req, res, next) => {
    try {
+      await assertAccountAdminPermission(req);
       const entityId = req.entityId;
       const { id } = req.params;
       const account = await service.updateAccount(entityId, id, req.body);
@@ -36,6 +66,7 @@ const updateAccount = async (req, res, next) => {
 
 const deleteAccount = async (req, res, next) => {
    try {
+      await assertAccountAdminPermission(req);
       const entityId = req.entityId;
       const { id } = req.params;
       const result = await service.deleteAccount(entityId, id);
@@ -60,6 +91,16 @@ const getRules = async (req, res, next) => {
       const entityId = req.entityId;
       const rules = await service.listRules(entityId);
       res.json(rules);
+   } catch (error) {
+      next(error);
+   }
+};
+
+const classifyDocument = async (req, res, next) => {
+   try {
+      const entityId = req.entityId;
+      const result = await service.classifyDocument(entityId, req.body);
+      res.json(result);
    } catch (error) {
       next(error);
    }
@@ -247,6 +288,7 @@ module.exports = {
    deleteAccount,
    seedDefaultPlan,
    getRules,
+   classifyDocument,
    upsertRule,
    upsertBulkRules,
    deleteRule,

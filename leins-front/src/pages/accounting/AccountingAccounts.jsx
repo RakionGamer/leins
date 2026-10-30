@@ -3,6 +3,7 @@ import { useEntityRequired } from '../../hooks/useEntityRequired';
 import EntityRequiredNotice from '../../components/EntityRequiredNotice';
 import Modal from '../../components/Modal';
 import AccountSelect from '../../components/accounting/AccountSelect';
+import { useAuth } from '../../context/AuthContext';
 import { toast } from '../../components/Toaster';
 import {
    getAccounts,
@@ -27,6 +28,8 @@ import {
    CurrencyDollarIcon,
    HashtagIcon,
    BookmarkIcon,
+   LockClosedIcon,
+   InformationCircleIcon,
 } from '@heroicons/react/24/outline';
 
 const ctrl = 'w-full h-11 px-3 text-sm rounded-2xl border border-border-subtle bg-bg-content text-text-main placeholder-text-soft/70 focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition shadow-sm';
@@ -330,6 +333,14 @@ export default function AccountingAccounts() {
    };
 
    const handleDelete = async (acc) => {
+      if (!isAdmin) {
+         toast.error('Solo los administradores pueden eliminar cuentas contables.');
+         return;
+      }
+      if (Number(acc.movements_count || 0) > 0) {
+         toast.error(`No se puede eliminar la cuenta ${acc.code}: posee ${acc.movements_count} movimiento(s) contable(s) registrado(s).`);
+         return;
+      }
       if (!window.confirm(`¿Seguro que deseas eliminar la cuenta ${acc.code} - ${acc.name}?`)) return;
       setLoading(true);
       setErr(null);
@@ -562,8 +573,37 @@ export default function AccountingAccounts() {
          </div>
 
          {/* Create / Edit Modal */}
-         <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editingAccount ? 'Editar Cuenta Contable' : 'Crear Nueva Cuenta Contable'} maxWidth="max-w-lg">
+         <Modal
+            isOpen={modalOpen}
+            onClose={() => setModalOpen(false)}
+            title={editingAccount ? (isAdmin ? 'Editar Cuenta Contable' : 'Ver Cuenta Contable (Solo Lectura)') : 'Crear Nueva Cuenta Contable'}
+            maxWidth="max-w-lg"
+         >
+            {(() => {
+               const hasMovements = Number(editingAccount?.movements_count || 0) > 0;
+               const isLockedForNonAdmin = Boolean(editingAccount && !isAdmin);
+
+               return (
             <form onSubmit={handleSubmit} className="space-y-4">
+               {isLockedForNonAdmin && (
+                  <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-start gap-2.5 text-xs text-amber-700">
+                     <LockClosedIcon className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                     <div>
+                        <span className="font-bold block">Acceso Restringido (Solo Lectura)</span>
+                        Solo los usuarios administradores tienen permisos para modificar la configuración de cuentas existentes en el plan contable.
+                     </div>
+                  </div>
+               )}
+
+               {editingAccount && hasMovements && (
+                  <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex items-start gap-2.5 text-xs text-blue-700">
+                     <InformationCircleIcon className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+                     <div>
+                        <span className="font-bold block">Cuenta con {editingAccount.movements_count} movimiento(s) contable(s)</span>
+                        Esta cuenta ya posee asientos registrados en el libro diario, por lo que <strong>no puede ser eliminada</strong>. Su código y naturaleza se mantienen protegidos para mantener la integridad de los balances.
+                     </div>
+                  </div>
+               )}
                {!editingAccount && (
                   <div className="grid grid-cols-2 gap-2 p-1 rounded-2xl bg-surface-2 border border-border-subtle">
                      {[['MAYOR', 'Cuenta mayor'], ['AUXILIAR', 'Cuenta auxiliar']].map(([k, label]) => (
@@ -582,7 +622,8 @@ export default function AccountingAccounts() {
                   <div>
                      <label className="block text-xs font-semibold uppercase text-text-soft mb-1">Tipo de Cuenta</label>
                      <select
-                        className={selectCtrl}
+                        className={`${selectCtrl} ${editingAccount && !isAdmin ? 'opacity-70 bg-surface-2 cursor-not-allowed' : ''}`}
+                        disabled={editingAccount && !isAdmin}
                         value={formData.type}
                         onChange={(e) => {
                            const t = e.target.value;
@@ -649,7 +690,8 @@ export default function AccountingAccounts() {
                      type="text"
                      required
                      placeholder="Ej: Gastos de Operación"
-                     className={ctrl}
+                     className={`${ctrl} ${editingAccount && !isAdmin ? 'opacity-70 bg-surface-2 cursor-not-allowed' : ''}`}
+                     disabled={editingAccount && !isAdmin}
                      value={formData.name}
                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   />
@@ -658,7 +700,8 @@ export default function AccountingAccounts() {
                <div>
                   <label className="block text-xs font-semibold uppercase text-text-soft mb-1">Centro de Costo</label>
                   <select
-                     className={selectCtrl}
+                     className={`${selectCtrl} ${editingAccount && !isAdmin ? 'opacity-70 bg-surface-2 cursor-not-allowed' : ''}`}
+                     disabled={editingAccount && !isAdmin}
                      value={formData.cost_center_requirement}
                      onChange={(e) => setFormData({ ...formData, cost_center_requirement: e.target.value })}
                   >
@@ -675,6 +718,7 @@ export default function AccountingAccounts() {
                         <input
                            type="checkbox"
                            className="w-4 h-4 rounded text-brand focus:ring-brand border-border-subtle"
+                           disabled={editingAccount && !isAdmin}
                            checked={formData.is_title}
                            onChange={(e) => setFormData({ ...formData, is_title: e.target.checked })}
                         />
@@ -684,6 +728,7 @@ export default function AccountingAccounts() {
                         <input
                            type="checkbox"
                            className="w-4 h-4 rounded text-brand focus:ring-brand border-border-subtle"
+                           disabled={editingAccount && !isAdmin}
                            checked={formData.require_rut}
                            onChange={(e) => setFormData({ ...formData, require_rut: e.target.checked })}
                         />
@@ -693,6 +738,7 @@ export default function AccountingAccounts() {
                         <input
                            type="checkbox"
                            className="w-4 h-4 rounded text-brand focus:ring-brand border-border-subtle"
+                           disabled={editingAccount && !isAdmin}
                            checked={formData.require_reference}
                            onChange={(e) => setFormData({ ...formData, require_reference: e.target.checked })}
                         />
@@ -702,6 +748,7 @@ export default function AccountingAccounts() {
                         <input
                            type="checkbox"
                            className="w-4 h-4 rounded text-brand focus:ring-brand border-border-subtle"
+                           disabled={editingAccount && !isAdmin}
                            checked={formData.is_auxiliary}
                            onChange={(e) => setFormData({ ...formData, is_auxiliary: e.target.checked })}
                         />
@@ -717,6 +764,7 @@ export default function AccountingAccounts() {
                         <input
                            type="checkbox"
                            className="w-4 h-4 rounded text-danger focus:ring-danger border-border-subtle"
+                           disabled={editingAccount && !isAdmin}
                            checked={!formData.is_active}
                            onChange={(e) => setFormData({ ...formData, is_active: !e.target.checked })}
                         />
@@ -725,23 +773,55 @@ export default function AccountingAccounts() {
                   </div>
                </div>
 
-               <div className="flex justify-end gap-3 pt-4 border-t border-border-subtle">
-                  <button
-                     type="button"
-                     onClick={() => setModalOpen(false)}
-                     className="px-4 py-2 text-text-soft font-medium hover:text-text-main hover:bg-surface-2 rounded-xl transition"
-                  >
-                     Cancelar
-                  </button>
-                  <button
-                     type="submit"
-                     disabled={submitting}
-                     className="px-5 py-2 bg-brand text-white font-semibold rounded-xl hover:bg-brand-hover shadow-sm transition disabled:opacity-50"
-                  >
-                     {submitting ? 'Guardando...' : 'Guardar Cuenta'}
-                  </button>
+               <div className="flex items-center justify-between pt-4 border-t border-border-subtle">
+                  <div>
+                     {editingAccount && (
+                        <button
+                           type="button"
+                           onClick={() => {
+                              if (hasMovements) {
+                                 toast.error(`No se puede eliminar: la cuenta posee ${editingAccount.movements_count} movimiento(s) contable(s) registrado(s).`);
+                                 return;
+                              }
+                              if (!isAdmin) {
+                                 toast.error('Solo los administradores pueden eliminar cuentas contables.');
+                                 return;
+                              }
+                              setModalOpen(false);
+                              handleDelete(editingAccount);
+                           }}
+                           disabled={hasMovements || !isAdmin || loading}
+                           className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-danger hover:bg-danger/10 border border-danger/20 rounded-xl transition disabled:opacity-40 disabled:cursor-not-allowed"
+                           title={hasMovements ? `No se puede eliminar: tiene ${editingAccount.movements_count} movimiento(s) contable(s) registrados` : !isAdmin ? 'Solo administradores pueden eliminar cuentas' : 'Eliminar esta cuenta contable'}
+                        >
+                           <TrashIcon className="w-4 h-4" />
+                           <span>Eliminar Cuenta</span>
+                        </button>
+                     )}
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                     <button
+                        type="button"
+                        onClick={() => setModalOpen(false)}
+                        className="px-4 py-2 text-text-soft font-medium hover:text-text-main hover:bg-surface-2 rounded-xl transition text-sm"
+                     >
+                        {isLockedForNonAdmin ? 'Cerrar' : 'Cancelar'}
+                     </button>
+                     {!isLockedForNonAdmin && (
+                        <button
+                           type="submit"
+                           disabled={submitting}
+                           className="px-5 py-2 bg-brand text-white font-semibold rounded-xl hover:bg-brand-hover shadow-sm transition disabled:opacity-50 text-sm"
+                        >
+                           {submitting ? 'Guardando...' : 'Guardar Cuenta'}
+                        </button>
+                     )}
+                  </div>
                </div>
             </form>
+               );
+            })()}
          </Modal>
       </div>
    );

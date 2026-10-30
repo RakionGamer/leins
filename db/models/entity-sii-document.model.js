@@ -60,6 +60,11 @@ const EntitySiiDocumentSchema = {
       type: DataTypes.STRING(20),
       allowNull: true,
    },
+   accounting_account_id: {
+      field: 'accounting_account_id',
+      type: DataTypes.INTEGER,
+      allowNull: true,
+   },
 };
 
 class EntitySiiDocument extends Model {
@@ -70,6 +75,9 @@ class EntitySiiDocument extends Model {
       this.belongsTo(models.State, { as: "state", foreignKey: "state_id" });
 
       this.belongsTo(models.SiiDocumentType, { as: "docType", foreignKey: "doc_type_code", targetKey: "code" });
+      if (models.AccountingAccount) {
+         this.belongsTo(models.AccountingAccount, { as: "accountingAccount", foreignKey: "accounting_account_id" });
+      }
    }
 
    static config(sequelize) {

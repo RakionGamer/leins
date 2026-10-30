@@ -335,7 +335,7 @@ class SiiDocumentsService {
       const remainingSQL = `((${reconcileAmountSQL}) - ${appliedSumSQL} - ${creditNotesSumSQL})`;
       const totalAmountSQL = `COALESCE(${baseQuoted}.total_amount, 0)`;
 
-      const classificationRuleSubquery = `(SELECT ar.account_id FROM accounting_counterparty_rules ar WHERE ar.entity_id = ${baseQuoted}.entity_id AND UPPER(ar.counterparty_rut) = UPPER(${baseQuoted}.counterparty_rut) LIMIT 1)`;
+      const classificationRuleSubquery = `COALESCE(${baseQuoted}.accounting_account_id, (SELECT ar.account_id FROM accounting_counterparty_rules ar WHERE ar.entity_id = ${baseQuoted}.entity_id AND UPPER(ar.counterparty_rut) = UPPER(${baseQuoted}.counterparty_rut) LIMIT 1))`;
 
       const reconStatus = String(reconciliation_status || status || '').toLowerCase();
       if (reconStatus === 'paid' || reconStatus === 'reconciled') {
@@ -416,6 +416,7 @@ class SiiDocumentsService {
          include: [
             { model: models.Entity, as: 'entity', attributes: ['legal_name', 'tax_id'] },
             { model: models.SiiDocumentType, as: 'docType', attributes: ['code', 'slug', 'name'] },
+            ...(models.AccountingAccount ? [{ model: models.AccountingAccount, as: 'accountingAccount', attributes: ['id', 'code', 'name', 'type'], required: false }] : []),
          ],
       };
    }
@@ -423,7 +424,10 @@ class SiiDocumentsService {
    _mapListRow(r, rule) {
       const remaining = Number(r.get?.('remaining_amount') ?? r.total_amount ?? 0);
       const isReconciled = r.doc_type_code === 61 || remaining <= 0;
-      const isClassified = Boolean(rule && rule.account_id);
+      const docAccount = r.accountingAccount || r.accounting_account;
+      const isException = Boolean(r.accounting_account_id && docAccount);
+      const effectiveAccount = isException ? docAccount : rule?.account;
+      const isClassified = Boolean(effectiveAccount && effectiveAccount.id);
       const isCentralized = isReconciled && isClassified;
 
       return {
@@ -453,13 +457,15 @@ class SiiDocumentsService {
          updated_at: r.updated_at,
          is_reconciled: isReconciled,
          reconciliation_status: isReconciled ? 'reconciled' : 'unreconciled',
+         accounting_account_id: r.accounting_account_id || null,
          is_classified: isClassified,
+         is_exception: isException,
          classification_status: isClassified ? 'classified' : 'unclassified',
-         accounting_account: rule?.account ? {
-            id: rule.account.id,
-            code: rule.account.code,
-            name: rule.account.name,
-            type: rule.account.type
+         accounting_account: effectiveAccount ? {
+            id: effectiveAccount.id,
+            code: effectiveAccount.code,
+            name: effectiveAccount.name,
+            type: effectiveAccount.type
          } : null,
          is_centralized: isCentralized,
          centralization_status: isCentralized ? 'centralized' : 'pending'

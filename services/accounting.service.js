@@ -2204,6 +2204,18 @@ class AccountingService {
 
       return models.AccountingAccount.findAll({
          where,
+         attributes: {
+            include: [
+               [
+                  sequelize.literal('(SELECT COUNT(*) FROM accounting_entry_items WHERE accounting_entry_items.account_id = AccountingAccount.id)'),
+                  'movements_count'
+               ],
+               [
+                  sequelize.literal('(SELECT COUNT(*) FROM accounting_counterparty_rules WHERE accounting_counterparty_rules.account_id = AccountingAccount.id)'),
+                  'rules_count'
+               ]
+            ]
+         },
          order: [["code", "ASC"]],
       });
    }
@@ -2265,11 +2277,70 @@ class AccountingService {
 
       const inUseCount = await models.AccountingEntryItem.count({ where: { account_id: id } });
       if (inUseCount > 0) {
-         throw boom.badRequest("No se puede eliminar la cuenta porque tiene asientos contables asociados");
+         throw boom.badRequest(`No se puede eliminar la cuenta ${account.code} - ${account.name} porque posee ${inUseCount} movimiento(s) contable(s) registrado(s) en el libro diario.`);
+      }
+
+      const rulesCount = await models.AccountingRule.count({ where: { account_id: id } });
+      if (rulesCount > 0) {
+         throw boom.badRequest(`No se puede eliminar la cuenta ${account.code} - ${account.name} porque está asociada a ${rulesCount} regla(s) de asignación automática de proveedores o clientes.`);
       }
 
       await account.destroy();
       return { id };
+   }
+
+   // Clasificar documento individual (excepción) o regla general
+   async classifyDocument(entityId, { document_id, account_id, scope = 'RULE', counterparty_rut, counterparty_name }) {
+      const parsedEntityId = Number(entityId);
+      const parsedAccountId = account_id ? Number(account_id) : null;
+      if (!parsedAccountId) throw boom.badRequest("Debe seleccionar una cuenta contable válida");
+
+      const account = await models.AccountingAccount.findOne({
+         where: { id: parsedAccountId, entity_id: parsedEntityId }
+      });
+      if (!account) throw boom.notFound("Cuenta contable no encontrada");
+
+      if (scope === 'DOCUMENT') {
+         if (!document_id) throw boom.badRequest("document_id es requerido para clasificar solo esta factura");
+         const doc = await models.EntitySiiDocument.findOne({
+            where: { id: Number(document_id), entity_id: parsedEntityId }
+         });
+         if (!doc) throw boom.notFound("Documento no encontrado");
+
+         doc.accounting_account_id = parsedAccountId;
+         await doc.save();
+
+         return {
+            success: true,
+            scope: 'DOCUMENT',
+            document_id: doc.id,
+            account_id: parsedAccountId,
+            account: { id: account.id, code: account.code, name: account.name, type: account.type }
+         };
+      }
+
+      // Si scope === 'RULE' (Regla general para este proveedor):
+      if (!counterparty_rut) throw boom.badRequest("RUT de contraparte es requerido para crear una regla general");
+      const rule = await this.upsertRule(parsedEntityId, {
+         counterparty_rut,
+         counterparty_name,
+         account_id: parsedAccountId,
+      });
+
+      // Si este documento en particular tenía una excepción previa, la limpiamos para que siga la regla general
+      if (document_id) {
+         await models.EntitySiiDocument.update(
+            { accounting_account_id: null },
+            { where: { id: Number(document_id), entity_id: parsedEntityId } }
+         );
+      }
+
+      return {
+         success: true,
+         scope: 'RULE',
+         rule,
+         account: { id: account.id, code: account.code, name: account.name, type: account.type }
+      };
    }
 
    // --- Reglas de Asignación por Proveedor/Cliente ---
@@ -2912,8 +2983,9 @@ class AccountingService {
             }
 
             // COMPRA
+            const docAccountId = doc.accounting_account_id;
             const rule = ruleMap.get(rut);
-            const expenseAccountId = rule ? rule.account_id : gastosDefault.id;
+            const expenseAccountId = docAccountId || (rule ? rule.account_id : gastosDefault.id);
             const costCenter = rule ? rule.cost_center : null;
 
             const concept = `${conceptPrefix} Folio ${doc.folio || "-"} - ${name || rut}`;

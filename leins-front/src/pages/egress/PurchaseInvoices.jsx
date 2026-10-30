@@ -347,6 +347,8 @@ export default function PurchaseInvoicesAdapted() {
                   is_reconciled: it.is_reconciled,
                   reconciliation_status: it.reconciliation_status,
                   remaining_amount: it.remaining_amount,
+                  accounting_account_id: it.accounting_account_id,
+                  is_exception: Boolean(it.is_exception),
                   is_classified: it.is_classified,
                   classification_status: it.classification_status,
                   accounting_account: it.accounting_account,
@@ -723,18 +725,32 @@ export default function PurchaseInvoicesAdapted() {
                               <td className="p-4 text-center whitespace-nowrap">
                                  {r.is_classified ? (
                                     <button
-                                       type="button"
-                                       onClick={() => handleQuickClassify(r)}
-                                       className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-blue-500/10 text-blue-600 ring-1 ring-blue-500/20 hover:bg-blue-500/20 hover:ring-blue-500/40 transition-all cursor-pointer shadow-none active:scale-95 text-left"
-                                       title="Clic para ver o cambiar la regla contable asignada a este proveedor"
-                                    >
-                                       <span className="font-mono">{r.accounting_account?.code || 'Clasificado'}</span>
-                                       {r.accounting_account?.name && (
-                                          <span className="text-[11px] font-normal text-text-soft truncate max-w-[120px]">
-                                             {r.accounting_account.name}
-                                          </span>
-                                       )}
-                                    </button>
+                                        type="button"
+                                        onClick={() => handleQuickClassify(r)}
+                                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer shadow-none active:scale-95 text-left ${
+                                           r.is_exception
+                                              ? 'bg-purple-500/10 text-purple-700 ring-1 ring-purple-500/30 hover:bg-purple-500/20 hover:ring-purple-500/50'
+                                              : 'bg-blue-500/10 text-blue-600 ring-1 ring-blue-500/20 hover:bg-blue-500/20 hover:ring-blue-500/40'
+                                        }`}
+                                        title={
+                                           r.is_exception
+                                              ? 'Excepción individual para este documento (clic para cambiar)'
+                                              : 'Regla general de proveedor (clic para ver o cambiar)'
+                                        }
+                                     >
+                                        <span className="font-mono">{r.accounting_account?.code || 'Clasificado'}</span>
+                                        {r.is_exception ? (
+                                           <span className="text-[10px] uppercase font-bold tracking-wide bg-purple-500/20 px-1.5 py-0.2 rounded text-purple-800">
+                                              Excepción
+                                           </span>
+                                        ) : (
+                                           r.accounting_account?.name && (
+                                              <span className="text-[11px] font-normal text-text-soft truncate max-w-[120px]">
+                                                 {r.accounting_account.name}
+                                              </span>
+                                           )
+                                        )}
+                                     </button>
                                  ) : (
                                     <button
                                        type="button"

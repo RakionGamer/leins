@@ -53,6 +53,9 @@ export const getRules = ({ entityId, signal } = {}) =>
 export const upsertRule = (payload) =>
    request('/accounting/rules', { method: 'POST', body: JSON.stringify(payload) }, 'Error al guardar la regla');
 
+export const classifyDocument = (payload) =>
+   request('/accounting/classify-document', { method: 'POST', body: JSON.stringify(payload) }, 'Error al clasificar el documento');
+
 export const upsertBulkRules = (payload) =>
    request('/accounting/rules/bulk', { method: 'POST', body: JSON.stringify(payload) }, 'Error del servidor al guardar masivamente');
 
