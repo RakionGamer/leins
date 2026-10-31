@@ -508,7 +508,7 @@ const searchBankReconcileCandidates = asyncHandler(async (req, res) => {
 });
 
 const searchDocumentReconcileCandidates = asyncHandler(async (req, res) => {
-   const { entityId, document_id, q, limit = '20' } = req.query || {};
+   const { entityId, document_id, operation_type, q, limit = '20' } = req.query || {};
 
    if (!entityId) throw boom.badRequest("entityId requerido");
    if (!document_id) throw boom.badRequest("document_id requerido");
@@ -516,6 +516,7 @@ const searchDocumentReconcileCandidates = asyncHandler(async (req, res) => {
    const out = await service.searchBankCandidatesForDocument({
       entityId: Number(entityId),
       document_id: Number(document_id),
+      operation_type: operation_type || null,
       q: q || null,
       limit: Math.min(Math.max(Number(limit) || 20, 1), 50),
    });

@@ -1593,7 +1593,7 @@ class BankService {
       return { ok: true, rows: mapped, total: mapped.length };
    }
 
-   async searchBankCandidatesForDocument({ entityId, document_id, q = null, limit = 20 }) {
+   async searchBankCandidatesForDocument({ entityId, document_id, operation_type = null, q = null, limit = 20 }) {
       const parsedEntityId = Number(entityId);
       const docId = Number(document_id);
       if (!Number.isInteger(parsedEntityId) || parsedEntityId <= 0) throw boom.badRequest("entityId is required");
@@ -1604,17 +1604,20 @@ class BankService {
       });
       if (!doc) throw boom.notFound("Documento no encontrado para la entidad");
 
-      const op = String(doc.operation_type || '').toUpperCase();
+      const rawOp = operation_type || 
+                    doc.operation_type || 
+                    doc.operationType || 
+                    doc.getDataValue?.('operation_type') || 
+                    doc.getDataValue?.('operationType');
+      const op = String(rawOp || '').toUpperCase();
       let isExpense = true;
-      if (op === 'INCOME') {
+      if (op === 'INCOME' || op === 'VENTA' || op === 'VENTAS') {
          isExpense = false;
-      } else if (op === 'EXPENSE') {
+      } else if (op === 'EXPENSE' || op === 'COMPRA' || op === 'COMPRAS') {
          isExpense = true;
       } else {
          // Fallback por tipo de documento si operation_type es nulo en registros antiguos
          if ([39, 41, 1001].includes(doc.doc_type_code)) {
-            isExpense = false;
-         } else if ([33, 34].includes(doc.doc_type_code) && !doc.received_date && !doc.purchase_type) {
             isExpense = false;
          } else {
             isExpense = true;
@@ -1652,11 +1655,17 @@ class BankService {
       };
 
       if (search) {
+         const cleanDigits = search.replace(/\D/g, '');
+         let amountSearchClause = 'OR CAST(bt.amount AS CHAR) LIKE :searchLike';
+         if (cleanDigits && cleanDigits.length >= 3) {
+            replacements.cleanDigitsLike = `%${cleanDigits}%`;
+            amountSearchClause += ` OR REPLACE(REPLACE(CAST(bt.amount AS CHAR), '.', ''), ',', '') LIKE :cleanDigitsLike`;
+         }
          searchClause = `AND (
             bt.description LIKE :searchLike
             OR bt.document_ref LIKE :searchLike
             OR ba.bank_name LIKE :searchLike
-            OR CAST(bt.amount AS CHAR) LIKE :searchLike
+            ${amountSearchClause}
          )`;
          replacements.searchLike = `%${search}%`;
       }

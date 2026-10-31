@@ -71,9 +71,11 @@ export default function DocumentReconcileModal({
       if (!entityId || !doc?.id) return;
       setLoadingCandidates(true);
       try {
+         const isSale = doc.operation_type === 'INCOME' || [39, 41, 1001].includes(doc.doc_type_code);
          const res = await fetchDocumentReconcileCandidates({
             entityId,
             document_id: doc.id,
+            operation_type: doc.operation_type || (isSale ? 'INCOME' : 'EXPENSE'),
             q: debSearchQuery?.trim() || '',
             limit: 20,
             signal,
@@ -86,7 +88,7 @@ export default function DocumentReconcileModal({
       } finally {
          setLoadingCandidates(false);
       }
-   }, [entityId, doc?.id, debSearchQuery]);
+   }, [entityId, doc?.id, doc?.operation_type, doc?.doc_type_code, debSearchQuery]);
 
    const loadReconciliations = useCallback(async () => {
       if (!entityId || !doc?.id) return;
@@ -203,6 +205,16 @@ export default function DocumentReconcileModal({
 
    const docTotal = Number(doc.total_amount ?? doc.total ?? 0);
    const docRemaining = Number(doc.remaining_amount ?? (isPaid ? 0 : docTotal));
+
+   // Solo UNA sugerencia (la mejor calificada) puede llevar el badge "Mejor sugerencia"
+   // CONDICIÓN ESTRICTA: El monto DEBE coincidir obligatoriamente (is_exact_amount)
+   // y además debe coincidir el RUT o el nombre en glosa.
+   const bestCandidateId = useMemo(() => {
+      const best = candidates.find(
+         (c) => Boolean(c.is_exact_amount) && (Boolean(c.is_rut_match) || Boolean(c.is_name_match))
+      );
+      return best ? best.id : null;
+   }, [candidates]);
 
    return (
       <Modal isOpen={isOpen} onClose={onClose} title="Conciliación con Banco" maxWidth="max-w-2xl">
@@ -374,10 +386,7 @@ export default function DocumentReconcileModal({
                         {candidates.map((cand) => {
                            const isReconciling = reconcilingId === cand.id;
                            // Coincide casi todo: mismo monto + (coincide RUT o nombre de proveedor en glosa)
-                           const isBestSuggestion = Boolean(
-                              (cand.is_exact_amount && (cand.is_rut_match || cand.is_name_match)) ||
-                              (cand.is_rut_match && cand.is_name_match)
-                           );
+                           const isBestSuggestion = bestCandidateId === cand.id;
 
                            return (
                               <div

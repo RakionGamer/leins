@@ -156,11 +156,12 @@ export async function searchBankReconcileCandidates({ entityId, bank_transaction
    return (await parseJsonSafe(res)) || {};
 }
 
-export async function fetchDocumentReconcileCandidates({ entityId, document_id, q = '', limit = 20, signal } = {}) {
+export async function fetchDocumentReconcileCandidates({ entityId, document_id, operation_type, q = '', limit = 20, signal } = {}) {
    const qs = new URLSearchParams();
    qs.set('entityId', String(entityId));
    qs.set('document_id', String(document_id));
    qs.set('limit', String(limit));
+   if (operation_type) qs.set('operation_type', String(operation_type));
    if (q) qs.set('q', q);
 
    const res = await fetchWithAuth(`/banks/reconcile/document-candidates?${qs.toString()}`, { signal });
