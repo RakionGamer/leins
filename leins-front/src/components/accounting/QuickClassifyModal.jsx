@@ -4,10 +4,8 @@ import AccountSelect from './AccountSelect';
 import { getAccounts, classifyDocument } from '../../services/accountingApi';
 import { toast } from '../Toaster';
 import {
-   TagIcon,
    CheckIcon,
    ArrowPathIcon,
-   BuildingOffice2Icon,
    DocumentTextIcon,
    SparklesIcon,
 } from '@heroicons/react/24/outline';
@@ -114,16 +112,12 @@ export default function QuickClassifyModal({ isOpen, onClose, document, entityId
                      onClick={() => setScope('RULE')}
                      className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
                         scope === 'RULE'
-                           ? 'border-brand bg-brand/5 ring-1 ring-brand text-brand'
-                           : 'border-border-subtle bg-bg-content text-text-soft hover:bg-surface-1'
+                           ? 'border-brand bg-brand/5 ring-1 ring-brand'
+                           : 'border-border-subtle bg-bg-content hover:bg-surface-1'
                      }`}
                   >
-                     <div className="flex items-center justify-between mb-1">
-                        <div className="flex items-center gap-1.5 text-xs font-bold text-heading">
-                           <BuildingOffice2Icon className={`w-4 h-4 ${scope === 'RULE' ? 'text-brand' : 'text-text-soft'}`} />
-                           <span>Regla de Proveedor</span>
-                        </div>
-                        {scope === 'RULE' && <CheckIcon className="w-4 h-4 text-brand stroke-2" />}
+                     <div className={`text-xs font-bold mb-1 ${scope === 'RULE' ? 'text-brand' : 'text-heading'}`}>
+                        Regla de Proveedor
                      </div>
                      <p className="text-[11px] text-text-soft leading-snug">
                         Aplica a <strong>todas</strong> las facturas pasadas y futuras de este proveedor.
@@ -136,16 +130,12 @@ export default function QuickClassifyModal({ isOpen, onClose, document, entityId
                      onClick={() => setScope('DOCUMENT')}
                      className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
                         scope === 'DOCUMENT'
-                           ? 'border-purple-600 bg-purple-500/5 ring-1 ring-purple-600 text-purple-700'
-                           : 'border-border-subtle bg-bg-content text-text-soft hover:bg-surface-1'
+                           ? 'border-purple-600 bg-purple-500/5 ring-1 ring-purple-600'
+                           : 'border-border-subtle bg-bg-content hover:bg-surface-1'
                      }`}
                   >
-                     <div className="flex items-center justify-between mb-1">
-                        <div className="flex items-center gap-1.5 text-xs font-bold text-heading">
-                           <TagIcon className={`w-4 h-4 ${scope === 'DOCUMENT' ? 'text-purple-600' : 'text-text-soft'}`} />
-                           <span>Solo esta Factura</span>
-                        </div>
-                        {scope === 'DOCUMENT' && <CheckIcon className="w-4 h-4 text-purple-600 stroke-2" />}
+                     <div className={`text-xs font-bold mb-1 ${scope === 'DOCUMENT' ? 'text-purple-700' : 'text-heading'}`}>
+                        Solo esta Factura
                      </div>
                      <p className="text-[11px] text-text-soft leading-snug">
                         Excepción: imputa <strong>únicamente</strong> este Folio #{document.folio || document.id}.
