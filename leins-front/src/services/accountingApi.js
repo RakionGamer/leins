@@ -34,8 +34,12 @@ export const getAccounts = (param = {}) => {
 export const createAccount = (payload) =>
    request('/accounting/accounts', { method: 'POST', body: JSON.stringify(payload) }, 'Error al crear la cuenta');
 
-export const seedDefaultPlan = ({ entityId }) =>
-   request(`/accounting/accounts/seed?${buildQs({ entityId })}`, { method: 'POST' }, 'Error al cargar el plan por defecto');
+export const seedDefaultPlan = ({ entityId, force = false }) =>
+   request(
+      `/accounting/accounts/seed?${buildQs({ entityId, force: force ? 'true' : undefined })}`,
+      { method: 'POST', body: JSON.stringify({ force }) },
+      'Error al cargar el plan por defecto'
+   );
 
 export const updateAccount = (id, payload, options = {}) => {
    const entityId = options?.entityId || payload?.entityId;

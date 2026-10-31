@@ -79,7 +79,10 @@ const deleteAccount = async (req, res, next) => {
 const seedDefaultPlan = async (req, res, next) => {
    try {
       const entityId = req.entityId;
-      const result = await service.ensureDefaultPlan(entityId);
+      const force = req.query.force === 'true' || req.body?.force === true;
+      const result = force
+         ? await service.resetDefaultPlan(entityId)
+         : await service.ensureDefaultPlan(entityId);
       res.json(result);
    } catch (error) {
       next(error);

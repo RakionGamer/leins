@@ -181,14 +181,24 @@ export default function AccountingAccounts() {
    }, [ready, entityId, loadAccounts]);
 
    const handleSeed = async () => {
+      let force = false;
+      if (accounts.length > 0) {
+         const confirmReset = window.confirm(
+            `Esta entidad ya cuenta con ${accounts.length} cuentas registradas (de pruebas o configuraciones anteriores).\n\n¿Deseas restablecer y cargar el Plan Base oficial de 180 cuentas?\n\n(Nota: Solo se restablecerá si la empresa no posee asientos contables registrados).`
+         );
+         if (!confirmReset) return;
+         force = true;
+      }
+
       setLoading(true);
       setErr(null);
       try {
-         const res = await seedDefaultPlan({ entityId });
+         const res = await seedDefaultPlan({ entityId, force });
          toast.success(res.created ? `Se crearon ${res.created} cuentas base correctamente.` : 'El plan de cuentas base ya está listo.');
          await loadAccounts();
       } catch (e) {
          setErr(e.message || 'No se pudo poblar el plan de cuentas');
+         toast.error(e.message || 'Error al restablecer plan de cuentas');
          setLoading(false);
       }
    };

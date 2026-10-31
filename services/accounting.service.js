@@ -2189,6 +2189,42 @@ class AccountingService {
       return { created: records.length };
    }
 
+   // Restablece y carga el plan base oficial de 180 cuentas (solo si no hay movimientos en libro diario)
+   async resetDefaultPlan(entityId) {
+      const [movResult] = await sequelize.query(`
+         SELECT COUNT(*) AS cnt 
+         FROM accounting_entry_items aei 
+         JOIN accounting_accounts aa ON aa.id = aei.account_id 
+         WHERE aa.entity_id = :entityId
+      `, { replacements: { entityId }, type: sequelize.QueryTypes.SELECT });
+
+      const movementsCount = Number(movResult?.cnt || movResult?.CNT || 0);
+      if (movementsCount > 0) {
+         throw boom.badRequest(`No se puede restablecer el plan base: esta empresa ya cuenta con ${movementsCount} movimiento(s) contable(s) en su libro diario.`);
+      }
+
+      // Desvincular reglas y excepciones previas que apuntaban a las cuentas a borrar
+      try {
+         await sequelize.query(`DELETE FROM accounting_counterparty_rules WHERE entity_id = :entityId`, { replacements: { entityId } });
+      } catch {}
+
+      try {
+         await sequelize.query(`UPDATE entity_sii_documents SET accounting_account_id = NULL WHERE entity_id = :entityId`, { replacements: { entityId } });
+      } catch {}
+
+      // Eliminar cuentas antiguas
+      await models.AccountingAccount.destroy({ where: { entity_id: entityId } });
+
+      // Cargar las 180 cuentas base oficiales
+      const records = DEFAULT_ACCOUNTS_SEED.map((acc) => ({
+         ...acc,
+         entity_id: entityId,
+      }));
+
+      await models.AccountingAccount.bulkCreate(records, { ignoreDuplicates: true });
+      return { created: records.length };
+   }
+
    // Listar cuentas contables de la entidad
    async listAccounts(entityId, { type, q } = {}) {
       await this.ensureDefaultPlan(entityId);
