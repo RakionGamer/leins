@@ -202,6 +202,8 @@ export default function SalesHonorariumReceipts() {
       setClassifyModalOpen(true);
    };
 
+   const reloadData = () => setRefreshKey((k) => k + 1);
+
    const dateFmt = useMemo(() => new Intl.DateTimeFormat('es-CL'), []);
    const fmtDate = (s) => (s ? dateFmt.format(new Date(s)) : '');
 
@@ -422,6 +424,22 @@ export default function SalesHonorariumReceipts() {
 
    return (
       <div className="space-y-6">
+         <DocumentReconcileModal
+            isOpen={reconcileModalOpen}
+            onClose={() => setReconcileModalOpen(false)}
+            document={documentToReconcile}
+            entityId={activeEntityId}
+            onSuccess={reloadData}
+         />
+
+         <QuickClassifyModal
+            isOpen={classifyModalOpen}
+            onClose={() => setClassifyModalOpen(false)}
+            document={documentToClassify}
+            entityId={activeEntityId}
+            onSuccess={reloadData}
+         />
+
          <div className="bg-bg-content rounded-3xl p-5 border border-border-subtle shadow-sm">
             <div className="flex flex-col gap-4 border-b border-border-subtle pb-5 md:flex-row md:items-center md:justify-between">
                <div>
