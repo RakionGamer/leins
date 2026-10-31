@@ -658,7 +658,7 @@ export default function PurchaseInvoicesAdapted() {
                            </th>
                            <th className="p-4 font-semibold text-center">Estado Pago</th>
                            <th className="p-4 font-semibold text-center">Clasificación Contable</th>
-                           <th className="p-4 font-semibold text-center">Acciones</th>
+                           <th className="p-4 font-semibold text-center">Origen</th>
                         </tr>
                      </thead>
                      <tbody className="divide-y divide-border-subtle/50">
@@ -757,52 +757,29 @@ export default function PurchaseInvoicesAdapted() {
                                  )}
                               </td>
                               <td className="p-4 text-center">
-                                 <div className="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
-                                    <button
-                                       type="button"
-                                       onClick={() => handleOpenReconcile(r)}
-                                       className={`p-1.5 rounded-lg transition outline-none focus:ring-2 focus:ring-brand ${
-                                          r.is_reconciled
-                                             ? 'text-emerald-600 hover:bg-emerald-500/10'
-                                             : 'text-text-soft hover:text-brand hover:bg-brand/10'
-                                       }`}
-                                       title={r.is_reconciled ? "Ver conciliación bancaria" : "Conciliar con banco"}
-                                    >
-                                       <LinkIcon className="w-4 h-4" />
-                                    </button>
-
-                                    <button
-                                       type="button"
-                                       onClick={() => handleQuickClassify(r)}
-                                       className={`p-1.5 rounded-lg transition outline-none focus:ring-2 focus:ring-blue-500 ${
-                                          r.is_classified
-                                             ? 'text-blue-600 hover:bg-blue-500/10'
-                                             : 'text-text-soft hover:text-blue-600 hover:bg-blue-500/10'
-                                       }`}
-                                       title={r.is_classified ? "Editar regla contable" : "Crear regla contable"}
-                                    >
-                                       <TagIcon className="w-4 h-4" />
-                                    </button>
-
+                                 <div className="inline-flex items-center gap-1.5 justify-center">
+                                    <span className="inline-flex rounded-full bg-brand/10 px-2.5 py-1 text-xs font-semibold text-brand ring-1 ring-brand/20">
+                                       {r.source || 'SII'}
+                                    </span>
                                     {r.source === 'MANUAL' && (
-                                       <>
+                                       <div className="flex items-center gap-0.5">
                                           <button
                                              type="button"
                                              onClick={() => openEditModal(r)}
-                                             className="p-1.5 rounded-lg text-text-soft hover:text-brand hover:bg-brand/10 transition outline-none focus:ring-2 focus:ring-brand"
-                                             title="editar compra"
+                                             className="p-1 rounded-lg text-text-soft hover:text-brand hover:bg-brand/10 transition cursor-pointer"
+                                             title="Editar compra manual"
                                           >
-                                             <PencilSquareIcon className="w-4 h-4" />
+                                             <PencilSquareIcon className="w-3.5 h-3.5" />
                                           </button>
                                           <button
                                              type="button"
                                              onClick={() => handleDelete(r.id)}
-                                             className="p-1.5 rounded-lg text-text-soft hover:text-danger hover:bg-danger/10 transition outline-none focus:ring-2 focus:ring-danger"
-                                             title="eliminar compra"
+                                             className="p-1 rounded-lg text-text-soft hover:text-danger hover:bg-danger/10 transition cursor-pointer"
+                                             title="Eliminar compra manual"
                                           >
-                                             <TrashIcon className="w-4 h-4" />
+                                             <TrashIcon className="w-3.5 h-3.5" />
                                           </button>
-                                       </>
+                                       </div>
                                     )}
                                  </div>
                               </td>

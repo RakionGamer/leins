@@ -712,7 +712,7 @@ export default function SalesBoletas() {
                            </th>
                            <th className="p-4 font-semibold text-center">Estado Cobro</th>
                            <th className="p-4 font-semibold text-center">Clasificación Contable</th>
-                           <th className="p-4 font-semibold text-center">Acciones</th>
+                           <th className="p-4 font-semibold text-center">Origen</th>
                         </tr>
                      </thead>
                      <tbody className="divide-y divide-border-subtle/50">
@@ -781,23 +781,24 @@ export default function SalesBoletas() {
                                  )}
                               </td>
                               <td className="p-4 text-center">
-                                 <div className="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                                 <div className="inline-flex items-center gap-1.5 justify-center">
+                                    <span className="inline-flex rounded-full bg-brand/10 px-2.5 py-1 text-xs font-semibold text-brand ring-1 ring-brand/20">
+                                       {r.source || 'SII'}
+                                    </span>
                                     {r.doc_type_code === 61 && !r.nce_nde_reference && (
-                                       <button onClick={() => openLinkModal(r)} className="p-1.5 rounded-lg text-brand hover:text-white hover:bg-brand transition outline-none focus:ring-2 focus:ring-brand" title="Vincular a Factura">
-                                          <LinkIcon className="w-5 h-5" />
+                                       <button onClick={() => openLinkModal(r)} className="p-1 rounded-lg text-brand hover:text-white hover:bg-brand transition cursor-pointer" title="Vincular a Factura">
+                                          <LinkIcon className="w-3.5 h-3.5" />
                                        </button>
                                     )}
-                                    {r.source === 'MANUAL' ? (
-                                       <>
-                                          <button onClick={() => openEditModal(r)} className="p-1.5 rounded-lg text-text-soft hover:text-brand hover:bg-brand/10 transition outline-none focus:ring-2 focus:ring-brand" title="editar registro">
-                                             <PencilSquareIcon className="w-5 h-5" />
+                                    {r.source === 'MANUAL' && (
+                                       <div className="flex items-center gap-0.5">
+                                          <button onClick={() => openEditModal(r)} className="p-1 rounded-lg text-text-soft hover:text-brand hover:bg-brand/10 transition cursor-pointer" title="Editar registro manual">
+                                             <PencilSquareIcon className="w-3.5 h-3.5" />
                                           </button>
-                                          <button onClick={() => handleDelete(r.id)} className="p-1.5 rounded-lg text-text-soft hover:text-danger hover:bg-danger/10 transition outline-none focus:ring-2 focus:ring-danger" title="eliminar registro">
-                                             <TrashIcon className="w-5 h-5" />
+                                          <button onClick={() => handleDelete(r.id)} className="p-1 rounded-lg text-text-soft hover:text-danger hover:bg-danger/10 transition cursor-pointer" title="Eliminar registro manual">
+                                             <TrashIcon className="w-3.5 h-3.5" />
                                           </button>
-                                       </>
-                                    ) : (
-                                       r.doc_type_code !== 61 || r.nce_nde_reference ? <span className="text-xs text-text-soft italic">no editable</span> : null
+                                       </div>
                                     )}
                                  </div>
                               </td>
