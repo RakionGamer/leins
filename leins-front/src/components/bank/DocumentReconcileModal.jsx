@@ -149,7 +149,7 @@ export default function DocumentReconcileModal({
             amount: matchAmount > 0 ? matchAmount : undefined,
          });
 
-         toast.success(`Factura conciliada con el movimiento de ${clp(matchAmount)}`);
+         toast.success(`Documento conciliado con el movimiento de ${clp(matchAmount)}`);
          onSuccess?.();
          onClose();
       } catch (err) {
@@ -181,6 +181,21 @@ export default function DocumentReconcileModal({
 
    if (!isOpen || !doc) return null;
 
+   const isSale = doc.operation_type === 'INCOME' || [39, 41, 1001].includes(doc.doc_type_code);
+   const isHonorarium = [1002].includes(doc.doc_type_code) || String(doc.doc_type || '').toLowerCase().includes('honorario');
+   const counterpartyLabel = isSale
+      ? 'Cliente / Razón Social'
+      : isHonorarium
+      ? 'Prestador / Emisor'
+      : 'Proveedor / Razón Social';
+   const cartolaSectionTitle = isSale
+      ? 'Abonos y transferencias en cartola'
+      : 'Cargos y transferencias en cartola';
+   const paidStatusLabel = isSale ? 'Cobrado' : 'Pagado';
+   const paidNoticeText = isSale
+      ? 'Este documento se encuentra totalmente cobrado y conciliado con el banco'
+      : 'Esta factura se encuentra totalmente pagada y conciliada con el banco';
+
    const docTotal = Number(doc.total_amount ?? doc.total ?? 0);
    const docRemaining = Number(doc.remaining_amount ?? (isPaid ? 0 : docTotal));
 
@@ -204,7 +219,7 @@ export default function DocumentReconcileModal({
                   <div>
                      {isPaid ? (
                         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-600 ring-1 ring-emerald-500/20">
-                           <CheckCircleIcon className="w-3.5 h-3.5" /> Pagado
+                           <CheckCircleIcon className="w-3.5 h-3.5" /> {paidStatusLabel}
                         </span>
                      ) : (
                         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-600 ring-1 ring-amber-500/20">
@@ -217,13 +232,13 @@ export default function DocumentReconcileModal({
                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                   <div>
                      <span className="text-text-soft block uppercase tracking-wider text-[10px] font-semibold">
-                        Proveedor / Razón Social
+                        {counterpartyLabel}
                      </span>
                      <div className="font-semibold text-heading truncate mt-0.5" title={doc.counterparty_name || doc.client_name}>
                         {doc.counterparty_name || doc.client_name || '-'}
                      </div>
                      <div className="font-mono text-text-soft text-[11px]">
-                        RUT: {doc.counterparty_rut || 'Sin RUT'}
+                        RUT: {doc.counterparty_rut || doc.client_rut || 'Sin RUT'}
                      </div>
                   </div>
 
@@ -307,12 +322,12 @@ export default function DocumentReconcileModal({
                </div>
             )}
 
-            {/* Si ya está pagado: Mostramos aviso informativo y NO mostramos la búsqueda de cartola */}
+            {/* Si ya está pagado/cobrado: Mostramos aviso informativo y NO mostramos la búsqueda de cartola */}
             {isPaid ? (
                <div className="p-4 rounded-2xl bg-surface-1 border border-border-subtle/70 text-center space-y-1">
                   <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-600">
                      <CheckCircleIcon className="w-4 h-4" />
-                     <span>Esta factura se encuentra totalmente pagada y conciliada con el banco</span>
+                     <span>{paidNoticeText}</span>
                   </div>
                   <p className="text-[11.5px] text-text-soft">
                      Para vincularla a un movimiento diferente, primero haz clic en &quot;Desconciliar&quot; en el movimiento superior.
@@ -324,7 +339,7 @@ export default function DocumentReconcileModal({
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                      <div className="flex items-center gap-1.5 text-xs font-semibold text-text-soft uppercase tracking-wider">
                         <SparklesIcon className="w-4 h-4 text-brand" />
-                        Cargos y transferencias en cartola
+                        {cartolaSectionTitle}
                      </div>
 
                      <div className="relative w-full sm:w-64">

@@ -1604,7 +1604,22 @@ class BankService {
       });
       if (!doc) throw boom.notFound("Documento no encontrado para la entidad");
 
-      const isExpense = doc.operation_type === 'EXPENSE' || [1002, 33, 34, 46, 56, 61].includes(doc.doc_type_code);
+      const op = String(doc.operation_type || '').toUpperCase();
+      let isExpense = true;
+      if (op === 'INCOME') {
+         isExpense = false;
+      } else if (op === 'EXPENSE') {
+         isExpense = true;
+      } else {
+         // Fallback por tipo de documento si operation_type es nulo en registros antiguos
+         if ([39, 41, 1001].includes(doc.doc_type_code)) {
+            isExpense = false;
+         } else if ([33, 34].includes(doc.doc_type_code) && !doc.received_date && !doc.purchase_type) {
+            isExpense = false;
+         } else {
+            isExpense = true;
+         }
+      }
       const bankTxType = isExpense ? 'expense' : 'income';
 
       const remainingSQL = BankService.#bankRemainingSql("bt");

@@ -39,6 +39,44 @@ export default function QuickClassifyModal({ isOpen, onClose, document, entityId
          });
    }, [isOpen, entityId, document]);
 
+   if (!isOpen || !document) return null;
+
+   const isSale = document.operation_type === 'INCOME' || [39, 41, 1001].includes(document.doc_type_code);
+   const isHonorarium = [1002].includes(document.doc_type_code) || String(document.doc_type || '').toLowerCase().includes('honorario');
+
+   const modalTitle = isSale
+      ? 'Clasificación Contable de Venta'
+      : isHonorarium
+      ? 'Clasificación Contable de Honorarios'
+      : 'Clasificación Contable de Compra';
+
+   const counterpartyLabel = isSale
+      ? 'Cliente / Razón Social'
+      : isHonorarium
+      ? 'Prestador / Emisor'
+      : 'Proveedor / Razón Social';
+
+   const ruleTitle = isSale
+      ? 'Regla de Cliente'
+      : isHonorarium
+      ? 'Regla de Prestador'
+      : 'Regla de Proveedor';
+
+   const ruleDescription = isSale
+      ? 'Aplica a todas las ventas pasadas y futuras de este cliente.'
+      : isHonorarium
+      ? 'Aplica a todas las boletas pasadas y futuras de este prestador.'
+      : 'Aplica a todas las facturas pasadas y futuras de este proveedor.';
+
+   const singleDocTitle = isSale
+      ? 'Solo esta Venta'
+      : isHonorarium
+      ? 'Solo esta Boleta'
+      : 'Solo esta Factura';
+
+   const counterpartyRut = document.counterparty_rut || document.client_rut || '';
+   const counterpartyName = document.counterparty_name || document.client_name || '';
+
    const handleSave = async (e) => {
       e?.preventDefault();
       if (!selectedAccountId) {
@@ -53,14 +91,14 @@ export default function QuickClassifyModal({ isOpen, onClose, document, entityId
             document_id: document.id,
             account_id: selectedAccountId,
             scope,
-            counterparty_rut: document.counterparty_rut,
-            counterparty_name: document.counterparty_name,
+            counterparty_rut: counterpartyRut,
+            counterparty_name: counterpartyName,
          });
 
          if (scope === 'DOCUMENT') {
-            toast.success(`Cuenta contable asignada exclusivamente a la factura Folio #${document.folio || document.id}`);
+            toast.success(`Cuenta contable asignada exclusivamente al Folio #${document.folio || document.id}`);
          } else {
-            toast.success(`Regla guardada: cuenta contable asignada a todas las facturas de ${document.counterparty_name || document.counterparty_rut}`);
+            toast.success(`Regla guardada: cuenta contable asignada a los documentos de ${counterpartyName || counterpartyRut}`);
          }
          onSuccess?.();
          onClose();
@@ -71,12 +109,10 @@ export default function QuickClassifyModal({ isOpen, onClose, document, entityId
       }
    };
 
-   if (!isOpen || !document) return null;
-
    return (
-      <Modal isOpen={isOpen} onClose={onClose} title="Clasificación Contable de Compra" maxWidth="max-w-lg">
+      <Modal isOpen={isOpen} onClose={onClose} title={modalTitle} maxWidth="max-w-lg">
          <form onSubmit={handleSave} className="space-y-4">
-            {/* Cabecera del Documento y Proveedor */}
+            {/* Cabecera del Documento y Contraparte */}
             <div className="bg-surface-1 p-4 rounded-2xl border border-border-subtle/60 space-y-2.5">
                <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5 text-xs font-semibold text-text-soft uppercase tracking-wider">
@@ -84,23 +120,26 @@ export default function QuickClassifyModal({ isOpen, onClose, document, entityId
                      <span>Documento Folio #{document.folio || document.id}</span>
                   </div>
                   {document.is_exception && (
-                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-purple-500/10 text-purple-700 ring-1 ring-purple-500/20">
+                     <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-purple-500/10 text-purple-700 ring-1 ring-purple-500/20">
                         <SparklesIcon className="w-3 h-3" /> Excepción activa
                      </span>
                   )}
                </div>
 
                <div className="border-t border-border-subtle/40 pt-2 space-y-0.5">
-                  <div className="text-sm font-bold text-heading truncate" title={document.counterparty_name || 'Sin Razón Social'}>
-                     {document.counterparty_name || 'Sin Razón Social'}
+                  <div className="text-[10px] uppercase font-semibold text-text-soft tracking-wider">
+                     {counterpartyLabel}
+                  </div>
+                  <div className="text-sm font-bold text-heading truncate" title={counterpartyName || 'Sin Razón Social'}>
+                     {counterpartyName || 'Sin Razón Social'}
                   </div>
                   <div className="text-xs font-mono text-text-soft">
-                     RUT: {document.counterparty_rut || 'Sin RUT'}
+                     RUT: {counterpartyRut || 'Sin RUT'}
                   </div>
                </div>
             </div>
 
-            {/* Selector de Alcance: Regla General vs Solo esta Factura */}
+            {/* Selector de Alcance: Regla General vs Solo este Documento */}
             <div className="space-y-1.5">
                <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider">
                   Alcance de la Imputación
@@ -117,14 +156,14 @@ export default function QuickClassifyModal({ isOpen, onClose, document, entityId
                      }`}
                   >
                      <div className={`text-xs font-bold mb-1 ${scope === 'RULE' ? 'text-brand' : 'text-heading'}`}>
-                        Regla de Proveedor
+                        {ruleTitle}
                      </div>
                      <p className="text-[11px] text-text-soft leading-snug">
-                        Aplica a <strong>todas</strong> las facturas pasadas y futuras de este proveedor.
+                        {ruleDescription}
                      </p>
                   </button>
 
-                  {/* Opción 2: Solo esta Factura */}
+                  {/* Opción 2: Solo este Documento */}
                   <button
                      type="button"
                      onClick={() => setScope('DOCUMENT')}
@@ -135,7 +174,7 @@ export default function QuickClassifyModal({ isOpen, onClose, document, entityId
                      }`}
                   >
                      <div className={`text-xs font-bold mb-1 ${scope === 'DOCUMENT' ? 'text-purple-700' : 'text-heading'}`}>
-                        Solo esta Factura
+                        {singleDocTitle}
                      </div>
                      <p className="text-[11px] text-text-soft leading-snug">
                         Excepción: imputa <strong>únicamente</strong> este Folio #{document.folio || document.id}.
@@ -162,7 +201,7 @@ export default function QuickClassifyModal({ isOpen, onClose, document, entityId
                         const id = typeof val === 'object' && val !== null ? val.id : val;
                         setSelectedAccountId(id || null);
                      }}
-                     placeholder="Buscar cuenta (ej: 61.04.01 Gastos de Oficina, 11.07 Activo Fijo...)"
+                     placeholder="Buscar cuenta (ej: 41.01 Ventas, 61.04.01 Gastos de Oficina...)"
                   />
                )}
             </div>
@@ -192,7 +231,7 @@ export default function QuickClassifyModal({ isOpen, onClose, document, entityId
                   ) : (
                      <>
                         <CheckIcon className="w-4 h-4 stroke-2" />
-                        <span>{scope === 'DOCUMENT' ? 'Aplicar a este Documento' : 'Guardar Regla de Proveedor'}</span>
+                        <span>{scope === 'DOCUMENT' ? 'Aplicar a este Documento' : `Guardar ${ruleTitle}`}</span>
                      </>
                   )}
                </button>

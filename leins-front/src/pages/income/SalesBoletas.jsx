@@ -10,6 +10,7 @@ import Modal from 'components/Modal';
 import ManualIncomeForm from './components/ManualIncomeForm';
 import EditIncomeForm from './components/EditIncomeForm';
 import QuickClassifyModal from '../../components/accounting/QuickClassifyModal';
+import DocumentReconcileModal from '../../components/bank/DocumentReconcileModal';
 import { deleteManualIncome, listSiiDocuments } from '../../services/siiDocumentsApi';
 import { SII_DOCUMENT_FILTERS, getSiiDocumentTypeLabel } from '../../utils/siiConstants';
 import { toast } from 'components/Toaster';
@@ -177,6 +178,13 @@ export default function SalesBoletas() {
    const [documentToEdit, setDocumentToEdit] = useState(null);
    const [classifyModalOpen, setClassifyModalOpen] = useState(false);
    const [documentToClassify, setDocumentToClassify] = useState(null);
+   const [reconcileModalOpen, setReconcileModalOpen] = useState(false);
+   const [documentToReconcile, setDocumentToReconcile] = useState(null);
+
+   const handleOpenReconcile = (doc) => {
+      setDocumentToReconcile(doc);
+      setReconcileModalOpen(true);
+   };
    const [centralizationFilter, setCentralizationFilter] = useState(() => sp.get('centralization') || 'all');
 
    const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
@@ -380,6 +388,8 @@ export default function SalesBoletas() {
                   reconciliation_status: it.reconciliation_status,
                   remaining_amount: it.remaining_amount,
                   is_classified: it.is_classified,
+                  is_exception: it.is_exception,
+                  accounting_account_id: it.accounting_account_id,
                   classification_status: it.classification_status,
                   accounting_account: it.accounting_account,
                   is_centralized: it.is_centralized,
@@ -493,11 +503,19 @@ export default function SalesBoletas() {
             )}
          </Modal>
 
+         <DocumentReconcileModal
+            isOpen={reconcileModalOpen}
+            onClose={() => setReconcileModalOpen(false)}
+            document={documentToReconcile}
+            entityId={entityId || activeEntityId}
+            onSuccess={reloadData}
+         />
+
          <QuickClassifyModal
             isOpen={classifyModalOpen}
             onClose={() => setClassifyModalOpen(false)}
             document={documentToClassify}
-            entityId={entityId}
+            entityId={entityId || activeEntityId}
             onSuccess={reloadData}
          />
 
@@ -752,32 +770,53 @@ export default function SalesBoletas() {
                               <td className="p-4 text-right font-bold text-text-main">{clp(r.total)}</td>
                               <td className="p-4 text-center whitespace-nowrap">
                                  {r.is_reconciled ? (
-                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-600 ring-1 ring-emerald-500/20">
-                                       Cobrado
-                                    </span>
+                                    <button
+                                       type="button"
+                                       onClick={() => handleOpenReconcile(r)}
+                                       className="inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-600 ring-1 ring-emerald-500/20 hover:bg-emerald-500/20 hover:ring-emerald-500/40 transition-all cursor-pointer shadow-none active:scale-95"
+                                       title="Ver movimientos bancarios vinculados o desconciliar"
+                                    >
+                                       <span>Cobrado</span>
+                                    </button>
                                  ) : (
-                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-600 ring-1 ring-amber-500/20" title={r.remaining_amount ? `Pendiente: ${clp(r.remaining_amount)}` : 'Sin ingreso bancario vinculado'}>
-                                       Sin conciliar
-                                    </span>
+                                    <button
+                                       type="button"
+                                       onClick={() => handleOpenReconcile(r)}
+                                       className="inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-600 ring-1 ring-amber-500/20 hover:bg-amber-500/20 hover:ring-amber-500/40 transition-all cursor-pointer shadow-none active:scale-95"
+                                       title={r.remaining_amount ? `Pendiente: ${clp(r.remaining_amount)} • Clic para conciliar con banco` : 'Clic para buscar abono bancario y conciliar'}
+                                    >
+                                       <span>Sin conciliar</span>
+                                    </button>
                                  )}
                               </td>
                               <td className="p-4 text-center whitespace-nowrap">
                                  {r.is_classified ? (
-                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-500/10 text-blue-600 ring-1 ring-blue-500/20" title={r.accounting_account?.name || ''}>
-                                       <span>{r.accounting_account?.code || 'Clasificado'}</span>
+                                    <button
+                                       type="button"
+                                       onClick={() => handleQuickClassify(r)}
+                                       className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer shadow-none active:scale-95 ${
+                                          r.is_exception
+                                             ? 'bg-purple-500/10 text-purple-700 ring-1 ring-purple-500/20 hover:bg-purple-500/20 hover:ring-purple-500/40'
+                                             : 'bg-blue-500/10 text-blue-600 ring-1 ring-blue-500/20 hover:bg-blue-500/20 hover:ring-blue-500/40'
+                                       }`}
+                                       title={r.is_exception ? `Excepción asignada a este folio: ${r.accounting_account?.code || ''} ${r.accounting_account?.name || ''}` : (r.accounting_account?.name || 'Editar clasificación')}
+                                    >
+                                       <span>{r.accounting_account?.code || (r.is_exception ? 'Excepción' : 'Clasificado')}</span>
                                        {r.accounting_account?.name && (
-                                          <span className="text-[11px] font-normal text-text-soft truncate max-w-[120px]">
+                                          <span className="text-[11px] font-normal truncate max-w-[120px]">
                                              {r.accounting_account.name}
                                           </span>
                                        )}
-                                    </span>
+                                    </button>
                                  ) : (
-                                    <span
-                                       className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-600 ring-1 ring-amber-500/20"
-                                       title="Sin clasificar"
+                                    <button
+                                       type="button"
+                                       onClick={() => handleQuickClassify(r)}
+                                       className="inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-600 ring-1 ring-amber-500/20 hover:bg-amber-500/20 hover:ring-amber-500/40 transition-all cursor-pointer shadow-none active:scale-95"
+                                       title="Clic para clasificar con una cuenta contable"
                                     >
-                                       Sin clasificar
-                                    </span>
+                                       <span>Sin clasificar</span>
+                                    </button>
                                  )}
                               </td>
                               <td className="p-4 text-center">

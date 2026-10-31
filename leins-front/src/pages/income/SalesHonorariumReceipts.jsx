@@ -7,6 +7,8 @@ import EntityRequiredNotice from 'components/EntityRequiredNotice';
 import SiiSyncButton from 'components/SiiSyncButton';
 import DateInput from 'components/DateInput';
 import { listSiiDocuments } from '../../services/siiDocumentsApi';
+import DocumentReconcileModal from '../../components/bank/DocumentReconcileModal';
+import QuickClassifyModal from '../../components/accounting/QuickClassifyModal';
 import { getSiiDocumentTypeLabel } from '../../utils/siiConstants';
 import {
    ArrowDownTrayIcon,
@@ -145,6 +147,8 @@ function normalizeDocument(row) {
       reconciliation_status: row.reconciliation_status,
       remaining_amount: row.remaining_amount,
       is_classified: row.is_classified,
+      is_exception: row.is_exception,
+      accounting_account_id: row.accounting_account_id,
       classification_status: row.classification_status,
       accounting_account: row.accounting_account,
       is_centralized: row.is_centralized,
@@ -183,6 +187,20 @@ export default function SalesHonorariumReceipts() {
    const [error, setError] = useState('');
    const [refreshKey, setRefreshKey] = useState(0);
    const [exportingCsv, setExportingCsv] = useState(false);
+   const [reconcileModalOpen, setReconcileModalOpen] = useState(false);
+   const [documentToReconcile, setDocumentToReconcile] = useState(null);
+   const [classifyModalOpen, setClassifyModalOpen] = useState(false);
+   const [documentToClassify, setDocumentToClassify] = useState(null);
+
+   const handleOpenReconcile = (doc) => {
+      setDocumentToReconcile(doc);
+      setReconcileModalOpen(true);
+   };
+
+   const handleQuickClassify = (doc) => {
+      setDocumentToClassify(doc);
+      setClassifyModalOpen(true);
+   };
 
    const dateFmt = useMemo(() => new Intl.DateTimeFormat('es-CL'), []);
    const fmtDate = (s) => (s ? dateFmt.format(new Date(s)) : '');
@@ -610,32 +628,53 @@ export default function SalesHonorariumReceipts() {
                               <td className="p-4 text-right font-bold text-text-main">{clp(row.total_amount)}</td>
                               <td className="p-4 text-center whitespace-nowrap">
                                  {row.is_reconciled ? (
-                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-600 ring-1 ring-emerald-500/20">
-                                       Pagado
-                                    </span>
+                                    <button
+                                       type="button"
+                                       onClick={() => handleOpenReconcile(row)}
+                                       className="inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-600 ring-1 ring-emerald-500/20 hover:bg-emerald-500/20 hover:ring-emerald-500/40 transition-all cursor-pointer shadow-none active:scale-95"
+                                       title="Ver movimientos bancarios vinculados o desconciliar"
+                                    >
+                                       <span>Pagado</span>
+                                    </button>
                                  ) : (
-                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-600 ring-1 ring-amber-500/20" title={row.remaining_amount ? `Pendiente: ${clp(row.remaining_amount)}` : 'Sin egreso bancario vinculado'}>
-                                       Sin conciliar
-                                    </span>
+                                    <button
+                                       type="button"
+                                       onClick={() => handleOpenReconcile(row)}
+                                       className="inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-600 ring-1 ring-amber-500/20 hover:bg-amber-500/20 hover:ring-amber-500/40 transition-all cursor-pointer shadow-none active:scale-95"
+                                       title={row.remaining_amount ? `Pendiente: ${clp(row.remaining_amount)} • Clic para conciliar con banco` : 'Clic para buscar egreso bancario y conciliar'}
+                                    >
+                                       <span>Sin conciliar</span>
+                                    </button>
                                  )}
                               </td>
                               <td className="p-4 text-center whitespace-nowrap">
                                  {row.is_classified ? (
-                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-500/10 text-blue-600 ring-1 ring-blue-500/20" title={row.accounting_account?.name || ''}>
-                                       <span>{row.accounting_account?.code || 'Clasificado'}</span>
+                                    <button
+                                       type="button"
+                                       onClick={() => handleQuickClassify(row)}
+                                       className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer shadow-none active:scale-95 ${
+                                          row.is_exception
+                                             ? 'bg-purple-500/10 text-purple-700 ring-1 ring-purple-500/20 hover:bg-purple-500/20 hover:ring-purple-500/40'
+                                             : 'bg-blue-500/10 text-blue-600 ring-1 ring-blue-500/20 hover:bg-blue-500/20 hover:ring-blue-500/40'
+                                       }`}
+                                       title={row.is_exception ? `Excepción asignada a este folio: ${row.accounting_account?.code || ''} ${row.accounting_account?.name || ''}` : (row.accounting_account?.name || 'Editar clasificación')}
+                                    >
+                                       <span>{row.accounting_account?.code || (row.is_exception ? 'Excepción' : 'Clasificado')}</span>
                                        {row.accounting_account?.name && (
-                                          <span className="text-[11px] font-normal text-text-soft truncate max-w-[120px]">
+                                          <span className="text-[11px] font-normal truncate max-w-[120px]">
                                              {row.accounting_account.name}
                                           </span>
                                        )}
-                                    </span>
+                                    </button>
                                  ) : (
-                                    <span
-                                       className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-600 ring-1 ring-amber-500/20"
-                                       title="Sin clasificar"
+                                    <button
+                                       type="button"
+                                       onClick={() => handleQuickClassify(row)}
+                                       className="inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-600 ring-1 ring-amber-500/20 hover:bg-amber-500/20 hover:ring-amber-500/40 transition-all cursor-pointer shadow-none active:scale-95"
+                                       title="Clic para clasificar con una cuenta contable"
                                     >
-                                       Sin clasificar
-                                    </span>
+                                       <span>Sin clasificar</span>
+                                    </button>
                                  )}
                               </td>
                               <td className="p-4 text-center">
