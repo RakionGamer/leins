@@ -188,6 +188,11 @@ export default function DocumentReconcileModal({
       : isHonorarium
       ? 'Prestador / Emisor'
       : 'Proveedor / Razón Social';
+   const nameMatchBadgeLabel = isSale
+      ? 'Cliente en glosa'
+      : isHonorarium
+      ? 'Prestador en glosa'
+      : '{nameMatchBadgeLabel}';
    const cartolaSectionTitle = isSale
       ? 'Abonos y transferencias en cartola'
       : 'Cargos y transferencias en cartola';

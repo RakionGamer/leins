@@ -1626,8 +1626,13 @@ class BankService {
       const targetAmount = Math.abs(Number(doc.remaining_amount ?? doc.total_amount ?? 0));
       const docIssuedAt = doc.issue_date;
 
-      const cleanRut = doc.counterparty_rut ? String(doc.counterparty_rut).replace(/[^0-9kK]/g, '').toUpperCase() : '';
-      const rutWithDots = doc.counterparty_rut ? String(doc.counterparty_rut).trim() : '';
+      const rawRut = doc.counterparty_rut ? String(doc.counterparty_rut).toUpperCase().trim() : '';
+      const cleanRut = rawRut.replace(/[^0-9K]/g, '');
+      const rutBody = cleanRut.length >= 2 ? cleanRut.slice(0, -1).replace(/^0+/, '') : '';
+      const rutDv = cleanRut.length >= 2 ? cleanRut.slice(-1) : '';
+      const rutDottedBody = rutBody ? rutBody.replace(/\B(?=(\d{3})+(?!\d))/g, '.') : '';
+      const rutDottedFull = rutDottedBody && rutDv ? `${rutDottedBody}-${rutDv}` : '';
+      const rutCleanFull = rutBody && rutDv ? `${rutBody}-${rutDv}` : '';
 
       const nameWords = (doc.counterparty_name || '')
          .replace(/[^a-zA-Z0-9\s]/g, ' ')
@@ -1657,7 +1662,10 @@ class BankService {
       }
 
       replacements.rutCleanLike = cleanRut ? `%${cleanRut}%` : '%__NOMATCH__%';
-      replacements.rutLike = rutWithDots ? `%${rutWithDots}%` : '%__NOMATCH__%';
+      replacements.rutLike = rawRut ? `%${rawRut}%` : '%__NOMATCH__%';
+      replacements.rutDottedLike = rutDottedFull ? `%${rutDottedFull}%` : '%__NOMATCH__%';
+      replacements.rutDottedBodyLike = rutDottedBody && rutDottedBody.length >= 5 ? `%${rutDottedBody}%` : '%__NOMATCH__%';
+      replacements.rutCleanFullLike = rutCleanFull ? `%${rutCleanFull}%` : '%__NOMATCH__%';
 
       const nameConditions = nameWords.map((w, idx) => {
          const param = `nameWord${idx}`;
@@ -1689,7 +1697,13 @@ class BankService {
                ELSE 0
             END AS is_exact_amount,
             CASE
-               WHEN (bt.description LIKE :rutCleanLike OR bt.description LIKE :rutLike) THEN 1
+               WHEN (
+                  bt.description LIKE :rutCleanLike
+                  OR bt.description LIKE :rutLike
+                  OR bt.description LIKE :rutDottedLike
+                  OR bt.description LIKE :rutDottedBodyLike
+                  OR bt.description LIKE :rutCleanFullLike
+               ) THEN 1
                ELSE 0
             END AS is_rut_match,
             CASE
@@ -1702,7 +1716,7 @@ class BankService {
            AND bt.type = :bankTxType
            ${searchClause}
          HAVING remaining_amount > 0
-         ORDER BY (is_exact_amount * 3 + is_rut_match * 2 + is_name_match) DESC, amount_distance ASC, date_distance ASC, bt.issued_at DESC, bt.id DESC
+         ORDER BY (is_exact_amount * 3 + is_rut_match * 3 + is_name_match) DESC, amount_distance ASC, date_distance ASC, bt.issued_at DESC, bt.id DESC
          LIMIT :limit
          `,
          {
@@ -1721,6 +1735,13 @@ class BankService {
             })();
          const currencyLabel = row.currency === 'USD' ? 'DOLAR' : row.currency;
 
+         const cleanRowDesc = String(row.description || '').toUpperCase().replace(/[^0-9K]/g, '');
+         const textHasRut = cleanRut && cleanRut.length >= 7 && (
+            cleanRowDesc.includes(cleanRut) ||
+            (rutBody && rutBody.length >= 6 && cleanRowDesc.includes(rutBody))
+         );
+         const isRutMatch = Boolean(Number(row.is_rut_match)) || Boolean(textHasRut);
+
          return {
             id: Number(row.id),
             bank_type: row.type,
@@ -1731,11 +1752,20 @@ class BankService {
             account_label: [row.bank_name, masked, currencyLabel].filter(Boolean).join(' - '),
             document_ref: BankService.#normalizeDocumentRef(row.document_ref),
             is_exact_amount: Boolean(Number(row.is_exact_amount)),
-            is_rut_match: Boolean(Number(row.is_rut_match)),
+            is_rut_match: isRutMatch,
             is_name_match: Boolean(Number(row.is_name_match)),
             amount_distance: Number(row.amount_distance || 0),
             date_distance: Number(row.date_distance || 0),
          };
+      });
+
+      // Ordenar candidates poniendo primero los que tienen mejor coincidencia combinada
+      mapped.sort((a, b) => {
+         const scoreA = (a.is_exact_amount ? 3 : 0) + (a.is_rut_match ? 3 : 0) + (a.is_name_match ? 1 : 0);
+         const scoreB = (b.is_exact_amount ? 3 : 0) + (b.is_rut_match ? 3 : 0) + (b.is_name_match ? 1 : 0);
+         if (scoreB !== scoreA) return scoreB - scoreA;
+         if (a.amount_distance !== b.amount_distance) return a.amount_distance - b.amount_distance;
+         return a.date_distance - b.date_distance;
       });
 
       return {
