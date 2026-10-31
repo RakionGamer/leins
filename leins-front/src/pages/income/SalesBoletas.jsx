@@ -758,7 +758,7 @@ export default function SalesBoletas() {
                                           </span>
                                        );
                                     })()}
-                                    <span className="inline-flex px-2 py-1 bg-surface-2 rounded-md font-mono text-xs font-semibold text-text-soft border border-border-subtle/50">
+                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-surface-2 text-text-main ring-1 ring-border-subtle/70">
                                        {r.doc_type}
                                     </span>
                                  </div>

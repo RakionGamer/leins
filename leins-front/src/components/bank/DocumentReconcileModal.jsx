@@ -224,7 +224,7 @@ export default function DocumentReconcileModal({
             <div className="p-4 rounded-2xl bg-surface-1 border border-border-subtle/80 space-y-3">
                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border-subtle/50 pb-2">
                   <div className="flex items-center gap-2">
-                     <span className="font-semibold text-xs text-brand font-mono bg-brand/10 px-2 py-0.5 rounded-md">
+                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-brand/10 text-brand ring-1 ring-brand/20">
                         {doc.doc_type || 'Documento'}
                      </span>
                      <span className="font-bold text-heading text-sm">

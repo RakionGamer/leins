@@ -2252,16 +2252,16 @@ export default function BankCartolasPage() {
                                  </div>
 
                                  {selectedTargetKind !== 'direct_expense' && (
-                                    <div className="flex flex-1 md:flex-initial items-center gap-2">
+                                    <div className="flex flex-1 items-center gap-2 min-w-0">
                                        <input
                                           type="text"
                                           placeholder={selectedTargetKind === 'bank_transaction' ? 'Buscar por descripcion, banco, referencia o monto' : 'Buscar por folio, RUT, contraparte o monto'}
                                           value={modalQuery}
                                           onChange={(e) => setModalQuery(e.target.value)}
-                                          className="w-full md:w-64 h-8 text-xs border border-[var(--border-subtle)] bg-[var(--surface-1)] rounded-md px-2"
+                                          className="flex-1 w-full h-8 text-xs border border-[var(--border-subtle)] bg-[var(--surface-1)] rounded-md px-2.5 focus:outline-none focus:ring-1 focus:ring-[var(--brand)] transition"
                                        />
                                        {selectedTargetKind === 'document' && (
-                                          <select value={modalTipo} onChange={(e) => setModalTipo(e.target.value)} className="w-full md:w-[200px] h-8 text-xs border border-[var(--border-subtle)] bg-[var(--surface-1)] rounded-md px-2">
+                                          <select value={modalTipo} onChange={(e) => setModalTipo(e.target.value)} className="w-48 sm:w-56 shrink-0 h-8 text-xs border border-[var(--border-subtle)] bg-[var(--surface-1)] rounded-md px-2 focus:outline-none focus:ring-1 focus:ring-[var(--brand)] transition">
                                              {modalTypeOptions.map((option) => (
                                                 <option key={option.value || 'all'} value={option.value}>{option.label}</option>
                                              ))}
