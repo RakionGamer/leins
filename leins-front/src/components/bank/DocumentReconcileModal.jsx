@@ -54,6 +54,17 @@ export default function DocumentReconcileModal({
    const debSearchQuery = useDebounced(searchQuery, 300);
 
    const dateFmt = useMemo(() => new Intl.DateTimeFormat('es-CL'), []);
+
+   // Solo UNA sugerencia (la mejor calificada) puede llevar el badge "Mejor sugerencia"
+   // CONDICIÓN ESTRICTA: El monto DEBE coincidir obligatoriamente (is_exact_amount)
+   // y además debe coincidir el RUT o el nombre en glosa.
+   const bestCandidateId = useMemo(() => {
+      if (!Array.isArray(candidates)) return null;
+      const best = candidates.find(
+         (c) => Boolean(c.is_exact_amount) && (Boolean(c.is_rut_match) || Boolean(c.is_name_match))
+      );
+      return best ? best.id : null;
+   }, [candidates]);
    const fmtDate = (val) => {
       if (!val) return '-';
       try {
@@ -194,7 +205,7 @@ export default function DocumentReconcileModal({
       ? 'Cliente en glosa'
       : isHonorarium
       ? 'Prestador en glosa'
-      : '{nameMatchBadgeLabel}';
+      : 'Proveedor en glosa';
    const cartolaSectionTitle = isSale
       ? 'Abonos y transferencias en cartola'
       : 'Cargos y transferencias en cartola';
@@ -205,16 +216,6 @@ export default function DocumentReconcileModal({
 
    const docTotal = Number(doc.total_amount ?? doc.total ?? 0);
    const docRemaining = Number(doc.remaining_amount ?? (isPaid ? 0 : docTotal));
-
-   // Solo UNA sugerencia (la mejor calificada) puede llevar el badge "Mejor sugerencia"
-   // CONDICIÓN ESTRICTA: El monto DEBE coincidir obligatoriamente (is_exact_amount)
-   // y además debe coincidir el RUT o el nombre en glosa.
-   const bestCandidateId = useMemo(() => {
-      const best = candidates.find(
-         (c) => Boolean(c.is_exact_amount) && (Boolean(c.is_rut_match) || Boolean(c.is_name_match))
-      );
-      return best ? best.id : null;
-   }, [candidates]);
 
    return (
       <Modal isOpen={isOpen} onClose={onClose} title="Conciliación con Banco" maxWidth="max-w-2xl">
