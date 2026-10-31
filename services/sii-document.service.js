@@ -400,6 +400,7 @@ class SiiDocumentsService {
          'id', 'entity_id', 'doc_type_code', 'counterparty_rut', 'counterparty_name', 'folio',
          'issue_date', 'due_date', 'amount_net', 'amount_vat', 'amount_exempt',
          'amount_tax_no_credit', 'created_at', 'updated_at', 'source', 'operation_type', 'nce_nde_reference',
+         'accounting_account_id',
          [sequelize.literal(totalAmountSQL), 'total_amount'],
          [sequelize.literal(remainingSQL), 'remaining_amount'],
          [sequelize.literal(creditNotesSumSQL), 'credit_notes_applied'],
@@ -424,8 +425,9 @@ class SiiDocumentsService {
    _mapListRow(r, rule) {
       const remaining = Number(r.get?.('remaining_amount') ?? r.total_amount ?? 0);
       const isReconciled = r.doc_type_code === 61 || remaining <= 0;
-      const docAccount = r.accountingAccount || r.accounting_account;
-      const isException = Boolean(r.accounting_account_id && docAccount);
+      const docAccountId = r.accounting_account_id ?? r.get?.('accounting_account_id');
+      const docAccount = r.accountingAccount || r.get?.('accountingAccount') || r.accounting_account;
+      const isException = Boolean(docAccountId && docAccount);
       const effectiveAccount = isException ? docAccount : rule?.account;
       const isClassified = Boolean(effectiveAccount && effectiveAccount.id);
       const isCentralized = isReconciled && isClassified;
