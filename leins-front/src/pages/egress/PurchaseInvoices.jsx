@@ -732,31 +732,26 @@ export default function PurchaseInvoicesAdapted() {
                                         }`}
                                         title={
                                            r.is_exception
-                                              ? 'Excepción individual para este documento (clic para cambiar)'
+                                              ? 'Excepción asignada a esta factura (clic para ver o cambiar)'
                                               : 'Regla general de proveedor (clic para ver o cambiar)'
                                         }
                                      >
                                         <span className="font-mono">{r.accounting_account?.code || 'Clasificado'}</span>
-                                        {r.is_exception ? (
-                                           <span className="text-[10px] uppercase font-bold tracking-wide bg-purple-500/20 px-1.5 py-0.2 rounded text-purple-800">
-                                              Excepción
+                                        {r.accounting_account?.name && (
+                                           <span className={`text-[11px] font-normal truncate max-w-[130px] ${
+                                              r.is_exception ? 'text-purple-700/85' : 'text-text-soft'
+                                           }`}>
+                                              {r.accounting_account.name}
                                            </span>
-                                        ) : (
-                                           r.accounting_account?.name && (
-                                              <span className="text-[11px] font-normal text-text-soft truncate max-w-[120px]">
-                                                 {r.accounting_account.name}
-                                              </span>
-                                           )
                                         )}
                                      </button>
                                  ) : (
                                     <button
                                        type="button"
                                        onClick={() => handleQuickClassify(r)}
-                                       className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-600 ring-1 ring-amber-500/20 hover:bg-amber-500/20 hover:ring-amber-500/40 transition-all cursor-pointer shadow-none active:scale-95"
-                                       title="Clic para crear regla contable directamente para este proveedor"
+                                       className="inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-600 ring-1 ring-amber-500/20 hover:bg-amber-500/20 hover:ring-amber-500/40 transition-all cursor-pointer shadow-none active:scale-95"
+                                       title="Clic para clasificar con cuenta contable"
                                     >
-                                       <TagIcon className="w-3.5 h-3.5 shrink-0" />
                                        <span>Sin clasificar</span>
                                     </button>
                                  )}
