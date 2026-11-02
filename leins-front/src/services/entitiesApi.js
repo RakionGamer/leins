@@ -511,13 +511,18 @@ export async function discoverAndLinkEmissoAccounts({ entityId, connectionId, sy
    return (await parseJsonSafe(res)) || { ok: true };
 }
 
-export async function syncEmissoBankAccount({ entityId, id, signal } = {}) {
+export async function syncEmissoBankAccount({ entityId, id, periods, fromPeriod, toPeriod, signal } = {}) {
    if (!entityId) throw new Error('Falta la entidad');
    if (!id) throw new Error('Falta el id de cuenta bancaria');
 
    const res = await fetchWithAuth(`/banks/accounts/${id}/sync-emisso`, {
       method: 'POST',
-      body: JSON.stringify({ entityId: Number(entityId) }),
+      body: JSON.stringify({
+         entityId: Number(entityId),
+         periods,
+         fromPeriod,
+         toPeriod,
+      }),
       signal
    });
 

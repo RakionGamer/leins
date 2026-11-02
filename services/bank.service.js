@@ -2687,7 +2687,7 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
    }
 
    // Sincroniza movimientos de Emisso para una cuenta bancaria especifica
-   async syncFromEmisso({ entityId, bankAccountId }) {
+   async syncFromEmisso({ entityId, bankAccountId, periods, fromPeriod, toPeriod }) {
       if (!entityId || !bankAccountId) {
          throw boom.badRequest('entityId y bankAccountId son requeridos');
       }
@@ -2716,19 +2716,45 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
             // Continuamos consultando la cache existente si la sincronizacion en vivo falla o ya esta encolada
          }
 
-         // 2. Calcula periodo actual y anterior (ventana movil)
-         const now = new Date();
-         const currentPeriod = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-         const prevDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-         const prevPeriod = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`;
+         // 2. Determina los periodos a consultar
+         let targetPeriods = [];
+         if (Array.isArray(periods) && periods.length) {
+            targetPeriods = periods.filter(Boolean);
+         } else if (fromPeriod || toPeriod) {
+            const parse = (p) => {
+               const parts = String(p).split('-').map(Number);
+               return { year: parts[0], month: parts[1] || 1 };
+            };
+            const from = fromPeriod ? parse(fromPeriod) : parse(toPeriod);
+            const to = toPeriod ? parse(toPeriod) : parse(fromPeriod);
 
-         // 3. Obtiene movimientos
-         const [currRows, prevRows] = await Promise.all([
-            emisso.getAllMovements(system, connectionId, currentPeriod).catch(() => []),
-            emisso.getAllMovements(system, connectionId, prevPeriod).catch(() => []),
-         ]);
+            let currY = from.year;
+            let currM = from.month;
+            while (currY < to.year || (currY === to.year && currM <= to.month)) {
+               targetPeriods.push(`${currY}-${String(currM).padStart(2, '0')}`);
+               currM++;
+               if (currM > 12) {
+                  currM = 1;
+                  currY++;
+               }
+               if (targetPeriods.length >= 24) break; // limite de seguridad de 24 meses
+            }
+         }
 
-         const allRows = [...prevRows, ...currRows];
+         // Si no se especificaron periodos, usa la ventana movil estandar (mes actual y anterior)
+         if (!targetPeriods.length) {
+            const now = new Date();
+            const currentPeriod = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+            const prevDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+            const prevPeriod = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`;
+            targetPeriods = [prevPeriod, currentPeriod];
+         }
+
+         // 3. Obtiene movimientos para cada periodo seleccionado
+         const periodResults = await Promise.all(
+            targetPeriods.map(p => emisso.getAllMovements(system, connectionId, p).catch(() => []))
+         );
+         const allRows = periodResults.flat();
 
          // Filtra por numero de cuenta si viene informado
          const targetAcc = String(account.account_number).trim();

@@ -674,6 +674,7 @@ const discoverAndLinkEmissoAccounts = asyncHandler(async (req, res) => {
 const syncEmissoAccount = asyncHandler(async (req, res) => {
    const entityId = Number(req.body?.entityId || req.query?.entityId || req.entityId || 0);
    const bankAccountId = Number(req.params.id);
+   const { periods, fromPeriod, toPeriod } = req.body || {};
 
    if (!entityId) throw boom.badRequest('entityId es requerido');
    if (!bankAccountId) throw boom.badRequest('bankAccountId es requerido');
@@ -681,6 +682,9 @@ const syncEmissoAccount = asyncHandler(async (req, res) => {
    const out = await service.syncFromEmisso({
       entityId,
       bankAccountId,
+      periods,
+      fromPeriod,
+      toPeriod,
    });
 
    res.json(out);

@@ -16,6 +16,7 @@ import { normalizeAmount, fmtCLP, hexToRgba, toYmd } from '../../utils/formatter
 import { SII_DOCUMENT_TYPES, docTag, getSiiDocumentTypeLabel } from '../../utils/siiConstants';
 import { listDailySalesGroups, listSiiDocuments } from '../../services/siiDocumentsApi';
 import BankCartolaDuplicatesAlert from '../../components/bank/BankCartolaDuplicatesAlert';
+import EmissoSyncPeriodModal from '../../components/bank/EmissoSyncPeriodModal';
 
 // importamos nuestras nuevas herramientas de react query
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -683,6 +684,8 @@ export default function BankCartolasPage() {
          return null;
       }
    };
+
+   const [showSyncPeriodModal, setShowSyncPeriodModal] = useState(false);
 
    const handleManualEmissoSync = async () => {
       if (!entityId || !currentSelectedAccount?.id) return;
@@ -1853,18 +1856,30 @@ export default function BankCartolasPage() {
                            </div>
                         )}
                         {currentSelectedAccount?.emisso_connection_id && canUpdate && (
-                           <button
-                              type="button"
-                              onClick={handleManualEmissoSync}
-                              disabled={isManualSyncing || currentSelectedAccount?.sync_status === 'syncing'}
-                              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-brand/30 bg-brand/10 text-brand hover:bg-brand/20 text-xs font-semibold transition disabled:opacity-60"
-                              title="Forzar actualización en vivo desde el banco"
-                           >
-                              <svg className={`w-3.5 h-3.5 ${isManualSyncing ? 'animate-spin' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                 <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
-                              </svg>
-                              <span>{isManualSyncing ? 'Sincronizando...' : 'Actualizar movimientos'}</span>
-                           </button>
+                           <div className="inline-flex items-center rounded-xl border border-brand/30 bg-brand/10 p-0.5">
+                              <button
+                                 type="button"
+                                 onClick={handleManualEmissoSync}
+                                 disabled={isManualSyncing || currentSelectedAccount?.sync_status === 'syncing'}
+                                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-brand hover:bg-brand/20 text-xs font-semibold rounded-lg transition disabled:opacity-60"
+                                 title="Actualizar últimos 60 días"
+                              >
+                                 <svg className={`w-3.5 h-3.5 ${isManualSyncing ? 'animate-spin' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
+                                 </svg>
+                                 <span>{isManualSyncing ? 'Sincronizando...' : 'Actualizar movimientos'}</span>
+                              </button>
+
+                              <button
+                                 type="button"
+                                 onClick={() => setShowSyncPeriodModal(true)}
+                                 disabled={isManualSyncing || currentSelectedAccount?.sync_status === 'syncing'}
+                                 className="px-2.5 py-1.5 text-brand hover:bg-brand/20 text-xs font-semibold rounded-lg border-l border-brand/20 transition disabled:opacity-60 flex items-center gap-1"
+                                 title="Sincronizar mes específico o rango histórico"
+                              >
+                                 <span>📅 Histórico</span>
+                              </button>
+                           </div>
                         )}
                         {canCreate && (
                            <div className="relative group">
@@ -3033,6 +3048,20 @@ export default function BankCartolasPage() {
                </div>
             </div>
          )}
+
+         <EmissoSyncPeriodModal
+            isOpen={showSyncPeriodModal}
+            onClose={() => setShowSyncPeriodModal(false)}
+            entityId={entityId}
+            account={currentSelectedAccount}
+            onSyncCompleted={async () => {
+               await queryClient.invalidateQueries({ queryKey: ['bankAccounts', entityId] });
+               await queryClient.invalidateQueries({ queryKey: ['bankTransactions'] });
+               await queryClient.invalidateQueries({ queryKey: ['bankTotals'] });
+               await queryClient.invalidateQueries({ queryKey: ['sugerenciasCount'] });
+            }}
+         />
+
          {reconciliationDetailTxId != null && (
             <div
                className="fixed inset-0 z-[200] bg-black/50 flex items-end sm:items-center justify-center"
