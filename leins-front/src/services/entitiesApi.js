@@ -485,6 +485,18 @@ export async function downloadBankMovementsTemplate({ entityId, signal } = {}) {
 }
 
 
+export async function listEmissoConnections({ entityId, signal } = {}) {
+   if (!entityId) throw new Error('Falta la entidad');
+
+   const res = await fetchWithAuth(`/banks/accounts/emisso-connections?entityId=${encodeURIComponent(entityId)}`, {
+      method: 'GET',
+      signal
+   });
+
+   await ensureOk(res, 'No se pudieron consultar las conexiones de Emisso');
+   return (await parseJsonSafe(res)) || { ok: true, connections: [] };
+}
+
 export async function discoverAndLinkEmissoAccounts({ entityId, connectionId, system = 'bch_empresas', signal } = {}) {
    if (!entityId) throw new Error('Falta la entidad');
    if (!connectionId) throw new Error('Falta el connectionId');

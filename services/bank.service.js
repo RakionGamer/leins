@@ -2744,10 +2744,33 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
             entityBankAccountId: account.id,
          });
 
-         await account.update({
+         const updates = {
             sync_status: 'idle',
             last_synced_at: new Date(),
-         });
+         };
+
+         // Si la cuenta no tiene saldo inicial o esta en 0, auto-asigna el saldo contable de Emisso
+         if (!account.initial_balance || Number(account.initial_balance) === 0) {
+            try {
+               const rawBalances = await emisso.getBalances(system, connectionId);
+               const items = Array.isArray(rawBalances) ? rawBalances : (rawBalances?.cuentas || rawBalances?.saldos || rawBalances?.items || []);
+               const match = items.find(b => {
+                  const acc = String(b.numeroCuenta || b.accountNumber || b.cuenta || '').trim();
+                  return !acc || acc.endsWith(targetAcc) || targetAcc.endsWith(acc);
+               });
+               if (match) {
+                  const bal = Number(match.saldoContable ?? match.saldoDisponible ?? match.saldo ?? 0);
+                  if (bal) {
+                     updates.initial_balance = bal;
+                     updates.initial_balance_date = match.observedDay || new Date().toISOString().slice(0, 10);
+                  }
+               }
+            } catch (balErr) {
+               logWarn('EMISSO_BALANCE_SYNC_WARN', { message: balErr.message, connectionId });
+            }
+         }
+
+         await account.update(updates);
 
          logInfo('EMISSO_SYNC_COMPLETED', {
             entityId, bankAccountId, connectionId, stats, totalRows: allRows.length,

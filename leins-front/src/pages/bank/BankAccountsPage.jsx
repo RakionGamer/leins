@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEntityRequired } from '../../hooks/useEntityRequired';
 import { useAuth } from '../../context/AuthContext';
 import EntityRequiredNotice from 'components/EntityRequiredNotice';
+import EmissoConnectModal from '../../components/bank/EmissoConnectModal';
 import {
    listBankAccounts,
    createBankAccount,
@@ -80,31 +81,7 @@ export default function BankAccountsPage() {
       await queryClient.invalidateQueries({ queryKey: ['sugerenciasCount'] });
    };
 
-   const [linkingEmisso, setLinkingEmisso] = useState(false);
-
-   const onLinkEmisso = async () => {
-      if (!entityId) return;
-      const connId = window.prompt(
-         "Ingresa el connectionId de Emisso (ej: conn_yrrgrd3k1fueyrd...):",
-         "conn_yrrgrd3k1fueyrd"
-      );
-      if (!connId || !connId.trim()) return;
-
-      try {
-         setLinkingEmisso(true);
-         const res = await discoverAndLinkEmissoAccounts({
-            entityId,
-            connectionId: connId.trim(),
-            system: 'bch_empresas',
-         });
-         toast.success(`Cuentas vinculadas con éxito (${res.accountsFound || 0} encontradas)`);
-         await refreshAccounts();
-      } catch (err) {
-         toast.error(err?.message || "Error al vincular con Emisso");
-      } finally {
-         setLinkingEmisso(false);
-      }
-   };
+   const [emissoModalOpen, setEmissoModalOpen] = useState(false);
 
 
    const onSubmit = async (e) => {
@@ -249,11 +226,10 @@ export default function BankAccountsPage() {
                {canCreate && (
                   <button
                      type="button"
-                     onClick={onLinkEmisso}
-                     disabled={linkingEmisso}
-                     className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-brand bg-brand text-white hover:bg-brand-strong text-xs font-semibold shadow-sm transition disabled:opacity-60"
+                     onClick={() => setEmissoModalOpen(true)}
+                     className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-brand bg-brand text-white hover:bg-brand-strong text-xs font-semibold shadow-sm transition"
                   >
-                     <span>{linkingEmisso ? 'Vinculando...' : '🔗 Vincular con Emisso'}</span>
+                     <span>⚡ Vincular Banco (Emisso)</span>
                   </button>
                )}
             </div>
@@ -358,6 +334,7 @@ export default function BankAccountsPage() {
                   )}
                </form>
             </section>
+         
 
             <section className="xl:col-span-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-content)] p-4">
                <h2 className="text-lg font-semibold text-[var(--heading)]">Cuentas existentes</h2>
@@ -460,6 +437,12 @@ export default function BankAccountsPage() {
                   </div>
                )}
             </section>
+         <EmissoConnectModal
+            isOpen={emissoModalOpen}
+            onClose={() => setEmissoModalOpen(false)}
+            entityId={entityId}
+            onAccountsLinked={refreshAccounts}
+         />
          </div>
       </div>
    );

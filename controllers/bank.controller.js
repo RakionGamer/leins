@@ -620,6 +620,41 @@ const listReconciliations = asyncHandler(async (req, res) => {
 // CONTROLADORES EMISSO CONNECT
 // ==========================================
 
+const listEmissoConnections = asyncHandler(async (req, res) => {
+   const entityId = Number(req.query?.entityId || req.entityId || 0);
+   const EmissoService = require('../services/emisso.service');
+   const { models } = require('../libs/sequelize');
+   const emisso = new EmissoService();
+
+   try {
+      const data = await emisso.getConnectionsStatus();
+      const rawConnections = Array.isArray(data) ? data : (data?.conexiones || []);
+
+      const accounts = entityId ? await models.EntityBankAccount.findAll({
+         where: { entity_id: entityId },
+         attributes: ['id', 'emisso_connection_id', 'bank_name', 'account_number', 'last_synced_at']
+      }) : [];
+
+      const linkedIds = new Set(accounts.map(a => a.emisso_connection_id).filter(Boolean));
+
+      const connections = rawConnections.map(c => ({
+         id: c.id,
+         system: c.sistema,
+         name: c.nombre || (c.sistema === 'bch_empresas' ? 'Banco de Chile' : c.sistema),
+         status: c.estado,
+         isLinked: linkedIds.has(c.id),
+         cadence: c.cadencia,
+         lastVerified: c.verificadaEn,
+         linkedAccounts: accounts.filter(a => a.emisso_connection_id === c.id)
+      }));
+
+      res.json({ ok: true, connections });
+   } catch (err) {
+      logError('EMISSO_LIST_CONNECTIONS_ERROR', { error: err.message });
+      res.status(500).json({ ok: false, message: err.message, connections: [] });
+   }
+});
+
 const discoverAndLinkEmissoAccounts = asyncHandler(async (req, res) => {
    const entityId = Number(req.body?.entityId || req.query?.entityId || req.entityId || 0);
    const { connectionId, system } = req.body || {};
@@ -732,6 +767,7 @@ module.exports = {
    unreconcileTransaction,
    listReconciliations,
    discoverAndLinkEmissoAccounts,
+   listEmissoConnections,
    syncEmissoAccount,
    createEmissoConnectLink,
    handleEmissoWebhook,

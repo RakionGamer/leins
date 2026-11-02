@@ -39,6 +39,7 @@ router.delete('/accounts/:id', ensureEntityDeleteAccess, bankController.deleteBa
 router.post('/accounts/:id/reveal', ensureEntityUpdateAccess, bankController.revealBankAccountNumber);
 
 // integracion emisso connect
+router.get('/accounts/emisso-connections', ensureEntityAccess, bankController.listEmissoConnections);
 router.post('/accounts/discover-emisso', ensureEntityCreateAccess, bankController.discoverAndLinkEmissoAccounts);
 router.post('/accounts/:id/sync-emisso', ensureEntityUpdateAccess, bankController.syncEmissoAccount);
 router.post('/accounts/connect-link', ensureEntityCreateAccess, bankController.createEmissoConnectLink);
