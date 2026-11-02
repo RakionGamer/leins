@@ -438,6 +438,7 @@ export default function BankCartolasPage() {
    // agregar movimientos, conciliar y deshacer conciliaciones quedan reservados al administrador;
    // el cliente solo puede ver el detalle y eliminar movimientos propios sin conciliar
    const canCreate = (permissions?.can_create ?? true) && !isClient;
+   const canUpdate = (permissions?.can_update ?? true) && !isClient;
 
    const hasAuth = !!(auth?.accessToken || localStorage.getItem("accessToken"));
    const headers = useMemo(() => {

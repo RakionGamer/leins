@@ -2648,12 +2648,17 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
          });
 
          if (existing) {
-            await existing.update({
+            const updates = {
                emisso_connection_id: connectionId,
                emisso_system: system,
                sync_status: 'idle',
                last_synced_at: new Date(),
-            });
+            };
+            if ((!existing.initial_balance || Number(existing.initial_balance) === 0) && accData.balance) {
+               updates.initial_balance = accData.balance;
+               updates.initial_balance_date = new Date().toISOString().slice(0, 10);
+            }
+            await existing.update(updates);
             linked.push({ id: existing.id, accountNumber: accNum, action: 'linked_existing' });
          } else {
             const created = await models.EntityBankAccount.create({
@@ -2661,7 +2666,8 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
                bank_name: bankNameDefault,
                account_number: accNum,
                currency: accData.currency || 'CLP',
-               initial_balance: 0,
+               initial_balance: accData.balance || 0,
+               initial_balance_date: new Date().toISOString().slice(0, 10),
                emisso_connection_id: connectionId,
                emisso_system: system,
                sync_status: 'idle',
