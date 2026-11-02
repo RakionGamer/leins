@@ -8,7 +8,7 @@ import DateInput from 'components/DateInput'
 import { fetchSuggestionsCount, autofindCandidates, reconcileOne, reconcileDirectExpense, reconcileBankTransaction, searchBankReconcileCandidates, reconcileBulk, listReconciliations, unreconcile, deleteBankTransaction } from '../../services/reconcileApi';
 import { getAccounts } from '../../services/accountingApi';
 import AccountSelect from '../../components/accounting/AccountSelect';
-import { uploadBankExcel, listBankAccounts } from '../../services/entitiesApi';
+import { uploadBankExcel, listBankAccounts, syncEmissoBankAccount } from '../../services/entitiesApi';
 import { toast } from 'components/Toaster';
 import PrimaryButton from 'components/PrimaryButton';
 import { getRutFromRow } from '../../utils/validators';
@@ -655,6 +655,58 @@ export default function BankCartolasPage() {
 
       return null;
    }, [ctaCorriente, cuentasDisponibles]);
+
+   const [isManualSyncing, setIsManualSyncing] = useState(false);
+
+   const currentSelectedAccount = useMemo(() => {
+      const rows = Array.isArray(accountsData?.rows) ? accountsData.rows : [];
+      if (!rows.length) return null;
+      if (ctaCorriente) {
+         return rows.find((r) => String(r.id) === String(ctaCorriente)) || rows[0];
+      }
+      return rows[0];
+   }, [accountsData, ctaCorriente]);
+
+   const formatLastSync = (dateStr) => {
+      if (!dateStr) return null;
+      try {
+         const d = new Date(dateStr);
+         if (isNaN(d.getTime())) return null;
+         return d.toLocaleDateString('es-CL', {
+            day: '2-digit',
+            month: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+         });
+      } catch {
+         return null;
+      }
+   };
+
+   const handleManualEmissoSync = async () => {
+      if (!entityId || !currentSelectedAccount?.id) return;
+      if (!currentSelectedAccount.emisso_connection_id) {
+         toast.info("Esta cuenta no tiene una conexión automática de Emisso configurada.");
+         return;
+      }
+
+      setIsManualSyncing(true);
+      try {
+         const resp = await syncEmissoBankAccount({
+            entityId,
+            id: currentSelectedAccount.id,
+         });
+         toast.success(`Sincronización completada: ${resp.saved || 0} nuevos, ${resp.updated || 0} actualizados`);
+         await queryClient.invalidateQueries({ queryKey: ['bankAccounts', entityId] });
+         await queryClient.invalidateQueries({ queryKey: ['bankTransactions'] });
+         await queryClient.invalidateQueries({ queryKey: ['bankTotals'] });
+         await queryClient.invalidateQueries({ queryKey: ['sugerenciasCount'] });
+      } catch (err) {
+         toast.error(err?.message || "Error al sincronizar con el banco");
+      } finally {
+         setIsManualSyncing(false);
+      }
+   };
 
    // ===========================
    // modales y subidas de excel
@@ -1792,7 +1844,27 @@ export default function BankCartolasPage() {
 
                <div className="flex items-center gap-2">
                   {tab !== 'sugerencias' && (
-                     <div className="flex items-center gap-2">
+                     <div className="flex flex-wrap items-center gap-2">
+                        {currentSelectedAccount?.last_synced_at && (
+                           <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-1)] text-xs text-[var(--text-soft)]" title="Última actualización sincronizada con el banco">
+                              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                              <span>Última actualización: <strong className="text-[var(--text-main)]">{formatLastSync(currentSelectedAccount.last_synced_at)}</strong></span>
+                           </div>
+                        )}
+                        {currentSelectedAccount?.emisso_connection_id && canUpdate && (
+                           <button
+                              type="button"
+                              onClick={handleManualEmissoSync}
+                              disabled={isManualSyncing || currentSelectedAccount?.sync_status === 'syncing'}
+                              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-brand/30 bg-brand/10 text-brand hover:bg-brand/20 text-xs font-semibold transition disabled:opacity-60"
+                              title="Forzar actualización en vivo desde el banco"
+                           >
+                              <svg className={`w-3.5 h-3.5 ${isManualSyncing ? 'animate-spin' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                 <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
+                              </svg>
+                              <span>{isManualSyncing ? 'Sincronizando...' : 'Actualizar movimientos'}</span>
+                           </button>
+                        )}
                         {canCreate && (
                            <div className="relative group">
                               <PrimaryButton onClick={openUploadModal} className="flex items-center gap-2 px-3 md:px-6 py-2.5 bg-brand text-white font-medium rounded-xl shadow-lg shadow-brand/20 hover:bg-brand-strong hover:-translate-y-0.5 transition-all">

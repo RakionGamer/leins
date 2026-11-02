@@ -38,6 +38,12 @@ router.put('/accounts/:id', ensureEntityUpdateAccess, bankController.updateBankA
 router.delete('/accounts/:id', ensureEntityDeleteAccess, bankController.deleteBankAccount);
 router.post('/accounts/:id/reveal', ensureEntityUpdateAccess, bankController.revealBankAccountNumber);
 
+// integracion emisso connect
+router.post('/accounts/discover-emisso', ensureEntityCreateAccess, bankController.discoverAndLinkEmissoAccounts);
+router.post('/accounts/:id/sync-emisso', ensureEntityUpdateAccess, bankController.syncEmissoAccount);
+router.post('/accounts/connect-link', ensureEntityCreateAccess, bankController.createEmissoConnectLink);
+router.post('/webhook-emisso', bankController.handleEmissoWebhook);
+
 router.get('/upload-template', ensureEntityAccess, bankController.downloadMovementsTemplate);
 router.post('/upload-excel', upload.single('file'), ensureEntityCreateAccess, bankController.uploadExcel);
 router.get('/transactions', ensureEntityAccess, bankController.listTransactions);

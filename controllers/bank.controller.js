@@ -616,6 +616,99 @@ const listReconciliations = asyncHandler(async (req, res) => {
    res.json(out);
 });
 
+// ==========================================
+// CONTROLADORES EMISSO CONNECT
+// ==========================================
+
+const discoverAndLinkEmissoAccounts = asyncHandler(async (req, res) => {
+   const entityId = Number(req.body?.entityId || req.query?.entityId || req.entityId || 0);
+   const { connectionId, system } = req.body || {};
+
+   if (!entityId) throw boom.badRequest('entityId es requerido');
+   if (!connectionId) throw boom.badRequest('connectionId es requerido');
+
+   const out = await service.discoverAndLinkAccounts({
+      entityId,
+      connectionId: String(connectionId).trim(),
+      system: system || 'bch_empresas',
+   });
+
+   res.json(out);
+});
+
+const syncEmissoAccount = asyncHandler(async (req, res) => {
+   const entityId = Number(req.body?.entityId || req.query?.entityId || req.entityId || 0);
+   const bankAccountId = Number(req.params.id);
+
+   if (!entityId) throw boom.badRequest('entityId es requerido');
+   if (!bankAccountId) throw boom.badRequest('bankAccountId es requerido');
+
+   const out = await service.syncFromEmisso({
+      entityId,
+      bankAccountId,
+   });
+
+   res.json(out);
+});
+
+const createEmissoConnectLink = asyncHandler(async (req, res) => {
+   const entityId = Number(req.body?.entityId || req.query?.entityId || req.entityId || 0);
+   const { system = 'bch_empresas', redirectUrl } = req.body || {};
+
+   if (!entityId) throw boom.badRequest('entityId es requerido');
+
+   const EmissoService = require('../services/emisso.service');
+   const emisso = new EmissoService();
+
+   const out = await emisso.createConnectionLink({
+      system,
+      redirectUrl,
+   });
+
+   res.json(out);
+});
+
+// Receptor del webhook de Emisso Connect (cuando termina la sincronizacion automatica)
+const handleEmissoWebhook = asyncHandler(async (req, res) => {
+   const { models } = require('../libs/sequelize');
+   const eventData = req.body || {};
+   const connectionId = eventData.conexionId || eventData.connectionId || eventData.data?.conexionId || eventData.data?.connectionId;
+
+   logInfo('EMISSO_WEBHOOK_RECEIVED', {
+      event: eventData.event || eventData.tipo || eventData.action,
+      connectionId
+   });
+
+   if (!connectionId) {
+      return res.status(200).json({ ok: true, status: 'ignored_missing_connection_id' });
+   }
+
+   // Busca cuentas asociadas a este connectionId
+   const accounts = await models.EntityBankAccount.findAll({
+      where: { emisso_connection_id: connectionId },
+   });
+
+   if (!accounts.length) {
+      logWarn('EMISSO_WEBHOOK_NO_MATCHING_ACCOUNT', { connectionId });
+      return res.status(200).json({ ok: true, status: 'no_matching_account' });
+   }
+
+   // Dispara la persistencia de movimientos en segundo plano sin bloquear el webhook
+   for (const acc of accounts) {
+      service.syncFromEmisso({
+         entityId: acc.entity_id,
+         bankAccountId: acc.id,
+      }).catch((err) => {
+         logError('EMISSO_WEBHOOK_BACKGROUND_SYNC_ERROR', {
+            bankAccountId: acc.id,
+            error: err.message
+         });
+      });
+   }
+
+   res.status(200).json({ ok: true, accountsQueued: accounts.length });
+});
+
 module.exports = {
    downloadMovementsTemplate,
    uploadExcel,
@@ -637,5 +730,9 @@ module.exports = {
    reconcileBankTransaction,
    bulkReconcile,
    unreconcileTransaction,
-   listReconciliations
+   listReconciliations,
+   discoverAndLinkEmissoAccounts,
+   syncEmissoAccount,
+   createEmissoConnectLink,
+   handleEmissoWebhook,
 };

@@ -8,7 +8,8 @@ import {
    createBankAccount,
    updateBankAccount,
    deleteBankAccount,
-   revealBankAccountNumber
+   revealBankAccountNumber,
+   discoverAndLinkEmissoAccounts
 } from '../../services/entitiesApi';
 import { toast } from 'components/Toaster';
 
@@ -78,6 +79,33 @@ export default function BankAccountsPage() {
       await queryClient.invalidateQueries({ queryKey: ['bankTotals'] });
       await queryClient.invalidateQueries({ queryKey: ['sugerenciasCount'] });
    };
+
+   const [linkingEmisso, setLinkingEmisso] = useState(false);
+
+   const onLinkEmisso = async () => {
+      if (!entityId) return;
+      const connId = window.prompt(
+         "Ingresa el connectionId de Emisso (ej: conn_yrrgrd3k1fueyrd...):",
+         "conn_yrrgrd3k1fueyrd"
+      );
+      if (!connId || !connId.trim()) return;
+
+      try {
+         setLinkingEmisso(true);
+         const res = await discoverAndLinkEmissoAccounts({
+            entityId,
+            connectionId: connId.trim(),
+            system: 'bch_empresas',
+         });
+         toast.success(`Cuentas vinculadas con éxito (${res.accountsFound || 0} encontradas)`);
+         await refreshAccounts();
+      } catch (err) {
+         toast.error(err?.message || "Error al vincular con Emisso");
+      } finally {
+         setLinkingEmisso(false);
+      }
+   };
+
 
    const onSubmit = async (e) => {
       e.preventDefault();
@@ -218,6 +246,16 @@ export default function BankAccountsPage() {
                   <span className="font-semibold text-[var(--heading)]">{total}</span>
                   {isFetching && <span className="text-xs text-[var(--text-soft)]">(actualizando)</span>}
                </div>
+               {canCreate && (
+                  <button
+                     type="button"
+                     onClick={onLinkEmisso}
+                     disabled={linkingEmisso}
+                     className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-brand bg-brand text-white hover:bg-brand-strong text-xs font-semibold shadow-sm transition disabled:opacity-60"
+                  >
+                     <span>{linkingEmisso ? 'Vinculando...' : '🔗 Vincular con Emisso'}</span>
+                  </button>
+               )}
             </div>
          </div>
 
@@ -355,7 +393,22 @@ export default function BankAccountsPage() {
                            )}
                            {rows.map((row) => (
                               <tr key={row.id} className="border-b border-[var(--border-subtle)] last:border-b-0">
-                                 <td className="py-2 px-2 text-[var(--text-main)]">{row.bank_name}</td>
+                                 <td className="py-2 px-2 text-[var(--text-main)]">
+                                    <div>{row.bank_name}</div>
+                                    {row.emisso_connection_id ? (
+                                       <div className="flex items-center gap-1 mt-0.5">
+                                          <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                          <span className="text-[10px] text-emerald-600 font-medium">Auto Emisso</span>
+                                          {row.last_synced_at && (
+                                             <span className="text-[10px] text-[var(--text-soft)]">
+                                                · Sinc: {new Date(row.last_synced_at).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}
+                                             </span>
+                                          )}
+                                       </div>
+                                    ) : (
+                                       <span className="text-[10px] text-[var(--text-soft)]">Manual</span>
+                                    )}
+                                 </td>
                                  <td className="py-2 px-2 text-[var(--text-main)]">
                                     {revealedNumbers[row.id] || row.account_number}
                                  </td>

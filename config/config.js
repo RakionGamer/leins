@@ -18,8 +18,10 @@ const config = {
    siiSyncStaleMinutes: parseInt(process.env.SII_SYNC_STALE_MINUTES || '120', 10),
    allowUnscopedSuperAdminEntityAccess:
       String(process.env.ALLOW_UNSCOPED_SUPERADMIN_ENTITY_ACCESS || 'false').toLowerCase() === 'true',
-}
+   emissoApiUrl: process.env.EMISSO_API_URL || 'https://connect.emisso.ai/api/v1',
+   emissoApiKey: process.env.EMISSO_API_KEY || '',
+};
 
 module.exports = {
    config
-}
+};

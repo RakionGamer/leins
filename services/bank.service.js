@@ -6,6 +6,7 @@ const { models, sequelize } = require('../libs/sequelize');
 const { QueryTypes, Transaction, Op } = require("sequelize");
 const { config } = require('../config/config');
 const { logInfo, logWarn, logError } = require('../utils/logger');
+const EmissoService = require('./emisso.service');
 
 class BankService {
    static #normalizeRut(value) {
@@ -853,6 +854,10 @@ class BankService {
          label: [account.bank_name, masked, currencyLabel].filter(Boolean).join(' - '),
          initial_balance: account.initial_balance != null ? Number(account.initial_balance) : 0,
          initial_balance_date: account.initial_balance_date || null,
+         emisso_connection_id: account.emisso_connection_id || null,
+         emisso_system: account.emisso_system || null,
+         last_synced_at: account.last_synced_at || null,
+         sync_status: account.sync_status || 'idle',
          created_at: account.createdAt || null,
          updated_at: account.updatedAt || null,
       };
@@ -889,7 +894,7 @@ class BankService {
 
       const rows = await models.EntityBankAccount.findAll({
          where: { entity_id: parsedEntityId },
-         attributes: ['id', 'entity_id', 'bank_name', 'account_number', 'currency', 'initial_balance', 'initial_balance_date', 'createdAt', 'updatedAt'],
+         attributes: ['id', 'entity_id', 'bank_name', 'account_number', 'currency', 'initial_balance', 'initial_balance_date', 'emisso_connection_id', 'emisso_system', 'last_synced_at', 'sync_status', 'createdAt', 'updatedAt'],
          order: [['bank_name', 'ASC'], ['id', 'ASC']]
       });
 
@@ -2596,7 +2601,294 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
       };
    }
 
+   // ==========================================
+   // INTEGRACION EMISSO CONNECT
+   // ==========================================
 
+   // Descubre cuentas en Emisso para una entidad y las vincula o crea en entity_bank_accounts
+   async discoverAndLinkAccounts({ entityId, connectionId, system = 'bch_empresas' }) {
+      if (!entityId) throw boom.badRequest('entityId es requerido');
+      if (!connectionId) throw boom.badRequest('connectionId es requerido');
+
+      const emisso = new EmissoService();
+      const rawBalances = await emisso.getBalances(system, connectionId);
+
+      // Normaliza listado de cuentas segun el formato devuelto por Emisso
+      const items = Array.isArray(rawBalances)
+         ? rawBalances
+         : (rawBalances?.cuentas || rawBalances?.saldos || rawBalances?.items || []);
+
+      const accountsMap = new Map();
+      for (const item of items) {
+         const accNum = String(item.numeroCuenta || item.accountNumber || item.cuenta || '').trim();
+         if (!accNum) continue;
+         if (!accountsMap.has(accNum)) {
+            accountsMap.set(accNum, {
+               accountNumber: accNum,
+               currency: (item.currency || item.moneda || 'CLP').toUpperCase(),
+               balance: Number(item.saldoContable ?? item.saldoDisponible ?? item.saldo ?? 0),
+            });
+         }
+      }
+
+      const bankNameDefault = system === 'bch_empresas' ? 'Banco de Chile'
+         : system === 'santander_empresas' ? 'Banco Santander'
+         : system === 'bci_pyme' || system === 'bci_360' ? 'Banco BCI'
+         : system === 'banco_estado' ? 'BancoEstado'
+         : system === 'banco_security' ? 'Banco Security'
+         : system === 'bice_empresas' ? 'Banco BICE'
+         : system === 'itau_empresas' ? 'Banco Itaú'
+         : system === 'scotiabank_empresas' ? 'Scotiabank'
+         : 'Banco Conectado';
+
+      const linked = [];
+      for (const [accNum, accData] of accountsMap.entries()) {
+         let existing = await models.EntityBankAccount.findOne({
+            where: { entity_id: entityId, account_number: accNum },
+         });
+
+         if (existing) {
+            await existing.update({
+               emisso_connection_id: connectionId,
+               emisso_system: system,
+               sync_status: 'idle',
+               last_synced_at: new Date(),
+            });
+            linked.push({ id: existing.id, accountNumber: accNum, action: 'linked_existing' });
+         } else {
+            const created = await models.EntityBankAccount.create({
+               entity_id: entityId,
+               bank_name: bankNameDefault,
+               account_number: accNum,
+               currency: accData.currency || 'CLP',
+               initial_balance: 0,
+               emisso_connection_id: connectionId,
+               emisso_system: system,
+               sync_status: 'idle',
+               last_synced_at: new Date(),
+            });
+            linked.push({ id: created.id, accountNumber: accNum, action: 'created_new' });
+         }
+      }
+
+      return {
+         ok: true,
+         connectionId,
+         system,
+         accountsFound: accountsMap.size,
+         accounts: linked,
+      };
+   }
+
+   // Sincroniza movimientos de Emisso para una cuenta bancaria especifica
+   async syncFromEmisso({ entityId, bankAccountId }) {
+      if (!entityId || !bankAccountId) {
+         throw boom.badRequest('entityId y bankAccountId son requeridos');
+      }
+
+      const account = await models.EntityBankAccount.findOne({
+         where: { id: bankAccountId, entity_id: entityId },
+      });
+
+      if (!account) throw boom.notFound('Cuenta bancaria no encontrada');
+      if (!account.emisso_connection_id) {
+         throw boom.badRequest('Esta cuenta bancaria no tiene una conexion de Emisso asociada');
+      }
+
+      const connectionId = account.emisso_connection_id;
+      const system = account.emisso_system || 'bch_empresas';
+      const emisso = new EmissoService();
+
+      await account.update({ sync_status: 'syncing' });
+
+      try {
+         // 1. Sincroniza en el portal bancario
+         try {
+            await emisso.syncBankConnection(system, connectionId, ['saldos', 'movimientos']);
+         } catch (syncErr) {
+            logWarn('EMISSO_PORTAL_SYNC_WARN', { message: syncErr.message, connectionId });
+            // Continuamos consultando la cache existente si la sincronizacion en vivo falla o ya esta encolada
+         }
+
+         // 2. Calcula periodo actual y anterior (ventana movil)
+         const now = new Date();
+         const currentPeriod = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+         const prevDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+         const prevPeriod = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`;
+
+         // 3. Obtiene movimientos
+         const [currRows, prevRows] = await Promise.all([
+            emisso.getAllMovements(system, connectionId, currentPeriod).catch(() => []),
+            emisso.getAllMovements(system, connectionId, prevPeriod).catch(() => []),
+         ]);
+
+         const allRows = [...prevRows, ...currRows];
+
+         // Filtra por numero de cuenta si viene informado
+         const targetAcc = String(account.account_number).trim();
+         const filteredRows = allRows.filter(m => {
+            const rawAcc = String(m.numeroCuenta || m.accountNumber || m.cuenta || '').trim();
+            if (!rawAcc) return true; // si no discrimina cuenta, procesa
+            return rawAcc.endsWith(targetAcc) || targetAcc.endsWith(rawAcc);
+         });
+
+         // 4. Persiste con algoritmo de fusion inteligente
+         const stats = await this.persistEmissoMovements(filteredRows.length ? filteredRows : allRows, {
+            entityId,
+            entityBankAccountId: account.id,
+         });
+
+         await account.update({
+            sync_status: 'idle',
+            last_synced_at: new Date(),
+         });
+
+         logInfo('EMISSO_SYNC_COMPLETED', {
+            entityId, bankAccountId, connectionId, stats, totalRows: allRows.length,
+         });
+
+         return {
+            ok: true,
+            account_id: account.id,
+            connectionId,
+            ...stats,
+            totalRows: allRows.length,
+         };
+      } catch (err) {
+         await account.update({ sync_status: 'error' }).catch(() => {});
+         logError('EMISSO_SYNC_FAILED', { entityId, bankAccountId, error: err.message });
+         throw err;
+      }
+   }
+
+   // Persistencia y fusion inteligente de movimientos Emisso
+   async persistEmissoMovements(movements, { entityId, entityBankAccountId }) {
+      if (!movements || !movements.length) return { saved: 0, updated: 0, skipped: 0 };
+
+      let saved = 0;
+      let updated = 0;
+      let skipped = 0;
+
+      await sequelize.transaction(async (t) => {
+         const matchedIds = new Set();
+
+         for (const m of movements) {
+            // Eje debit/credit de Emisso: 'debit' entra plata (income), 'credit' sale plata (expense)
+            let txType = 'income';
+            if (m.type === 'credit' || m.type === 'expense' || (m.monto != null && Number(m.monto) < 0)) {
+               txType = 'expense';
+            } else if (m.type === 'debit' || m.type === 'income') {
+               txType = 'income';
+            }
+
+            const amountAbs = Math.abs(Number(m.monto ?? m.amount ?? 0));
+            const rawDate = m.fecha || m.movementDate || m.date || new Date().toISOString();
+            const dateOnly = String(rawDate).slice(0, 10);
+            const issuedAt = new Date(`${dateOnly}T00:00:00.000Z`);
+            const externalId = m.id ? String(m.id).trim() : null;
+            const status = m.estado || m.status || 'definitivo';
+            const description = m.glosa || m.descripcion || m.description || m.detail || null;
+            const balance = (m.saldoContable != null || m.saldo != null || m.balance != null)
+               ? Number(m.saldoContable ?? m.saldo ?? m.balance)
+               : null;
+            const documentRef = m.documento ? String(m.documento)
+               : m.numeroTransaccion ? String(m.numeroTransaccion)
+               : m.documentRef ? String(m.documentRef)
+               : null;
+            const branch = m.sucursal || m.branch || null;
+
+            const excludeClause = matchedIds.size ? { id: { [Op.notIn]: Array.from(matchedIds) } } : {};
+
+            // 1. Coincidencia directa por external_id bancario
+            let existing = null;
+            if (externalId) {
+               existing = await models.EntityBankTransaction.findOne({
+                  where: {
+                     entity_id: entityId,
+                     entity_bank_account_id: entityBankAccountId,
+                     external_id: externalId,
+                     ...excludeClause,
+                  },
+                  transaction: t,
+               });
+            }
+
+            // 2. Coincidencia por huella identica (mismo dia, tipo, monto y descripcion)
+            if (!existing) {
+               existing = await models.EntityBankTransaction.findOne({
+                  where: {
+                     entity_id: entityId,
+                     entity_bank_account_id: entityBankAccountId,
+                     issued_at: issuedAt,
+                     type: txType,
+                     amount: amountAbs,
+                     description: description || { [Op.or]: [null, ''] },
+                     ...excludeClause,
+                  },
+                  transaction: t,
+               });
+            }
+
+            // 3. FUSION: Si es definitivo y no encontro match exacto, buscar provisorio en +- 1 dia con mismo monto
+            if (!existing && status === 'definitivo') {
+               const minDate = new Date(issuedAt.getTime() - 24 * 60 * 60 * 1000);
+               const maxDate = new Date(issuedAt.getTime() + 24 * 60 * 60 * 1000);
+               existing = await models.EntityBankTransaction.findOne({
+                  where: {
+                     entity_id: entityId,
+                     entity_bank_account_id: entityBankAccountId,
+                     type: txType,
+                     amount: amountAbs,
+                     status: 'provisorio',
+                     issued_at: { [Op.between]: [minDate, maxDate] },
+                     ...excludeClause,
+                  },
+                  transaction: t,
+               });
+            }
+
+            if (existing) {
+               matchedIds.add(existing.id);
+
+               const updates = {};
+               if (externalId && !existing.external_id) updates.external_id = externalId;
+               if (status && existing.status !== status) updates.status = status;
+               if (balance != null && existing.balance == null) updates.balance = balance;
+               if (documentRef && !existing.document_ref) updates.document_ref = documentRef;
+               if (branch && !existing.branch) updates.branch = branch;
+               if (description && (!existing.description || existing.status === 'provisorio')) {
+                  updates.description = description;
+               }
+
+               if (Object.keys(updates).length) {
+                  await existing.update(updates, { transaction: t });
+                  updated++;
+               } else {
+                  skipped++;
+               }
+            } else {
+               const created = await models.EntityBankTransaction.create({
+                  entity_id: entityId,
+                  entity_bank_account_id: entityBankAccountId,
+                  type: txType,
+                  amount: amountAbs,
+                  description,
+                  issued_at: issuedAt,
+                  balance,
+                  document_ref: documentRef,
+                  branch,
+                  external_id: externalId,
+                  status,
+                  sii_document_id: null,
+               }, { transaction: t });
+               matchedIds.add(created.id);
+               saved++;
+            }
+         }
+      });
+
+      return { saved, updated, skipped };
+   }
 
 }
 

@@ -483,3 +483,45 @@ export async function downloadBankMovementsTemplate({ entityId, signal } = {}) {
 
    return { blob, filename };
 }
+
+
+export async function discoverAndLinkEmissoAccounts({ entityId, connectionId, system = 'bch_empresas', signal } = {}) {
+   if (!entityId) throw new Error('Falta la entidad');
+   if (!connectionId) throw new Error('Falta el connectionId');
+
+   const res = await fetchWithAuth('/banks/accounts/discover-emisso', {
+      method: 'POST',
+      body: JSON.stringify({ entityId: Number(entityId), connectionId, system }),
+      signal
+   });
+
+   await ensureOk(res, 'No se pudieron vincular las cuentas desde Emisso');
+   return (await parseJsonSafe(res)) || { ok: true };
+}
+
+export async function syncEmissoBankAccount({ entityId, id, signal } = {}) {
+   if (!entityId) throw new Error('Falta la entidad');
+   if (!id) throw new Error('Falta el id de cuenta bancaria');
+
+   const res = await fetchWithAuth(`/banks/accounts/${id}/sync-emisso`, {
+      method: 'POST',
+      body: JSON.stringify({ entityId: Number(entityId) }),
+      signal
+   });
+
+   await ensureOk(res, 'No se pudo sincronizar la cuenta bancaria con Emisso');
+   return (await parseJsonSafe(res)) || { ok: true };
+}
+
+export async function createEmissoConnectLink({ entityId, system = 'bch_empresas', redirectUrl, signal } = {}) {
+   if (!entityId) throw new Error('Falta la entidad');
+
+   const res = await fetchWithAuth('/banks/accounts/connect-link', {
+      method: 'POST',
+      body: JSON.stringify({ entityId: Number(entityId), system, redirectUrl }),
+      signal
+   });
+
+   await ensureOk(res, 'No se pudo generar el enlace de conexión bancaria');
+   return (await parseJsonSafe(res)) || { ok: true };
+}

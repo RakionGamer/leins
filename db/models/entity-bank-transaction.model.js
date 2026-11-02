@@ -1,5 +1,6 @@
 const { Model, DataTypes, Sequelize } = require('sequelize');
 const ENTITY_BANK_TRANSACTION_TABLE = 'entity_bank_transactions';
+
 const EntityBankTransactionSchema = {
   id: { allowNull: false, autoIncrement: true, primaryKey: true, type: DataTypes.INTEGER },
   entity_id: { allowNull: false, type: DataTypes.INTEGER },
@@ -12,9 +13,12 @@ const EntityBankTransactionSchema = {
   balance: { type: DataTypes.DECIMAL(18,2), allowNull: true },
   document_ref: { type: DataTypes.STRING(100), allowNull: true },
   branch: { type: DataTypes.STRING(120), allowNull: true },
+  external_id: { type: DataTypes.STRING(100), allowNull: true },
+  status: { type: DataTypes.STRING(30), allowNull: true, defaultValue: 'definitivo' },
   createdAt: { allowNull: false, type: DataTypes.DATE, field: 'created_at', defaultValue: Sequelize.NOW },
   updatedAt: { allowNull: true, type: DataTypes.DATE, field: 'updated_at' },
 };
+
 class EntityBankTransaction extends Model {
   static associate(models) {
     this.belongsTo(models.Entity, { as: 'entity', foreignKey: 'entity_id' });
@@ -24,6 +28,9 @@ class EntityBankTransaction extends Model {
     this.hasMany(models.BankTransactionMatch, { as: 'source_matches', foreignKey: 'source_bank_transaction_id' });
     this.hasMany(models.BankTransactionMatch, { as: 'target_matches', foreignKey: 'target_bank_transaction_id' });
   }
-  static config(sequelize) { return { sequelize, tableName: ENTITY_BANK_TRANSACTION_TABLE, modelName: 'EntityBankTransaction', timestamps: false }; }
+  static config(sequelize) {
+    return { sequelize, tableName: ENTITY_BANK_TRANSACTION_TABLE, modelName: 'EntityBankTransaction', timestamps: false };
+  }
 }
+
 module.exports = { ENTITY_BANK_TRANSACTION_TABLE, EntityBankTransactionSchema, EntityBankTransaction };
