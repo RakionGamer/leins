@@ -3916,6 +3916,9 @@ class AccountingService {
             const rule = ruleMap.get(rut);
             if (rule && accountById.has(rule.account_id)) {
                targetAcc = accountById.get(rule.account_id);
+            } else if (d.doc_type_code == null || d.source === 'MANUAL') {
+               const ruleByName = d.counterparty_name ? Array.from(ruleMap.values()).find(r => r.counterparty_name && r.counterparty_name.toLowerCase() === d.counterparty_name.toLowerCase()) : null;
+               targetAcc = (ruleByName && accountById.get(ruleByName.account_id)) || accountByCode.get('61.04.10') || accountByCode.get('61.04.30') || defaultCostAccount;
             } else {
                targetAcc = defaultCostAccount;
             }
@@ -3923,8 +3926,10 @@ class AccountingService {
          }
 
          let isMatch = false;
-         if (accountCode && targetAcc && targetAcc.code === accountCode) {
-            isMatch = true;
+         if (accountCode) {
+            if (targetAcc && String(targetAcc.code).trim() === String(accountCode).trim()) {
+               isMatch = true;
+            }
          } else if (groupKey && targetAcc) {
             if (groupKey === 'ingresos' && (targetAcc.code.startsWith('51') || targetAcc.type === 'INGRESOS')) isMatch = true;
             else if (groupKey === 'costos' && (targetAcc.code.startsWith('61.01') || targetAcc.type === 'COSTOS')) isMatch = true;
