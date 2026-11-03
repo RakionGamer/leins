@@ -1850,34 +1850,34 @@ export default function BankCartolasPage() {
                   {tab !== 'sugerencias' && (
                      <div className="flex flex-wrap items-center gap-2">
                         {currentSelectedAccount?.last_synced_at && (
-                           <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-1)] text-xs text-[var(--text-soft)]" title="Última actualización sincronizada con el banco">
+                           <div className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl border border-border-subtle bg-surface-1 text-xs text-text-soft shadow-xs" title="Última actualización sincronizada con el banco">
                               <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                              <span>Última actualización: <strong className="text-[var(--text-main)]">{formatLastSync(currentSelectedAccount.last_synced_at)}</strong></span>
+                              <span>Última actualización: <strong className="text-heading font-medium">{formatLastSync(currentSelectedAccount.last_synced_at)}</strong></span>
                            </div>
                         )}
                         {currentSelectedAccount?.emisso_connection_id && canUpdate && (
-                           <div className="inline-flex items-center rounded-xl border border-brand/30 bg-brand/10 p-0.5">
+                           <div className="inline-flex items-center rounded-xl border border-border-subtle bg-surface-1 shadow-xs overflow-hidden">
                               <button
                                  type="button"
                                  onClick={handleManualEmissoSync}
                                  disabled={isManualSyncing || currentSelectedAccount?.sync_status === 'syncing'}
-                                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-brand hover:bg-brand/20 text-xs font-semibold rounded-lg transition disabled:opacity-60"
+                                 className="inline-flex items-center gap-2 px-4 py-2.5 text-xs font-semibold text-text-main hover:bg-surface-2 transition disabled:opacity-50 cursor-pointer"
                                  title="Actualizar últimos 60 días"
                               >
-                                 <svg className={`w-3.5 h-3.5 ${isManualSyncing ? 'animate-spin' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                 <svg className={`w-3.5 h-3.5 text-brand ${isManualSyncing ? 'animate-spin' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                     <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
                                  </svg>
-                                 <span>{isManualSyncing ? 'Sincronizando...' : 'Actualizar movimientos'}</span>
+                                 <span>{isManualSyncing ? 'Sincronizando...' : 'Actualizar movimientos automáticamente'}</span>
                               </button>
 
                               <button
                                  type="button"
                                  onClick={() => setShowSyncPeriodModal(true)}
                                  disabled={isManualSyncing || currentSelectedAccount?.sync_status === 'syncing'}
-                                 className="px-2.5 py-1.5 text-brand hover:bg-brand/20 text-xs font-semibold rounded-lg border-l border-brand/20 transition disabled:opacity-60 flex items-center gap-1"
+                                 className="px-3.5 py-2.5 text-xs font-semibold text-text-soft hover:text-heading hover:bg-surface-2 border-l border-border-subtle transition disabled:opacity-50 cursor-pointer"
                                  title="Sincronizar mes específico o rango histórico"
                               >
-                                 <span>📅 Histórico</span>
+                                 <span>Histórico</span>
                               </button>
                            </div>
                         )}

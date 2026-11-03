@@ -76,32 +76,40 @@ export default function EmissoSyncPeriodModal({
 
    return (
       <Modal isOpen={isOpen} onClose={onClose} title="Sincronizar Movimientos del Banco" maxWidth="max-w-lg">
-         <div className="space-y-5">
+         <div className="space-y-4">
             {/* Resumen de la cuenta */}
-            <div className="p-3 bg-surface-1 rounded-xl border border-border-subtle text-xs">
+            <div className="p-3.5 bg-surface-1 rounded-xl border border-border-subtle text-xs">
                <div className="flex items-center justify-between">
                   <span className="font-semibold text-sm text-heading">
-                     🏦 {account.bank_name || 'Banco'}
+                     {account.bank_name || 'Banco'}
                   </span>
-                  <span className="badge badge-sm badge-ghost font-mono">
+                  <span className="font-mono text-[11px] text-text-soft bg-surface-2 px-2 py-0.5 rounded border border-border-subtle">
                      Cuenta: {account.account_number}
                   </span>
                </div>
             </div>
 
-            {/* Pestañas de modo */}
-            <div className="flex rounded-lg bg-surface-1 p-1 border border-border-subtle text-xs">
+            {/* Pestañas de modo (Segmented Control estilo neutral tipo Cloudflare) */}
+            <div className="grid grid-cols-2 p-1 bg-surface-2 rounded-xl border border-border-subtle text-xs">
                <button
                   type="button"
                   onClick={() => setMode('single')}
-                  className={`flex-1 py-1.5 font-medium rounded-md transition ${mode === 'single' ? 'bg-primary text-white shadow-sm' : 'text-text-soft hover:text-heading'}`}
+                  className={`py-2 px-3 rounded-lg text-center font-medium transition-all cursor-pointer ${
+                     mode === 'single'
+                        ? 'bg-bg-content text-heading font-semibold shadow-xs border border-border-subtle'
+                        : 'text-text-soft hover:text-heading'
+                  }`}
                >
                   Mes específico
                </button>
                <button
                   type="button"
                   onClick={() => setMode('range')}
-                  className={`flex-1 py-1.5 font-medium rounded-md transition ${mode === 'range' ? 'bg-primary text-white shadow-sm' : 'text-text-soft hover:text-heading'}`}
+                  className={`py-2 px-3 rounded-lg text-center font-medium transition-all cursor-pointer ${
+                     mode === 'range'
+                        ? 'bg-bg-content text-heading font-semibold shadow-xs border border-border-subtle'
+                        : 'text-text-soft hover:text-heading'
+                  }`}
                >
                   Rango de meses
                </button>
@@ -109,15 +117,17 @@ export default function EmissoSyncPeriodModal({
 
             {/* Contenido según el modo */}
             {mode === 'single' ? (
-               <div className="space-y-2">
-                  <label className="text-xs font-medium text-text-soft">Selecciona el mes y año a descargar:</label>
+               <div className="p-4 rounded-xl border border-border-subtle bg-surface-1 space-y-3">
+                  <label className="text-xs font-semibold text-heading block">
+                     Selecciona el mes y año a descargar:
+                  </label>
                   <div className="grid grid-cols-2 gap-3">
                      <div>
                         <label className="text-[11px] text-text-soft block mb-1">Mes</label>
                         <select
                            value={singleMonth}
                            onChange={(e) => setSingleMonth(e.target.value)}
-                           className="select select-bordered select-sm w-full bg-surface-1"
+                           className="select select-bordered select-sm w-full bg-bg-content text-heading text-xs rounded-lg"
                         >
                            {MONTHS.map((m) => (
                               <option key={m.value} value={m.value}>
@@ -131,7 +141,7 @@ export default function EmissoSyncPeriodModal({
                         <select
                            value={singleYear}
                            onChange={(e) => setSingleYear(e.target.value)}
-                           className="select select-bordered select-sm w-full bg-surface-1"
+                           className="select select-bordered select-sm w-full bg-bg-content text-heading text-xs rounded-lg"
                         >
                            {YEARS.map((y) => (
                               <option key={y} value={String(y)}>
@@ -143,14 +153,14 @@ export default function EmissoSyncPeriodModal({
                   </div>
                </div>
             ) : (
-               <div className="space-y-3">
+               <div className="p-4 rounded-xl border border-border-subtle bg-surface-1 space-y-4">
                   <div>
                      <label className="text-xs font-semibold text-heading block mb-1.5">Desde:</label>
                      <div className="grid grid-cols-2 gap-2">
                         <select
                            value={fromMonth}
                            onChange={(e) => setFromMonth(e.target.value)}
-                           className="select select-bordered select-sm w-full bg-surface-1"
+                           className="select select-bordered select-sm w-full bg-bg-content text-heading text-xs rounded-lg"
                         >
                            {MONTHS.map((m) => (
                               <option key={m.value} value={m.value}>
@@ -161,7 +171,7 @@ export default function EmissoSyncPeriodModal({
                         <select
                            value={fromYear}
                            onChange={(e) => setFromYear(e.target.value)}
-                           className="select select-bordered select-sm w-full bg-surface-1"
+                           className="select select-bordered select-sm w-full bg-bg-content text-heading text-xs rounded-lg"
                         >
                            {YEARS.map((y) => (
                               <option key={y} value={String(y)}>
@@ -178,7 +188,7 @@ export default function EmissoSyncPeriodModal({
                         <select
                            value={toMonth}
                            onChange={(e) => setToMonth(e.target.value)}
-                           className="select select-bordered select-sm w-full bg-surface-1"
+                           className="select select-bordered select-sm w-full bg-bg-content text-heading text-xs rounded-lg"
                         >
                            {MONTHS.map((m) => (
                               <option key={m.value} value={m.value}>
@@ -189,7 +199,7 @@ export default function EmissoSyncPeriodModal({
                         <select
                            value={toYear}
                            onChange={(e) => setToYear(e.target.value)}
-                           className="select select-bordered select-sm w-full bg-surface-1"
+                           className="select select-bordered select-sm w-full bg-bg-content text-heading text-xs rounded-lg"
                         >
                            {YEARS.map((y) => (
                               <option key={y} value={String(y)}>
@@ -202,12 +212,12 @@ export default function EmissoSyncPeriodModal({
                </div>
             )}
 
-            {/* Aviso informativo de cero duplicados */}
-            <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-xs text-emerald-800 dark:text-emerald-300">
-               <p className="font-semibold mb-0.5">🛡️ Protección contra duplicados</p>
-               <p>
-                  Los movimientos se fusionan automáticamente. Puedes sincronizar cualquier mes las veces que sea necesario:
-                  nunca se duplicarán y tus conciliaciones existentes se conservarán al 100%.
+            {/* Aviso informativo de cero duplicados (Neutral / Formal) */}
+            <div className="p-3.5 bg-surface-1 border border-border-subtle rounded-xl text-xs space-y-1">
+               <p className="font-semibold text-heading">Protección contra duplicados</p>
+               <p className="text-text-soft leading-relaxed">
+                  Los movimientos se fusionan automáticamente mediante verificación estricta. Puedes sincronizar cualquier mes las veces que sea necesario:
+                  las transacciones no se duplicarán y las conciliaciones existentes se conservarán intactas.
                </p>
             </div>
 
@@ -217,7 +227,7 @@ export default function EmissoSyncPeriodModal({
                   type="button"
                   onClick={onClose}
                   disabled={loading}
-                  className="btn btn-sm btn-ghost"
+                  className="px-4 py-2 rounded-xl text-xs font-medium text-text-soft hover:text-heading hover:bg-surface-2 transition cursor-pointer"
                >
                   Cancelar
                </button>
@@ -225,10 +235,10 @@ export default function EmissoSyncPeriodModal({
                   type="button"
                   onClick={handleSync}
                   disabled={loading}
-                  className="btn btn-sm btn-primary gap-1.5"
+                  className="px-4 py-2 rounded-xl text-xs font-semibold bg-brand text-white hover:bg-brand-strong transition shadow-sm flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
                >
                   {loading && <span className="loading loading-spinner loading-xs" />}
-                  ⚡ Sincronizar período
+                  <span>Sincronizar período</span>
                </button>
             </div>
          </div>
