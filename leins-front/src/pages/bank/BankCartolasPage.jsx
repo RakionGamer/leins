@@ -369,9 +369,11 @@ const TabButton = React.memo(function TabButton({ active, onClick, children, rig
    return (
       <button
          onClick={onClick}
-         className={`px-3 py-2 rounded-lg flex items-center gap-2 ${active ? "bg-[var(--surface-2)] text-[var(--heading)]" :
-            "text-[var(--text-main)] hover:bg-[var(--surface-1)]"
-            }`}
+         className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg flex items-center gap-2 transition cursor-pointer select-none ${
+            active
+               ? "bg-[var(--bg-content)] text-[var(--heading)] shadow-xs"
+               : "text-[var(--text-soft)] hover:text-[var(--heading)] hover:bg-[var(--surface-2)]"
+         }`}
          role="tab"
          aria-selected={active}
          tabIndex={active ? 0 : -1}
@@ -1698,216 +1700,371 @@ export default function BankCartolasPage() {
             aria-labelledby={FILTER_HEADING_ID}
             aria-hidden={!mostrarFiltros}
             className={[
-               "relative bg-[var(--bg-content)] shadow-sm transition-all duration-300 ease-out origin-top",
-               mostrarFiltros ? "z-[80] opacity-100 max-h-[1000px] py-3 space-y-3 scale-100 overflow-visible" : "z-0 opacity-0 max-h-0 p-0 pointer-events-none scale-[.98] overflow-hidden",
+               "relative transition-all duration-300 ease-out origin-top",
+               mostrarFiltros
+                  ? "z-[80] opacity-100 max-h-[1200px] mb-4 scale-100 overflow-visible"
+                  : "z-0 opacity-0 max-h-0 mb-0 p-0 pointer-events-none scale-[.98] overflow-hidden",
             ].join(" ")}
          >
-            <h2 id={FILTER_HEADING_ID} className="text-xl font-semibold text-[var(--heading)]">
-               Buscar movimientos
-            </h2>
-
-            <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
-               {!(tab === 'abonos' || tab === 'cargos') && (
-                  <div className="flex flex-col gap-1">
-                     <label htmlFor="f-tipo" className="text-[12px] text-[var(--text-soft)]">Tipo</label>
-                     <select
-                        id="f-tipo"
-                        className="border border-[var(--border-subtle)] bg-[var(--surface-1)] rounded-lg p-2"
-                        value={tipo}
-                        onChange={(e) => setTipo(e.target.value)}
-                        autoComplete="off"
-                        onKeyDown={(e) => e.key === "Enter" && applyAndFetch()}
-                     >
-                        <option>Todos</option>
-                        <option>Abonos</option>
-                        <option>Cargos</option>
-                     </select>
+            <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-1)] p-4 md:p-5 shadow-xs space-y-4">
+               {/* Header del panel */}
+               <div className="flex items-center justify-between pb-3 border-b border-[var(--border-subtle)]/70">
+                  <div className="flex items-center gap-2.5">
+                     <div className="w-8 h-8 rounded-xl bg-[var(--brand)]/10 text-[var(--brand)] flex items-center justify-center shrink-0">
+                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                           <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+                        </svg>
+                     </div>
+                     <div>
+                        <h2 id={FILTER_HEADING_ID} className="text-sm font-semibold text-[var(--heading)]">
+                           Buscar movimientos
+                        </h2>
+                        <p className="text-xs text-[var(--text-soft)]">
+                           Filtra transacciones bancarias por cuenta, fechas, montos o descripción
+                        </p>
+                     </div>
                   </div>
-               )}
 
-               <div className="flex flex-col gap-1">
-                  <label htmlFor="f-fecha-ini" className="text-[12px] text-[var(--text-soft)]">Fecha inicial</label>
-                  <DateInput id="f-fecha-ini" className="border border-[var(--border-subtle)] bg-[var(--surface-1)] rounded-lg p-2" value={fechaIni} onChange={setFechaIni} />
-               </div>
-
-               <div className="flex flex-col gap-1">
-                  <label htmlFor="f-fecha-fin" className="text-[12px] text-[var(--text-soft)]">Fecha final</label>
-                  <DateInput id="f-fecha-fin" className="border border-[var(--border-subtle)] bg-[var(--surface-1)] rounded-lg p-2" value={fechaFin} onChange={setFechaFin} min={fechaIni || undefined} />
-               </div>
-
-               <div className="flex flex-col gap-1">
-                  <label htmlFor="f-monto" className="text-[12px] text-[var(--text-soft)]">Monto</label>
-                  <input id="f-monto" type="text" className="border border-[var(--border-subtle)] bg-[var(--surface-1)] rounded-lg p-2" value={montoFiltro} onChange={(e) => setMontoFiltro(e.target.value)} placeholder="Ej: 120000" autoComplete="off" onKeyDown={(e) => e.key === "Enter" && applyAndFetch()} />
-               </div>
-
-               <div className="flex flex-col gap-1">
-                  <label htmlFor="f-cta" className="text-[12px] text-[var(--text-soft)]">Cuenta corriente</label>
-                  <select id="f-cta" className="border border-[var(--border-subtle)] bg-[var(--surface-1)] rounded-lg p-2" value={ctaCorriente} onChange={(e) => setCtaCorriente(e.target.value)} autoComplete="off" onKeyDown={(e) => e.key === "Enter" && applyAndFetch()}>
-                     <option value="">Todas</option>
-                     {loadingAccounts && <option value="" disabled>Cargando cuentas...</option>}
-                     {!loadingAccounts && cuentasDisponibles.length === 0 && <option value="" disabled>Sin cuentas registradas</option>}
-                     {cuentasDisponibles.map((c) => (<option key={c.id} value={c.id}>{c.label}</option>))}
-                  </select>
-               </div>
-
-               <div className="flex flex-col gap-1">
-                  <label htmlFor="f-descripcion" className="text-[12px] text-[var(--text-soft)]">Descripción</label>
-                  <input id="f-descripcion" type="text" className="border border-[var(--border-subtle)] bg-[var(--surface-1)] rounded-lg p-2" value={descripcion} onChange={(e) => setDescripcion(e.target.value)} placeholder="Texto en descripcion" autoComplete="off" onKeyDown={(e) => e.key === "Enter" && applyAndFetch()} />
-               </div>
-
-               <div className="flex flex-col gap-1">
-                  <label htmlFor="f-cuenta" className="text-[12px] text-[var(--text-soft)]">Cuenta</label>
-                  <input id="f-cuenta" type="text" className="border border-[var(--border-subtle)] bg-[var(--surface-1)] rounded-lg p-2" value={cuenta} onChange={(e) => setCuenta(e.target.value)} autoComplete="off" onKeyDown={(e) => e.key === "Enter" && applyAndFetch()} />
-               </div>
-
-               <div className="flex flex-col gap-1">
-                  <label htmlFor="f-doc" className="text-[12px] text-[var(--text-soft)]">Número documento</label>
-                  <input id="f-doc" type="text" className="border border-[var(--border-subtle)] bg-[var(--surface-1)] rounded-lg p-2" value={nroDocumento} onChange={(e) => setNroDocumento(e.target.value)} autoComplete="off" onKeyDown={(e) => e.key === "Enter" && applyAndFetch()} />
-               </div>
-
-               <div className="flex flex-col gap-1">
-                  <label htmlFor="f-folio" className="text-[12px] text-[var(--text-soft)]">Folio conciliado</label>
-                  <input id="f-folio" type="text" className="border border-[var(--border-subtle)] bg-[var(--surface-1)] rounded-lg p-2" value={folioConciliado} onChange={(e) => setFolioConciliado(e.target.value)} placeholder="Ej: 1018" autoComplete="off" onKeyDown={(e) => e.key === "Enter" && applyAndFetch()} />
-               </div>
-
-               <div className="flex items-end gap-2">
                   <button
-                     disabled={loading}
-                     className={`px-4 py-2 rounded-lg ${loading ? "opacity-60 cursor-not-allowed" : "bg-[var(--brand)] text-white"}`}
-                     onClick={applyAndFetch}
+                     type="button"
+                     onClick={() => setMostrarFiltros(false)}
+                     className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-[var(--text-soft)] hover:text-[var(--heading)] hover:bg-[var(--surface-2)] transition cursor-pointer"
+                     title="Ocultar filtros (Ctrl/⌘+K)"
                   >
-                     {loading ? "Cargando…" : "Filtrar"}
+                     <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M18 6 6 18M6 6l12 12" />
+                     </svg>
+                     <span>Ocultar</span>
                   </button>
                </div>
 
+               {/* Cuadrícula simétrica 3x3 (exactamente 9 campos en 3 filas equilibradas) */}
+               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                  {/* Fila 1 / Campo 1: Cuenta corriente */}
+                  <div className="flex flex-col gap-1">
+                     <label htmlFor="f-cta" className="text-xs font-medium text-[var(--text-soft)]">Cuenta corriente</label>
+                     <select
+                        id="f-cta"
+                        className="w-full h-10 px-3 text-xs md:text-sm rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-2)] text-[var(--heading)] focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/20 focus:border-[var(--brand)] transition cursor-pointer"
+                        value={ctaCorriente}
+                        onChange={(e) => setCtaCorriente(e.target.value)}
+                        autoComplete="off"
+                        onKeyDown={(e) => e.key === "Enter" && applyAndFetch()}
+                     >
+                        <option value="">Todas las cuentas</option>
+                        {loadingAccounts && <option value="" disabled>Cargando cuentas...</option>}
+                        {!loadingAccounts && cuentasDisponibles.length === 0 && <option value="" disabled>Sin cuentas registradas</option>}
+                        {cuentasDisponibles.map((c) => (<option key={c.id} value={c.id}>{c.label}</option>))}
+                     </select>
+                  </div>
+
+                  {/* Fila 1 / Campo 2: Tipo de movimiento */}
+                  <div className="flex flex-col gap-1">
+                     <label htmlFor="f-tipo" className="text-xs font-medium text-[var(--text-soft)]">
+                        Tipo de movimiento {tab !== 'todos' ? `(fijado en ${tab})` : ''}
+                     </label>
+                     <select
+                        id="f-tipo"
+                        className="w-full h-10 px-3 text-xs md:text-sm rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-2)] text-[var(--heading)] focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/20 focus:border-[var(--brand)] transition cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
+                        value={tab === 'abonos' ? 'Abonos' : tab === 'cargos' ? 'Cargos' : tipo}
+                        onChange={(e) => setTipo(e.target.value)}
+                        disabled={tab === 'abonos' || tab === 'cargos'}
+                        autoComplete="off"
+                        onKeyDown={(e) => e.key === "Enter" && applyAndFetch()}
+                     >
+                        <option value="Todos">Todos</option>
+                        <option value="Abonos">Abonos</option>
+                        <option value="Cargos">Cargos</option>
+                     </select>
+                  </div>
+
+                  {/* Fila 1 / Campo 3: Monto */}
+                  <div className="flex flex-col gap-1">
+                     <label htmlFor="f-monto" className="text-xs font-medium text-[var(--text-soft)]">Monto exacto</label>
+                     <input
+                        id="f-monto"
+                        type="text"
+                        className="w-full h-10 px-3 text-xs md:text-sm rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-2)] text-[var(--heading)] placeholder:text-[var(--text-soft)]/50 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/20 focus:border-[var(--brand)] transition"
+                        value={montoFiltro}
+                        onChange={(e) => setMontoFiltro(e.target.value)}
+                        placeholder="Ej: 120000"
+                        autoComplete="off"
+                        onKeyDown={(e) => e.key === "Enter" && applyAndFetch()}
+                     />
+                  </div>
+
+                  {/* Fila 2 / Campo 4: Fecha inicial */}
+                  <div className="flex flex-col gap-1">
+                     <label htmlFor="f-fecha-ini" className="text-xs font-medium text-[var(--text-soft)]">Fecha desde</label>
+                     <DateInput
+                        id="f-fecha-ini"
+                        className="w-full h-10 px-3 text-xs md:text-sm rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-2)] text-[var(--heading)] focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/20 focus:border-[var(--brand)] transition"
+                        value={fechaIni}
+                        onChange={setFechaIni}
+                     />
+                  </div>
+
+                  {/* Fila 2 / Campo 5: Fecha final */}
+                  <div className="flex flex-col gap-1">
+                     <label htmlFor="f-fecha-fin" className="text-xs font-medium text-[var(--text-soft)]">Fecha hasta</label>
+                     <DateInput
+                        id="f-fecha-fin"
+                        className="w-full h-10 px-3 text-xs md:text-sm rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-2)] text-[var(--heading)] focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/20 focus:border-[var(--brand)] transition"
+                        value={fechaFin}
+                        onChange={setFechaFin}
+                        min={fechaIni || undefined}
+                     />
+                  </div>
+
+                  {/* Fila 2 / Campo 6: Descripción */}
+                  <div className="flex flex-col gap-1">
+                     <label htmlFor="f-descripcion" className="text-xs font-medium text-[var(--text-soft)]">Descripción o glosa</label>
+                     <input
+                        id="f-descripcion"
+                        type="text"
+                        className="w-full h-10 px-3 text-xs md:text-sm rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-2)] text-[var(--heading)] placeholder:text-[var(--text-soft)]/50 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/20 focus:border-[var(--brand)] transition"
+                        value={descripcion}
+                        onChange={(e) => setDescripcion(e.target.value)}
+                        placeholder="Buscar por descripción..."
+                        autoComplete="off"
+                        onKeyDown={(e) => e.key === "Enter" && applyAndFetch()}
+                     />
+                  </div>
+
+                  {/* Fila 3 / Campo 7: Cuenta contraparte */}
+                  <div className="flex flex-col gap-1">
+                     <label htmlFor="f-cuenta" className="text-xs font-medium text-[var(--text-soft)]">Cuenta contraparte</label>
+                     <input
+                        id="f-cuenta"
+                        type="text"
+                        className="w-full h-10 px-3 text-xs md:text-sm rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-2)] text-[var(--heading)] placeholder:text-[var(--text-soft)]/50 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/20 focus:border-[var(--brand)] transition"
+                        value={cuenta}
+                        onChange={(e) => setCuenta(e.target.value)}
+                        placeholder="N° cuenta contraparte..."
+                        autoComplete="off"
+                        onKeyDown={(e) => e.key === "Enter" && applyAndFetch()}
+                     />
+                  </div>
+
+                  {/* Fila 3 / Campo 8: Número documento */}
+                  <div className="flex flex-col gap-1">
+                     <label htmlFor="f-doc" className="text-xs font-medium text-[var(--text-soft)]">Número documento</label>
+                     <input
+                        id="f-doc"
+                        type="text"
+                        className="w-full h-10 px-3 text-xs md:text-sm rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-2)] text-[var(--heading)] placeholder:text-[var(--text-soft)]/50 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/20 focus:border-[var(--brand)] transition"
+                        value={nroDocumento}
+                        onChange={(e) => setNroDocumento(e.target.value)}
+                        placeholder="Ej: 000001890"
+                        autoComplete="off"
+                        onKeyDown={(e) => e.key === "Enter" && applyAndFetch()}
+                     />
+                  </div>
+
+                  {/* Fila 3 / Campo 9: Folio conciliado */}
+                  <div className="flex flex-col gap-1">
+                     <label htmlFor="f-folio" className="text-xs font-medium text-[var(--text-soft)]">Folio conciliado</label>
+                     <input
+                        id="f-folio"
+                        type="text"
+                        className="w-full h-10 px-3 text-xs md:text-sm rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-2)] text-[var(--heading)] placeholder:text-[var(--text-soft)]/50 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/20 focus:border-[var(--brand)] transition"
+                        value={folioConciliado}
+                        onChange={(e) => setFolioConciliado(e.target.value)}
+                        placeholder="Ej: 1018"
+                        autoComplete="off"
+                        onKeyDown={(e) => e.key === "Enter" && applyAndFetch()}
+                     />
+                  </div>
+               </div>
+
+               {/* Barra inferior de acciones del filtro */}
+               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3.5 border-t border-[var(--border-subtle)]/70">
+                  <div className="text-xs text-[var(--text-soft)] flex items-center gap-1.5">
+                     <span>Presiona</span>
+                     <kbd className="px-1.5 py-0.5 rounded-md border border-[var(--border-subtle)] bg-[var(--surface-2)] text-[11px] font-mono text-[var(--heading)] font-semibold">Enter</kbd>
+                     <span>para aplicar filtros en cualquier momento</span>
+                  </div>
+
+                  <div className="flex items-center gap-2 self-end sm:self-auto">
+                     <button
+                        type="button"
+                        onClick={resetAll}
+                        className="px-4 h-10 text-xs font-semibold text-[var(--text-soft)] hover:text-[var(--heading)] hover:bg-[var(--surface-2)] rounded-xl border border-[var(--border-subtle)] transition cursor-pointer"
+                     >
+                        Limpiar filtros
+                     </button>
+
+                     <button
+                        type="button"
+                        disabled={loading}
+                        onClick={applyAndFetch}
+                        className="inline-flex items-center gap-2 px-5 h-10 text-xs font-semibold text-white bg-[var(--brand)] hover:opacity-95 rounded-xl shadow-xs transition disabled:opacity-60 cursor-pointer"
+                     >
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                           <circle cx="11" cy="11" r="8" />
+                           <path d="m21 21-4.35-4.35" />
+                        </svg>
+                        <span>{loading ? "Buscando..." : "Filtrar"}</span>
+                     </button>
+                  </div>
+               </div>
             </div>
          </div>
 
-         {/* pestañas estilo barra */}
-         <div className="bg-[var(--bg-content)] py-2 shadow-sm">
-            <div className="flex items-center justify-between gap-3">
-               <div className="flex flex-wrap items-center gap-2" role="tablist" aria-label="Vistas de cartolas">
-                  <TabButton active={tab === "todos"} onClick={resetAll}>Todos</TabButton>
-
-                  <TabButton
-                     active={tab === "sugerencias"}
-                     onClick={handleOpenSuggestions}
-                     rightBadge={
-                        sugBadgeLoading
-                           ? <span className="inline-block w-3 h-3 border-2 border-[var(--warning)] border-t-transparent rounded-full animate-spin"></span>
-                           : <span
-                              title={sugIsError ? 'No se pudo calcular; prueba acotar fechas o cuenta' : undefined}
-                              className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--warning-bg)] text-[var(--warning)] min-w-[2ch] text-center"
-                           >
-                              {sugerenciasBadgeText}
-                           </span>
-                     }
-                  >
-                     Sugerencias conciliación
-                  </TabButton>
-
-                  <TabButton
-                     active={tab === "abonos"}
-                     onClick={() => switchTabWithReset("abonos")}
-                     rightBadge={
-                        abonosLoading
-                           ? <span className="inline-block w-3 h-3 border-2 border-[var(--brand)] border-t-transparent rounded-full animate-spin"></span>
-                           : <span className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--brand-soft-bg,rgba(0,0,0,.05))] text-[var(--brand)] min-w-[2ch] text-center">{abonosTotal}</span>
-                     }
-                  >
-                     Abonos
-                  </TabButton>
-
-                  <TabButton
-                     active={tab === "cargos"}
-                     onClick={() => switchTabWithReset("cargos")}
-                     rightBadge={
-                        cargosLoading
-                           ? <span className="inline-block w-3 h-3 border-2 border-[var(--brand)] border-t-transparent rounded-full animate-spin"></span>
-                           : <span className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--brand-soft-bg,rgba(0,0,0,.05))] text-[var(--brand)] min-w-[2ch] text-center">{cargosTotal}</span>
-                     }
-                  >
-                     Cargos
-                  </TabButton>
+         {/* Toolbar: Pestañas de estado y Acciones */}
+         <div className="bg-[var(--bg-content)] py-2 mb-3">
+            <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3">
+               {/* Grupo izquierdo: Pestañas de estado + Por conciliar */}
+               <div className="flex flex-wrap items-center gap-2.5" role="tablist" aria-label="Vistas de cartolas">
+                  <div className="inline-flex items-center p-1 bg-[var(--surface-1)] border border-[var(--border-subtle)] rounded-xl shadow-xs">
+                     <TabButton active={tab === "todos"} onClick={resetAll}>Todos</TabButton>
+                     <TabButton
+                        active={tab === "sugerencias"}
+                        onClick={handleOpenSuggestions}
+                        rightBadge={
+                           sugBadgeLoading
+                              ? <span className="inline-block w-3 h-3 border-2 border-[var(--warning)] border-t-transparent rounded-full animate-spin"></span>
+                              : <span
+                                 title={sugIsError ? 'No se pudo calcular; prueba acotar fechas o cuenta' : undefined}
+                                 className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--warning-bg)] text-[var(--warning)] min-w-[2ch] text-center font-medium"
+                              >
+                                 {sugerenciasBadgeText}
+                              </span>
+                        }
+                     >
+                        Sugerencias conciliación
+                     </TabButton>
+                     <TabButton
+                        active={tab === "abonos"}
+                        onClick={() => switchTabWithReset("abonos")}
+                        rightBadge={
+                           abonosLoading
+                              ? <span className="inline-block w-3 h-3 border-2 border-[var(--brand)] border-t-transparent rounded-full animate-spin"></span>
+                              : <span className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--brand-soft-bg,rgba(0,0,0,.05))] text-[var(--brand)] min-w-[2ch] text-center font-medium">{abonosTotal}</span>
+                        }
+                     >
+                        Abonos
+                     </TabButton>
+                     <TabButton
+                        active={tab === "cargos"}
+                        onClick={() => switchTabWithReset("cargos")}
+                        rightBadge={
+                           cargosLoading
+                              ? <span className="inline-block w-3 h-3 border-2 border-[var(--brand)] border-t-transparent rounded-full animate-spin"></span>
+                              : <span className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--brand-soft-bg,rgba(0,0,0,.05))] text-[var(--brand)] min-w-[2ch] text-center font-medium">{cargosTotal}</span>
+                        }
+                     >
+                        Cargos
+                     </TabButton>
+                  </div>
 
                   {tab !== "sugerencias" && (
-                     <label className="ml-2 inline-flex items-center gap-2 text-[var(--text-main)]">
+                     <label className="inline-flex items-center gap-2 px-3.5 h-10 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-1)] text-xs font-medium text-[var(--text-main)] hover:bg-[var(--surface-2)] transition cursor-pointer select-none shadow-xs shrink-0">
                         <input
                            type="checkbox"
-                           className="accent-[var(--brand)]"
+                           className="w-4 h-4 rounded accent-[var(--brand)] text-[var(--brand)] cursor-pointer"
                            checked={soloPorConciliar}
                            onChange={(e) => {
                               setSoloPorConciliar(e.target.checked);
                               setPage(0);
                            }}
                         />
-                        Por conciliar
+                        <span>Por conciliar</span>
                      </label>
                   )}
                </div>
 
-               <div className="flex items-center gap-2">
-                  {tab !== 'sugerencias' && (
-                     <div className="flex flex-wrap items-center gap-2">
-                        {currentSelectedAccount?.last_synced_at && (
-                           <div className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl border border-border-subtle bg-surface-1 text-xs text-text-soft shadow-xs" title="Última actualización sincronizada con el banco">
-                              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                              <span>Última actualización: <strong className="text-heading font-medium">{formatLastSync(currentSelectedAccount.last_synced_at)}</strong></span>
-                           </div>
-                        )}
-                        {currentSelectedAccount?.emisso_connection_id && canUpdate && (
-                           <div className="inline-flex items-center rounded-xl border border-border-subtle bg-surface-1 shadow-xs overflow-hidden">
-                              <button
-                                 type="button"
-                                 onClick={handleManualEmissoSync}
-                                 disabled={isManualSyncing || currentSelectedAccount?.sync_status === 'syncing'}
-                                 className="inline-flex items-center gap-2 px-4 py-2.5 text-xs font-semibold text-text-main hover:bg-surface-2 transition disabled:opacity-50 cursor-pointer"
-                                 title="Actualizar últimos 60 días"
-                              >
-                                 <svg className={`w-3.5 h-3.5 text-brand ${isManualSyncing ? 'animate-spin' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                    <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
-                                 </svg>
-                                 <span>{isManualSyncing ? 'Sincronizando...' : 'Actualizar movimientos automáticamente'}</span>
-                              </button>
+               {/* Grupo derecho: Acciones y Sincronización */}
+               {tab !== 'sugerencias' && (
+                  <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+                     {currentSelectedAccount?.last_synced_at && (
+                        <div className="inline-flex items-center gap-2 px-3 h-10 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-1)] text-xs text-[var(--text-soft)] shadow-xs shrink-0" title="Última sincronización automática con el banco">
+                           <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                           <span>Última sync: <strong className="text-[var(--heading)] font-medium">{formatLastSync(currentSelectedAccount.last_synced_at)}</strong></span>
+                        </div>
+                     )}
 
-                              <button
-                                 type="button"
-                                 onClick={() => setShowSyncPeriodModal(true)}
-                                 disabled={isManualSyncing || currentSelectedAccount?.sync_status === 'syncing'}
-                                 className="px-3.5 py-2.5 text-xs font-semibold text-text-soft hover:text-heading hover:bg-surface-2 border-l border-border-subtle transition disabled:opacity-50 cursor-pointer"
-                                 title="Sincronizar mes específico o rango histórico"
-                              >
-                                 <span>Histórico</span>
-                              </button>
-                           </div>
-                        )}
-                        {canCreate && (
-                           <div className="relative group">
-                              <PrimaryButton onClick={openUploadModal} className="flex items-center gap-2 px-3 md:px-6 py-2.5 bg-brand text-white font-medium rounded-xl shadow-lg shadow-brand/20 hover:bg-brand-strong hover:-translate-y-0.5 transition-all">
-                                 <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className="shrink-0"><path d="M12 3l4 4h-3v6h-2V7H8l4-4zm-7 14h14v2H5v-2z" /></svg>
-                                 <span className="hidden xl:block">Agregar movimiento</span>
-                              </PrimaryButton>
-                           </div>
-                        )}
-                        <div className="relative group">
-                           <button type="button" onClick={() => setMostrarFiltros(v => !v)} aria-expanded={mostrarFiltros} aria-controls={FILTER_PANEL_ID} className="p-2 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--surface-1)]" title="Mostrar/Ocultar filtros (Ctrl/⌘+K)">
-                              🔍 <span className="sr-only">Filtros</span>
+                     {currentSelectedAccount?.emisso_connection_id && canUpdate && (
+                        <div className="inline-flex items-center h-10 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-1)] shadow-xs overflow-hidden shrink-0">
+                           <button
+                              type="button"
+                              onClick={handleManualEmissoSync}
+                              disabled={isManualSyncing || currentSelectedAccount?.sync_status === 'syncing'}
+                              className="inline-flex items-center gap-2 px-3.5 h-full text-xs font-semibold text-[var(--text-main)] hover:bg-[var(--surface-2)] transition disabled:opacity-50 cursor-pointer"
+                              title="Actualizar movimientos automáticamente con el banco"
+                           >
+                              <svg className={`w-3.5 h-3.5 text-[var(--brand)] ${isManualSyncing ? 'animate-spin' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                 <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
+                              </svg>
+                              <span>{isManualSyncing ? 'Sincronizando...' : 'Actualizar movimientos'}</span>
                            </button>
-                           <div className="pointer-events-none absolute -top-2 left-1/2 -translate-x-1/2 -translate-y-full whitespace-nowrap text-xs px-2 py-1 rounded-md z-[90] bg-[var(--surface-2)] text-[var(--text-main)] shadow opacity-0 group-hover:opacity-100 transition-opacity duration-150">
-                              {mostrarFiltros ? "Ocultar filtros" : "Mostrar filtros"}
-                           </div>
-                        </div>
-                        <div className="relative group">
-                           <button onClick={exportXLSX} disabled={loading} className={`p-2 rounded-lg border border-[var(--border-subtle)] ${loading ? "opacity-60 cursor-not-allowed" : "hover:bg-[var(--surface-1)]"}`}>
-                              {loading ? "…" : "XLSX"}
+
+                           <button
+                              type="button"
+                              onClick={() => setShowSyncPeriodModal(true)}
+                              disabled={isManualSyncing || currentSelectedAccount?.sync_status === 'syncing'}
+                              className="px-3 h-full text-xs font-semibold text-[var(--text-soft)] hover:text-[var(--heading)] hover:bg-[var(--surface-2)] border-l border-[var(--border-subtle)] transition disabled:opacity-50 cursor-pointer"
+                              title="Sincronizar mes específico o rango histórico"
+                           >
+                              <span>Histórico</span>
                            </button>
-                           <div className="pointer-events-none absolute -top-2 left-1/2 -translate-x-1/2 -translate-y-full whitespace-nowrap text-xs px-2 py-1 rounded-md z-[90] bg-[var(--surface-2)] text-[var(--text-main)] shadow opacity-0 group-hover:opacity-100 transition-opacity duration-150">
-                              Exportar XLSX
-                           </div>
                         </div>
+                     )}
+
+                     {canCreate && (
+                        <button
+                           type="button"
+                           onClick={openUploadModal}
+                           className="inline-flex items-center gap-2 px-4 h-10 bg-[var(--brand)] text-white text-xs font-semibold rounded-xl shadow-xs hover:opacity-95 transition shrink-0 cursor-pointer"
+                        >
+                           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" className="shrink-0">
+                              <path d="M12 3l4 4h-3v6h-2V7H8l4-4zm-7 14h14v2H5v-2z" />
+                           </svg>
+                           <span>Agregar movimiento</span>
+                        </button>
+                     )}
+
+                     {/* Grupo de utilidades: Filtros y XLSX integrados de forma simétrica */}
+                     <div className="inline-flex items-center h-10 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-1)] shadow-xs overflow-hidden shrink-0">
+                        <button
+                           type="button"
+                           onClick={() => setMostrarFiltros((v) => !v)}
+                           aria-expanded={mostrarFiltros}
+                           aria-controls={FILTER_PANEL_ID}
+                           className={`inline-flex items-center gap-1.5 px-3 h-full text-xs font-medium transition cursor-pointer ${
+                              mostrarFiltros
+                                 ? 'bg-[var(--surface-2)] text-[var(--brand)]'
+                                 : 'text-[var(--text-soft)] hover:text-[var(--heading)] hover:bg-[var(--surface-2)]'
+                           }`}
+                           title={mostrarFiltros ? "Ocultar filtros (Ctrl/⌘+K)" : "Mostrar filtros (Ctrl/⌘+K)"}
+                        >
+                           <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <circle cx="11" cy="11" r="8" />
+                              <path d="m21 21-4.35-4.35" />
+                           </svg>
+                           <span>Filtros</span>
+                        </button>
+
+                        <div className="w-px h-4 bg-[var(--border-subtle)]" />
+
+                        <button
+                           type="button"
+                           onClick={exportXLSX}
+                           disabled={loading}
+                           className="inline-flex items-center gap-1.5 px-3 h-full text-xs font-medium text-[var(--text-soft)] hover:text-[var(--heading)] hover:bg-[var(--surface-2)] transition disabled:opacity-50 cursor-pointer"
+                           title="Exportar movimientos a Excel (XLSX)"
+                        >
+                           <svg className="w-3.5 h-3.5 text-emerald-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                              <polyline points="14 2 14 8 20 8" />
+                              <line x1="8" y1="13" x2="16" y2="13" />
+                              <line x1="8" y1="17" x2="16" y2="17" />
+                           </svg>
+                           <span>{loading ? "…" : "XLSX"}</span>
+                        </button>
                      </div>
-                  )}
-               </div>
+                  </div>
+               )}
             </div>
          </div>
 

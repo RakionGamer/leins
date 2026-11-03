@@ -35,16 +35,15 @@ export function toast(arg, opts) {
    return rhtToast(String(arg ?? ''));
 }
 
-// 👇👇 AGREGA ESTAS LÍNEAS AQUÍ 👇👇
-// Esto "pega" los métodos originales a tu función wrapper
+// Métodos directos en el wrapper para compatibilidad completa
 toast.success = rhtToast.success;
 toast.error = rhtToast.error;
 toast.loading = rhtToast.loading;
 toast.dismiss = rhtToast.dismiss;
 toast.promise = rhtToast.promise;
 toast.custom = rhtToast.custom;
-// 👆👆 FIN DE LAS LÍNEAS NUEVAS 👆👆
-
+toast.info = (msg, opts) => rhtToast(msg, { ...opts, icon: 'ℹ️' });
+toast.warning = (msg, opts) => rhtToast(msg, { ...opts, icon: '⚠️' });
 
 // ---- Toaster visual ----
 export default function Toaster() {

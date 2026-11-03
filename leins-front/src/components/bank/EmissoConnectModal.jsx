@@ -85,7 +85,7 @@ export default function EmissoConnectModal({ isOpen, onClose, entityId, onAccoun
          const linkUrl = res?.url || res?.link || res?.enlace;
          if (linkUrl) {
             window.open(linkUrl, '_blank', 'width=600,height=700');
-            toast.info('Se abrió la ventana de conexión segura. Completa el login en el banco y luego pulsa "Actualizar lista".');
+            (toast.info || toast)('Se abrió la ventana de conexión segura. Completa el login en el banco y luego pulsa "Actualizar lista".');
          } else {
             toast.success('Solicitud enviada a Emisso');
             await fetchConnections();
