@@ -624,20 +624,54 @@ const listEmissoConnections = asyncHandler(async (req, res) => {
    const entityId = Number(req.query?.entityId || req.entityId || 0);
    const EmissoService = require('../services/emisso.service');
    const { models } = require('../libs/sequelize');
+   const { Op } = require('sequelize');
    const emisso = new EmissoService();
 
    try {
+      const entity = entityId ? await models.Entity.findByPk(entityId, { attributes: ['id', 'rut', 'business_name'] }) : null;
+      const entityRutClean = entity?.rut ? String(entity.rut).replace(/[^0-9kK]/g, '').toUpperCase() : '';
+
       const data = await emisso.getConnectionsStatus();
       const rawConnections = Array.isArray(data) ? data : (data?.conexiones || []);
 
+      // Cuentas de ESTA entidad vinculadas a Emisso
       const accounts = entityId ? await models.EntityBankAccount.findAll({
          where: { entity_id: entityId },
          attributes: ['id', 'emisso_connection_id', 'bank_name', 'account_number', 'last_synced_at']
       }) : [];
-
       const linkedIds = new Set(accounts.map(a => a.emisso_connection_id).filter(Boolean));
 
-      const connections = rawConnections.map(c => ({
+      // Conexiones vinculadas a OTRAS entidades en Leins (nunca deben verse entre empresas)
+      const otherAccounts = entityId ? await models.EntityBankAccount.findAll({
+         where: {
+            entity_id: { [Op.ne]: entityId },
+            emisso_connection_id: { [Op.ne]: null }
+         },
+         attributes: ['emisso_connection_id']
+      }) : [];
+      const otherLinkedIds = new Set(otherAccounts.map(a => a.emisso_connection_id).filter(Boolean));
+
+      // Filtro estricto de aislamiento multi-tenant:
+      // 1. Descartar conexiones que ya pertenecen a otra entidad en Leins
+      // 2. Si trae empresaRut desde Emisso, debe coincidir exactamente con el RUT de la entidad activa
+      // 3. Si ya esta vinculada a esta entidad, se incluye
+      const filteredConnections = rawConnections.filter(c => {
+         // Bloquear si ya pertenece a otra empresa en la base de datos
+         if (otherLinkedIds.has(c.id)) return false;
+
+         // Permitir si ya esta vinculada a esta entidad
+         if (linkedIds.has(c.id)) return true;
+
+         // Comparar RUT de la empresa en Emisso con el RUT de la entidad
+         if (c.empresaRut && entityRutClean) {
+            const connRutClean = String(c.empresaRut).replace(/[^0-9kK]/g, '').toUpperCase();
+            return connRutClean === entityRutClean;
+         }
+
+         return false;
+      });
+
+      const connections = filteredConnections.map(c => ({
          id: c.id,
          system: c.sistema,
          name: c.nombre || (c.sistema === 'bch_empresas' ? 'Banco de Chile' : c.sistema),
@@ -645,10 +679,11 @@ const listEmissoConnections = asyncHandler(async (req, res) => {
          isLinked: linkedIds.has(c.id),
          cadence: c.cadencia,
          lastVerified: c.verificadaEn,
+         empresaRut: c.empresaRut,
          linkedAccounts: accounts.filter(a => a.emisso_connection_id === c.id)
       }));
 
-      res.json({ ok: true, connections });
+      res.json({ ok: true, connections, entityRut: entity?.rut });
    } catch (err) {
       logError('EMISSO_LIST_CONNECTIONS_ERROR', { error: err.message });
       res.status(500).json({ ok: false, message: err.message, connections: [] });
@@ -696,11 +731,15 @@ const createEmissoConnectLink = asyncHandler(async (req, res) => {
 
    if (!entityId) throw boom.badRequest('entityId es requerido');
 
+   const { models } = require('../libs/sequelize');
+   const entity = await models.Entity.findByPk(entityId, { attributes: ['id', 'rut'] });
+
    const EmissoService = require('../services/emisso.service');
    const emisso = new EmissoService();
 
    const out = await emisso.createConnectionLink({
       system,
+      rut: entity?.rut || null,
       redirectUrl,
    });
 

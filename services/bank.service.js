@@ -2610,6 +2610,18 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
       if (!entityId) throw boom.badRequest('entityId es requerido');
       if (!connectionId) throw boom.badRequest('connectionId es requerido');
 
+      // Validacion de aislamiento multi-tenant:
+      // Si la conexion ya esta vinculada a OTRA entidad en Leins, rechazar inmediatamente
+      const conflict = await models.EntityBankAccount.findOne({
+         where: {
+            emisso_connection_id: connectionId,
+            entity_id: { [Op.ne]: entityId },
+         },
+      });
+      if (conflict) {
+         throw boom.conflict('Esta conexión bancaria ya está vinculada a otra empresa en el sistema.');
+      }
+
       const emisso = new EmissoService();
       const rawBalances = await emisso.getBalances(system, connectionId);
 

@@ -26,6 +26,8 @@ export default function EmissoConnectModal({ isOpen, onClose, entityId, onAccoun
    const [selectedSystem, setSelectedSystem] = useState('bch_empresas');
    const [scopeNotice, setScopeNotice] = useState(false);
 
+   const [entityRut, setEntityRut] = useState('');
+
    const fetchConnections = async () => {
       if (!entityId) return;
       setLoading(true);
@@ -33,6 +35,7 @@ export default function EmissoConnectModal({ isOpen, onClose, entityId, onAccoun
       try {
          const res = await listEmissoConnections({ entityId });
          setConnections(res?.connections || []);
+         if (res?.entityRut) setEntityRut(res.entityRut);
       } catch (err) {
          toast.error(err?.message || 'Error al consultar conexiones de Emisso');
       } finally {
@@ -116,7 +119,12 @@ export default function EmissoConnectModal({ isOpen, onClose, entityId, onAccoun
             <div>
                <div className="flex items-center justify-between mb-3">
                   <h4 className="text-sm font-semibold text-heading flex items-center gap-2">
-                     <span>🏦</span> Conexiones detectadas en Emisso
+                     <span>Conexiones detectadas en Emisso</span>
+                     {entityRut && (
+                        <span className="text-[11px] font-normal text-text-soft bg-surface-2 px-2 py-0.5 rounded-md border border-border-subtle">
+                           RUT: {entityRut}
+                        </span>
+                     )}
                   </h4>
                   <button
                      type="button"
@@ -124,19 +132,19 @@ export default function EmissoConnectModal({ isOpen, onClose, entityId, onAccoun
                      disabled={loading}
                      className="text-xs text-primary hover:underline font-medium"
                   >
-                     {loading ? 'Consultando...' : '↻ Actualizar lista'}
+                     {loading ? 'Consultando...' : 'Actualizar lista'}
                   </button>
                </div>
 
                {loading ? (
                   <div className="py-8 text-center text-xs text-text-soft">
                      <span className="loading loading-spinner loading-md text-primary mr-2" />
-                     Consultando conexiones en Emisso...
+                     Consultando conexiones seguras en Emisso...
                   </div>
                ) : connections.length === 0 ? (
                   <div className="p-4 bg-surface-1 rounded-xl border border-border-subtle text-center text-xs text-text-soft">
-                     No se detectaron conexiones bancarias activas en tu cuenta de Emisso.
-                     Puedes conectar un banco abajo.
+                     No se detectaron conexiones bancarias activas asociadas a este RUT en Emisso.
+                     Puedes conectar un banco a continuación.
                   </div>
                ) : (
                   <div className="space-y-3">
@@ -176,7 +184,7 @@ export default function EmissoConnectModal({ isOpen, onClose, entityId, onAccoun
                                     className="btn btn-sm btn-primary gap-1"
                                  >
                                     {isCurrentLinking && <span className="loading loading-spinner loading-xs" />}
-                                    {conn.isLinked ? '↻ Re-vincular cuentas' : '⚡ Vincular cuentas'}
+                                    {conn.isLinked ? 'Re-vincular cuentas' : 'Vincular cuentas'}
                                  </button>
                               </div>
                            </div>
@@ -226,7 +234,7 @@ export default function EmissoConnectModal({ isOpen, onClose, entityId, onAccoun
                      className="btn btn-sm btn-outline gap-1.5"
                   >
                      {creatingLink && <span className="loading loading-spinner loading-xs" />}
-                     🌐 Conectar con Banco
+                     Conectar con Banco
                   </button>
                </div>
             </div>
