@@ -2655,8 +2655,16 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
 
       const linked = [];
       for (const [accNum, accData] of accountsMap.entries()) {
+         const last4 = accNum.slice(-4);
          let existing = await models.EntityBankAccount.findOne({
-            where: { entity_id: entityId, account_number: accNum },
+            where: {
+               entity_id: entityId,
+               [Op.or]: [
+                  { account_number: accNum },
+                  { account_number: { [Op.like]: `%:${last4}` } },
+                  { account_number: { [Op.like]: `%${accNum}%` } }
+               ]
+            },
          });
 
          if (existing) {
