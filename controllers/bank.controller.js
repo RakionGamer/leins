@@ -628,8 +628,9 @@ const listEmissoConnections = asyncHandler(async (req, res) => {
    const emisso = new EmissoService();
 
    try {
-      const entity = entityId ? await models.Entity.findByPk(entityId, { attributes: ['id', 'rut', 'business_name'] }) : null;
-      const entityRutClean = entity?.rut ? String(entity.rut).replace(/[^0-9kK]/g, '').toUpperCase() : '';
+      const entity = entityId ? await models.Entity.findByPk(entityId, { attributes: ['id', 'tax_id', 'legal_name'] }) : null;
+      const entityRut = entity?.tax_id || '';
+      const entityRutClean = entityRut ? String(entityRut).replace(/[^0-9kK]/g, '').toUpperCase() : '';
 
       const data = await emisso.getConnectionsStatus();
       const rawConnections = Array.isArray(data) ? data : (data?.conexiones || []);
@@ -683,7 +684,7 @@ const listEmissoConnections = asyncHandler(async (req, res) => {
          linkedAccounts: accounts.filter(a => a.emisso_connection_id === c.id)
       }));
 
-      res.json({ ok: true, connections, entityRut: entity?.rut });
+      res.json({ ok: true, connections, entityRut: entity?.tax_id || null });
    } catch (err) {
       logError('EMISSO_LIST_CONNECTIONS_ERROR', { error: err.message });
       res.status(500).json({ ok: false, message: err.message, connections: [] });
@@ -732,14 +733,14 @@ const createEmissoConnectLink = asyncHandler(async (req, res) => {
    if (!entityId) throw boom.badRequest('entityId es requerido');
 
    const { models } = require('../libs/sequelize');
-   const entity = await models.Entity.findByPk(entityId, { attributes: ['id', 'rut'] });
+   const entity = await models.Entity.findByPk(entityId, { attributes: ['id', 'tax_id'] });
 
    const EmissoService = require('../services/emisso.service');
    const emisso = new EmissoService();
 
    const out = await emisso.createConnectionLink({
       system,
-      rut: entity?.rut || null,
+      rut: entity?.tax_id || null,
       redirectUrl,
    });
 
