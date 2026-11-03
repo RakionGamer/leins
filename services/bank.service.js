@@ -2776,8 +2776,20 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
             return rawAcc.endsWith(targetAcc) || targetAcc.endsWith(rawAcc);
          });
 
+         // Deduplicar filas por id unico de Emisso antes de persistir
+         const seenRawIds = new Set();
+         const dedupedRows = [];
+         for (const row of (filteredRows.length ? filteredRows : allRows)) {
+            const rowId = row?.id ? String(row.id).trim() : null;
+            if (rowId) {
+               if (seenRawIds.has(rowId)) continue;
+               seenRawIds.add(rowId);
+            }
+            dedupedRows.push(row);
+         }
+
          // 4. Persiste con algoritmo de fusion inteligente
-         const stats = await this.persistEmissoMovements(filteredRows.length ? filteredRows : allRows, {
+         const stats = await this.persistEmissoMovements(dedupedRows, {
             entityId,
             entityBankAccountId: account.id,
          });
@@ -2840,17 +2852,56 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
          const matchedIds = new Set();
 
          for (const m of movements) {
-            // Eje debit/credit de Emisso: 'debit' entra plata (income), 'credit' sale plata (expense)
+            // Eje debit/credit de Emisso: 'debit' entra plata (abono/income), 'credit' sale plata (cargo/expense)
             let txType = 'income';
-            if (m.type === 'credit' || m.type === 'expense' || (m.monto != null && Number(m.monto) < 0)) {
+            const typeLower = String(m.type || m.tipo || '').toLowerCase().trim();
+            const idLower = String(m.id || '').toLowerCase();
+            const displayStr = String(m.display || '');
+
+            if (
+               typeLower === 'credit' ||
+               typeLower === 'cargo' ||
+               typeLower === 'expense' ||
+               typeLower === 'egreso' ||
+               displayStr.startsWith('-') ||
+               (m.monto != null && Number(m.monto) < 0) ||
+               idLower.includes(':cargo:')
+            ) {
                txType = 'expense';
-            } else if (m.type === 'debit' || m.type === 'income') {
+            } else if (
+               typeLower === 'debit' ||
+               typeLower === 'abono' ||
+               typeLower === 'income' ||
+               typeLower === 'ingreso' ||
+               idLower.includes(':abono:')
+            ) {
                txType = 'income';
             }
 
             const amountAbs = Math.abs(Number(m.monto ?? m.amount ?? 0));
-            const rawDate = m.fecha || m.movementDate || m.date || new Date().toISOString();
-            const dateOnly = String(rawDate).slice(0, 10);
+
+            // Extracción precisa de la fecha del movimiento bancario (hora local de Chile para evitar saltos de día)
+            let dateOnly = null;
+            if (m.fechaMovimiento) {
+               try {
+                  const d = new Date(m.fechaMovimiento);
+                  if (!isNaN(d.getTime())) {
+                     dateOnly = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santiago', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+                  }
+               } catch {
+                  dateOnly = String(m.fechaMovimiento).slice(0, 10);
+               }
+            }
+            if (!dateOnly && m.fechaContable) {
+               dateOnly = String(m.fechaContable).slice(0, 10);
+            }
+            if (!dateOnly && (m.fecha || m.movementDate || m.date)) {
+               dateOnly = String(m.fecha || m.movementDate || m.date).slice(0, 10);
+            }
+            if (!dateOnly) {
+               dateOnly = new Date().toISOString().slice(0, 10);
+            }
+
             const issuedAt = new Date(`${dateOnly}T00:00:00.000Z`);
             const externalId = m.id ? String(m.id).trim() : null;
             const status = m.estado || m.status || 'definitivo';
@@ -2858,7 +2909,8 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
             const balance = (m.saldoContable != null || m.saldo != null || m.balance != null)
                ? Number(m.saldoContable ?? m.saldo ?? m.balance)
                : null;
-            const documentRef = m.documento ? String(m.documento)
+            const documentRef = m.idTransaccion ? String(m.idTransaccion)
+               : m.documento ? String(m.documento)
                : m.numeroTransaccion ? String(m.numeroTransaccion)
                : m.documentRef ? String(m.documentRef)
                : null;
@@ -2920,11 +2972,21 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
                const updates = {};
                if (externalId && !existing.external_id) updates.external_id = externalId;
                if (status && existing.status !== status) updates.status = status;
-               if (balance != null && existing.balance == null) updates.balance = balance;
+               if (balance != null && existing.balance !== balance) updates.balance = balance;
                if (documentRef && !existing.document_ref) updates.document_ref = documentRef;
                if (branch && !existing.branch) updates.branch = branch;
+               if (txType && existing.type !== txType) updates.type = txType;
+               if (amountAbs && Number(existing.amount) !== amountAbs) updates.amount = amountAbs;
                if (description && (!existing.description || existing.status === 'provisorio')) {
                   updates.description = description;
+               }
+
+               // Reparar issued_at si difiere de la fecha real del movimiento en Emisso
+               const existingDateOnly = existing.issued_at
+                  ? String(existing.issued_at.toISOString ? existing.issued_at.toISOString() : existing.issued_at).slice(0, 10)
+                  : '';
+               if (dateOnly && existingDateOnly !== dateOnly) {
+                  updates.issued_at = issuedAt;
                }
 
                if (Object.keys(updates).length) {
