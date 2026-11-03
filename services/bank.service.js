@@ -2799,8 +2799,37 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
             last_synced_at: new Date(),
          };
 
-         // Si la cuenta no tiene saldo inicial o esta en 0, auto-asigna el saldo contable de Emisso
-         if (!account.initial_balance || Number(account.initial_balance) === 0) {
+         // Auto-cálculo inteligente del saldo inicial para cuentas de Emisso:
+         // Si hay movimientos sincronizados, el saldo inicial real es el saldo antes de la operación más antigua
+         const sortedRows = [...dedupedRows].sort((a, b) => {
+            const da = new Date(a.fechaMovimiento || a.fechaContable || a.fecha || 0);
+            const db = new Date(b.fechaMovimiento || b.fechaContable || b.fecha || 0);
+            return da - db;
+         });
+
+         if (sortedRows.length) {
+            const earliest = sortedRows[0];
+            const earliestDate = String(earliest.fechaMovimiento || earliest.fechaContable || earliest.fecha || '').slice(0, 10);
+            const currentInitDate = account.initial_balance_date ? String(account.initial_balance_date).slice(0, 10) : null;
+
+            // Si la cuenta no tiene fecha inicial o su fecha inicial es posterior al movimiento más antiguo (ej: fecha de hoy)
+            if (!currentInitDate || currentInitDate >= earliestDate) {
+               if (earliest.saldoContable != null) {
+                  const typeLower = String(earliest.type || earliest.tipo || '').toLowerCase();
+                  const isIncome = typeLower === 'debit' || typeLower === 'abono' || typeLower === 'income' || String(earliest.id || '').includes(':abono:');
+                  const firstAmount = Math.abs(Number(earliest.monto ?? earliest.amount ?? 0));
+                  const realStartBal = Number(earliest.saldoContable) - (isIncome ? firstAmount : -firstAmount);
+
+                  // Asignamos como fecha de saldo inicial un día antes del primer movimiento
+                  const d = new Date(earliestDate + 'T00:00:00.000Z');
+                  d.setUTCDate(d.getUTCDate() - 1);
+                  const prevDayStr = d.toISOString().slice(0, 10);
+
+                  updates.initial_balance = realStartBal;
+                  updates.initial_balance_date = prevDayStr;
+               }
+            }
+         } else if (!account.initial_balance || Number(account.initial_balance) === 0) {
             try {
                const rawBalances = await emisso.getBalances(system, connectionId);
                const items = Array.isArray(rawBalances) ? rawBalances : (rawBalances?.cuentas || rawBalances?.saldos || rawBalances?.items || []);

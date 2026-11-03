@@ -143,6 +143,8 @@ export default function BankAccountsPage() {
          initialBalance: row.initial_balance != null ? String(row.initial_balance) : '',
          initialBalanceDate: row.initial_balance_date || '',
       });
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      document.getElementById('account-initial-balance')?.focus();
    };
 
    const onDelete = async (row) => {
