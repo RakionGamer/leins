@@ -156,14 +156,31 @@ export default function EmissoConnectModal({ isOpen, onClose, entityId, onAccoun
                               className="p-3.5 bg-surface-1 rounded-xl border border-border-subtle flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-primary/40 transition-colors"
                            >
                               <div className="min-w-0">
-                                 <div className="flex items-center gap-2">
+                                 <div className="flex items-center gap-2 flex-wrap">
                                     <span className="font-semibold text-sm text-heading">{conn.name}</span>
-                                    <span className={`badge badge-xs ${conn.status === 'active' ? 'badge-success text-white' : 'badge-ghost'}`}>
-                                       {conn.status === 'active' ? 'Activa' : conn.status}
-                                    </span>
-                                    {conn.isLinked && (
-                                       <span className="badge badge-xs badge-info text-white">
+                                    {(() => {
+                                       const s = String(conn.status || '').toLowerCase().trim();
+                                       const isActive = ['activo', 'activa', 'active', 'ok', 'connected'].includes(s);
+                                       return isActive ? (
+                                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-600 ring-1 ring-emerald-500/20">
+                                             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                                             Activa
+                                          </span>
+                                       ) : (
+                                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-surface-2 text-text-soft ring-1 ring-border-subtle">
+                                             <span className="h-1.5 w-1.5 rounded-full bg-gray-400" />
+                                             {conn.status || 'Inactiva'}
+                                          </span>
+                                       );
+                                    })()}
+                                    {conn.isLinked ? (
+                                       <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-sky-500/10 text-sky-600 ring-1 ring-sky-500/20">
+                                          <span className="h-1.5 w-1.5 rounded-full bg-sky-500" />
                                           Vinculada
+                                       </span>
+                                    ) : (
+                                       <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-surface-2 text-text-soft ring-1 ring-border-subtle">
+                                          No vinculada
                                        </span>
                                     )}
                                  </div>
