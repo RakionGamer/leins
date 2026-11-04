@@ -1,6 +1,17 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDownIcon, MagnifyingGlassIcon, XMarkIcon, CheckIcon } from '@heroicons/react/24/outline';
+import {
+   ChevronDownIcon,
+   MagnifyingGlassIcon,
+   XMarkIcon,
+   CheckIcon,
+   PlusIcon,
+} from '@heroicons/react/24/outline';
+import { useQueryClient } from '@tanstack/react-query';
+import { useEntityRequired } from '../../hooks/useEntityRequired';
+import { createAccount } from '../../services/accountingApi';
+import { toast } from '../Toaster';
+import Modal from '../Modal';
 
 // Paleta corporativa: tonos sobrios con punto indicador y borde sutil
 const typeStyles = {
@@ -43,7 +54,86 @@ const CodeChip = ({ children, className = '' }) => (
    </span>
 );
 
-const AccountSelect = ({ accounts = [], value, onChange, className = '', placeholder = 'Seleccionar cuenta...', allowClear = false }) => {
+function pad2(n) {
+   return String(n).padStart(2, '0');
+}
+
+function suggestChildCode(parentCode, accounts) {
+   const [p0, p1] = String(parentCode || '').split('.');
+   if (!p0) return '61.04.10';
+   const siblings = (accounts || []).map(a => String(a.code).split('.')).filter(p => p[0] === p0);
+   if (p1 === '00' || !p1) {
+      // Padre mayor -> subgrupo XX.YY.00
+      const nums = siblings.filter(p => p[1] && p[1] !== '00').map(p => parseInt(p[1], 10)).filter(n => !isNaN(n));
+      return `${p0}.${pad2((nums.length ? Math.max(...nums) : 0) + 1)}.00`;
+   }
+   // Padre subgrupo -> detalle XX.YY.ZZ
+   const nums = siblings.filter(p => p[1] === p1 && p[2] && p[2] !== '00').map(p => parseInt(p[2], 10)).filter(n => !isNaN(n));
+   const maxNum = nums.length ? Math.max(...nums) : 0;
+   const step = (maxNum % 10 === 0 && maxNum >= 10) ? 10 : 1;
+   const next = maxNum + step;
+   return `${p0}.${p1}.${pad2(next)}`;
+}
+
+function getSuggestedCode(type, accounts) {
+   const accountsOfType = (accounts || []).filter(a => a.type === type);
+   if (accountsOfType.length === 0) {
+      if (type === 'ACTIVO') return '01.01.10';
+      if (type === 'PASIVO') return '02.01.10';
+      if (type === 'PATRIMONIO') return '03.01.10';
+      if (type === 'INGRESOS') return '04.01.10';
+      if (type === 'COSTOS') return '05.01.10';
+      if (type === 'GASTOS') return '61.01.10';
+      return '60.01.10';
+   }
+
+   const leafAccounts = accountsOfType.filter(a => !a.is_title && !String(a.code).endsWith('.00'));
+   if (leafAccounts.length > 0) {
+      leafAccounts.sort((a, b) => String(a.code).localeCompare(String(b.code), undefined, { numeric: true }));
+      const lastCode = leafAccounts[leafAccounts.length - 1].code;
+      const parts = lastCode.split('.');
+      if (parts.length >= 3) {
+         const lastNum = parseInt(parts[parts.length - 1], 10);
+         if (!isNaN(lastNum)) {
+            const step = (lastNum % 10 === 0 && lastNum >= 10) ? 10 : 1;
+            parts[parts.length - 1] = pad2(lastNum + step);
+            return parts.join('.');
+         }
+      }
+   }
+
+   accountsOfType.sort((a, b) => String(a.code).localeCompare(String(b.code), undefined, { numeric: true }));
+   const lastCode = accountsOfType[accountsOfType.length - 1].code;
+   const parts = lastCode.split('.');
+   const lastNum = parseInt(parts[parts.length - 1], 10);
+   if (!isNaN(lastNum)) {
+      parts[parts.length - 1] = pad2(lastNum + 10);
+      return parts.join('.');
+   }
+   return lastCode + '.10';
+}
+
+const AccountSelect = ({
+   accounts = [],
+   value,
+   onChange,
+   className = '',
+   placeholder = 'Seleccionar cuenta...',
+   allowClear = false,
+   canCreate: propCanCreate,
+   onAccountCreated,
+   entityId: propEntityId,
+}) => {
+   const queryClient = useQueryClient();
+   const { entityId: hookEntityId, permissions } = useEntityRequired();
+   const currentEntityId = propEntityId || hookEntityId;
+   const canCreate = propCanCreate ?? ((permissions?.can_create ?? true) && (permissions?.can_update ?? true));
+
+   const [localAccounts, setLocalAccounts] = useState(accounts);
+   useEffect(() => {
+      setLocalAccounts(accounts);
+   }, [accounts]);
+
    const [isOpen, setIsOpen] = useState(false);
    const [search, setSearch] = useState('');
    const [coords, setCoords] = useState(null);
@@ -52,20 +142,38 @@ const AccountSelect = ({ accounts = [], value, onChange, className = '', placeho
    const menuRef = useRef(null);
    const searchInputRef = useRef(null);
 
+   // Modal de creación rápida de cuenta
+   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+   const [createForm, setCreateForm] = useState({
+      name: '',
+      type: 'GASTOS',
+      parentCode: '',
+      code: '',
+      requireRut: true,
+   });
+   const [creating, setCreating] = useState(false);
+   const [createError, setCreateError] = useState(null);
+
    const selectedAccount = useMemo(() => {
-      return accounts.find(a => String(a.id) === String(value)) || null;
-   }, [accounts, value]);
+      return localAccounts.find(a => String(a.id) === String(value)) || null;
+   }, [localAccounts, value]);
 
    const filteredAccounts = useMemo(() => {
-      if (!search.trim()) return accounts;
+      if (!search.trim()) return localAccounts;
       const q = search.toLowerCase().trim();
-      return accounts.filter(a => {
+      return localAccounts.filter(a => {
          const code = (a.code || '').toLowerCase();
          const name = (a.name || '').toLowerCase();
          const type = (a.type || '').toLowerCase();
          return code.includes(q) || name.includes(q) || type.includes(q);
       });
-   }, [accounts, search]);
+   }, [localAccounts, search]);
+
+   const availableParents = useMemo(() => {
+      return (localAccounts || [])
+         .filter(a => a.type === createForm.type && (a.is_title || String(a.code).endsWith('.00')))
+         .sort((a, b) => String(a.code).localeCompare(String(b.code), undefined, { numeric: true }));
+   }, [localAccounts, createForm.type]);
 
    const updateCoords = () => {
       if (!triggerRef.current) return;
@@ -76,7 +184,6 @@ const AccountSelect = ({ accounts = [], value, onChange, className = '', placeho
       const spaceBelow = viewportHeight - r.bottom;
       const spaceAbove = r.top;
 
-      // Si hay poco espacio abajo (< 260px) y más espacio arriba, abrir hacia arriba
       const openUpwards = spaceBelow < 260 && spaceAbove > spaceBelow;
       const availableHeight = openUpwards ? spaceAbove - 16 : spaceBelow - 16;
       const listMaxHeight = Math.min(320, Math.max(160, availableHeight - 65));
@@ -139,6 +246,110 @@ const AccountSelect = ({ accounts = [], value, onChange, className = '', placeho
       return () => window.removeEventListener('keydown', handleKeyDown);
    }, [isOpen]);
 
+   // Apertura del modal de creación rápida
+   const handleOpenCreateModal = (e) => {
+      e?.stopPropagation?.();
+      setIsOpen(false);
+
+      const initialType = 'GASTOS';
+      const parents = (localAccounts || [])
+         .filter(a => a.type === initialType && (a.is_title || String(a.code).endsWith('.00')))
+         .sort((a, b) => String(a.code).localeCompare(String(b.code), undefined, { numeric: true }));
+
+      const defaultParent = parents.find(p => String(p.code).startsWith('61.04')) || parents[0] || null;
+      const defaultParentCode = defaultParent ? defaultParent.code : '';
+
+      const suggestedCode = defaultParentCode
+         ? suggestChildCode(defaultParentCode, localAccounts)
+         : getSuggestedCode(initialType, localAccounts);
+
+      setCreateForm({
+         name: search.trim(),
+         type: initialType,
+         parentCode: defaultParentCode,
+         code: suggestedCode,
+         requireRut: true,
+      });
+      setCreateError(null);
+      setIsCreateModalOpen(true);
+   };
+
+   const handleTypeChange = (newType) => {
+      const parents = (localAccounts || [])
+         .filter(a => a.type === newType && (a.is_title || String(a.code).endsWith('.00')))
+         .sort((a, b) => String(a.code).localeCompare(String(b.code), undefined, { numeric: true }));
+
+      const defaultParentCode = parents[0] ? parents[0].code : '';
+      const suggestedCode = defaultParentCode
+         ? suggestChildCode(defaultParentCode, localAccounts)
+         : getSuggestedCode(newType, localAccounts);
+
+      setCreateForm(prev => ({
+         ...prev,
+         type: newType,
+         parentCode: defaultParentCode,
+         code: suggestedCode,
+         requireRut: ['GASTOS', 'COSTOS', 'ACTIVO', 'PASIVO'].includes(newType),
+      }));
+   };
+
+   const handleParentChange = (newParentCode) => {
+      const suggestedCode = newParentCode
+         ? suggestChildCode(newParentCode, localAccounts)
+         : getSuggestedCode(createForm.type, localAccounts);
+
+      setCreateForm(prev => ({
+         ...prev,
+         parentCode: newParentCode,
+         code: suggestedCode,
+      }));
+   };
+
+   const handleCreateSubmit = async (e) => {
+      e.preventDefault();
+      if (!currentEntityId) {
+         toast.error('No se ha detectado una empresa/entidad activa.');
+         return;
+      }
+      if (!createForm.name.trim()) {
+         setCreateError('El nombre de la cuenta es obligatorio.');
+         return;
+      }
+      if (!createForm.code.trim()) {
+         setCreateError('El código contable es obligatorio.');
+         return;
+      }
+
+      setCreating(true);
+      setCreateError(null);
+      try {
+         const newAccount = await createAccount({
+            entityId: currentEntityId,
+            name: createForm.name.trim(),
+            code: createForm.code.trim(),
+            type: createForm.type,
+            nature: ['ACTIVO', 'COSTOS', 'GASTOS'].includes(createForm.type) ? 'DEUDORA' : 'ACREEDORA',
+            cost_center_requirement: 'NONE',
+            require_rut: Boolean(createForm.requireRut),
+            require_reference: false,
+            is_auxiliary: true,
+            is_title: false,
+         });
+
+         toast.success(`Cuenta "${newAccount.code} - ${newAccount.name}" creada y seleccionada.`);
+         setLocalAccounts(prev => [...prev, newAccount]);
+         onChange(newAccount.id, newAccount);
+         onAccountCreated?.(newAccount);
+         queryClient?.invalidateQueries?.({ queryKey: ['accountingAccounts'] });
+         setIsCreateModalOpen(false);
+         setSearch('');
+      } catch (err) {
+         setCreateError(err.message || 'Error al crear la cuenta contable');
+      } finally {
+         setCreating(false);
+      }
+   };
+
    return (
       <div className={`relative ${className}`}>
          <div
@@ -162,7 +373,7 @@ const AccountSelect = ({ accounts = [], value, onChange, className = '', placeho
 
             {allowClear && selectedAccount ? (
                <div
-                  className="absolute right-9 top-1/2 -translate-y-1/2 p-1 hover:bg-surface-2 rounded-md z-10"
+                  className="absolute right-9 top-1/2 -translate-y-1/2 p-1 hover:bg-surface-2 rounded-md z-10 cursor-pointer"
                   onClick={(e) => {
                      e.stopPropagation();
                      onChange('', null);
@@ -205,15 +416,26 @@ const AccountSelect = ({ accounts = [], value, onChange, className = '', placeho
                   </div>
                   <div className="mt-2 px-1 text-[10px] font-semibold uppercase tracking-wider text-text-soft flex items-center justify-between">
                      <span>{filteredAccounts.length} cuenta{filteredAccounts.length !== 1 ? 's' : ''} disponible{filteredAccounts.length !== 1 ? 's' : ''}</span>
-                     {search && (
-                        <button
-                           type="button"
-                           onClick={() => setSearch('')}
-                           className="text-brand hover:underline font-semibold"
-                        >
-                           Limpiar filtro
-                        </button>
-                     )}
+                     <div className="flex items-center gap-2">
+                        {search && (
+                           <button
+                              type="button"
+                              onClick={() => setSearch('')}
+                              className="text-text-soft hover:text-text-main font-semibold cursor-pointer"
+                           >
+                              Limpiar
+                           </button>
+                        )}
+                        {canCreate && (
+                           <button
+                              type="button"
+                              onClick={handleOpenCreateModal}
+                              className="text-brand hover:underline font-semibold cursor-pointer"
+                           >
+                              + Nueva cuenta
+                           </button>
+                        )}
+                     </div>
                   </div>
                </div>
 
@@ -222,8 +444,24 @@ const AccountSelect = ({ accounts = [], value, onChange, className = '', placeho
                   className="overflow-y-auto overscroll-contain bg-bg-content divide-y divide-border-subtle/30"
                >
                   {filteredAccounts.length === 0 ? (
-                     <div className="p-6 text-center text-xs text-text-soft italic">
-                        No se encontraron cuentas contables
+                     <div className="p-6 text-center space-y-3">
+                        <p className="text-xs text-text-soft">
+                           {search ? (
+                              <>No se encontró ninguna cuenta que coincida con "<strong className="text-text-main">{search}</strong>"</>
+                           ) : (
+                              'No hay cuentas contables registradas'
+                           )}
+                        </p>
+                        {canCreate && (
+                           <button
+                              type="button"
+                              onClick={handleOpenCreateModal}
+                              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-brand bg-brand/10 hover:bg-brand/20 rounded-xl transition cursor-pointer"
+                           >
+                              <PlusIcon className="w-4 h-4 stroke-2" />
+                              <span>Crear cuenta {search ? `"${search}"` : ''}</span>
+                           </button>
+                        )}
                      </div>
                   ) : (
                      filteredAccounts.map(acc => {
@@ -258,9 +496,168 @@ const AccountSelect = ({ accounts = [], value, onChange, className = '', placeho
                      })
                   )}
                </div>
+
+               {canCreate && filteredAccounts.length > 0 && (
+                  <div className="p-2 border-t border-border-subtle bg-surface-1 shrink-0">
+                     <button
+                        type="button"
+                        onClick={handleOpenCreateModal}
+                        className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-semibold text-brand hover:bg-brand/10 rounded-xl transition cursor-pointer"
+                     >
+                        <PlusIcon className="w-4 h-4 stroke-2" />
+                        <span>Crear nueva cuenta contable</span>
+                     </button>
+                  </div>
+               )}
             </div>,
             document.body
          )}
+
+         {/* Modal de Creación Rápida de Cuenta Contable */}
+         <Modal
+            isOpen={isCreateModalOpen}
+            onClose={() => setIsCreateModalOpen(false)}
+            title="Nueva Cuenta Contable"
+            maxWidth="max-w-lg"
+            zIndex="z-[150]"
+         >
+            <form onSubmit={handleCreateSubmit} className="space-y-4">
+               {createError && (
+                  <div className="p-3 rounded-xl bg-danger/10 border border-danger/30 text-xs text-danger font-medium">
+                     {createError}
+                  </div>
+               )}
+
+               {/* Nombre */}
+               <div>
+                  <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider mb-1">
+                     Nombre de la cuenta <span className="text-danger">*</span>
+                  </label>
+                  <input
+                     type="text"
+                     autoFocus
+                     required
+                     value={createForm.name}
+                     onChange={(e) => setCreateForm(prev => ({ ...prev, name: e.target.value }))}
+                     placeholder="Ej: Licencias de Software, Publicidad Redes, etc."
+                     className="w-full h-10 px-3 text-sm rounded-xl border border-border-subtle bg-surface-1 text-heading placeholder:text-text-soft/60 focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition"
+                  />
+               </div>
+
+               {/* Tipo de cuenta */}
+               <div>
+                  <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider mb-1.5">
+                     Tipo de cuenta <span className="text-danger">*</span>
+                  </label>
+                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
+                     {['GASTOS', 'COSTOS', 'ACTIVO', 'PASIVO', 'INGRESOS', 'PATRIMONIO'].map((t) => {
+                        const style = getTypeStyle(t);
+                        const isSelected = createForm.type === t;
+                        return (
+                           <button
+                              key={t}
+                              type="button"
+                              onClick={() => handleTypeChange(t)}
+                              className={`py-2 px-1 text-center rounded-xl text-xs font-semibold border transition cursor-pointer ${
+                                 isSelected
+                                    ? 'bg-brand text-white border-brand shadow-xs'
+                                    : 'border-border-subtle bg-surface-1 text-text-main hover:bg-surface-2'
+                              }`}
+                           >
+                              {style.label || t}
+                           </button>
+                        );
+                     })}
+                  </div>
+               </div>
+
+               {/* Agrupador / Cuenta Padre */}
+               <div>
+                  <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider mb-1">
+                     Agrupador / Subgrupo (Opcional)
+                  </label>
+                  <select
+                     value={createForm.parentCode}
+                     onChange={(e) => handleParentChange(e.target.value)}
+                     className="w-full h-10 px-3 text-sm rounded-xl border border-border-subtle bg-surface-1 text-heading focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition cursor-pointer"
+                  >
+                     <option value="">Automático (Sugerir código libre)</option>
+                     {availableParents.map((p) => (
+                        <option key={p.id} value={p.code}>
+                           {p.code} — {p.name}
+                        </option>
+                     ))}
+                  </select>
+                  <p className="text-[11px] text-text-soft mt-1">
+                     Selecciona bajo qué grupo se ubicará la cuenta para ordenar tu balance.
+                  </p>
+               </div>
+
+               {/* Código contable */}
+               <div>
+                  <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider mb-1">
+                     Código contable <span className="text-danger">*</span>
+                  </label>
+                  <div className="relative">
+                     <input
+                        type="text"
+                        required
+                        value={createForm.code}
+                        onChange={(e) => setCreateForm(prev => ({ ...prev, code: e.target.value }))}
+                        placeholder="Ej: 61.04.10"
+                        className="w-full h-10 px-3 text-sm font-mono font-semibold rounded-xl border border-border-subtle bg-surface-1 text-heading focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition"
+                     />
+                  </div>
+                  <p className="text-[11px] text-text-soft mt-1">
+                     Código correlativo generado automáticamente. Puedes ajustarlo manualmente si lo deseas.
+                  </p>
+               </div>
+
+               {/* Exigir RUT */}
+               <div className="pt-1">
+                  <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+                     <input
+                        type="checkbox"
+                        checked={createForm.requireRut}
+                        onChange={(e) => setCreateForm(prev => ({ ...prev, requireRut: e.target.checked }))}
+                        className="w-4 h-4 rounded accent-brand text-brand cursor-pointer"
+                     />
+                     <span className="text-xs font-medium text-text-main">
+                        Exigir RUT de contraparte al imputar (Recomendado para proveedores y clientes)
+                     </span>
+                  </label>
+               </div>
+
+               {/* Acciones */}
+               <div className="flex items-center justify-end gap-2 pt-3 border-t border-border-subtle">
+                  <button
+                     type="button"
+                     onClick={() => setIsCreateModalOpen(false)}
+                     disabled={creating}
+                     className="px-4 py-2 text-xs font-semibold text-text-soft hover:text-heading hover:bg-surface-2 rounded-xl border border-border-subtle transition cursor-pointer"
+                  >
+                     Cancelar
+                  </button>
+                  <button
+                     type="submit"
+                     disabled={creating}
+                     className="inline-flex items-center gap-2 px-5 py-2 text-xs font-semibold text-white bg-brand hover:opacity-95 rounded-xl shadow-xs transition disabled:opacity-60 cursor-pointer"
+                  >
+                     {creating ? (
+                        <>
+                           <span className="inline-block w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                           <span>Creando cuenta...</span>
+                        </>
+                     ) : (
+                        <>
+                           <CheckIcon className="w-4 h-4 stroke-2" />
+                           <span>Crear y Seleccionar</span>
+                        </>
+                     )}
+                  </button>
+               </div>
+            </form>
+         </Modal>
       </div>
    );
 };

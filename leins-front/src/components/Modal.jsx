@@ -1,13 +1,13 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 
-// agregamos la propiedad maxwidth con un valor por defecto
-export default function Modal({ isOpen, onClose, title, children, maxWidth = 'max-w-md' }) {
+// agregamos la propiedad maxwidth y zIndex con valores por defecto
+export default function Modal({ isOpen, onClose, title, children, maxWidth = 'max-w-md', zIndex = 'z-[100]' }) {
    if (!isOpen) return null;
 
    // portal a document.body: evita que ancestros con transform/overflow recorten el overlay fixed
    return createPortal(
-      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4">
+      <div className={`fixed inset-0 ${zIndex} flex items-center justify-center bg-black/50 p-4`}>
          {/* inyectamos la clase de tailwind dinamicamente */}
          <div className={`w-full ${maxWidth} bg-bg-content rounded-2xl shadow-xl border border-border-subtle overflow-hidden transition-all flex flex-col max-h-[90vh]`}>
             <div className="flex items-center justify-between p-4 border-b border-border-subtle bg-surface-1 shrink-0">

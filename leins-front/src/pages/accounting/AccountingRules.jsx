@@ -636,6 +636,9 @@ export default function AccountingRules() {
                         onChange={(val) => setAccountFilter(val)}
                         placeholder="Todas las cuentas"
                         allowClear={true}
+                        onAccountCreated={(newAcc) => {
+                           setAccounts((prev) => [...prev, newAcc]);
+                        }}
                      />
                   </div>
                   <div className="space-y-1.5 md:col-span-4">
@@ -762,6 +765,9 @@ export default function AccountingRules() {
                      value={formData.account_id}
                      onChange={(newAccId) => {
                         setFormData({ ...formData, account_id: newAccId });
+                     }}
+                     onAccountCreated={(newAcc) => {
+                        setAccounts((prev) => [...prev, newAcc]);
                      }}
                   />
                </div>
