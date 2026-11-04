@@ -110,8 +110,11 @@ export function AuthProvider({ children }) {
       saveTokens({ accessToken, refreshToken });
       setUser(u);
       setStoredUser(u);
-      setRole('super_admin');
-      setAuthRole('super_admin');
+
+      const isClientSession = decodeJwt(accessToken)?.role === 'user';
+      const userRole = isClientSession ? 'user' : 'super_admin';
+      setRole(userRole);
+      setAuthRole(userRole);
 
       return { success: true };
    };

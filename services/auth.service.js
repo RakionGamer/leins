@@ -459,25 +459,43 @@ class AuthService {
 
    async login(username, password, meta = {}) {
       try {
-         // 1. validar credenciales basicas
-         const user = await this.validateUser(username, password);
+         const cleanIdentifier = String(username || '').trim();
 
-         // Si no esta activa la cuenta la bloqueamos
-         if (user.state_id !== 1) {
-            throw boom.unauthorized('Tu cuenta está suspendida o inactiva. Contacta al administrador.');
+         // 1. intentar encontrar en super_admin (por username o email)
+         const superAdmin = await models.SuperAdmin.findOne({
+            where: {
+               [Op.or]: [
+                  { username: cleanIdentifier },
+                  { email: cleanIdentifier }
+               ]
+            }
+         });
+
+         if (superAdmin) {
+            const isMatch = await bcrypt.compare(password, superAdmin.password_hash);
+            if (!isMatch) {
+               const err = boom.unauthorized('Credenciales inválidas');
+               err.data = { code: 'INVALID_CREDENTIALS' };
+               throw err;
+            }
+
+            if (superAdmin.state_id !== 1) {
+               throw boom.unauthorized('Tu cuenta está suspendida o inactiva. Contacta al administrador.');
+            }
+
+            if (superAdmin.two_factor_enabled) {
+               return {
+                  require2fa: true,
+                  userId: superAdmin.id,
+                  message: 'Código 2FA requerido'
+               };
+            }
+
+            return await this._finalizeLogin(superAdmin, meta);
          }
 
-         // 2. verificar si tiene 2fa activo
-         if (user.two_factor_enabled) {
-            return {
-               require2fa: true,
-               userId: user.id,
-               message: 'Código 2FA requerido'
-            };
-         }
-
-         // 3. si no tiene 2fa, procedemos a generar tokens (flujo normal)
-         return await this._finalizeLogin(user, meta);
+         // 2. si no existe en super_admin, intentar autenticar como cliente (tabla users)
+         return await this.loginClient(username, password, meta);
 
       } catch (err) {
          logError('AUTH_LOGIN_ERR', {
