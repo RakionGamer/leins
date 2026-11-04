@@ -328,24 +328,6 @@ class BankService {
                      enrichedExisting = true;
                   }
                }
-            } else if (!exists && description) {
-               // Deteccion bidireccional: si ya existe por Emisso con desfase de hasta 3 dias (fin de semana/feriado)
-               const minDate = new Date(issuedAt.getTime() - 3 * 24 * 60 * 60 * 1000);
-               const maxDate = new Date(issuedAt.getTime() + 3 * 24 * 60 * 60 * 1000);
-               const windowExisting = await models.EntityBankTransaction.findOne({
-                  where: {
-                     entity_id: entityId,
-                     entity_bank_account_id: entityBankAccountId,
-                     type,
-                     amount: amountAbs,
-                     description,
-                     issued_at: { [Op.between]: [minDate, maxDate] },
-                  },
-                  transaction: t
-               });
-               if (windowExisting) {
-                  exists = windowExisting;
-               }
             }
 
             const oppositeType = type === 'income' ? 'expense' : 'income';
@@ -567,6 +549,22 @@ class BankService {
    }
 
    // Helper para hacer lookup tolerante (ya tienes versión similar)
+   static #isWeekendShift(d1, d2) {
+      if (!d1 || !d2) return false;
+      const date1 = new Date(d1);
+      const date2 = new Date(d2);
+      const diffDays = Math.abs(date1.getTime() - date2.getTime()) / (24 * 60 * 60 * 1000);
+      if (diffDays === 0) return true;
+      if (diffDays > 3.5) return false;
+      const day1 = date1.getUTCDay();
+      const day2 = date2.getUTCDay();
+      const isWeekend1 = day1 === 0 || day1 === 6 || day1 === 5;
+      const isWeekend2 = day2 === 0 || day2 === 6 || day2 === 5;
+      const isMonOrTue1 = day1 === 1 || day1 === 2;
+      const isMonOrTue2 = day2 === 1 || day2 === 2;
+      return (isWeekend1 && isMonOrTue2) || (isWeekend2 && isMonOrTue1);
+   }
+
    static #pickFromRow(rowObj, ...cands) {
       const normMap = {};
       for (const k of Object.keys(rowObj)) normMap[BankService.#normKey(k)] = k;
@@ -2957,9 +2955,9 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
                const minDate = new Date(issuedAt.getTime() - 3 * 24 * 60 * 60 * 1000);
                const maxDate = new Date(issuedAt.getTime() + 3 * 24 * 60 * 60 * 1000);
 
-               // 3a. Coincidencia con movimiento manual previo (misma descripcion, monto y tipo dentro de la ventana de 3 dias)
+               // 3a. Coincidencia con movimiento manual previo (solo si es desfase genuino de fin de semana ej: sabado a lunes)
                if (description) {
-                  existing = await models.EntityBankTransaction.findOne({
+                  const candidates = await models.EntityBankTransaction.findAll({
                      where: {
                         entity_id: entityId,
                         entity_bank_account_id: entityBankAccountId,
@@ -2973,6 +2971,12 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
                      order: [['id', 'ASC']],
                      transaction: t,
                   });
+                  for (const cand of candidates) {
+                     if (BankService.#isWeekendShift(cand.issued_at, issuedAt)) {
+                        existing = cand;
+                        break;
+                     }
+                  }
                }
 
                // 3b. Coincidencia con provisorio en la ventana de fechas
