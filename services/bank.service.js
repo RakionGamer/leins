@@ -2883,9 +2883,12 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
 
             const amountAbs = Math.abs(Number(m.monto ?? m.amount ?? 0));
 
-            // Extracción precisa de la fecha del movimiento bancario (hora local de Chile para evitar saltos de día)
+            // Priorizar Fecha Contable oficial del banco (alineada con la cartola contable mensual y exportaciones de Excel)
             let dateOnly = null;
-            if (m.fechaMovimiento) {
+            if (m.fechaContable) {
+               dateOnly = String(m.fechaContable).slice(0, 10);
+            }
+            if (!dateOnly && m.fechaMovimiento) {
                try {
                   const d = new Date(m.fechaMovimiento);
                   if (!isNaN(d.getTime())) {
@@ -2894,9 +2897,6 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
                } catch {
                   dateOnly = String(m.fechaMovimiento).slice(0, 10);
                }
-            }
-            if (!dateOnly && m.fechaContable) {
-               dateOnly = String(m.fechaContable).slice(0, 10);
             }
             if (!dateOnly && (m.fecha || m.movementDate || m.date)) {
                dateOnly = String(m.fecha || m.movementDate || m.date).slice(0, 10);
