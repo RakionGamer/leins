@@ -44,7 +44,13 @@ const TypePill = ({ type }) => {
 
 const GroupPill = () => (
    <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600 ring-1 ring-inset ring-slate-500/20 dark:bg-slate-500/10 dark:text-slate-300">
-      Agrupador
+      Mayor / Agrupador
+   </span>
+);
+
+const AuxPill = () => (
+   <span className="inline-flex items-center rounded-md bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300 border border-emerald-500/20">
+      Auxiliar
    </span>
 );
 
@@ -56,6 +62,16 @@ const CodeChip = ({ children, className = '' }) => (
 
 function pad2(n) {
    return String(n).padStart(2, '0');
+}
+
+function suggestMajorCode(type, accounts) {
+   const base = { ACTIVO: 1, PASIVO: 2, PATRIMONIO: 3, INGRESOS: 4, COSTOS: 5, GASTOS: 61 }[type] || 61;
+   const firsts = (accounts || [])
+      .filter(a => a.type === type && (a.is_title || String(a.code).endsWith('.00.00') || String(a.code).endsWith('.00')))
+      .map(a => parseInt(String(a.code).split('.')[0], 10))
+      .filter(n => !isNaN(n));
+   if (firsts.length === 0) return `${pad2(base)}.00.00`;
+   return `${pad2(Math.max(...firsts) + 1)}.00.00`;
 }
 
 function suggestChildCode(parentCode, accounts) {
@@ -145,6 +161,7 @@ const AccountSelect = ({
    // Modal de creación rápida de cuenta
    const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
    const [createForm, setCreateForm] = useState({
+      kind: 'AUXILIAR', // 'AUXILIAR' (imputable) | 'MAYOR' (agrupador)
       name: '',
       type: 'GASTOS',
       parentCode: '',
@@ -264,6 +281,7 @@ const AccountSelect = ({
          : getSuggestedCode(initialType, localAccounts);
 
       setCreateForm({
+         kind: 'AUXILIAR',
          name: search.trim(),
          type: initialType,
          parentCode: defaultParentCode,
@@ -274,22 +292,47 @@ const AccountSelect = ({
       setIsCreateModalOpen(true);
    };
 
+   const handleKindChange = (kind) => {
+      if (kind === 'MAYOR') {
+         const code = suggestMajorCode(createForm.type, localAccounts);
+         setCreateForm(prev => ({
+            ...prev,
+            kind,
+            parentCode: '',
+            code,
+            requireRut: false,
+         }));
+      } else {
+         const defaultParentCode = availableParents[0] ? availableParents[0].code : '';
+         const code = defaultParentCode
+            ? suggestChildCode(defaultParentCode, localAccounts)
+            : getSuggestedCode(createForm.type, localAccounts);
+         setCreateForm(prev => ({
+            ...prev,
+            kind,
+            parentCode: defaultParentCode,
+            code,
+            requireRut: ['GASTOS', 'COSTOS', 'ACTIVO', 'PASIVO'].includes(prev.type),
+         }));
+      }
+   };
+
    const handleTypeChange = (newType) => {
       const parents = (localAccounts || [])
          .filter(a => a.type === newType && (a.is_title || String(a.code).endsWith('.00')))
          .sort((a, b) => String(a.code).localeCompare(String(b.code), undefined, { numeric: true }));
 
       const defaultParentCode = parents[0] ? parents[0].code : '';
-      const suggestedCode = defaultParentCode
-         ? suggestChildCode(defaultParentCode, localAccounts)
-         : getSuggestedCode(newType, localAccounts);
+      const suggestedCode = createForm.kind === 'MAYOR'
+         ? suggestMajorCode(newType, localAccounts)
+         : (defaultParentCode ? suggestChildCode(defaultParentCode, localAccounts) : getSuggestedCode(newType, localAccounts));
 
       setCreateForm(prev => ({
          ...prev,
          type: newType,
          parentCode: defaultParentCode,
          code: suggestedCode,
-         requireRut: ['GASTOS', 'COSTOS', 'ACTIVO', 'PASIVO'].includes(newType),
+         requireRut: ['GASTOS', 'COSTOS', 'ACTIVO', 'PASIVO'].includes(newType) && prev.kind === 'AUXILIAR',
       }));
    };
 
@@ -323,6 +366,7 @@ const AccountSelect = ({
       setCreating(true);
       setCreateError(null);
       try {
+         const isMayor = createForm.kind === 'MAYOR';
          const newAccount = await createAccount({
             entityId: currentEntityId,
             name: createForm.name.trim(),
@@ -330,13 +374,14 @@ const AccountSelect = ({
             type: createForm.type,
             nature: ['ACTIVO', 'COSTOS', 'GASTOS'].includes(createForm.type) ? 'DEUDORA' : 'ACREEDORA',
             cost_center_requirement: 'NONE',
-            require_rut: Boolean(createForm.requireRut),
+            require_rut: Boolean(createForm.requireRut && !isMayor),
             require_reference: false,
-            is_auxiliary: true,
-            is_title: false,
+            is_auxiliary: !isMayor,
+            is_title: isMayor,
          });
 
-         toast.success(`Cuenta "${newAccount.code} - ${newAccount.name}" creada y seleccionada.`);
+         const tipoTexto = isMayor ? 'mayor' : 'auxiliar';
+         toast.success(`Cuenta ${tipoTexto} "${newAccount.code} - ${newAccount.name}" creada y seleccionada.`);
          setLocalAccounts(prev => [...prev, newAccount]);
          onChange(newAccount.id, newAccount);
          onAccountCreated?.(newAccount);
@@ -365,7 +410,10 @@ const AccountSelect = ({
                   <span className="font-semibold text-text-main text-sm truncate">
                      {selectedAccount.name}
                   </span>
-                  <TypePill type={selectedAccount.type} />
+                  <div className="flex items-center gap-1.5 shrink-0">
+                     {selectedAccount.is_title ? <GroupPill /> : <AuxPill />}
+                     <TypePill type={selectedAccount.type} />
+                  </div>
                </div>
             ) : (
                <span className="text-text-soft truncate pr-6">{placeholder}</span>
@@ -487,7 +535,7 @@ const AccountSelect = ({
                                  </span>
                               </div>
                               <div className="flex items-center gap-1.5 shrink-0">
-                                 {acc.is_title && <GroupPill />}
+                                 {acc.is_title ? <GroupPill /> : <AuxPill />}
                                  <TypePill type={acc.type} />
                                  {selected && <CheckIcon className="h-4 w-4 text-brand stroke-2" />}
                               </div>
@@ -527,6 +575,32 @@ const AccountSelect = ({
                      {createError}
                   </div>
                )}
+
+               {/* Estructura: Auxiliar vs Mayor */}
+               <div>
+                  <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider mb-1.5">
+                     Estructura de la cuenta
+                  </label>
+                  <div className="grid grid-cols-2 gap-2 p-1 rounded-xl bg-surface-2 border border-border-subtle">
+                     {[
+                        ['AUXILIAR', 'Cuenta auxiliar (imputable)'],
+                        ['MAYOR', 'Cuenta mayor (agrupador)'],
+                     ].map(([k, label]) => (
+                        <button
+                           key={k}
+                           type="button"
+                           onClick={() => handleKindChange(k)}
+                           className={`h-9 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                              createForm.kind === k
+                                 ? 'bg-brand text-white shadow-xs'
+                                 : 'text-text-soft hover:text-heading hover:bg-surface-1'
+                           }`}
+                        >
+                           {label}
+                        </button>
+                     ))}
+                  </div>
+               </div>
 
                {/* Nombre */}
                <div>
@@ -571,27 +645,33 @@ const AccountSelect = ({
                   </div>
                </div>
 
-               {/* Agrupador / Cuenta Padre */}
-               <div>
-                  <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider mb-1">
-                     Agrupador / Subgrupo (Opcional)
-                  </label>
-                  <select
-                     value={createForm.parentCode}
-                     onChange={(e) => handleParentChange(e.target.value)}
-                     className="w-full h-10 px-3 text-sm rounded-xl border border-border-subtle bg-surface-1 text-heading focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition cursor-pointer"
-                  >
-                     <option value="">Automático (Sugerir código libre)</option>
-                     {availableParents.map((p) => (
-                        <option key={p.id} value={p.code}>
-                           {p.code} — {p.name}
-                        </option>
-                     ))}
-                  </select>
-                  <p className="text-[11px] text-text-soft mt-1">
-                     Selecciona bajo qué grupo se ubicará la cuenta para ordenar tu balance.
-                  </p>
-               </div>
+               {/* Agrupador / Cuenta Padre (solo para auxiliar) */}
+               {createForm.kind === 'AUXILIAR' ? (
+                  <div>
+                     <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider mb-1">
+                        Agrupador / Cuenta Mayor (Opcional)
+                     </label>
+                     <select
+                        value={createForm.parentCode}
+                        onChange={(e) => handleParentChange(e.target.value)}
+                        className="w-full h-10 px-3 text-sm rounded-xl border border-border-subtle bg-surface-1 text-heading focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition cursor-pointer"
+                     >
+                        <option value="">Automático (Sugerir código libre)</option>
+                        {availableParents.map((p) => (
+                           <option key={p.id} value={p.code}>
+                              {p.code} — {p.name}
+                           </option>
+                        ))}
+                     </select>
+                     <p className="text-[11px] text-text-soft mt-1">
+                        Selecciona bajo qué cuenta mayor se ubicará para ordenar tu balance.
+                     </p>
+                  </div>
+               ) : (
+                  <div className="p-3 bg-surface-2 border border-border-subtle rounded-xl text-xs text-text-soft">
+                     Esta cuenta mayor se creará como encabezado de nivel superior (terminación <strong>.00.00</strong>) para organizar futuras cuentas auxiliares.
+                  </div>
+               )}
 
                {/* Código contable */}
                <div>
@@ -613,20 +693,22 @@ const AccountSelect = ({
                   </p>
                </div>
 
-               {/* Exigir RUT */}
-               <div className="pt-1">
-                  <label className="inline-flex items-center gap-2 cursor-pointer select-none">
-                     <input
-                        type="checkbox"
-                        checked={createForm.requireRut}
-                        onChange={(e) => setCreateForm(prev => ({ ...prev, requireRut: e.target.checked }))}
-                        className="w-4 h-4 rounded accent-brand text-brand cursor-pointer"
-                     />
-                     <span className="text-xs font-medium text-text-main">
-                        Exigir RUT de contraparte al imputar (Recomendado para proveedores y clientes)
-                     </span>
-                  </label>
-               </div>
+               {/* Exigir RUT (solo para cuentas auxiliares imputables) */}
+               {createForm.kind === 'AUXILIAR' && (
+                  <div className="pt-1">
+                     <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+                        <input
+                           type="checkbox"
+                           checked={createForm.requireRut}
+                           onChange={(e) => setCreateForm(prev => ({ ...prev, requireRut: e.target.checked }))}
+                           className="w-4 h-4 rounded accent-brand text-brand cursor-pointer"
+                        />
+                        <span className="text-xs font-medium text-text-main">
+                           Exigir RUT de contraparte al imputar (Recomendado para proveedores y clientes)
+                        </span>
+                     </label>
+                  </div>
+               )}
 
                {/* Acciones */}
                <div className="flex items-center justify-end gap-2 pt-3 border-t border-border-subtle">
