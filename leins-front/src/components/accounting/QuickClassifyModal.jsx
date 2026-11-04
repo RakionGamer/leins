@@ -12,6 +12,7 @@ import {
 
 export default function QuickClassifyModal({ isOpen, onClose, document, entityId, onSuccess }) {
    const [accounts, setAccounts] = useState([]);
+   const [allAccounts, setAllAccounts] = useState([]);
    const [loadingAccounts, setLoadingAccounts] = useState(false);
    const [saving, setSaving] = useState(false);
    const [selectedAccountId, setSelectedAccountId] = useState(null);
@@ -27,8 +28,10 @@ export default function QuickClassifyModal({ isOpen, onClose, document, entityId
 
       getAccounts({ entityId: Number(entityId) })
          .then((accs) => {
+            const all = Array.isArray(accs) ? accs : [];
+            setAllAccounts(all);
             // Filtrar cuentas imputables (no títulos)
-            const postable = Array.isArray(accs) ? accs.filter(a => !a.is_title) : [];
+            const postable = all.filter(a => !a.is_title);
             setAccounts(postable);
          })
          .catch((err) => {
@@ -196,12 +199,14 @@ export default function QuickClassifyModal({ isOpen, onClose, document, entityId
                ) : (
                   <AccountSelect
                      accounts={accounts}
+                     allAccounts={allAccounts}
+                     entityId={entityId}
                      value={selectedAccountId}
                      onChange={(val) => {
                         const id = typeof val === 'object' && val !== null ? val.id : val;
                         setSelectedAccountId(id || null);
                      }}
-                     placeholder="Buscar cuenta (ej: 41.01 Ventas, 61.04.01 Gastos de Oficina...)"
+                     placeholder="Buscar cuenta (ej: 51.01 Ventas, 61.04.01 Gastos de Oficina...)"
                   />
                )}
             </div>

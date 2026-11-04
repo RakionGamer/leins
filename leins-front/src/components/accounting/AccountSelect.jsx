@@ -9,7 +9,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEntityRequired } from '../../hooks/useEntityRequired';
-import { createAccount } from '../../services/accountingApi';
+import { createAccount, getAccounts } from '../../services/accountingApi';
 import { toast } from '../Toaster';
 import Modal from '../Modal';
 
@@ -65,11 +65,18 @@ function pad2(n) {
 }
 
 function suggestMajorCode(type, accounts) {
-   const base = { ACTIVO: 1, PASIVO: 2, PATRIMONIO: 3, INGRESOS: 4, COSTOS: 5, GASTOS: 61 }[type] || 61;
-   const firsts = (accounts || [])
-      .filter(a => a.type === type && (a.is_title || String(a.code).endsWith('.00.00') || String(a.code).endsWith('.00')))
+   const base = { ACTIVO: 10, PASIVO: 20, PATRIMONIO: 30, INGRESOS: 50, COSTOS: 60, GASTOS: 60 }[type] || 60;
+   
+   const matchingAccounts = (accounts || []).filter(a => {
+      if (type === 'COSTOS') return a.type === 'COSTOS' || (a.type === 'GASTOS' && String(a.code).startsWith('61.01'));
+      if (type === 'GASTOS') return a.type === 'GASTOS' && !String(a.code).startsWith('61.01');
+      return a.type === type;
+   });
+
+   const firsts = matchingAccounts
       .map(a => parseInt(String(a.code).split('.')[0], 10))
-      .filter(n => !isNaN(n));
+      .filter(n => !isNaN(n) && n > 0);
+
    if (firsts.length === 0) return `${pad2(base)}.00.00`;
    return `${pad2(Math.max(...firsts) + 1)}.00.00`;
 }
@@ -92,15 +99,20 @@ function suggestChildCode(parentCode, accounts) {
 }
 
 function getSuggestedCode(type, accounts) {
-   const accountsOfType = (accounts || []).filter(a => a.type === type);
+   const accountsOfType = (accounts || []).filter(a => {
+      if (type === 'COSTOS') return a.type === 'COSTOS' || (a.type === 'GASTOS' && String(a.code).startsWith('61.01'));
+      if (type === 'GASTOS') return a.type === 'GASTOS' && !String(a.code).startsWith('61.01');
+      return a.type === type;
+   });
+
    if (accountsOfType.length === 0) {
-      if (type === 'ACTIVO') return '01.01.10';
-      if (type === 'PASIVO') return '02.01.10';
-      if (type === 'PATRIMONIO') return '03.01.10';
-      if (type === 'INGRESOS') return '04.01.10';
-      if (type === 'COSTOS') return '05.01.10';
-      if (type === 'GASTOS') return '61.01.10';
-      return '60.01.10';
+      if (type === 'ACTIVO') return '11.01.10';
+      if (type === 'PASIVO') return '21.01.10';
+      if (type === 'PATRIMONIO') return '31.01.10';
+      if (type === 'INGRESOS') return '51.01.10';
+      if (type === 'COSTOS') return '61.01.10';
+      if (type === 'GASTOS') return '61.04.10';
+      return '61.04.10';
    }
 
    const leafAccounts = accountsOfType.filter(a => !a.is_title && !String(a.code).endsWith('.00'));
@@ -131,6 +143,7 @@ function getSuggestedCode(type, accounts) {
 
 const AccountSelect = ({
    accounts = [],
+   allAccounts: propAllAccounts = null,
    value,
    onChange,
    className = '',
@@ -146,9 +159,23 @@ const AccountSelect = ({
    const canCreate = propCanCreate ?? ((permissions?.can_create ?? true) && (permissions?.can_update ?? true));
 
    const [localAccounts, setLocalAccounts] = useState(accounts);
+   const [internalAllAccounts, setInternalAllAccounts] = useState(propAllAccounts || []);
+
    useEffect(() => {
       setLocalAccounts(accounts);
    }, [accounts]);
+
+   useEffect(() => {
+      if (propAllAccounts && Array.isArray(propAllAccounts) && propAllAccounts.length > 0) {
+         setInternalAllAccounts(propAllAccounts);
+      }
+   }, [propAllAccounts]);
+
+   const effectiveAllAccounts = useMemo(() => {
+      if (propAllAccounts && propAllAccounts.length > 0) return propAllAccounts;
+      if (internalAllAccounts && internalAllAccounts.length > 0) return internalAllAccounts;
+      return localAccounts || [];
+   }, [propAllAccounts, internalAllAccounts, localAccounts]);
 
    const [isOpen, setIsOpen] = useState(false);
    const [search, setSearch] = useState('');
@@ -187,10 +214,20 @@ const AccountSelect = ({
    }, [localAccounts, search]);
 
    const availableParents = useMemo(() => {
-      return (localAccounts || [])
-         .filter(a => a.type === createForm.type && (a.is_title || String(a.code).endsWith('.00')))
+      return effectiveAllAccounts
+         .filter(a => {
+            const isGroup = a.is_title || String(a.code).endsWith('.00');
+            if (!isGroup) return false;
+            if (createForm.type === 'COSTOS') {
+               return a.type === 'COSTOS' || (a.type === 'GASTOS' && (String(a.code).startsWith('61.01') || a.name.toLowerCase().includes('costo')));
+            }
+            if (createForm.type === 'GASTOS') {
+               return a.type === 'GASTOS' && !String(a.code).startsWith('61.01');
+            }
+            return a.type === createForm.type;
+         })
          .sort((a, b) => String(a.code).localeCompare(String(b.code), undefined, { numeric: true }));
-   }, [localAccounts, createForm.type]);
+   }, [effectiveAllAccounts, createForm.type]);
 
    const updateCoords = () => {
       if (!triggerRef.current) return;
@@ -264,21 +301,43 @@ const AccountSelect = ({
    }, [isOpen]);
 
    // Apertura del modal de creación rápida
-   const handleOpenCreateModal = (e) => {
+   const handleOpenCreateModal = async (e) => {
       e?.stopPropagation?.();
       setIsOpen(false);
 
+      let fullList = (propAllAccounts && propAllAccounts.length > 0)
+         ? propAllAccounts
+         : (internalAllAccounts.length > 0 ? internalAllAccounts : localAccounts);
+
+      // Si la lista actual no contiene cuentas de tipo título (porque el llamador pasó solo postables),
+      // cargamos el plan completo de la entidad para tener los agrupadores y correlativos reales.
+      if (!fullList.some(a => a.is_title || String(a.code).endsWith('.00')) && currentEntityId) {
+         try {
+            const fetched = await getAccounts({ entityId: Number(currentEntityId) });
+            if (Array.isArray(fetched) && fetched.length > 0) {
+               fullList = fetched;
+               setInternalAllAccounts(fetched);
+            }
+         } catch (err) {
+            console.error('Error al cargar plan completo para modal de cuenta:', err);
+         }
+      }
+
       const initialType = 'GASTOS';
-      const parents = (localAccounts || [])
-         .filter(a => a.type === initialType && (a.is_title || String(a.code).endsWith('.00')))
+      const parents = fullList
+         .filter(a => {
+            const isGroup = a.is_title || String(a.code).endsWith('.00');
+            if (!isGroup) return false;
+            return a.type === initialType && !String(a.code).startsWith('61.01');
+         })
          .sort((a, b) => String(a.code).localeCompare(String(b.code), undefined, { numeric: true }));
 
       const defaultParent = parents.find(p => String(p.code).startsWith('61.04')) || parents[0] || null;
       const defaultParentCode = defaultParent ? defaultParent.code : '';
 
       const suggestedCode = defaultParentCode
-         ? suggestChildCode(defaultParentCode, localAccounts)
-         : getSuggestedCode(initialType, localAccounts);
+         ? suggestChildCode(defaultParentCode, fullList)
+         : getSuggestedCode(initialType, fullList);
 
       setCreateForm({
          kind: 'AUXILIAR',
@@ -294,7 +353,7 @@ const AccountSelect = ({
 
    const handleKindChange = (kind) => {
       if (kind === 'MAYOR') {
-         const code = suggestMajorCode(createForm.type, localAccounts);
+         const code = suggestMajorCode(createForm.type, effectiveAllAccounts);
          setCreateForm(prev => ({
             ...prev,
             kind,
@@ -305,8 +364,8 @@ const AccountSelect = ({
       } else {
          const defaultParentCode = availableParents[0] ? availableParents[0].code : '';
          const code = defaultParentCode
-            ? suggestChildCode(defaultParentCode, localAccounts)
-            : getSuggestedCode(createForm.type, localAccounts);
+            ? suggestChildCode(defaultParentCode, effectiveAllAccounts)
+            : getSuggestedCode(createForm.type, effectiveAllAccounts);
          setCreateForm(prev => ({
             ...prev,
             kind,
@@ -318,14 +377,24 @@ const AccountSelect = ({
    };
 
    const handleTypeChange = (newType) => {
-      const parents = (localAccounts || [])
-         .filter(a => a.type === newType && (a.is_title || String(a.code).endsWith('.00')))
+      const parents = effectiveAllAccounts
+         .filter(a => {
+            const isGroup = a.is_title || String(a.code).endsWith('.00');
+            if (!isGroup) return false;
+            if (newType === 'COSTOS') {
+               return a.type === 'COSTOS' || (a.type === 'GASTOS' && (String(a.code).startsWith('61.01') || a.name.toLowerCase().includes('costo')));
+            }
+            if (newType === 'GASTOS') {
+               return a.type === 'GASTOS' && !String(a.code).startsWith('61.01');
+            }
+            return a.type === newType;
+         })
          .sort((a, b) => String(a.code).localeCompare(String(b.code), undefined, { numeric: true }));
 
       const defaultParentCode = parents[0] ? parents[0].code : '';
       const suggestedCode = createForm.kind === 'MAYOR'
-         ? suggestMajorCode(newType, localAccounts)
-         : (defaultParentCode ? suggestChildCode(defaultParentCode, localAccounts) : getSuggestedCode(newType, localAccounts));
+         ? suggestMajorCode(newType, effectiveAllAccounts)
+         : (defaultParentCode ? suggestChildCode(defaultParentCode, effectiveAllAccounts) : getSuggestedCode(newType, effectiveAllAccounts));
 
       setCreateForm(prev => ({
          ...prev,
@@ -338,8 +407,8 @@ const AccountSelect = ({
 
    const handleParentChange = (newParentCode) => {
       const suggestedCode = newParentCode
-         ? suggestChildCode(newParentCode, localAccounts)
-         : getSuggestedCode(createForm.type, localAccounts);
+         ? suggestChildCode(newParentCode, effectiveAllAccounts)
+         : getSuggestedCode(createForm.type, effectiveAllAccounts);
 
       setCreateForm(prev => ({
          ...prev,
@@ -383,6 +452,7 @@ const AccountSelect = ({
          const tipoTexto = isMayor ? 'mayor' : 'auxiliar';
          toast.success(`Cuenta ${tipoTexto} "${newAccount.code} - ${newAccount.name}" creada y seleccionada.`);
          setLocalAccounts(prev => [...prev, newAccount]);
+         setInternalAllAccounts(prev => [...prev, newAccount]);
          onChange(newAccount.id, newAccount);
          onAccountCreated?.(newAccount);
          queryClient?.invalidateQueries?.({ queryKey: ['accountingAccounts'] });
