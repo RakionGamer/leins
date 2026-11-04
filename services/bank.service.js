@@ -2935,13 +2935,21 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
                });
             }
 
-            // 2. Coincidencia por huella identica (mismo dia, tipo, monto y descripcion)
+            // Recolectar fechas candidatas que reporta el banco (operación y contable)
+            const candidateDateStrings = new Set();
+            if (dateOnly) candidateDateStrings.add(dateOnly);
+            if (m.fechaContable) candidateDateStrings.add(String(m.fechaContable).slice(0, 10));
+            if (m.fechaMovimiento) candidateDateStrings.add(String(m.fechaMovimiento).slice(0, 10));
+            if (m.fecha || m.movementDate || m.date) candidateDateStrings.add(String(m.fecha || m.movementDate || m.date).slice(0, 10));
+            const candidateDates = Array.from(candidateDateStrings).filter(Boolean).map(s => new Date(`${s}T00:00:00.000Z`));
+
+            // 2. Coincidencia por huella identica (mismo dia -operativo o contable-, tipo, monto y descripcion)
             if (!existing) {
                existing = await models.EntityBankTransaction.findOne({
                   where: {
                      entity_id: entityId,
                      entity_bank_account_id: entityBankAccountId,
-                     issued_at: issuedAt,
+                     issued_at: candidateDates.length > 1 ? { [Op.in]: candidateDates } : issuedAt,
                      type: txType,
                      amount: amountAbs,
                      description: description || { [Op.or]: [null, ''] },
