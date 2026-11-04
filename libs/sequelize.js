@@ -70,6 +70,22 @@ setupModels(sequelize);
          `);
       } catch {}
 
+      try {
+         const [cols] = await sequelize.query(`
+            SELECT COLUMN_NAME 
+            FROM information_schema.COLUMNS 
+            WHERE TABLE_SCHEMA = DATABASE() 
+              AND TABLE_NAME = 'accounting_accounts' 
+              AND COLUMN_NAME = 'default_cost_center'
+         `);
+         if (!cols || cols.length === 0) {
+            await sequelize.query(`
+               ALTER TABLE accounting_accounts 
+               ADD COLUMN default_cost_center VARCHAR(100) NULL
+            `);
+         }
+      } catch {}
+
       if (!isProd) {
          // Ejecuta sync solo si lo pides explícitamente en dev
          if (process.env.DB_SYNC === 'true') {

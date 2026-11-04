@@ -3,6 +3,8 @@ import { useEntityRequired } from '../../hooks/useEntityRequired';
 import EntityRequiredNotice from '../../components/EntityRequiredNotice';
 import Modal from '../../components/Modal';
 import CostCentersModal from '../../components/accounting/CostCentersModal';
+import CustomSelect from '../../components/accounting/CustomSelect';
+import CostCenterSelect from '../../components/accounting/CostCenterSelect';
 import AccountSelect from '../../components/accounting/AccountSelect';
 import { useAuth } from '../../context/AuthContext';
 import { toast } from '../../components/Toaster';
@@ -156,6 +158,7 @@ export default function AccountingAccounts() {
       type: 'GASTOS',
       nature: 'DEUDORA',
       cost_center_requirement: 'NONE',
+      default_cost_center: '',
       require_rut: false,
       require_reference: false,
       is_auxiliary: false,
@@ -251,6 +254,7 @@ export default function AccountingAccounts() {
          type: initialType,
          nature: initialNature,
          cost_center_requirement: 'NONE',
+         default_cost_center: '',
          require_rut: false,
          require_reference: false,
          is_auxiliary: false,
@@ -301,6 +305,7 @@ export default function AccountingAccounts() {
          type: acc.type,
          nature: acc.nature,
          cost_center_requirement: acc.cost_center_requirement || 'NONE',
+         default_cost_center: acc.default_cost_center || '',
          require_rut: !!acc.require_rut,
          require_reference: !!acc.require_reference,
          is_auxiliary: !!acc.is_auxiliary,
@@ -324,6 +329,7 @@ export default function AccountingAccounts() {
                   type: formData.type,
                   nature: formData.nature,
                   cost_center_requirement: formData.cost_center_requirement,
+                  default_cost_center: formData.cost_center_requirement === 'NONE' ? null : (formData.default_cost_center || null),
                   require_rut: formData.require_rut,
                   require_reference: formData.require_reference,
                   is_auxiliary: formData.is_auxiliary,
@@ -337,6 +343,7 @@ export default function AccountingAccounts() {
             await createAccount({
                entityId,
                ...formData,
+               default_cost_center: formData.cost_center_requirement === 'NONE' ? null : (formData.default_cost_center || null),
             });
             toast.success('Cuenta creada correctamente');
          }
@@ -729,19 +736,65 @@ export default function AccountingAccounts() {
                   />
                </div>
 
-               <div>
-                  <label className="block text-xs font-semibold uppercase text-text-soft mb-1">Centro de Costo</label>
-                  <select
-                     className={`${selectCtrl} ${editingAccount && !isAdmin ? 'opacity-70 bg-surface-2 cursor-not-allowed' : ''}`}
-                     disabled={editingAccount && !isAdmin}
-                     value={formData.cost_center_requirement}
-                     onChange={(e) => setFormData({ ...formData, cost_center_requirement: e.target.value })}
-                  >
-                     <option value="NONE">No requiere</option>
-                     <option value="OPTIONAL">Opcional</option>
-                     <option value="REQUIRED">Obligatorio</option>
-                  </select>
-               </div>
+               <div className="space-y-2.5">
+                   <div>
+                      <label className="block text-xs font-semibold uppercase text-text-soft mb-1">
+                         Exigencia de Centro de Costo
+                      </label>
+                      <CustomSelect
+                         value={formData.cost_center_requirement}
+                         onChange={(val) => {
+                            setFormData({
+                               ...formData,
+                               cost_center_requirement: val,
+                               default_cost_center: val === 'NONE' ? '' : formData.default_cost_center,
+                            });
+                         }}
+                         disabled={editingAccount && !isAdmin}
+                         options={[
+                            {
+                               value: 'NONE',
+                               label: 'No requiere',
+                               description: 'No solicita ni imputa centro de costo en compras ni asientos',
+                            },
+                            {
+                               value: 'OPTIONAL',
+                               label: 'Opcional',
+                               description: 'Permite asociar opcionalmente un centro de costo',
+                            },
+                            {
+                               value: 'REQUIRED',
+                               label: 'Obligatorio',
+                               description: 'Exige obligatoriamente seleccionar un centro de costo',
+                            },
+                         ]}
+                      />
+                   </div>
+
+                   {formData.cost_center_requirement !== 'NONE' && (
+                      <div className="p-3 bg-surface-2/60 border border-brand/20 rounded-2xl space-y-1.5 animate-in fade-in-0 duration-200">
+                         <div className="flex items-center justify-between">
+                            <label className="block text-xs font-semibold uppercase text-brand">
+                               Centro de Costo por Defecto (Sugerido)
+                            </label>
+                            <span className="text-[10px] text-text-soft">Opcional</span>
+                         </div>
+                         <CostCenterSelect
+                            value={formData.default_cost_center || ''}
+                            onChange={(val) => setFormData({ ...formData, default_cost_center: val })}
+                            entityId={entityId}
+                            costCenters={costCenters}
+                            onCostCentersChange={setCostCenters}
+                            placeholder="Seleccionar centro de costo sugerido..."
+                            allowClear={true}
+                            disabled={editingAccount && !isAdmin}
+                         />
+                         <p className="text-[11px] text-text-soft">
+                            Al seleccionar esta cuenta en Reglas de Proveedores o Asientos, se sugerirá este centro de costo automáticamente.
+                         </p>
+                      </div>
+                   )}
+                </div>
 
                <div className="pt-2">
                   <label className="block text-xs font-semibold uppercase text-text-soft mb-2">Atributos de la Cuenta</label>

@@ -22,6 +22,10 @@ const AccountingAccountSchema = {
       type: DataTypes.ENUM("NONE", "OPTIONAL", "REQUIRED"),
       defaultValue: "NONE",
    },
+   default_cost_center: {
+      allowNull: true,
+      type: DataTypes.STRING(100),
+   },
    is_active: { allowNull: false, type: DataTypes.BOOLEAN, defaultValue: true },
    is_system: { allowNull: false, type: DataTypes.BOOLEAN, defaultValue: false },
    require_rut: { allowNull: false, type: DataTypes.BOOLEAN, defaultValue: false },

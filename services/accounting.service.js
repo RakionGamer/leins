@@ -2272,6 +2272,7 @@ class AccountingService {
          type: payload.type,
          nature: payload.nature || (["ACTIVO", "COSTOS", "GASTOS"].includes(payload.type) ? "DEUDORA" : "ACREEDORA"),
          cost_center_requirement: payload.cost_center_requirement || "NONE",
+         default_cost_center: payload.default_cost_center?.trim() || null,
          is_system: false,
          require_rut: Boolean(payload.require_rut),
          require_reference: Boolean(payload.require_reference),
@@ -2292,6 +2293,7 @@ class AccountingService {
       if (payload.type) account.type = payload.type;
       if (payload.nature) account.nature = payload.nature;
       if (payload.cost_center_requirement) account.cost_center_requirement = payload.cost_center_requirement;
+      if (payload.default_cost_center !== undefined) account.default_cost_center = payload.default_cost_center?.trim() || null;
       if (payload.require_rut !== undefined) account.require_rut = Boolean(payload.require_rut);
       if (payload.require_reference !== undefined) account.require_reference = Boolean(payload.require_reference);
       if (payload.is_auxiliary !== undefined) account.is_auxiliary = Boolean(payload.is_auxiliary);
