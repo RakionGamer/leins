@@ -85,8 +85,8 @@ class BankService {
 
       return `(
          CASE
-            WHEN ${initialBalanceDate} IS NOT NULL AND ${alias}.issued_at < ${initialBalanceDate} THEN NULL
-            ELSE ${initialBalance} + COALESCE((
+            WHEN ${initialBalanceDate} IS NOT NULL AND ${alias}.issued_at < ${initialBalanceDate} THEN ${alias}.balance
+            ELSE COALESCE(${initialBalance}, 0) + COALESCE((
                SELECT SUM(CASE WHEN t2.type = 'income' THEN t2.amount ELSE -t2.amount END)
                FROM entity_bank_transactions t2
                WHERE t2.entity_bank_account_id = ${alias}.entity_bank_account_id
@@ -1265,7 +1265,7 @@ class BankService {
          const runningBalanceRaw = typeof r.get === 'function'
             ? r.get('running_balance')
             : r.running_balance;
-         const runningBalance = runningBalanceRaw != null ? Number(runningBalanceRaw) : null;
+         const runningBalance = runningBalanceRaw != null ? Number(runningBalanceRaw) : (r.balance != null ? Number(r.balance) : null);
          return {
             _id: `tx-${r.id}`,
             source: 'bank',
