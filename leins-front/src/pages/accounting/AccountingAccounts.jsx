@@ -132,7 +132,9 @@ function suggestChildCode(parentCode, accounts) {
 }
 
 export default function AccountingAccounts() {
-   const { entityId, ready } = useEntityRequired();
+   const { isClient, role } = useAuth();
+   const { entityId, ready, permissions } = useEntityRequired();
+   const isAdmin = !isClient && (role === 'super_admin' || role === 'admin' || permissions?.is_admin === true || permissions?.can_update !== false);
 
    const [accounts, setAccounts] = useState([]);
    const [loading, setLoading] = useState(true);
@@ -554,17 +556,24 @@ export default function AccountingAccounts() {
                                                    <button
                                                       onClick={() => openEditModal(acc)}
                                                       className="p-1.5 rounded-lg text-text-soft hover:text-brand hover:bg-brand/10 transition outline-none focus:ring-2 focus:ring-brand"
-                                                      title="Editar cuenta"
+                                                      title={isAdmin ? "Editar cuenta" : "Ver detalles de la cuenta"}
                                                    >
                                                       <PencilSquareIcon className="w-5 h-5" />
                                                    </button>
                                                    {!acc.is_system && (
                                                       <button
                                                          onClick={() => handleDelete(acc)}
-                                                         className="p-1.5 rounded-lg text-text-soft hover:text-danger hover:bg-danger/10 transition outline-none focus:ring-2 focus:ring-danger"
-                                                         title="Eliminar cuenta"
+                                                         disabled={!isAdmin || Number(acc.movements_count || 0) > 0}
+                                                         className="p-1.5 rounded-lg text-text-soft hover:text-danger hover:bg-danger/10 transition outline-none focus:ring-2 focus:ring-danger disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-text-soft disabled:cursor-not-allowed"
+                                                         title={
+                                                            !isAdmin
+                                                               ? 'Solo los administradores pueden eliminar cuentas'
+                                                               : Number(acc.movements_count || 0) > 0
+                                                               ? `No se puede eliminar: posee ${acc.movements_count} movimiento(s) registrado(s)`
+                                                               : 'Eliminar cuenta'
+                                                         }
                                                       >
-                                                         <TrashIcon className="w-5 h-5" />
+                                                         <TrashIcon className="w-4 h-4" />
                                                       </button>
                                                    )}
                                                 </div>
