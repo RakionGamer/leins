@@ -689,7 +689,7 @@ export default function AccountingRules() {
                            groupedRules.map((group, index) => (
                               <tr key={index} className="hover:bg-brand/5 transition-colors group/row align-top">
                                  <td className="p-4 pl-6">
-                                    <div className="flex flex-col gap-1 max-h-48 overflow-y-auto pr-2">
+                                    <div className={`flex flex-col gap-1 pr-1.5 ${group.rules.length > 10 ? 'max-h-[350px] overflow-y-auto' : ''}`}>
                                        {group.rules.map((rule) => (
                                           <div
                                              key={rule.id}
@@ -780,7 +780,7 @@ export default function AccountingRules() {
                      </span>
                   </div>
 
-                  <div className="space-y-3 max-h-60 overflow-y-auto p-1 pr-2">
+                  <div className={`space-y-3 p-1 pr-2 ${formData.ruts.length > 8 ? 'max-h-[440px] overflow-y-auto' : ''}`}>
                      {formData.ruts.map((r, i) => (
                         <div key={i} className="flex gap-2 items-center">
                            <div className="flex-1">
