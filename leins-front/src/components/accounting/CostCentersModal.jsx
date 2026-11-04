@@ -1,15 +1,19 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Modal from '../Modal';
 import { toast } from '../Toaster';
 import {
    PlusIcon,
    TrashIcon,
    TagIcon,
-   SparklesIcon,
    CheckCircleIcon,
    NoSymbolIcon,
+   PencilSquareIcon,
+   CheckIcon,
+   XMarkIcon,
+   SparklesIcon,
 } from '@heroicons/react/24/outline';
 import {
+   getCostCenters,
    createCostCenter,
    updateCostCenter,
    deleteCostCenter,
@@ -29,6 +33,25 @@ export default function CostCentersModal({
    const [submitting, setSubmitting] = useState(false);
    const [deletingId, setDeletingId] = useState(null);
 
+   // Inline edit state
+   const [editingId, setEditingId] = useState(null);
+   const [editName, setEditName] = useState('');
+   const [editCode, setEditCode] = useState('');
+   const [savingEdit, setSavingEdit] = useState(false);
+
+   // Auto-fetch latest cost centers when modal opens
+   useEffect(() => {
+      if (isOpen && entityId) {
+         getCostCenters({ entityId, includeInactive: true })
+            .then((data) => {
+               if (Array.isArray(data) && onCostCentersChange) {
+                  onCostCentersChange(data);
+               }
+            })
+            .catch(() => {});
+      }
+   }, [isOpen, entityId]);
+
    const handleCreate = async (e) => {
       e?.preventDefault();
       const cleanName = name.trim();
@@ -45,11 +68,13 @@ export default function CostCentersModal({
             code: code.trim() || null,
          });
 
-         const createdItem = created?.id ? created : { id: Date.now(), name: cleanName, code: code.trim() || null, is_active: true };
+         const createdItem = created?.id
+            ? created
+            : { id: Date.now(), name: cleanName, code: code.trim() || null, is_active: true };
 
          if (onCostCentersChange) {
             onCostCentersChange((prev) => {
-               const filtered = prev.filter(c => (c.name || c).toUpperCase() !== cleanName.toUpperCase());
+               const filtered = prev.filter((c) => (c.name || c).toUpperCase() !== cleanName.toUpperCase());
                return [...filtered, createdItem].sort((a, b) => (a.name || a).localeCompare(b.name || b));
             });
          }
@@ -61,6 +86,63 @@ export default function CostCentersModal({
          toast.error(err.message || 'Error al crear centro de costo');
       } finally {
          setSubmitting(false);
+      }
+   };
+
+   const startEdit = (cc) => {
+      setEditingId(cc.id);
+      setEditName(cc.name || '');
+      setEditCode(cc.code || '');
+   };
+
+   const cancelEdit = () => {
+      setEditingId(null);
+      setEditName('');
+      setEditCode('');
+   };
+
+   const handleSaveEdit = async (cc) => {
+      const cleanName = editName.trim();
+      if (!cleanName) {
+         toast.error('El nombre no puede estar vacío');
+         return;
+      }
+
+      setSavingEdit(true);
+      try {
+         if (String(cc.id).startsWith('legacy-')) {
+            const created = await createCostCenter({
+               entityId,
+               name: cleanName,
+               code: editCode.trim() || null,
+            });
+            if (onCostCentersChange) {
+               onCostCentersChange((prev) =>
+                  prev.map((item) => (item.id === cc.id ? created : item))
+               );
+            }
+         } else {
+            const updated = await updateCostCenter(
+               cc.id,
+               { name: cleanName, code: editCode.trim() || null },
+               { entityId }
+            );
+            if (onCostCentersChange) {
+               onCostCentersChange((prev) =>
+                  prev.map((item) =>
+                     item.id === cc.id
+                        ? { ...item, name: cleanName, code: editCode.trim() || null }
+                        : item
+                  )
+               );
+            }
+         }
+         toast.success('Centro de costo actualizado');
+         cancelEdit();
+      } catch (err) {
+         toast.error(err.message || 'Error al actualizar centro de costo');
+      } finally {
+         setSavingEdit(false);
       }
    };
 
@@ -86,6 +168,12 @@ export default function CostCentersModal({
    const handleDelete = async (cc) => {
       if (!cc.id || String(cc.id).startsWith('legacy-')) {
          toast.error('No se puede eliminar un registro histórico automático');
+         return;
+      }
+      if (cc.rules_count > 0) {
+         toast.error(
+            `No se puede eliminar: está asignado a ${cc.rules_count} regla(s). Desactívalo en su lugar.`
+         );
          return;
       }
       if (!window.confirm(`¿Seguro que deseas eliminar el centro de costo "${cc.name}"?`)) return;
@@ -173,6 +261,53 @@ export default function CostCentersModal({
                         const displayName = cc.name || cc;
                         const displayCode = cc.code || null;
                         const isActive = cc.is_active !== false;
+                        const rulesCount = Number(cc.rules_count || 0);
+                        const isEditing = editingId === cc.id;
+
+                        if (isEditing) {
+                           return (
+                              <div
+                                 key={cc.id}
+                                 className="p-2.5 rounded-xl border border-brand bg-surface-1 shadow-sm flex items-center gap-2"
+                              >
+                                 <input
+                                    type="text"
+                                    placeholder="Código"
+                                    className="w-24 h-8 px-2 text-xs rounded-lg border border-border-subtle bg-bg-content text-text-main focus:outline-none focus:ring-1 focus:ring-brand font-mono"
+                                    value={editCode}
+                                    onChange={(e) => setEditCode(e.target.value)}
+                                    disabled={savingEdit}
+                                 />
+                                 <input
+                                    type="text"
+                                    placeholder="Nombre"
+                                    className="flex-1 h-8 px-2 text-xs rounded-lg border border-border-subtle bg-bg-content text-text-main focus:outline-none focus:ring-1 focus:ring-brand"
+                                    value={editName}
+                                    onChange={(e) => setEditName(e.target.value)}
+                                    disabled={savingEdit}
+                                    autoFocus
+                                 />
+                                 <button
+                                    type="button"
+                                    onClick={() => handleSaveEdit(cc)}
+                                    disabled={savingEdit || !editName.trim()}
+                                    className="p-1.5 rounded-lg bg-brand text-white hover:bg-brand-hover transition disabled:opacity-50 cursor-pointer"
+                                    title="Guardar cambios"
+                                 >
+                                    <CheckIcon className="w-4 h-4 stroke-2" />
+                                 </button>
+                                 <button
+                                    type="button"
+                                    onClick={cancelEdit}
+                                    disabled={savingEdit}
+                                    className="p-1.5 rounded-lg text-text-soft hover:bg-surface-2 transition cursor-pointer"
+                                    title="Cancelar"
+                                 >
+                                    <XMarkIcon className="w-4 h-4" />
+                                 </button>
+                              </div>
+                           );
+                        }
 
                         return (
                            <div
@@ -192,9 +327,15 @@ export default function CostCentersModal({
                                  <span className="text-sm font-medium text-text-main truncate">
                                     {displayName}
                                  </span>
+                                 {rulesCount > 0 && (
+                                    <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-medium bg-purple-500/10 text-purple-700 dark:text-purple-300 ring-1 ring-purple-500/20 shrink-0">
+                                       <SparklesIcon className="w-3 h-3" />
+                                       {rulesCount} {rulesCount === 1 ? 'regla' : 'reglas'}
+                                    </span>
+                                 )}
                               </div>
 
-                              <div className="flex items-center gap-2 shrink-0">
+                              <div className="flex items-center gap-1.5 shrink-0">
                                  <button
                                     type="button"
                                     onClick={() => handleToggleActive(cc)}
@@ -208,13 +349,30 @@ export default function CostCentersModal({
                                     {isActive ? 'Activo' : 'Inactivo'}
                                  </button>
 
+                                 <button
+                                    type="button"
+                                    onClick={() => startEdit(cc)}
+                                    className="p-1.5 rounded-lg text-text-soft hover:text-brand hover:bg-surface-2 transition cursor-pointer"
+                                    title="Editar nombre y código"
+                                 >
+                                    <PencilSquareIcon className="w-4 h-4" />
+                                 </button>
+
                                  {cc.id && !String(cc.id).startsWith('legacy-') && (
                                     <button
                                        type="button"
                                        onClick={() => handleDelete(cc)}
-                                       disabled={deletingId === cc.id}
-                                       className="p-1.5 rounded-lg text-text-soft hover:text-danger hover:bg-danger/10 transition cursor-pointer disabled:opacity-50"
-                                       title="Eliminar centro de costo"
+                                       disabled={deletingId === cc.id || rulesCount > 0}
+                                       className={`p-1.5 rounded-lg transition cursor-pointer ${
+                                          rulesCount > 0
+                                             ? 'text-text-soft/30 cursor-not-allowed'
+                                             : 'text-text-soft hover:text-danger hover:bg-danger/10'
+                                       }`}
+                                       title={
+                                          rulesCount > 0
+                                             ? 'No se puede eliminar porque está asignado a reglas'
+                                             : 'Eliminar centro de costo'
+                                       }
                                     >
                                        <TrashIcon className="w-4 h-4" />
                                     </button>

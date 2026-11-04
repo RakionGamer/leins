@@ -2637,12 +2637,16 @@ class AccountingService {
    }
 
    // --- Centros de Costo ---
-   async listCostCenters(entityId) {
+   async listCostCenters(entityId, { includeInactive } = {}) {
       const parsedEntityId = Number(entityId);
+      const shouldIncludeInactive = includeInactive === 'true' || includeInactive === true;
+      const where = { entity_id: parsedEntityId };
+      if (!shouldIncludeInactive) where.is_active = true;
+
       let items = [];
       try {
          items = await models.AccountingCostCenter.findAll({
-            where: { entity_id: parsedEntityId, is_active: true },
+            where,
             order: [['name', 'ASC']],
             raw: true,
          });
@@ -2704,9 +2708,29 @@ class AccountingService {
             });
             combined.push(created.toJSON ? created.toJSON() : created);
          } catch {
-            combined.push({ id: `legacy-${name}`, entity_id: parsedEntityId, name, code: null });
+            combined.push({ id: `legacy-${name}`, entity_id: parsedEntityId, name, code: null, is_active: true });
          }
       }
+
+      // Añadir conteo de reglas para cada centro de costo
+      try {
+         const ruleCounts = await models.AccountingRule.findAll({
+            attributes: ['cost_center', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
+            where: {
+               entity_id: parsedEntityId,
+               cost_center: { [Op.ne]: null }
+            },
+            group: ['cost_center'],
+            raw: true,
+         });
+         const countMap = new Map();
+         ruleCounts.forEach(rc => {
+            if (rc.cost_center) countMap.set(rc.cost_center.trim().toUpperCase(), Number(rc.count));
+         });
+         combined.forEach(c => {
+            c.rules_count = countMap.get(c.name.trim().toUpperCase()) || 0;
+         });
+      } catch {}
 
       return combined.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
    }

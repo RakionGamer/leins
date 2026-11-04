@@ -143,7 +143,7 @@ const deleteRule = async (req, res, next) => {
 const getCostCenters = async (req, res, next) => {
    try {
       const entityId = req.entityId;
-      const costCenters = await service.listCostCenters(entityId);
+      const costCenters = await service.listCostCenters(entityId, req.query);
       res.json(costCenters);
    } catch (error) {
       next(error);

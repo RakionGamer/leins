@@ -67,8 +67,8 @@ export const deleteRule = (id, entityId) =>
    request(`/accounting/rules/${id}?${buildQs({ entityId })}`, { method: 'DELETE' }, 'Error al eliminar la regla');
 
 // --- Centros de Costo ---
-export const getCostCenters = ({ entityId, signal } = {}) =>
-   request(`/accounting/cost-centers?${buildQs({ entityId })}`, { signal }, 'Error al cargar centros de costo');
+export const getCostCenters = ({ entityId, includeInactive, signal } = {}) =>
+   request(`/accounting/cost-centers?${buildQs({ entityId, includeInactive })}`, { signal }, 'Error al cargar centros de costo');
 
 export const createCostCenter = ({ entityId, name, code }) =>
    request(`/accounting/cost-centers?${buildQs({ entityId })}`, { method: 'POST', body: JSON.stringify({ name, code }) }, 'Error al crear centro de costo');
