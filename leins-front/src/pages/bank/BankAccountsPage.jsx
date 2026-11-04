@@ -231,7 +231,7 @@ export default function BankAccountsPage() {
                      onClick={() => setEmissoModalOpen(true)}
                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-brand bg-brand text-white hover:bg-brand-strong text-xs font-semibold shadow-sm transition"
                   >
-                     <span>⚡ Vincular Banco (Emisso)</span>
+                     <span>Vincular Banco</span>
                   </button>
                )}
             </div>
