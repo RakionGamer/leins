@@ -96,6 +96,50 @@ const updateEntityAssignmentSchema = Joi.object({
    isAdmin: Joi.boolean().optional(),
 }).min(1);
 
+
+const clientUsername = Joi.string().min(3).max(60).pattern(/^[a-zA-Z0-9._-]+$/);
+
+const createClientUserSchema = Joi.object({
+   username: clientUsername.required(),
+   email: email.required(),
+   password: password.required(),
+   name: Joi.string().max(255).allow(null, '').optional(),
+   lastName: Joi.string().max(255).allow(null, '').optional(),
+   last_name: Joi.string().max(255).allow(null, '').optional(),
+   entityId: id.optional(),
+   entity_id: id.optional(),
+   readOnly: booleanField.optional(),
+   read_only: booleanField.optional(),
+}).or('entityId', 'entity_id');
+
+const listClientUsersQuerySchema = Joi.object({
+   entityId: id.optional(),
+   entity_id: id.optional(),
+}).or('entityId', 'entity_id');
+
+const clientUserEntityParamsSchema = Joi.object({
+   userId: id.required(),
+   entityId: id.required(),
+});
+
+const updateClientUserEntityAccessSchema = Joi.object({
+   readOnly: booleanField.optional(),
+   read_only: booleanField.optional(),
+}).or('readOnly', 'read_only');
+
+const clientUserParamsSchema = Joi.object({
+   userId: id.required(),
+});
+
+const updateClientUserSchema = Joi.object({
+   username: clientUsername.optional(),
+   name: Joi.string().max(255).allow(null, '').optional(),
+   lastName: Joi.string().max(255).allow(null, '').optional(),
+   last_name: Joi.string().max(255).allow(null, '').optional(),
+   entityId: id.optional(),
+   entity_id: id.optional(),
+});
+
 module.exports = {
    createSuperAdminSchema,
    updateSuperAdminSchema,
@@ -107,5 +151,11 @@ module.exports = {
    entityAssignmentParamsSchema,
    entityAssignmentEntityParamsSchema,
    entityAssignmentSchema,
-   updateEntityAssignmentSchema
+   updateEntityAssignmentSchema,
+   createClientUserSchema,
+   listClientUsersQuerySchema,
+   clientUserEntityParamsSchema,
+   updateClientUserEntityAccessSchema,
+   clientUserParamsSchema,
+   updateClientUserSchema
 };
