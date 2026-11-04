@@ -429,10 +429,12 @@ export default function AccountingAccounts() {
                      <TagIcon className="w-5 h-5 text-brand" />
                      <span className="hidden sm:inline">Centros de Costo</span>
                   </button>
-                  <button onClick={openCreateModal} className={`${btnCtrl} text-brand border-brand/20 bg-brand/5`} title="Crear nueva cuenta contable">
-                     <PlusIcon className="w-5 h-5 stroke-2" />
-                     <span>Crear Cuenta</span>
-                  </button>
+                  {isAdmin && (
+                     <button onClick={openCreateModal} className={`${btnCtrl} text-brand border-brand/20 bg-brand/5`} title="Crear nueva cuenta contable">
+                        <PlusIcon className="w-5 h-5 stroke-2" />
+                        <span>Crear Cuenta</span>
+                     </button>
+                  )}
                </div>
             </div>
 

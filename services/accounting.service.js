@@ -2323,6 +2323,11 @@ class AccountingService {
          throw boom.badRequest(`No se puede eliminar la cuenta ${account.code} - ${account.name} porque está asociada a ${rulesCount} regla(s) de asignación automática de proveedores o clientes.`);
       }
 
+      const docsCount = await models.EntitySiiDocument.count({ where: { accounting_account_id: id } });
+      if (docsCount > 0) {
+         throw boom.badRequest(`No se puede eliminar la cuenta ${account.code} - ${account.name} porque está asociada a ${docsCount} documento(s) tributario(s) clasificado(s).`);
+      }
+
       await account.destroy();
       return { id };
    }

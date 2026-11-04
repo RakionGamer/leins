@@ -44,6 +44,7 @@ const getAccounts = async (req, res, next) => {
 
 const createAccount = async (req, res, next) => {
    try {
+      await assertAccountAdminPermission(req);
       const entityId = req.entityId;
       const account = await service.createAccount(entityId, req.body);
       res.status(201).json(account);
@@ -78,6 +79,7 @@ const deleteAccount = async (req, res, next) => {
 
 const seedDefaultPlan = async (req, res, next) => {
    try {
+      await assertAccountAdminPermission(req);
       const entityId = req.entityId;
       const force = req.query.force === 'true' || req.body?.force === true;
       const result = force
