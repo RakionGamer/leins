@@ -2674,10 +2674,7 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
                sync_status: 'idle',
                last_synced_at: new Date(),
             };
-            if ((!existing.initial_balance || Number(existing.initial_balance) === 0) && accData.balance) {
-               updates.initial_balance = accData.balance;
-               updates.initial_balance_date = new Date().toISOString().slice(0, 10);
-            }
+            // No alterar initial_balance ni initial_balance_date: son configurados por el usuario
             await existing.update(updates);
             linked.push({ id: existing.id, accountNumber: accNum, action: 'linked_existing' });
          } else {
@@ -2686,8 +2683,8 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
                bank_name: bankNameDefault,
                account_number: accNum,
                currency: accData.currency || 'CLP',
-               initial_balance: accData.balance || 0,
-               initial_balance_date: new Date().toISOString().slice(0, 10),
+               initial_balance: 0,
+               initial_balance_date: null,
                emisso_connection_id: connectionId,
                emisso_system: system,
                sync_status: 'idle',
@@ -2807,56 +2804,7 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
             last_synced_at: new Date(),
          };
 
-         // Auto-cálculo inteligente del saldo inicial para cuentas de Emisso:
-         // Si hay movimientos sincronizados, el saldo inicial real es el saldo antes de la operación más antigua
-         const sortedRows = [...dedupedRows].sort((a, b) => {
-            const da = new Date(a.fechaMovimiento || a.fechaContable || a.fecha || 0);
-            const db = new Date(b.fechaMovimiento || b.fechaContable || b.fecha || 0);
-            return da - db;
-         });
-
-         if (sortedRows.length) {
-            const earliest = sortedRows[0];
-            const earliestDate = String(earliest.fechaMovimiento || earliest.fechaContable || earliest.fecha || '').slice(0, 10);
-            const currentInitDate = account.initial_balance_date ? String(account.initial_balance_date).slice(0, 10) : null;
-
-            // Si la cuenta no tiene fecha inicial o su fecha inicial es posterior al movimiento más antiguo (ej: fecha de hoy)
-            if (!currentInitDate || currentInitDate >= earliestDate) {
-               if (earliest.saldoContable != null) {
-                  const typeLower = String(earliest.type || earliest.tipo || '').toLowerCase();
-                  const isIncome = typeLower === 'debit' || typeLower === 'abono' || typeLower === 'income' || String(earliest.id || '').includes(':abono:');
-                  const firstAmount = Math.abs(Number(earliest.monto ?? earliest.amount ?? 0));
-                  const realStartBal = Number(earliest.saldoContable) - (isIncome ? firstAmount : -firstAmount);
-
-                  // Asignamos como fecha de saldo inicial un día antes del primer movimiento
-                  const d = new Date(earliestDate + 'T00:00:00.000Z');
-                  d.setUTCDate(d.getUTCDate() - 1);
-                  const prevDayStr = d.toISOString().slice(0, 10);
-
-                  updates.initial_balance = realStartBal;
-                  updates.initial_balance_date = prevDayStr;
-               }
-            }
-         } else if (!account.initial_balance || Number(account.initial_balance) === 0) {
-            try {
-               const rawBalances = await emisso.getBalances(system, connectionId);
-               const items = Array.isArray(rawBalances) ? rawBalances : (rawBalances?.cuentas || rawBalances?.saldos || rawBalances?.items || []);
-               const match = items.find(b => {
-                  const acc = String(b.numeroCuenta || b.accountNumber || b.cuenta || '').trim();
-                  return !acc || acc.endsWith(targetAcc) || targetAcc.endsWith(acc);
-               });
-               if (match) {
-                  const bal = Number(match.saldoContable ?? match.saldoDisponible ?? match.saldo ?? 0);
-                  if (bal) {
-                     updates.initial_balance = bal;
-                     updates.initial_balance_date = match.observedDay || new Date().toISOString().slice(0, 10);
-                  }
-               }
-            } catch (balErr) {
-               logWarn('EMISSO_BALANCE_SYNC_WARN', { message: balErr.message, connectionId });
-            }
-         }
-
+         // No alterar initial_balance ni initial_balance_date al sincronizar movimientos
          await account.update(updates);
 
          logInfo('EMISSO_SYNC_COMPLETED', {
