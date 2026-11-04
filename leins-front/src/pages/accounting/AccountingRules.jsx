@@ -15,6 +15,8 @@ import {
    searchCounterpartyName,
    deleteRule,
    getAccounts,
+   getCostCenters,
+   createCostCenter,
 } from '../../services/accountingApi';
 import {
    PlusIcon,
@@ -150,6 +152,18 @@ export default function AccountingRules() {
       ruts: [{ rut: '', name: '', displayValue: '' }],
    });
    const [submitting, setSubmitting] = useState(false);
+   const [costCenters, setCostCenters] = useState([]);
+   const [isCreatingCC, setIsCreatingCC] = useState(false);
+   const [newCCName, setNewCCName] = useState('');
+   const [savingCC, setSavingCC] = useState(false);
+
+   const selectedAccount = useMemo(() => {
+      return accounts.find((a) => Number(a.id) === Number(formData.account_id)) || null;
+   }, [accounts, formData.account_id]);
+
+   const accountRequiresCC = selectedAccount?.cost_center_requirement === 'REQUIRED';
+   const accountAllowsCC = selectedAccount?.cost_center_requirement === 'OPTIONAL';
+   const shouldShowCostCenter = Boolean(selectedAccount && (accountRequiresCC || accountAllowsCC));
 
    const handleAddBatchContacts = (selectedContacts) => {
       setFormData((prev) => {
@@ -185,12 +199,14 @@ export default function AccountingRules() {
       setLoading(true);
       setErr(null);
       try {
-         const [rulesData, accountsData] = await Promise.all([
+         const [rulesData, accountsData, costCentersData] = await Promise.all([
             getRules({ entityId }),
             getAccounts({ entityId }),
+            getCostCenters({ entityId }).catch(() => []),
          ]);
          setRules(Array.isArray(rulesData) ? rulesData : []);
          setAccounts(Array.isArray(accountsData) ? accountsData : []);
+         setCostCenters(Array.isArray(costCentersData) ? costCentersData : []);
       } catch (e) {
          setErr(e.message || 'Error al cargar reglas');
       } finally {
@@ -414,13 +430,43 @@ export default function AccountingRules() {
          cost_center: group.rules[0]?.cost_center || '',
          ruts: ruts.length ? ruts : [{ rut: '', name: '', displayValue: '' }],
       });
+      setIsCreatingCC(false);
+      setNewCCName('');
       setModalOpen(true);
+   };
+
+   const handleCreateNewCC = async () => {
+      const clean = newCCName.trim();
+      if (!clean) return;
+      setSavingCC(true);
+      try {
+         const created = await createCostCenter({ entityId, name: clean });
+         const createdName = created?.name || clean;
+         setCostCenters((prev) => {
+            if (prev.some((c) => (c.name || c).toUpperCase() === createdName.toUpperCase())) return prev;
+            return [...prev, created].sort((a, b) => (a.name || a).localeCompare(b.name || b, undefined, { sensitivity: 'base' }));
+         });
+         setFormData((prev) => ({ ...prev, cost_center: createdName }));
+         setIsCreatingCC(false);
+         setNewCCName('');
+         toast.success(`Centro de costo "${createdName}" creado correctamente`);
+      } catch (err) {
+         toast.error(err.message || 'Error al crear centro de costo');
+      } finally {
+         setSavingCC(false);
+      }
    };
 
    const handleSubmit = async (e) => {
       e.preventDefault();
       if (!formData.account_id) {
          toast.error('Debe seleccionar una cuenta contable');
+         return;
+      }
+
+      const selectedAccount = accounts.find((a) => Number(a.id) === Number(formData.account_id));
+      if (selectedAccount?.cost_center_requirement === 'REQUIRED' && !formData.cost_center?.trim()) {
+         toast.error(`La cuenta "${selectedAccount.code} - ${selectedAccount.name}" exige seleccionar un Centro de Costo.`);
          return;
       }
       
@@ -460,6 +506,10 @@ export default function AccountingRules() {
          return;
       }
 
+      const finalCostCenter = (selectedAccount?.cost_center_requirement === 'NONE')
+         ? null
+         : (formData.cost_center?.trim() || null);
+
       setSubmitting(true);
       setErr(null);
       try {
@@ -467,7 +517,7 @@ export default function AccountingRules() {
             entityId,
             account_id: Number(formData.account_id),
             glosa: formData.glosa,
-            cost_center: formData.cost_center,
+            cost_center: finalCostCenter,
             ruts: uniqueRuts,
             replace_account: true
          });
@@ -588,6 +638,8 @@ export default function AccountingRules() {
                      onClick={() => {
                         setEditingGroup(null);
                         setFormData({ account_id: '', glosa: '', cost_center: '', ruts: [{ rut: '', name: '', displayValue: '' }] });
+                        setIsCreatingCC(false);
+                        setNewCCName('');
                         setModalOpen(true);
                      }}
                      className={`${btnCtrl} text-brand border-brand/20 bg-brand/5`}
@@ -764,7 +816,12 @@ export default function AccountingRules() {
                      accounts={accounts}
                      value={formData.account_id}
                      onChange={(newAccId) => {
-                        setFormData({ ...formData, account_id: newAccId });
+                        const chosen = accounts.find(a => Number(a.id) === Number(newAccId));
+                        setFormData((prev) => ({
+                           ...prev,
+                           account_id: newAccId,
+                           cost_center: chosen?.cost_center_requirement === 'NONE' ? '' : prev.cost_center,
+                        }));
                      }}
                      onAccountCreated={(newAcc) => {
                         setAccounts((prev) => [...prev, newAcc]);
@@ -843,16 +900,94 @@ export default function AccountingRules() {
                   />
                </div>
                
-               <div>
-                  <label className="block text-xs font-semibold uppercase text-text-soft mb-1">Centro de Costo (Opcional)</label>
-                  <input
-                     type="text"
-                     placeholder="Ej: Proyecto Alpha"
-                     className={ctrl}
-                     value={formData.cost_center || ''}
-                     onChange={(e) => setFormData({ ...formData, cost_center: e.target.value })}
-                  />
-               </div>
+               {shouldShowCostCenter && (
+                  <div>
+                     <div className="flex items-center justify-between mb-1">
+                        <label className="block text-xs font-semibold uppercase text-text-soft">
+                           Centro de Costo {accountRequiresCC ? <span className="text-danger font-bold">* (Obligatorio)</span> : <span className="text-text-soft/70 font-normal">(Opcional)</span>}
+                        </label>
+                        {!isCreatingCC && (
+                           <button
+                              type="button"
+                              onClick={() => { setIsCreatingCC(true); setNewCCName(''); }}
+                              className="text-[11px] font-semibold text-brand hover:underline flex items-center gap-1 cursor-pointer"
+                           >
+                              <PlusIcon className="w-3.5 h-3.5" />
+                              <span>Nuevo Centro de Costo</span>
+                           </button>
+                        )}
+                     </div>
+
+                     {!isCreatingCC ? (
+                        <select
+                           className={selectCtrl}
+                           value={formData.cost_center || ''}
+                           onChange={(e) => {
+                              if (e.target.value === '__NEW__') {
+                                 setIsCreatingCC(true);
+                                 setNewCCName('');
+                              } else {
+                                 setFormData({ ...formData, cost_center: e.target.value });
+                              }
+                           }}
+                        >
+                           <option value="">
+                              {accountRequiresCC ? 'Seleccionar Centro de Costo...' : 'Sin Centro de Costo (Ninguno)'}
+                           </option>
+                           {formData.cost_center && !costCenters.some(cc => (cc.name || cc) === formData.cost_center) && (
+                              <option value={formData.cost_center}>{formData.cost_center}</option>
+                           )}
+                           {costCenters.map((cc) => {
+                              const name = cc.name || cc;
+                              const label = cc.code ? `${cc.code} - ${name}` : name;
+                              return (
+                                 <option key={cc.id || name} value={name}>
+                                    {label}
+                                 </option>
+                              );
+                           })}
+                           <option value="__NEW__">+ Crear nuevo Centro de Costo...</option>
+                        </select>
+                     ) : (
+                        <div className="p-3 bg-surface-2 border border-brand/30 rounded-2xl space-y-2">
+                           <span className="text-xs font-semibold text-text-main block">Crear nuevo Centro de Costo</span>
+                           <div className="flex items-center gap-2">
+                              <input
+                                 type="text"
+                                 placeholder="Ej: Proyecto Alpha, Sucursal Norte..."
+                                 className={`${ctrl} h-10`}
+                                 value={newCCName}
+                                 onChange={(e) => setNewCCName(e.target.value)}
+                                 autoFocus
+                                 onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                       e.preventDefault();
+                                       handleCreateNewCC();
+                                    } else if (e.key === 'Escape') {
+                                       setIsCreatingCC(false);
+                                    }
+                                 }}
+                              />
+                              <button
+                                 type="button"
+                                 onClick={handleCreateNewCC}
+                                 disabled={!newCCName.trim() || savingCC}
+                                 className="px-4 h-10 bg-brand text-white font-semibold rounded-xl text-xs hover:bg-brand-hover transition disabled:opacity-50 whitespace-nowrap cursor-pointer"
+                              >
+                                 {savingCC ? 'Guardando...' : 'Crear'}
+                              </button>
+                              <button
+                                 type="button"
+                                 onClick={() => { setIsCreatingCC(false); setNewCCName(''); }}
+                                 className="px-3 h-10 text-text-soft hover:text-text-main text-xs font-medium cursor-pointer"
+                              >
+                                 Cancelar
+                              </button>
+                           </div>
+                        </div>
+                     )}
+                  </div>
+               )}
 
                <div className="flex items-center justify-between gap-3 pt-4 border-t border-border-subtle">
                   {editingGroup ? (

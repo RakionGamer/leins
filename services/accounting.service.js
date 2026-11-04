@@ -2,7 +2,7 @@
 
 const boom = require("@hapi/boom");
 const { models, sequelize } = require("../libs/sequelize");
-const { Op } = require("sequelize");
+const { Op, QueryTypes } = require("sequelize");
 
 const DEFAULT_ACCOUNTS_SEED = [
   {
@@ -2634,6 +2634,109 @@ class AccountingService {
       }
 
       return { success: true, count: ruts.length };
+   }
+
+   // --- Centros de Costo ---
+   async listCostCenters(entityId) {
+      const parsedEntityId = Number(entityId);
+      let items = [];
+      try {
+         items = await models.AccountingCostCenter.findAll({
+            where: { entity_id: parsedEntityId, is_active: true },
+            order: [['name', 'ASC']],
+            raw: true,
+         });
+      } catch (err) {
+         // fallback si la tabla no estuviera disponible de inmediato
+      }
+
+      // Sincronizar / auto-descubrir centros de costo previamente guardados en reglas o asientos
+      const existingNames = new Set(items.map(it => it.name.trim().toUpperCase()));
+      const extraNames = new Set();
+
+      try {
+         const ruleCostCenters = await models.AccountingRule.findAll({
+            attributes: [[sequelize.fn('DISTINCT', sequelize.col('cost_center')), 'cost_center']],
+            where: {
+               entity_id: parsedEntityId,
+               cost_center: { [Op.ne]: null }
+            },
+            raw: true,
+         });
+
+         for (const r of ruleCostCenters) {
+            const val = String(r.cost_center || '').trim();
+            if (val && !existingNames.has(val.toUpperCase())) {
+               extraNames.add(val);
+               existingNames.add(val.toUpperCase());
+            }
+         }
+
+         const entryCostCenters = await sequelize.query(`
+            SELECT DISTINCT aei.cost_center 
+            FROM accounting_entry_items aei
+            JOIN accounting_entries ae ON ae.id = aei.entry_id
+            WHERE ae.entity_id = :entityId 
+              AND aei.cost_center IS NOT NULL 
+              AND aei.cost_center != ''
+         `, {
+            replacements: { entityId: parsedEntityId },
+            type: QueryTypes.SELECT
+         });
+
+         for (const e of entryCostCenters) {
+            const val = String(e.cost_center || '').trim();
+            if (val && !existingNames.has(val.toUpperCase())) {
+               extraNames.add(val);
+               existingNames.add(val.toUpperCase());
+            }
+         }
+      } catch {}
+
+      const combined = [...items];
+      for (const name of extraNames) {
+         try {
+            const created = await models.AccountingCostCenter.create({
+               entity_id: parsedEntityId,
+               name,
+               code: null,
+               is_active: true,
+            });
+            combined.push(created.toJSON ? created.toJSON() : created);
+         } catch {
+            combined.push({ id: `legacy-${name}`, entity_id: parsedEntityId, name, code: null });
+         }
+      }
+
+      return combined.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+   }
+
+   async createCostCenter(entityId, { name, code }) {
+      const parsedEntityId = Number(entityId);
+      const cleanName = String(name || '').trim();
+      if (!cleanName) throw boom.badRequest("El nombre del centro de costo es requerido");
+
+      const existing = await models.AccountingCostCenter.findOne({
+         where: {
+            entity_id: parsedEntityId,
+            name: cleanName,
+         }
+      });
+
+      if (existing) {
+         if (!existing.is_active) {
+            existing.is_active = true;
+            await existing.save();
+         }
+         return existing;
+      }
+
+      return models.AccountingCostCenter.create({
+         entity_id: parsedEntityId,
+         name: cleanName,
+         code: code?.trim() || null,
+         is_active: true,
+      });
    }
 
    // --- Asientos Contables ---

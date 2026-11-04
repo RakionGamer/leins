@@ -35,6 +35,10 @@ router.get("/rules/counterparties/search", ensureEntityAccess, controller.search
 router.get("/rules/counterparty/:rut", controller.searchCounterparty);
 router.delete("/rules/:id", ensureEntityAccess, validatorHandler(getByIdSchema, "params"), controller.deleteRule);
 
+// --- Centros de Costo ---
+router.get("/cost-centers", ensureEntityAccess, controller.getCostCenters);
+router.post("/cost-centers", ensureEntityAccess, controller.createCostCenter);
+
 // --- Asientos contables ---
 router.get("/entries", ensureEntityAccess, controller.getEntries);
 router.get("/entries/:id", ensureEntityAccess, validatorHandler(getByIdSchema, "params"), controller.getEntryById);

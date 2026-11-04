@@ -51,8 +51,23 @@ setupModels(sequelize);
       try {
          await sequelize.query(`CREATE INDEX idx_btd_doc ON bank_transaction_documents (entity_sii_document_id)`);
       } catch {}
+      
       try {
          await sequelize.query(`CREATE INDEX idx_btd_tx ON bank_transaction_documents (entity_bank_transaction_id)`);
+      } catch {}
+      try {
+         await sequelize.query(`
+            CREATE TABLE IF NOT EXISTS accounting_cost_centers (
+               id INT AUTO_INCREMENT PRIMARY KEY,
+               entity_id INT NOT NULL,
+               code VARCHAR(50) NULL,
+               name VARCHAR(100) NOT NULL,
+               is_active BOOLEAN NOT NULL DEFAULT TRUE,
+               created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+               updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+               INDEX idx_cost_center_entity_name (entity_id, name)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+         `);
       } catch {}
 
       if (!isProd) {
