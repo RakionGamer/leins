@@ -3036,6 +3036,7 @@ class AccountingService {
       // Cargar mapa de cuentas clave
       const allAccounts = await models.AccountingAccount.findAll({ where: { entity_id: entityId } });
       const accountByCode = new Map(allAccounts.map((a) => [a.code, a]));
+      const accountById = new Map(allAccounts.map((a) => [a.id, a]));
 
       const ivaCredito = accountByCode.get("11.10.10") || allAccounts.find((a) => a.name.toLowerCase().includes("credito fiscal") || a.name.toLowerCase().includes("crédito fiscal"));
       const ivaDebito = accountByCode.get("21.13.10") || allAccounts.find((a) => a.name.toLowerCase().includes("debito fiscal") || a.name.toLowerCase().includes("débito fiscal"));
@@ -3126,7 +3127,8 @@ class AccountingService {
 
          if (opType === "EXPENSE") {
             if (doc.doc_type_code === 1002) {
-               const honorariosGasto = accountByCode.get("61.04.04") || allAccounts.find((a) => a.name.toLowerCase().includes("honorarios profesionales")) || gastosDefault;
+               const docAccountId = doc.accounting_account_id;
+               const honorariosGasto = (docAccountId && accountById.get(docAccountId)) || (ruleMap.get(rut) && accountById.get(ruleMap.get(rut).account_id)) || accountByCode.get("61.04.04") || allAccounts.find((a) => a.name.toLowerCase().includes("honorarios profesionales")) || gastosDefault;
                const retencion = accountByCode.get("21.13.30") || allAccounts.find((a) => a.name.toLowerCase().includes("ret impto 2da categoria") || a.name.toLowerCase().includes("retenciones honorarios"));
                const honorariosPorPagar = accountByCode.get("21.12.15") || allAccounts.find((a) => a.name.toLowerCase().includes("honorarios por pagar"));
                
@@ -3249,7 +3251,13 @@ class AccountingService {
             const ctaCliente = isBoleta ? clientesBoletas : clientes;
 
             const docTypeName = isBoleta ? 'Boleta' : 'Factura';
-            const rule = ruleMap.get(rut); const baseGlosaVenta = `${docTypeName} ${name || rut} Folio ${doc.folio || "-"}`.trim(); const glosaVenta = rule && rule.glosa ? `${baseGlosaVenta} - ${rule.glosa.trim()}` : baseGlosaVenta;
+            const rule = ruleMap.get(rut);
+            const docAccountId = doc.accounting_account_id;
+            const saleAccountId = docAccountId || (rule ? rule.account_id : ventas.id);
+            const costCenter = rule ? rule.cost_center : null;
+
+            const baseGlosaVenta = `${docTypeName} ${name || rut} Folio ${doc.folio || "-"}`.trim();
+            const glosaVenta = rule && rule.glosa ? `${baseGlosaVenta} - ${rule.glosa.trim()}` : baseGlosaVenta;
 
             // Debe: Clientes por Cobrar (Total)
             items.push({
@@ -3263,12 +3271,13 @@ class AccountingService {
 
             // Haber: Ingresos por Ventas (Neto o Total si exenta)
             items.push({
-               account_id: ventas.id,
+               account_id: saleAccountId,
                description: glosaVenta,
                debit: 0,
                credit: vat > 0 ? net : total,
                counterparty_rut: rut,
                counterparty_name: name,
+               cost_center: costCenter,
             });
 
             // Haber: IVA Débito Fiscal (si aplica)
@@ -3616,12 +3625,11 @@ class AccountingService {
          endDate = `${endMonth.year}-${String(endMonth.month).padStart(2, '0')}-${String(lastDayOfEndMonth).padStart(2, '0')}`;
       }
 
-      // Cargar todas las cuentas contables de resultado
+      // Cargar todas las cuentas contables de la entidad
       const allAccounts = await models.AccountingAccount.findAll({
          where: {
             entity_id: entityId,
-            is_active: true,
-            type: { [Op.in]: ['INGRESOS', 'COSTOS', 'GASTOS'] }
+            is_active: true
          },
          order: [['code', 'ASC']]
       });
@@ -3655,7 +3663,7 @@ class AccountingService {
             ]
          },
          attributes: [
-            'id', 'doc_type_code', 'operationType', 'purchase_type', 'received_date',
+            'id', 'accounting_account_id', 'doc_type_code', 'operationType', 'purchase_type', 'received_date',
             'period_year', 'period_month', 'folio', 'issue_date',
             'counterparty_rut', 'counterparty_name', 'total_amount', 'amount_net', 'amount_vat', 'amount_exempt'
          ],
@@ -3737,6 +3745,7 @@ class AccountingService {
 
          const isCreditNote = d.doc_type_code === 61;
          const rut = (d.counterparty_rut || '').toUpperCase();
+         const docAccount = d.accounting_account_id ? accountById.get(d.accounting_account_id) : null;
 
          let targetAcc;
          let amount = 0;
@@ -3744,17 +3753,19 @@ class AccountingService {
          if (d.doc_type_code === 1002) {
             // Boleta de Honorarios
             const rule = ruleMap.get(rut);
-            targetAcc = (rule && accountById.get(rule.account_id)) || defaultHonoraryAccount;
+            targetAcc = docAccount || (rule && accountById.get(rule.account_id)) || defaultHonoraryAccount;
             amount = Number(d.amount_net || d.total_amount || 0);
          } else if (opType === 'INCOME') {
             // Venta
             const rule = ruleMap.get(rut);
-            targetAcc = (rule && accountById.get(rule.account_id)) || defaultSalesAccount;
+            targetAcc = docAccount || (rule && accountById.get(rule.account_id)) || defaultSalesAccount;
             amount = isCreditNote ? -Math.abs(net) : Math.abs(net);
          } else {
             // Compra / Gasto
             const rule = ruleMap.get(rut);
-            if (rule && accountById.has(rule.account_id)) {
+            if (docAccount) {
+               targetAcc = docAccount;
+            } else if (rule && accountById.has(rule.account_id)) {
                targetAcc = accountById.get(rule.account_id);
             } else if (d.doc_type_code == null || d.source === 'MANUAL') {
                const ruleByName = d.counterparty_name ? Array.from(ruleMap.values()).find(r => r.counterparty_name && r.counterparty_name.toLowerCase() === d.counterparty_name.toLowerCase()) : null;
@@ -3765,7 +3776,7 @@ class AccountingService {
             amount = isCreditNote ? -Math.abs(net) : Math.abs(net);
          }
 
-         if (targetAcc) {
+         if (targetAcc && ['INGRESOS', 'COSTOS', 'GASTOS'].includes(targetAcc.type)) {
             const entry = getOrCreateAccMov(targetAcc);
             entry.monthlyAmounts[mKey] = (entry.monthlyAmounts[mKey] || 0) + amount;
             entry.total += amount;
@@ -3972,7 +3983,7 @@ class AccountingService {
             ]
          },
          attributes: [
-            'id', 'doc_type_code', 'operationType', 'purchase_type', 'received_date',
+            'id', 'accounting_account_id', 'doc_type_code', 'operationType', 'purchase_type', 'received_date',
             'period_year', 'period_month', 'folio', 'issue_date',
             'counterparty_rut', 'counterparty_name', 'total_amount', 'amount_net', 'amount_vat', 'amount_exempt'
          ],
@@ -4065,21 +4076,24 @@ class AccountingService {
 
          const isCreditNote = d.doc_type_code === 61;
          const rut = (d.counterparty_rut || '').toUpperCase();
+         const docAccount = d.accounting_account_id ? accountById.get(d.accounting_account_id) : null;
 
          let targetAcc;
          let amount = 0;
 
          if (d.doc_type_code === 1002) {
             const rule = ruleMap.get(rut);
-            targetAcc = (rule && accountById.get(rule.account_id)) || defaultHonoraryAccount;
+            targetAcc = docAccount || (rule && accountById.get(rule.account_id)) || defaultHonoraryAccount;
             amount = Number(d.amount_net || d.total_amount || 0);
          } else if (opType === 'INCOME') {
             const rule = ruleMap.get(rut);
-            targetAcc = (rule && accountById.get(rule.account_id)) || defaultSalesAccount;
+            targetAcc = docAccount || (rule && accountById.get(rule.account_id)) || defaultSalesAccount;
             amount = isCreditNote ? -Math.abs(net) : Math.abs(net);
          } else {
             const rule = ruleMap.get(rut);
-            if (rule && accountById.has(rule.account_id)) {
+            if (docAccount) {
+               targetAcc = docAccount;
+            } else if (rule && accountById.has(rule.account_id)) {
                targetAcc = accountById.get(rule.account_id);
             } else if (d.doc_type_code == null || d.source === 'MANUAL') {
                const ruleByName = d.counterparty_name ? Array.from(ruleMap.values()).find(r => r.counterparty_name && r.counterparty_name.toLowerCase() === d.counterparty_name.toLowerCase()) : null;
