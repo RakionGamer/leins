@@ -555,6 +555,8 @@ class BankService {
       const date2 = new Date(d2);
       const diffDays = Math.abs(date1.getTime() - date2.getTime()) / (24 * 60 * 60 * 1000);
       if (diffDays === 0) return true;
+      // Desfase de hasta 1 dia habil por corte bancario nocturno / horario no habil
+      if (diffDays <= 1.5) return true;
       if (diffDays > 3.5) return false;
       const day1 = date1.getUTCDay();
       const day2 = date2.getUTCDay();
