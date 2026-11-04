@@ -66,10 +66,10 @@ export default function QuickClassifyModal({ isOpen, onClose, document, entityId
       : 'Regla de Proveedor';
 
    const ruleDescription = isSale
-      ? 'Aplica a todas las ventas pasadas y futuras de este cliente.'
+      ? 'Aplica a las ventas futuras y pendientes sin clasificar. Las que ya tengan cuenta contable asignada no se modificarán.'
       : isHonorarium
-      ? 'Aplica a todas las boletas pasadas y futuras de este prestador.'
-      : 'Aplica a todas las facturas pasadas y futuras de este proveedor.';
+      ? 'Aplica a las boletas futuras y pendientes sin clasificar. Las que ya tengan cuenta contable asignada no se modificarán.'
+      : 'Aplica a las facturas futuras y pendientes sin clasificar. Las que ya tengan cuenta contable asignada no se modificarán.';
 
    const singleDocTitle = isSale
       ? 'Solo esta Venta'
@@ -101,7 +101,7 @@ export default function QuickClassifyModal({ isOpen, onClose, document, entityId
          if (scope === 'DOCUMENT') {
             toast.success(`Cuenta contable asignada exclusivamente al Folio #${document.folio || document.id}`);
          } else {
-            toast.success(`Regla guardada: cuenta contable asignada a los documentos de ${counterpartyName || counterpartyRut}`);
+            toast.success(`Regla guardada: aplicará a documentos futuros y pendientes de ${counterpartyName || counterpartyRut}`);
          }
          onSuccess?.();
          onClose();

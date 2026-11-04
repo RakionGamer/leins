@@ -2370,12 +2370,17 @@ class AccountingService {
          account_id: parsedAccountId,
       });
 
-      // Si este documento en particular tenía una excepción previa, la limpiamos para que siga la regla general
+      // La regla aplica a facturas futuras y pendientes sin clasificar.
+      // Si el documento actual ya tenía la misma cuenta que la regla, removemos la excepción redundante.
+      // Las facturas pasadas que ya tenían una cuenta contable específica definida NO se modifican.
       if (document_id) {
-         await models.EntitySiiDocument.update(
-            { accounting_account_id: null },
-            { where: { id: Number(document_id), entity_id: parsedEntityId } }
-         );
+         const currentDoc = await models.EntitySiiDocument.findOne({
+            where: { id: Number(document_id), entity_id: parsedEntityId }
+         });
+         if (currentDoc && currentDoc.accounting_account_id === parsedAccountId) {
+            currentDoc.accounting_account_id = null;
+            await currentDoc.save();
+         }
       }
 
       return {
