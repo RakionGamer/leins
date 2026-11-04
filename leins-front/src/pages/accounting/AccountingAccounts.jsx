@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useEntityRequired } from '../../hooks/useEntityRequired';
 import EntityRequiredNotice from '../../components/EntityRequiredNotice';
 import Modal from '../../components/Modal';
+import CostCentersModal from '../../components/accounting/CostCentersModal';
 import AccountSelect from '../../components/accounting/AccountSelect';
 import { useAuth } from '../../context/AuthContext';
 import { toast } from '../../components/Toaster';
@@ -11,6 +12,7 @@ import {
    updateAccount,
    deleteAccount,
    seedDefaultPlan,
+   getCostCenters,
 } from '../../services/accountingApi';
 import {
    BookOpenIcon,
@@ -144,6 +146,8 @@ export default function AccountingAccounts() {
    const [filterType, setFilterType] = useState('');
 
    const [modalOpen, setModalOpen] = useState(false);
+   const [ccManagerOpen, setCcManagerOpen] = useState(false);
+   const [costCenters, setCostCenters] = useState([]);
    const [editingAccount, setEditingAccount] = useState(null);
 
    const [formData, setFormData] = useState({
@@ -169,6 +173,7 @@ export default function AccountingAccounts() {
       try {
          const data = await getAccounts({ entityId, type: filterType, q: search });
          setAccounts(Array.isArray(data) ? data : []);
+         getCostCenters({ entityId }).then(cc => setCostCenters(Array.isArray(cc) ? cc : [])).catch(() => {});
       } catch (e) {
          setErr(e.message || 'Error al cargar plan de cuentas');
       } finally {
@@ -408,6 +413,14 @@ export default function AccountingAccounts() {
                   >
                      <SparklesIcon className="w-5 h-5 text-brand" />
                      <span className="hidden sm:inline">Cargar Plan Base</span>
+                  </button>
+                  <button
+                     onClick={() => setCcManagerOpen(true)}
+                     className={btnCtrl}
+                     title="Administrar Centros de Costo de la sociedad"
+                  >
+                     <TagIcon className="w-5 h-5 text-brand" />
+                     <span className="hidden sm:inline">Centros de Costo</span>
                   </button>
                   <button onClick={openCreateModal} className={`${btnCtrl} text-brand border-brand/20 bg-brand/5`} title="Crear nueva cuenta contable">
                      <PlusIcon className="w-5 h-5 stroke-2" />
@@ -856,6 +869,14 @@ export default function AccountingAccounts() {
                );
             })()}
          </Modal>
+
+         <CostCentersModal
+            isOpen={ccManagerOpen}
+            onClose={() => setCcManagerOpen(false)}
+            entityId={entityId}
+            costCenters={costCenters}
+            onCostCentersChange={setCostCenters}
+         />
       </div>
    );
 }

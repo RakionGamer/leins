@@ -2739,6 +2739,37 @@ class AccountingService {
       });
    }
 
+   async updateCostCenter(entityId, id, payload) {
+      const parsedEntityId = Number(entityId);
+      const cc = await models.AccountingCostCenter.findOne({
+         where: { id, entity_id: parsedEntityId }
+      });
+      if (!cc) throw boom.notFound("Centro de costo no encontrado");
+      if (payload.name) cc.name = payload.name.trim();
+      if (payload.code !== undefined) cc.code = payload.code?.trim() || null;
+      if (payload.is_active !== undefined) cc.is_active = Boolean(payload.is_active);
+      await cc.save();
+      return cc;
+   }
+
+   async deleteCostCenter(entityId, id) {
+      const parsedEntityId = Number(entityId);
+      const cc = await models.AccountingCostCenter.findOne({
+         where: { id, entity_id: parsedEntityId }
+      });
+      if (!cc) throw boom.notFound("Centro de costo no encontrado");
+
+      const rulesCount = await models.AccountingRule.count({
+         where: { entity_id: parsedEntityId, cost_center: cc.name }
+      });
+      if (rulesCount > 0) {
+         throw boom.badRequest(`No se puede eliminar: está asignado a ${rulesCount} regla(s) de asignación. Puedes desactivarlo en su lugar.`);
+      }
+
+      await cc.destroy();
+      return { id };
+   }
+
    // --- Asientos Contables ---
    async createEntry(entityId, payload) {
       const { entry_date, concept, items = [], source_type = "MANUAL", source_id = null } = payload;

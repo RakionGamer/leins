@@ -73,6 +73,15 @@ export const getCostCenters = ({ entityId, signal } = {}) =>
 export const createCostCenter = ({ entityId, name, code }) =>
    request(`/accounting/cost-centers?${buildQs({ entityId })}`, { method: 'POST', body: JSON.stringify({ name, code }) }, 'Error al crear centro de costo');
 
+export const updateCostCenter = (id, payload, options = {}) => {
+   const entityId = options?.entityId || payload?.entityId;
+   const qs = entityId ? `?${buildQs({ entityId })}` : '';
+   return request(`/accounting/cost-centers/${id}${qs}`, { method: 'PATCH', body: JSON.stringify(payload) }, 'Error al actualizar centro de costo');
+};
+
+export const deleteCostCenter = (id, entityId) =>
+   request(`/accounting/cost-centers/${id}?${buildQs({ entityId })}`, { method: 'DELETE' }, 'Error al eliminar centro de costo');
+
 // --- Asientos contables ---
 export const getEntries = ({ entityId, month, from, to, source_type, status, q, page = 1, limit = 50, signal } = {}) =>
    request(

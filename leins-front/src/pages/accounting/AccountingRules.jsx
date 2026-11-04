@@ -7,6 +7,7 @@ import CounterpartyInput from '../../components/accounting/CounterpartyInput';
 import ContactSelect from '../../components/accounting/ContactSelect';
 import ContactsDirectoryModal from '../../components/accounting/ContactsDirectoryModal';
 import ContactsBatchPickerModal from '../../components/accounting/ContactsBatchPickerModal';
+import CostCentersModal from '../../components/accounting/CostCentersModal';
 import { toast } from '../../components/Toaster';
 import {
    getRules,
@@ -75,7 +76,7 @@ const formatRut = (rut) => {
 
 const cleanRut = (rut) => String(rut || '').replace(/[^0-9kK]/g, '').toUpperCase();
 
-function ResumenReglas({ rules }) {
+function ResumenReglas({ rules, onOpenCostCenters }) {
    const stats = useMemo(() => {
       const ruts = new Set();
       const accounts = new Set();
@@ -112,8 +113,12 @@ function ResumenReglas({ rules }) {
                <div className="text-xl font-bold text-heading">{stats.accounts}</div>
             </div>
          </div>
-         <div className="rounded-2xl border border-brand/30 bg-brand/5 p-4 shadow-sm flex items-center gap-4 ring-1 ring-brand/10">
-            <div className="p-3 bg-brand text-white rounded-xl"><CurrencyDollarIcon className="w-6 h-6" /></div>
+         <div
+            onClick={onOpenCostCenters}
+            className="rounded-2xl border border-brand/30 bg-brand/5 p-4 shadow-sm flex items-center gap-4 ring-1 ring-brand/10 cursor-pointer hover:border-brand/60 transition group"
+            title="Administrar Centros de Costo de la sociedad"
+         >
+            <div className="p-3 bg-brand text-white rounded-xl group-hover:scale-105 transition-transform"><CurrencyDollarIcon className="w-6 h-6" /></div>
             <div>
                <div className="text-xs font-semibold text-brand uppercase tracking-wide">Centros de Costo</div>
                <div className="text-xl font-bold text-brand">{stats.costCenters}</div>
@@ -145,6 +150,7 @@ export default function AccountingRules() {
    const [editingGroup, setEditingGroup] = useState(null);
    const [contactsModalOpen, setContactsModalOpen] = useState(false);
    const [batchPickerOpen, setBatchPickerOpen] = useState(false);
+   const [ccManagerOpen, setCcManagerOpen] = useState(false);
    const [formData, setFormData] = useState({
       account_id: '',
       glosa: '',
@@ -635,6 +641,14 @@ export default function AccountingRules() {
                      <span>Directorio / Contactos</span>
                   </button>
                   <button
+                     onClick={() => setCcManagerOpen(true)}
+                     className={`${btnCtrl} text-text-main border-border-subtle bg-surface-1 hover:bg-surface-2`}
+                     title="Administrar Centros de Costo de la sociedad"
+                  >
+                     <TagIcon className="w-5 h-5 text-brand" />
+                     <span>Centros de Costo</span>
+                  </button>
+                  <button
                      onClick={() => {
                         setEditingGroup(null);
                         setFormData({ account_id: '', glosa: '', cost_center: '', ruts: [{ rut: '', name: '', displayValue: '' }] });
@@ -713,7 +727,7 @@ export default function AccountingRules() {
          </div>
 
          {/* Resumen Tarjetas */}
-         <ResumenReglas rules={rules} />
+         <ResumenReglas rules={rules} onOpenCostCenters={() => setCcManagerOpen(true)} />
 
          {err && <div className="p-4 bg-danger/10 text-danger rounded-2xl border border-danger/20 text-sm font-medium">Error: {err}</div>}
 
@@ -1037,6 +1051,14 @@ export default function AccountingRules() {
          />
 
          {/* Selector Múltiple Rápido de Contactos */}
+         <CostCentersModal
+            isOpen={ccManagerOpen}
+            onClose={() => setCcManagerOpen(false)}
+            entityId={entityId}
+            costCenters={costCenters}
+            onCostCentersChange={setCostCenters}
+         />
+
          <ContactsBatchPickerModal
             isOpen={batchPickerOpen}
             onClose={() => setBatchPickerOpen(false)}

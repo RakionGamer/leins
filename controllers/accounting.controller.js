@@ -160,6 +160,28 @@ const createCostCenter = async (req, res, next) => {
    }
 };
 
+const updateCostCenter = async (req, res, next) => {
+   try {
+      const entityId = req.entityId;
+      const { id } = req.params;
+      const result = await service.updateCostCenter(entityId, id, req.body);
+      res.json(result);
+   } catch (error) {
+      next(error);
+   }
+};
+
+const deleteCostCenter = async (req, res, next) => {
+   try {
+      const entityId = req.entityId;
+      const { id } = req.params;
+      const result = await service.deleteCostCenter(entityId, id);
+      res.json(result);
+   } catch (error) {
+      next(error);
+   }
+};
+
 const getEntries = async (req, res, next) => {
    try {
       const entityId = req.entityId;
@@ -317,6 +339,8 @@ module.exports = {
    deleteRule,
    getCostCenters,
    createCostCenter,
+   updateCostCenter,
+   deleteCostCenter,
    getEntries,
    getEntryById,
    createEntry,

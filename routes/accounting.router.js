@@ -38,6 +38,8 @@ router.delete("/rules/:id", ensureEntityAccess, validatorHandler(getByIdSchema, 
 // --- Centros de Costo ---
 router.get("/cost-centers", ensureEntityAccess, controller.getCostCenters);
 router.post("/cost-centers", ensureEntityAccess, controller.createCostCenter);
+router.patch("/cost-centers/:id", ensureEntityAccess, controller.updateCostCenter);
+router.delete("/cost-centers/:id", ensureEntityAccess, controller.deleteCostCenter);
 
 // --- Asientos contables ---
 router.get("/entries", ensureEntityAccess, controller.getEntries);
