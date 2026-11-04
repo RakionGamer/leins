@@ -328,6 +328,24 @@ class BankService {
                      enrichedExisting = true;
                   }
                }
+            } else if (!exists && description) {
+               // Deteccion bidireccional: si ya existe por Emisso con desfase de hasta 3 dias (fin de semana/feriado)
+               const minDate = new Date(issuedAt.getTime() - 3 * 24 * 60 * 60 * 1000);
+               const maxDate = new Date(issuedAt.getTime() + 3 * 24 * 60 * 60 * 1000);
+               const windowExisting = await models.EntityBankTransaction.findOne({
+                  where: {
+                     entity_id: entityId,
+                     entity_bank_account_id: entityBankAccountId,
+                     type,
+                     amount: amountAbs,
+                     description,
+                     issued_at: { [Op.between]: [minDate, maxDate] },
+                  },
+                  transaction: t
+               });
+               if (windowExisting) {
+                  exists = windowExisting;
+               }
             }
 
             const oppositeType = type === 'income' ? 'expense' : 'income';
