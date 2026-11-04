@@ -312,7 +312,7 @@ const updateClientUserEntityAccess = asyncHandler(async (req, res) => {
 const updateClientUser = asyncHandler(async (req, res) => {
    const actorId = req.user?.sub || req.user?.id;
    const { userId } = req.params;
-   const { username, name, last_name, lastName, entityId, entity_id } = req.body || {};
+   const { username, name, last_name, lastName, entityId, entity_id, password } = req.body || {};
 
    const out = await service.updateClientUser({
       actorId,
@@ -321,6 +321,7 @@ const updateClientUser = asyncHandler(async (req, res) => {
       username,
       name,
       lastName: lastName ?? last_name,
+      password,
    });
 
    logInfo('CLIENT_USER_UPDATED', {

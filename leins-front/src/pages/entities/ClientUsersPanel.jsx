@@ -58,6 +58,7 @@ export default function ClientUsersPanel({ entity }) {
          email: row.email || '',
          name: row.name || '',
          lastName: row.last_name || '',
+         password: '',
       });
    };
 
@@ -75,7 +76,9 @@ export default function ClientUsersPanel({ entity }) {
          setSaving(true);
 
          if (isEditing) {
-            await updateClientUser({ userId: editingId, entityId, username, name, lastName });
+            const pass = String(form.password || '').trim();
+            if (pass && pass.length < 6) return toast.error('La nueva clave debe tener al menos 6 caracteres');
+            await updateClientUser({ userId: editingId, entityId, username, name, lastName, password: pass || undefined });
             toast.success('Cliente actualizado correctamente');
          } else {
             const email = String(form.email || '').trim();
@@ -140,7 +143,7 @@ export default function ClientUsersPanel({ entity }) {
                </h4>
                <p className="mt-1 text-xs text-[var(--text-soft)]">
                   {isEditing
-                     ? 'Solo puedes cambiar username, nombre y apellido. El email y la clave no se editan aqui.'
+                     ? 'Actualiza los datos del cliente o asigna una nueva contraseña.'
                      : 'Crea una cuenta para que el cliente ingrese al portal (login separado) y autogestione esta entidad.'}
                </p>
                <form className="mt-4 space-y-3" onSubmit={onSubmit}>
@@ -186,7 +189,26 @@ export default function ClientUsersPanel({ entity }) {
                      </div>
                   </div>
 
-                  {!isEditing && (
+                  {isEditing ? (
+                     <div className="flex flex-col gap-1">
+                        <label htmlFor="client-password" className="text-sm text-[var(--text-soft)]">
+                           Nueva Clave <span className="text-xs text-[var(--text-soft)]">(Opcional)</span>
+                        </label>
+                        <input
+                           id="client-password"
+                           type="password"
+                           value={form.password}
+                           onChange={(e) => setForm((s) => ({ ...s, password: e.target.value }))}
+                           className="border border-[var(--border-subtle)] bg-[var(--bg-content)] rounded-lg p-2"
+                           placeholder="Dejar vacía para mantener la actual"
+                           minLength={6}
+                           autoComplete="new-password"
+                        />
+                        <span className="text-[11px] text-[var(--text-soft)]">
+                           Mínimo 6 caracteres. Si no deseas cambiarla, déjala en blanco.
+                        </span>
+                     </div>
+                  ) : (
                      <>
                         <div className="flex flex-col gap-1">
                            <label htmlFor="client-email" className="text-sm text-[var(--text-soft)]">Email</label>

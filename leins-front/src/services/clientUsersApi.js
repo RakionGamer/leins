@@ -64,13 +64,13 @@ export async function updateClientUserAccess({ userId, entityId, readOnly, signa
    return (await parseJsonSafe(res)) || { ok: true };
 }
 
-export async function updateClientUser({ userId, entityId, username, name, lastName, signal } = {}) {
+export async function updateClientUser({ userId, entityId, username, name, lastName, password, signal } = {}) {
    if (!userId) throw new Error('Falta el id del cliente');
    if (!entityId) throw new Error('Falta la entidad');
 
    const res = await fetchWithAuth(`/super-admin/clients/${userId}`, {
       method: 'PATCH',
-      body: JSON.stringify({ entityId, username, name, lastName }),
+      body: JSON.stringify({ entityId, username, name, lastName, password: password || undefined }),
       signal
    });
 

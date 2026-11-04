@@ -17,6 +17,7 @@ const { BankTransactionDocument, BankTransactionDocumentSchema } = require('./ba
 const { BankTransactionMatch, BankTransactionMatchSchema } = require('./bank-transaction-match.model');
 const { EntityCashFlowProjection, EntityCashFlowProjectionSchema } = require('./entity-cash-flow-projection.model');
 const { RefreshTokenSuperAdmin, RefreshTokenSuperAdminSchema } = require('./refresh-token-super-admin.model');
+const { RefreshTokenUser, RefreshTokenUserSchema } = require('./refresh-token-user.model');
 const { ActivityLog, ActivityLogSchema } = require('./activity-log.model');
 const { LoginLog, LoginLogSchema } = require('./login-log.model');
 const { ErrorLog, ErrorLogSchema } = require('./error-log.model');
@@ -49,6 +50,7 @@ function setupModels(sequelize) {
    BankTransactionMatch.init(BankTransactionMatchSchema, BankTransactionMatch.config(sequelize));
    EntityCashFlowProjection.init(EntityCashFlowProjectionSchema, EntityCashFlowProjection.config(sequelize));
    RefreshTokenSuperAdmin.init(RefreshTokenSuperAdminSchema, RefreshTokenSuperAdmin.config(sequelize));
+   RefreshTokenUser.init(RefreshTokenUserSchema, RefreshTokenUser.config(sequelize));
    ActivityLog.init(ActivityLogSchema, ActivityLog.config(sequelize));
    LoginLog.init(LoginLogSchema, LoginLog.config(sequelize));
    ErrorLog.init(ErrorLogSchema, ErrorLog.config(sequelize));
@@ -80,6 +82,7 @@ function setupModels(sequelize) {
    if (BankTransactionMatch.associate) BankTransactionMatch.associate(sequelize.models);
    if (EntityCashFlowProjection.associate) EntityCashFlowProjection.associate(sequelize.models);
    if (RefreshTokenSuperAdmin.associate) RefreshTokenSuperAdmin.associate(sequelize.models);
+   if (RefreshTokenUser.associate) RefreshTokenUser.associate(sequelize.models);
    if (ActivityLog.associate) ActivityLog.associate(sequelize.models);
    if (LoginLog.associate) LoginLog.associate(sequelize.models);
    if (ErrorLog.associate) ErrorLog.associate(sequelize.models);

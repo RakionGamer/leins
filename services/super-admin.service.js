@@ -461,7 +461,7 @@ class SuperAdminService {
    }
 
    // edita datos de perfil de un cliente (username, nombre, apellido) - solo super_admin
-   async updateClientUser({ actorId, userId, entityId, username, name, lastName } = {}) {
+   async updateClientUser({ actorId, userId, entityId, username, name, lastName, password } = {}) {
       const parsedUserId = Number(userId);
       const parsedEntityId = Number(entityId);
       if (!Number.isInteger(parsedUserId) || parsedUserId <= 0) throw boom.badRequest('userId invalido');
@@ -493,6 +493,13 @@ class SuperAdminService {
 
          if (name !== undefined) changes.name = name || null;
          if (lastName !== undefined) changes.last_name = lastName || null;
+         if (password !== undefined && password !== null && String(password).trim().length > 0) {
+            const cleanPass = String(password).trim();
+            if (cleanPass.length < 6) {
+               throw boom.badRequest('la clave debe tener al menos 6 caracteres');
+            }
+            changes.password_hash = await bcrypt.hash(cleanPass, 10);
+         }
 
          if (Object.keys(changes).length) {
             await user.update(changes, { transaction });

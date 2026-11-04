@@ -351,7 +351,15 @@ class AuthService {
    // login de un usuario cliente (tabla `users`, sin 2fa por ahora)
    async loginClient(username, password, meta = {}) {
       try {
-         const user = await models.User.findOne({ where: { username } });
+         const cleanIdentifier = String(username || '').trim();
+         const user = await models.User.findOne({
+            where: {
+               [Op.or]: [
+                  { username: cleanIdentifier },
+                  { email: cleanIdentifier }
+               ]
+            }
+         });
          if (!user) {
             const err = boom.unauthorized('Credenciales inválidas');
             err.data = { code: 'INVALID_CREDENTIALS' };

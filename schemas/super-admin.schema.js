@@ -106,6 +106,7 @@ const createClientUserSchema = Joi.object({
    name: Joi.string().max(255).allow(null, '').optional(),
    lastName: Joi.string().max(255).allow(null, '').optional(),
    last_name: Joi.string().max(255).allow(null, '').optional(),
+   password: Joi.string().min(6).allow(null, '').optional(),
    entityId: id.optional(),
    entity_id: id.optional(),
    readOnly: booleanField.optional(),

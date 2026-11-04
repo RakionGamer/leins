@@ -71,6 +71,26 @@ setupModels(sequelize);
       } catch {}
 
       try {
+         await sequelize.query(`
+            CREATE TABLE IF NOT EXISTS refresh_tokens_users (
+               id INT AUTO_INCREMENT PRIMARY KEY,
+               user_id INT NOT NULL,
+               token_hash VARCHAR(255) NOT NULL,
+               created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+               replaced_by_token_id INT NULL,
+               revoked_at DATETIME NULL,
+               expires_at DATETIME NOT NULL,
+               ip VARCHAR(45) NULL,
+               user_agent VARCHAR(255) NULL,
+               last_used_at DATETIME NULL,
+               INDEX idx_rtu_user (user_id),
+               INDEX idx_rtu_user_revoked (user_id, revoked_at),
+               INDEX idx_rtu_expires (expires_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+         `);
+      } catch {}
+
+      try {
          const [cols] = await sequelize.query(`
             SELECT COLUMN_NAME 
             FROM information_schema.COLUMNS 
