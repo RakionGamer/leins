@@ -732,62 +732,76 @@ export default function AccountingAccounts() {
 
                <div className="pt-2">
                   <label className="block text-xs font-semibold uppercase text-text-soft mb-2">Atributos de la Cuenta</label>
-                  <div className="grid grid-cols-2 gap-3 text-sm">
-                     <label className="flex items-center gap-2 cursor-pointer">
+                  <div className="grid grid-cols-2 gap-2.5">
+                     <label className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border border-border-subtle bg-surface-1 transition cursor-pointer select-none ${
+                        editingAccount && !isAdmin ? 'opacity-70 bg-surface-2 cursor-not-allowed' : 'hover:bg-surface-2'
+                     }`}>
                         <input
                            type="checkbox"
-                           className="w-4 h-4 rounded text-brand focus:ring-brand border-border-subtle"
+                           className="w-4 h-4 rounded text-brand focus:ring-brand border-border-subtle cursor-pointer"
                            disabled={editingAccount && !isAdmin}
                            checked={formData.is_title}
                            onChange={(e) => setFormData({ ...formData, is_title: e.target.checked })}
                         />
-                        <span className="text-text-main font-medium">Es Título Agrupador</span>
+                        <span className="text-xs font-medium text-text-main">Es Título Agrupador</span>
                      </label>
-                     <label className="flex items-center gap-2 cursor-pointer">
+                     <label className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border border-border-subtle bg-surface-1 transition cursor-pointer select-none ${
+                        editingAccount && !isAdmin ? 'opacity-70 bg-surface-2 cursor-not-allowed' : 'hover:bg-surface-2'
+                     }`}>
                         <input
                            type="checkbox"
-                           className="w-4 h-4 rounded text-brand focus:ring-brand border-border-subtle"
-                           disabled={editingAccount && !isAdmin}
-                           checked={formData.require_rut}
-                           onChange={(e) => setFormData({ ...formData, require_rut: e.target.checked })}
-                        />
-                        <span className="text-text-main font-medium">Requiere RUT</span>
-                     </label>
-                     <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                           type="checkbox"
-                           className="w-4 h-4 rounded text-brand focus:ring-brand border-border-subtle"
-                           disabled={editingAccount && !isAdmin}
-                           checked={formData.require_reference}
-                           onChange={(e) => setFormData({ ...formData, require_reference: e.target.checked })}
-                        />
-                        <span className="text-text-main font-medium">Requiere Referencia</span>
-                     </label>
-                     <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                           type="checkbox"
-                           className="w-4 h-4 rounded text-brand focus:ring-brand border-border-subtle"
+                           className="w-4 h-4 rounded text-brand focus:ring-brand border-border-subtle cursor-pointer"
                            disabled={editingAccount && !isAdmin}
                            checked={formData.is_auxiliary}
                            onChange={(e) => setFormData({ ...formData, is_auxiliary: e.target.checked })}
                         />
-                        <span className="text-text-main font-medium">Es Cuenta Auxiliar</span>
+                        <span className="text-xs font-medium text-text-main">Es Cuenta Auxiliar</span>
                      </label>
-                  </div>
-               </div>
-
-               <div className="grid grid-cols-2 gap-4 pt-2">
-                  <div></div>
-                  <div className="flex items-end pb-2">
-                     <label className="flex items-center gap-2 cursor-pointer">
+                     <label className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border border-border-subtle bg-surface-1 transition cursor-pointer select-none ${
+                        editingAccount && !isAdmin ? 'opacity-70 bg-surface-2 cursor-not-allowed' : 'hover:bg-surface-2'
+                     }`}>
                         <input
                            type="checkbox"
-                           className="w-4 h-4 rounded text-danger focus:ring-danger border-border-subtle"
+                           className="w-4 h-4 rounded text-brand focus:ring-brand border-border-subtle cursor-pointer"
+                           disabled={editingAccount && !isAdmin}
+                           checked={formData.require_rut}
+                           onChange={(e) => setFormData({ ...formData, require_rut: e.target.checked })}
+                        />
+                        <span className="text-xs font-medium text-text-main">Requiere RUT</span>
+                     </label>
+                     <label className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border border-border-subtle bg-surface-1 transition cursor-pointer select-none ${
+                        editingAccount && !isAdmin ? 'opacity-70 bg-surface-2 cursor-not-allowed' : 'hover:bg-surface-2'
+                     }`}>
+                        <input
+                           type="checkbox"
+                           className="w-4 h-4 rounded text-brand focus:ring-brand border-border-subtle cursor-pointer"
+                           disabled={editingAccount && !isAdmin}
+                           checked={formData.require_reference}
+                           onChange={(e) => setFormData({ ...formData, require_reference: e.target.checked })}
+                        />
+                        <span className="text-xs font-medium text-text-main">Requiere Referencia</span>
+                     </label>
+
+                     <label className={`col-span-2 flex items-center justify-between px-3 py-2.5 rounded-xl border transition cursor-pointer select-none ${
+                        !formData.is_active
+                           ? 'bg-danger/10 border-danger/30 text-danger'
+                           : 'border-border-subtle bg-surface-1 text-text-soft hover:bg-surface-2'
+                     } ${editingAccount && !isAdmin ? 'opacity-70 cursor-not-allowed' : ''}`}>
+                        <div className="flex items-center gap-2">
+                           <span className={`text-xs font-semibold ${!formData.is_active ? 'text-danger' : 'text-text-main'}`}>
+                              Cuenta Bloqueada (Inactiva)
+                           </span>
+                           <span className="text-[11px] text-text-soft hidden sm:inline">
+                              — No permitirá nuevos asientos contables
+                           </span>
+                        </div>
+                        <input
+                           type="checkbox"
+                           className="w-4 h-4 rounded text-danger focus:ring-danger border-border-subtle cursor-pointer"
                            disabled={editingAccount && !isAdmin}
                            checked={!formData.is_active}
                            onChange={(e) => setFormData({ ...formData, is_active: !e.target.checked })}
                         />
-                        <span className="text-danger font-medium">Cuenta Bloqueada (Inactiva)</span>
                      </label>
                   </div>
                </div>
