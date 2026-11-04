@@ -2933,22 +2933,46 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
                });
             }
 
-            // 3. FUSION: Si es definitivo y no encontro match exacto, buscar provisorio en +- 1 dia con mismo monto
-            if (!existing && status === 'definitivo') {
-               const minDate = new Date(issuedAt.getTime() - 24 * 60 * 60 * 1000);
-               const maxDate = new Date(issuedAt.getTime() + 24 * 60 * 60 * 1000);
-               existing = await models.EntityBankTransaction.findOne({
-                  where: {
-                     entity_id: entityId,
-                     entity_bank_account_id: entityBankAccountId,
-                     type: txType,
-                     amount: amountAbs,
-                     status: 'provisorio',
-                     issued_at: { [Op.between]: [minDate, maxDate] },
-                     ...excludeClause,
-                  },
-                  transaction: t,
-               });
+            // 3. FUSION INTELIGENTE con movimientos manuales o provisorios existentes:
+            // Desfase de hasta 3 dias (cubre fines de semana como sabado 31/10 a lunes 02/11 y feriados bancarios)
+            if (!existing) {
+               const minDate = new Date(issuedAt.getTime() - 3 * 24 * 60 * 60 * 1000);
+               const maxDate = new Date(issuedAt.getTime() + 3 * 24 * 60 * 60 * 1000);
+
+               // 3a. Coincidencia con movimiento manual previo (misma descripcion, monto y tipo dentro de la ventana de 3 dias)
+               if (description) {
+                  existing = await models.EntityBankTransaction.findOne({
+                     where: {
+                        entity_id: entityId,
+                        entity_bank_account_id: entityBankAccountId,
+                        type: txType,
+                        amount: amountAbs,
+                        description: description,
+                        issued_at: { [Op.between]: [minDate, maxDate] },
+                        external_id: { [Op.or]: [null, ''] },
+                        ...excludeClause,
+                     },
+                     order: [['id', 'ASC']],
+                     transaction: t,
+                  });
+               }
+
+               // 3b. Coincidencia con provisorio en la ventana de fechas
+               if (!existing && status === 'definitivo') {
+                  existing = await models.EntityBankTransaction.findOne({
+                     where: {
+                        entity_id: entityId,
+                        entity_bank_account_id: entityBankAccountId,
+                        type: txType,
+                        amount: amountAbs,
+                        status: 'provisorio',
+                        issued_at: { [Op.between]: [minDate, maxDate] },
+                        ...excludeClause,
+                     },
+                     order: [['id', 'ASC']],
+                     transaction: t,
+                  });
+               }
             }
 
             if (existing) {
