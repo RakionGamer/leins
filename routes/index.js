@@ -12,6 +12,7 @@ const notificationsRouter = require('./notifications.router');
 const dashboardRouter = require('./dashboard.router');
 const accountingRouter = require('./accounting.router');
 const contactsRouter = require('./contacts.router');
+const boletaQueueRouter = require('./boleta-queue.router');
 
 function routerApi(app) {
    const router = express.Router();
@@ -21,6 +22,7 @@ function routerApi(app) {
 
    // rutas publicas
    router.use('/auth', authRouter);
+   router.use('/boletas', boletaQueueRouter);
 
    // rutas protegidas con jwt
    router.use('/state', jwtValidate, statesRouter);

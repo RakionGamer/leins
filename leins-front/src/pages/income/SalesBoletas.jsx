@@ -11,6 +11,7 @@ import ManualIncomeForm from './components/ManualIncomeForm';
 import EditIncomeForm from './components/EditIncomeForm';
 import QuickClassifyModal from '../../components/accounting/QuickClassifyModal';
 import DocumentReconcileModal from '../../components/bank/DocumentReconcileModal';
+import BoletaQueuePanel from '../../components/income/BoletaQueuePanel';
 import { deleteManualIncome, listSiiDocuments } from '../../services/siiDocumentsApi';
 import { SII_DOCUMENT_FILTERS, getSiiDocumentTypeLabel } from '../../utils/siiConstants';
 import { toast } from 'components/Toaster';
@@ -168,6 +169,7 @@ function useDebounced(value, delay = 300) {
 }
 
 export default function SalesBoletas() {
+   const [mainTab, setMainTab] = useState('documents');
    const { period } = usePeriod();
    const { entityId: activeEntityId, ready } = useEntityRequired();
    const [sp, setSp] = useSearchParams();
@@ -567,6 +569,30 @@ export default function SalesBoletas() {
                   <h2 className="text-2xl font-bold text-heading tracking-tight">Ventas (Boletas y Facturas)</h2>
                   <p className="text-sm text-text-soft mt-1">Gestione sus boletas y facturas electrónicas, además de ingresos manuales.</p>
                </div>
+                  <div className="flex items-center gap-2 mt-3">
+                     <button
+                        type="button"
+                        onClick={() => setMainTab('documents')}
+                        className={`px-3 py-1.5 text-xs font-semibold rounded-xl border transition ${
+                           mainTab === 'documents'
+                              ? 'bg-brand text-white border-brand shadow-xs'
+                              : 'bg-surface-1 text-text-soft border-border-subtle hover:bg-surface-2'
+                        }`}
+                     >
+                        Documentos Registrados
+                     </button>
+                     <button
+                        type="button"
+                        onClick={() => setMainTab('queue')}
+                        className={`px-3 py-1.5 text-xs font-semibold rounded-xl border transition ${
+                           mainTab === 'queue'
+                              ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                              : 'bg-surface-1 text-text-soft border-border-subtle hover:bg-surface-2'
+                        }`}
+                     >
+                        ⚡ Cola (Bot SII)
+                     </button>
+                  </div>
                <div className="flex flex-wrap items-center gap-3">
                   <SiiSyncButton type="boletas" onSyncSuccess={reloadData} />
                   <SiiSyncButton
@@ -584,7 +610,8 @@ export default function SalesBoletas() {
                </div>
             </div>
 
-            <div className="space-y-4">
+            {mainTab === 'documents' && (
+               <div className="space-y-4">
                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div className="flex items-center gap-2 text-sm font-semibold text-text-main">
                      <FunnelIcon className="w-5 h-5 text-brand" /> Filtros de Búsqueda
@@ -695,9 +722,14 @@ export default function SalesBoletas() {
                   </div>
                </div>
             </div>
+            )}
          </div>
 
-         <ResumenPagina items={rows} />
+         {mainTab === 'queue' ? (
+            <BoletaQueuePanel entityId={entityId} />
+         ) : (
+            <>
+               <ResumenPagina items={rows} />
 
          <div className="bg-bg-content rounded-3xl border border-border-subtle shadow-sm overflow-hidden">
             {loading && <div className="p-10 text-center text-brand font-medium animate-pulse">cargando registros...</div>}
@@ -874,6 +906,8 @@ export default function SalesBoletas() {
                   </div>
                </div>
             </div>
+         )}
+            </>
          )}
       </div>
    );

@@ -17,6 +17,8 @@ import { SII_DOCUMENT_TYPES, docTag, getSiiDocumentTypeLabel } from '../../utils
 import { listDailySalesGroups, listSiiDocuments } from '../../services/siiDocumentsApi';
 import BankCartolaDuplicatesAlert from '../../components/bank/BankCartolaDuplicatesAlert';
 import EmissoSyncPeriodModal from '../../components/bank/EmissoSyncPeriodModal';
+import BoletearModal from '../../components/bank/BoletearModal';
+import { getActiveBoletaMap, cancelBoletaRequest } from '../../services/boletaQueueApi';
 
 // importamos nuestras nuevas herramientas de react query
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -477,6 +479,8 @@ export default function BankCartolasPage() {
    const [reconciliationDetailTxAmount, setReconciliationDetailTxAmount] = useState(0);
    const [undoingReconciliationId, setUndoingReconciliationId] = useState(null);
    const [deletingTxId, setDeletingTxId] = useState(null);
+   const [boletaModalOpen, setBoletaModalOpen] = useState(false);
+   const [txToBoletear, setTxToBoletear] = useState(null);
 
    // filtros aplicados (los que disparan la busqueda)
    const [applied, setApplied] = useState(DEFAULT_FILTERS);
@@ -513,6 +517,18 @@ export default function BankCartolasPage() {
    });
 
    // 2. totales para los badges
+   const currentTxIds = useMemo(() => {
+      return (bankRows || []).map(r => r.id || r.raw?.id).filter(Boolean);
+   }, [bankRows]);
+
+   const { data: boletaMap = {} } = useQuery({
+      queryKey: ['activeBoletaMap', entityId, currentTxIds.join(',')],
+      queryFn: () => getActiveBoletaMap({ entityId, ids: currentTxIds }),
+      enabled: Boolean(entityId && currentTxIds.length > 0),
+      staleTime: 10000,
+      refetchInterval: 15000,
+   });
+
    const { abonosTotal, cargosTotal, abonosLoading, cargosLoading } = useBankTotals(entityId, {
       soloPendientes: soloPorConciliar,
       filters: applied
@@ -2144,12 +2160,49 @@ export default function BankCartolasPage() {
                                           : `${fmtCLP(Math.abs(r.monto))} conciliado`}
                                     </div>
                                     {remaining > 0 && canCreate && (
-                                       <button
-                                          className="px-3 py-1 rounded-lg bg-[var(--brand)] text-white text-xs"
-                                          onClick={() => openConciliar(r)}
-                                       >
-                                          Conciliar
-                                       </button>
+                                       <div className="flex items-center gap-1.5">
+                                          <button
+                                             className="px-3 py-1 rounded-lg bg-[var(--brand)] text-white text-xs hover:opacity-90 transition shadow-xs"
+                                             onClick={() => openConciliar(r)}
+                                          >
+                                             Conciliar
+                                          </button>
+                                          {abono > 0 && (!boletaMap[bankTxId] || boletaMap[bankTxId].status === 'cancelled' || boletaMap[bankTxId].status === 'failed') && (
+                                             <button
+                                                type="button"
+                                                title="Solicitar emision de boleta para este abono"
+                                                className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium flex items-center gap-1 transition shadow-xs"
+                                                onClick={() => {
+                                                   setTxToBoletear(r);
+                                                   setBoletaModalOpen(true);
+                                                }}
+                                             >
+                                                Boletear
+                                             </button>
+                                          )}
+                                       </div>
+                                    )}
+                                    {boletaMap[bankTxId]?.status === 'pending' && (
+                                       <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-600 dark:text-amber-400" title="En cola para ser emitida por el worker de boletas">
+                                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                                          Boleteo en cola
+                                       </span>
+                                    )}
+                                    {boletaMap[bankTxId]?.status === 'processing' && (
+                                       <span className="inline-flex items-center gap-1 text-[11px] font-medium text-blue-600 dark:text-blue-400 animate-pulse" title="Worker emitiendo boleta en SII">
+                                          <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+                                          Emitiendo en SII...
+                                       </span>
+                                    )}
+                                    {boletaMap[bankTxId]?.status === 'posiblemente_emitida' && (
+                                       <span className="inline-flex items-center gap-1 text-[11px] font-medium text-orange-600 dark:text-orange-400" title={boletaMap[bankTxId]?.error_message || 'Verificar en SII'}>
+                                          ⚠️ Verif. SII
+                                       </span>
+                                    )}
+                                    {boletaMap[bankTxId]?.status === 'failed' && (
+                                       <span className="inline-flex items-center gap-1 text-[11px] font-medium text-red-600 dark:text-red-400" title={boletaMap[bankTxId]?.error_message}>
+                                          ❌ Error boleta
+                                       </span>
                                     )}
                                  </div>
                               </td>
@@ -3364,7 +3417,20 @@ export default function BankCartolasPage() {
                </div>
             </div>
          )}
+
+         <BoletearModal
+            isOpen={boletaModalOpen}
+            onClose={() => {
+               setBoletaModalOpen(false);
+               setTxToBoletear(null);
+            }}
+            transaction={txToBoletear}
+            entityId={entityId}
+            onSuccess={() => {
+               queryClient.invalidateQueries({ queryKey: ['activeBoletaMap'] });
+               queryClient.invalidateQueries({ queryKey: ['bankTransactions'] });
+            }}
+         />
       </div>
    );
 }
-

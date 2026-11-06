@@ -80,6 +80,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // 5. archivos estaticos (imagenes de avatar)
 app.use('/avatars', express.static(path.join(__dirname, 'public/avatars')));
+app.use('/uploads/boletas', express.static(path.join(__dirname, 'uploads/boletas')));
 
 // 6. control de cache para autenticacion
 app.use(/^\/api\/v1\/auth\/.*/, (req, res, next) => {
@@ -90,6 +91,16 @@ app.use(/^\/api\/v1\/auth\/.*/, (req, res, next) => {
 
 // 7. definicion de rutas
 app.get('/', (req, res) => res.send('hola mi server en express'));
+
+// Rutas de compatibilidad raiz para el worker de boletas SII
+const boletaController = require('./controllers/boleta-queue.controller');
+const multer = require('multer');
+const uploadBoleta = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+app.get('/api_boletas_next.php', boletaController.getNextJob);
+app.get('/api_boletas_consultar.php', boletaController.consultPendingJobs);
+app.get('/api_boletas_pendientes.php', boletaController.consultPendingJobs);
+app.post('/api_boletas_upload.php', uploadBoleta.single('archivo'), boletaController.uploadPdf);
+app.post('/api_boletas_error.php', boletaController.reportError);
 routerApi(app);
 
 // 8. manejo de 404 no encontrado

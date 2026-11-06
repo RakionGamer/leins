@@ -91,6 +91,37 @@ setupModels(sequelize);
       } catch {}
 
       try {
+         await sequelize.query(`
+            CREATE TABLE IF NOT EXISTS entity_boleta_requests (
+               id INT AUTO_INCREMENT PRIMARY KEY,
+               entity_id INT NOT NULL,
+               bank_transaction_id INT NULL,
+               amount DECIMAL(15, 2) NOT NULL,
+               net_amount DECIMAL(15, 2) NULL,
+               vat_amount DECIMAL(15, 2) NULL,
+               description VARCHAR(500) NULL,
+               customer_rut VARCHAR(20) NULL,
+               customer_name VARCHAR(255) NULL,
+               is_exempt BOOLEAN NOT NULL DEFAULT TRUE,
+               doc_type_code INT NOT NULL DEFAULT 41,
+               status VARCHAR(30) NOT NULL DEFAULT 'pending',
+               folio INT NULL,
+               pdf_path VARCHAR(255) NULL,
+               pdf_filename VARCHAR(255) NULL,
+               sii_document_id INT NULL,
+               error_message TEXT NULL,
+               created_by INT NULL,
+               completed_at DATETIME NULL,
+               created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+               updated_at DATETIME NULL ON UPDATE CURRENT_TIMESTAMP,
+               INDEX idx_boleta_requests_status (status),
+               INDEX idx_boleta_requests_bank_tx (bank_transaction_id),
+               INDEX idx_boleta_requests_entity_status (entity_id, status)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+         `);
+      } catch {}
+
+      try {
          const [cols] = await sequelize.query(`
             SELECT COLUMN_NAME 
             FROM information_schema.COLUMNS 
