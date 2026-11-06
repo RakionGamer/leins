@@ -17,7 +17,8 @@ import { SII_DOCUMENT_TYPES, docTag, getSiiDocumentTypeLabel } from '../../utils
 import { listDailySalesGroups, listSiiDocuments } from '../../services/siiDocumentsApi';
 import BankCartolaDuplicatesAlert from '../../components/bank/BankCartolaDuplicatesAlert';
 import EmissoSyncPeriodModal from '../../components/bank/EmissoSyncPeriodModal';
-import BoletearModal from '../../components/bank/BoletearModal';
+
+import BatchBoletearConfirmModal from '../../components/bank/BatchBoletearConfirmModal';
 import { getActiveBoletaMap, cancelBoletaRequest } from '../../services/boletaQueueApi';
 
 // importamos nuestras nuevas herramientas de react query
@@ -479,8 +480,8 @@ export default function BankCartolasPage() {
    const [reconciliationDetailTxAmount, setReconciliationDetailTxAmount] = useState(0);
    const [undoingReconciliationId, setUndoingReconciliationId] = useState(null);
    const [deletingTxId, setDeletingTxId] = useState(null);
-   const [boletaModalOpen, setBoletaModalOpen] = useState(false);
-   const [txToBoletear, setTxToBoletear] = useState(null);
+   const [selectedBoleteoIds, setSelectedBoleteoIds] = useState(new Set());
+   const [batchBoletearModalOpen, setBatchBoletearModalOpen] = useState(false);
 
    // filtros aplicados (los que disparan la busqueda)
    const [applied, setApplied] = useState(DEFAULT_FILTERS);
@@ -528,6 +529,53 @@ export default function BankCartolasPage() {
       staleTime: 10000,
       refetchInterval: 15000,
    });
+
+   const selectableBoleteoRows = useMemo(() => {
+      return (bankRows || []).filter((r) => {
+         const remaining = Math.max(0, Number(r.raw?.remaining_amount ?? Math.abs(r.monto)));
+         const abono = r.monto > 0 ? r.monto : 0;
+         const bankTxId = r.raw?.id ?? (typeof r._id === 'string' && r._id.startsWith('tx-') ? Number(r._id.replace('tx-', '')) : r._id);
+         const boletaStatus = boletaMap[bankTxId]?.status;
+         return abono > 0 && remaining > 0 && (!boletaStatus || boletaStatus === 'cancelled' || boletaStatus === 'failed');
+      });
+   }, [bankRows, boletaMap]);
+
+   const selectedBoleteoTransactions = useMemo(() => {
+      return (bankRows || []).filter((r) => {
+         const bankTxId = r.raw?.id ?? (typeof r._id === 'string' && r._id.startsWith('tx-') ? Number(r._id.replace('tx-', '')) : r._id);
+         return selectedBoleteoIds.has(bankTxId);
+      });
+   }, [bankRows, selectedBoleteoIds]);
+
+   const allSelectableChecked = selectableBoleteoRows.length > 0 && selectableBoleteoRows.every((r) => {
+      const bankTxId = r.raw?.id ?? (typeof r._id === 'string' && r._id.startsWith('tx-') ? Number(r._id.replace('tx-', '')) : r._id);
+      return selectedBoleteoIds.has(bankTxId);
+   });
+
+   const handleToggleSelectAllBoleteo = () => {
+      if (allSelectableChecked) {
+         setSelectedBoleteoIds(new Set());
+      } else {
+         const next = new Set();
+         selectableBoleteoRows.forEach((r) => {
+            const bankTxId = r.raw?.id ?? (typeof r._id === 'string' && r._id.startsWith('tx-') ? Number(r._id.replace('tx-', '')) : r._id);
+            if (bankTxId) next.add(bankTxId);
+         });
+         setSelectedBoleteoIds(next);
+      }
+   };
+
+   const handleToggleRowBoleteo = (bankTxId) => {
+      setSelectedBoleteoIds((prev) => {
+         const next = new Set(prev);
+         if (next.has(bankTxId)) {
+            next.delete(bankTxId);
+         } else {
+            next.add(bankTxId);
+         }
+         return next;
+      });
+   };
 
    const { abonosTotal, cargosTotal, abonosLoading, cargosLoading } = useBankTotals(entityId, {
       soloPendientes: soloPorConciliar,
@@ -2040,6 +2088,32 @@ export default function BankCartolasPage() {
                         </button>
                      )}
 
+                     {canCreate && (
+                        <button
+                           type="button"
+                           disabled={selectedBoleteoIds.size === 0}
+                           onClick={() => setBatchBoletearModalOpen(true)}
+                           className={`inline-flex items-center gap-2 px-4 h-10 text-xs font-semibold rounded-xl shadow-xs transition shrink-0 ${
+                              selectedBoleteoIds.size > 0
+                                 ? 'bg-blue-600 hover:bg-blue-700 text-white cursor-pointer active:scale-95'
+                                 : 'bg-[var(--surface-1)] text-[var(--text-soft)] border border-[var(--border-subtle)] opacity-60 cursor-not-allowed'
+                           }`}
+                           title={
+                              selectedBoleteoIds.size > 0
+                                 ? `Generar ${selectedBoleteoIds.size} boleta(s) exenta(s) en lote`
+                                 : 'Selecciona abonos con las casillas para generar boletas'
+                           }
+                        >
+                           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0">
+                              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                              <polyline points="14 2 14 8 20 8" />
+                              <line x1="16" y1="13" x2="8" y2="13" />
+                              <line x1="16" y1="17" x2="8" y2="17" />
+                           </svg>
+                           <span>Generar boletas ({selectedBoleteoIds.size})</span>
+                        </button>
+                     )}
+
                      {/* Grupo de utilidades: Filtros y XLSX integrados de forma simétrica */}
                      <div className="inline-flex items-center h-10 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-1)] shadow-xs overflow-hidden shrink-0">
                         <button
@@ -2106,7 +2180,16 @@ export default function BankCartolasPage() {
                <table className="min-w-full text-sm">
                   <thead className="sticky top-0 bg-[var(--surface-2)] text-[var(--heading)]">
                      <tr className="text-left">
-                        <th className="px-3 py-2 w-8"></th>
+                        <th className="px-3 py-2 w-8 text-center">
+                           <input
+                              type="checkbox"
+                              checked={allSelectableChecked}
+                              onChange={handleToggleSelectAllBoleteo}
+                              disabled={selectableBoleteoRows.length === 0}
+                              className="rounded border-[var(--border-subtle)] text-blue-600 focus:ring-0 cursor-pointer w-4 h-4 disabled:opacity-30"
+                              title={allSelectableChecked ? "Deseleccionar todos" : "Seleccionar todos los abonos pendientes"}
+                           />
+                        </th>
                         <th className="px-3 py-2">Fecha</th>
                         <th className="px-3 py-2">Cuenta Corriente</th>
                         <th className="px-3 py-2">Número Documento</th>
@@ -2134,10 +2217,29 @@ export default function BankCartolasPage() {
                         const abono = r.monto > 0 ? r.monto : 0;
                         const bankTxId = r.raw?.id ?? (typeof r._id === 'string' && r._id.startsWith('tx-') ? Number(r._id.replace('tx-', '')) : r._id);
                         const appliedSum = Number(r.raw?.applied_sum || 0);
+                        const boletaStatus = boletaMap[bankTxId]?.status;
+                        const isSelectableForBoleteo = abono > 0 && remaining > 0 && (!boletaStatus || boletaStatus === 'cancelled' || boletaStatus === 'failed');
 
                         return (
                            <tr key={r._id} className="border-t border-[var(--border-subtle)]">
-                              <td className="px-3 py-2"><input type="checkbox" /></td>
+                              <td className="px-3 py-2 text-center">
+                                 {isSelectableForBoleteo ? (
+                                    <input
+                                       type="checkbox"
+                                       checked={selectedBoleteoIds.has(bankTxId)}
+                                       onChange={() => handleToggleRowBoleteo(bankTxId)}
+                                       className="rounded border-[var(--border-subtle)] text-blue-600 focus:ring-0 cursor-pointer w-4 h-4"
+                                       title="Seleccionar para generar boleta exenta"
+                                    />
+                                 ) : (
+                                    <input
+                                       type="checkbox"
+                                       disabled
+                                       checked={false}
+                                       className="rounded border-[var(--border-subtle)] opacity-20 cursor-not-allowed w-4 h-4"
+                                    />
+                                 )}
+                              </td>
                               <td className="px-3 py-2 whitespace-nowrap">{r.fecha}</td>
                               <td className="px-3 py-2">
                                  {r.source === "bank" ? "Banco" : "SII"}
@@ -2160,27 +2262,12 @@ export default function BankCartolasPage() {
                                           : `${fmtCLP(Math.abs(r.monto))} conciliado`}
                                     </div>
                                     {remaining > 0 && canCreate && (
-                                       <div className="flex items-center gap-1.5">
-                                          <button
-                                             className="px-3 py-1 rounded-lg bg-[var(--brand)] text-white text-xs hover:opacity-90 transition shadow-xs"
-                                             onClick={() => openConciliar(r)}
-                                          >
-                                             Conciliar
-                                          </button>
-                                          {abono > 0 && (!boletaMap[bankTxId] || boletaMap[bankTxId].status === 'cancelled' || boletaMap[bankTxId].status === 'failed') && (
-                                             <button
-                                                type="button"
-                                                title="Solicitar emision de boleta para este abono"
-                                                className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium flex items-center gap-1 transition shadow-xs"
-                                                onClick={() => {
-                                                   setTxToBoletear(r);
-                                                   setBoletaModalOpen(true);
-                                                }}
-                                             >
-                                                Boletear
-                                             </button>
-                                          )}
-                                       </div>
+                                       <button
+                                          className="px-3 py-1 rounded-lg bg-[var(--brand)] text-white text-xs hover:opacity-90 transition shadow-xs"
+                                          onClick={() => openConciliar(r)}
+                                       >
+                                          Conciliar
+                                       </button>
                                     )}
                                     {boletaMap[bankTxId]?.status === 'pending' && (
                                        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-600 dark:text-amber-400" title="En cola para ser emitida por el worker de boletas">
@@ -3418,15 +3505,13 @@ export default function BankCartolasPage() {
             </div>
          )}
 
-         <BoletearModal
-            isOpen={boletaModalOpen}
-            onClose={() => {
-               setBoletaModalOpen(false);
-               setTxToBoletear(null);
-            }}
-            transaction={txToBoletear}
+         <BatchBoletearConfirmModal
+            isOpen={batchBoletearModalOpen}
+            onClose={() => setBatchBoletearModalOpen(false)}
+            selectedTransactions={selectedBoleteoTransactions}
             entityId={entityId}
             onSuccess={() => {
+               setSelectedBoleteoIds(new Set());
                queryClient.invalidateQueries({ queryKey: ['activeBoletaMap'] });
                queryClient.invalidateQueries({ queryKey: ['bankTransactions'] });
             }}

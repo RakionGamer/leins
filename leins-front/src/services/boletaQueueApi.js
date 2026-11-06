@@ -38,6 +38,19 @@ export async function enqueueBoleta(payload = {}) {
 }
 
 /**
+ * Encolar múltiples solicitudes de boleta en lote (masivo)
+ */
+export async function enqueueBatchBoletas({ entityId, transactions = [] }) {
+   const res = await fetchWithAuth('/boletas/queue-batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ entityId, transactions }),
+   });
+   await ensureOk(res, 'No se pudieron encolar las boletas seleccionadas');
+   return (await parseJsonSafe(res)) || {};
+}
+
+/**
  * Listar solicitudes de boletas con filtros y paginación
  */
 export async function listBoletaRequests(params = {}) {

@@ -99,6 +99,27 @@ const createRequest = async (req, res, next) => {
    }
 };
 
+const createBatchRequests = async (req, res, next) => {
+   try {
+      const { entityId, transactions } = req.body || {};
+      const createdBy = req.user?.sub || req.user?.id || null;
+
+      const result = await service.createBatchRequests({
+         entityId,
+         transactions,
+         createdBy,
+      });
+
+      return res.status(201).json({
+         ok: true,
+         message: `${result.totalCreated} boletas encoladas con exito`,
+         data: result,
+      });
+   } catch (error) {
+      return next(error);
+   }
+};
+
 const listRequests = async (req, res, next) => {
    try {
       const { entityId, status, page, limit } = req.query || {};
@@ -161,6 +182,7 @@ module.exports = {
    uploadPdf,
    reportError,
    createRequest,
+   createBatchRequests,
    listRequests,
    getActiveMap,
    cancelRequest,

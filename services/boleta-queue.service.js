@@ -95,6 +95,65 @@ class BoletaQueueService {
    }
 
    /**
+    * Crear solicitudes en lote para encolar la emisión de boletas (masivo)
+    */
+   async createBatchRequests({ entityId, transactions = [], createdBy = null }) {
+      const parsedEntityId = Number(entityId);
+      if (!Number.isInteger(parsedEntityId) || parsedEntityId <= 0) {
+         throw Boom.badRequest('entityId es requerido');
+      }
+
+      if (!Array.isArray(transactions) || transactions.length === 0) {
+         throw Boom.badRequest('Debes enviar al menos un movimiento para encolar');
+      }
+
+      const txIds = transactions.map((t) => Number(t.bank_transaction_id || t.id)).filter(Boolean);
+      const existing = await models.EntityBoletaRequest.findAll({
+         where: {
+            bank_transaction_id: txIds,
+            status: ['pending', 'processing', 'completed'],
+         },
+         attributes: ['bank_transaction_id'],
+      });
+      const alreadyInQueue = new Set(existing.map((e) => Number(e.bank_transaction_id)));
+
+      const created = [];
+      for (const item of transactions) {
+         const txId = Number(item.bank_transaction_id || item.id);
+         if (txId && alreadyInQueue.has(txId)) {
+            continue;
+         }
+
+         const parsedAmount = Math.round(Number(item.amount || item.monto));
+         if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+            continue;
+         }
+
+         const req = await models.EntityBoletaRequest.create({
+            entity_id: parsedEntityId,
+            bank_transaction_id: txId || null,
+            amount: parsedAmount,
+            net_amount: parsedAmount,
+            vat_amount: 0,
+            description: item.description || item.descripcion || 'Venta',
+            customer_rut: item.customer_rut || null,
+            customer_name: item.customer_name || 'Consumidor Final',
+            is_exempt: true,
+            doc_type_code: 41,
+            status: 'pending',
+            created_by: createdBy ? Number(createdBy) : null,
+         });
+         created.push(req);
+      }
+
+      return {
+         ok: true,
+         totalCreated: created.length,
+         requests: created,
+      };
+   }
+
+   /**
     * Endpoint para el Worker de Harry: Obtener siguiente trabajo pendiente
     * Contrato: devuelve { ok: true, solicitud: { id, operacion_id, monto, empresa, rut_empresa } } o { ok: true, solicitud: null }
     */

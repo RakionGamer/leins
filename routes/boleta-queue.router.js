@@ -30,6 +30,7 @@ router.post('/api_boletas_error.php', controller.reportError);
 
 // 2. Rutas internas de Leins (autenticadas con JWT y entidad)
 router.post('/queue', jwtValidate, ensureEntityCreateAccess, controller.createRequest);
+router.post('/queue-batch', jwtValidate, ensureEntityCreateAccess, controller.createBatchRequests);
 router.get('/', jwtValidate, ensureEntityAccess, controller.listRequests);
 router.get('/active-map', jwtValidate, ensureEntityAccess, controller.getActiveMap);
 router.delete('/:id', jwtValidate, ensureEntityAccess, controller.cancelRequest);
