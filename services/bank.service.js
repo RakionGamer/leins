@@ -2627,6 +2627,10 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
    async discoverAndLinkAccounts({ entityId, connectionId, system = 'bch_empresas' }) {
       if (!entityId) throw boom.badRequest('entityId es requerido');
       if (!connectionId) throw boom.badRequest('connectionId es requerido');
+      const sysLower = String(system).toLowerCase().trim();
+      if (['sii', 'previred', 'tgr', 'dt', 'direccion_trabajo'].some(s => sysLower === s || sysLower.startsWith(s + '_'))) {
+         throw boom.badRequest('Esta conexión no corresponde a una institución bancaria');
+      }
 
       // Validacion de aislamiento multi-tenant:
       // Si la conexion ya esta vinculada a OTRA entidad en Leins, rechazar inmediatamente

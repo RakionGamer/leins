@@ -28,6 +28,15 @@ export default function EmissoConnectModal({ isOpen, onClose, entityId, onAccoun
 
    const [entityRut, setEntityRut] = useState('');
 
+   const bankConnections = (connections || []).filter((c) => {
+      const sys = String(c.system || '').toLowerCase().trim();
+      const name = String(c.name || '').toLowerCase().trim();
+      const nonBank = ['sii', 'previred', 'tgr', 'dt', 'direccion_trabajo', 'cmf'];
+      if (nonBank.some((nb) => sys === nb || sys.startsWith(nb + '_') || sys.startsWith(nb + '-'))) return false;
+      if (name === 'sii' || name.startsWith('sii ') || name.includes('impuestos internos') || name.includes('previred')) return false;
+      return true;
+   });
+
    const fetchConnections = async () => {
       if (!entityId) return;
       setLoading(true);
@@ -141,14 +150,14 @@ export default function EmissoConnectModal({ isOpen, onClose, entityId, onAccoun
                      <span className="loading loading-spinner loading-md text-primary mr-2" />
                      Consultando conexiones seguras en Emisso...
                   </div>
-               ) : connections.length === 0 ? (
+               ) : bankConnections.length === 0 ? (
                   <div className="p-4 bg-surface-1 rounded-xl border border-border-subtle text-center text-xs text-text-soft">
                      No se detectaron conexiones bancarias activas asociadas a este RUT en Emisso.
                      Puedes conectar un banco a continuación.
                   </div>
                ) : (
                   <div className="space-y-3">
-                     {connections.map((conn) => {
+                     {bankConnections.map((conn) => {
                         const isCurrentLinking = linkingId === conn.id;
                         return (
                            <div

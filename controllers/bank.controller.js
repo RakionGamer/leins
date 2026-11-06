@@ -620,6 +620,32 @@ const listReconciliations = asyncHandler(async (req, res) => {
 // CONTROLADORES EMISSO CONNECT
 // ==========================================
 
+const isBankConnection = (c) => {
+   if (!c) return false;
+   const system = String(c.sistema || '').toLowerCase().trim();
+   const name = String(c.nombre || '').toLowerCase().trim();
+
+   // Exclusión estricta de sistemas tributarios, previsionales u otros no bancarios (SII, Previred, TGR, etc.)
+   const nonBankPrefixes = ['sii', 'previred', 'tgr', 'dt', 'direccion_trabajo', 'cmf'];
+   if (nonBankPrefixes.some(nb => system === nb || system.startsWith(nb + '_') || system.startsWith(nb + '-'))) {
+      return false;
+   }
+   if (name === 'sii' || name.startsWith('sii ') || name.includes('impuestos internos') || name.includes('previred')) {
+      return false;
+   }
+
+   // Validación positiva: alcance bancario o sistema reconocido
+   const alcances = Array.isArray(c.alcances) ? c.alcances.map(a => String(a).toLowerCase()) : [];
+   const hasBankScope = alcances.some(a => ['saldos', 'movimientos', 'cartolas', 'cuentas'].includes(a));
+   if (hasBankScope) return true;
+
+   const bankKeywords = [
+      'bch', 'santander', 'bci', 'banco', 'scotia', 'itau', 'bice', 'security',
+      'falabella', 'internacional', 'consorcio', 'coopeuch', 'ripley', 'estado'
+   ];
+   return bankKeywords.some(kw => system.includes(kw) || name.includes(kw));
+};
+
 const listEmissoConnections = asyncHandler(async (req, res) => {
    const entityId = Number(req.query?.entityId || req.entityId || 0);
    const EmissoService = require('../services/emisso.service');
@@ -652,11 +678,15 @@ const listEmissoConnections = asyncHandler(async (req, res) => {
       }) : [];
       const otherLinkedIds = new Set(otherAccounts.map(a => a.emisso_connection_id).filter(Boolean));
 
-      // Filtro estricto de aislamiento multi-tenant:
-      // 1. Descartar conexiones que ya pertenecen a otra entidad en Leins
-      // 2. Si trae empresaRut desde Emisso, debe coincidir exactamente con el RUT de la entidad activa
-      // 3. Si ya esta vinculada a esta entidad, se incluye
+      // Filtro estricto de aislamiento multi-tenant y tipo de conexion:
+      // 1. Descartar conexiones no bancarias (SII, Previred, TGR, etc.)
+      // 2. Descartar conexiones que ya pertenecen a otra entidad en Leins
+      // 3. Si trae empresaRut desde Emisso, debe coincidir exactamente con el RUT de la entidad activa
+      // 4. Si ya esta vinculada a esta entidad, se incluye
       const filteredConnections = rawConnections.filter(c => {
+         // Bloquear estrictamente si no es un banco
+         if (!isBankConnection(c)) return false;
+
          // Bloquear si ya pertenece a otra empresa en la base de datos
          if (otherLinkedIds.has(c.id)) return false;
 
