@@ -92,7 +92,7 @@ export default function BoletaQueuePanel({ entityId }) {
 
             <div className="p-3.5 rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-1)] shadow-xs flex items-center gap-3">
                <div className="p-2.5 rounded-xl bg-blue-500/10 text-blue-600">
-                  <ArrowPathIcon className="w-5 h-5 animate-spin" />
+                  <ArrowPathIcon className={`w-5 h-5 ${counts.processing > 0 ? 'animate-spin' : ''}`} />
                </div>
                <div>
                   <div className="text-[11px] font-semibold text-[var(--text-soft)] uppercase tracking-wider">
