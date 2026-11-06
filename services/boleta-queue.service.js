@@ -316,7 +316,8 @@ class BoletaQueueService {
          completed_at: new Date(),
       });
 
-      // 3. Conciliar automáticamente contra el movimiento bancario si existe
+      // 3. Conciliación automática (desactivada por ahora a petición del usuario: solo emitir la boleta)
+      /*
       if (request.bank_transaction_id && siiDoc) {
          try {
             await this.bankService.reconcile({
@@ -329,6 +330,7 @@ class BoletaQueueService {
             console.error(`[BoletaQueue] Error conciliando tx ${request.bank_transaction_id} con doc ${siiDoc.id}:`, reconcileErr.message);
          }
       }
+      */
 
       return {
          ok: true,

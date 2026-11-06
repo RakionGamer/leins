@@ -49,7 +49,7 @@ export default function BatchBoletearConfirmModal({
          });
 
          const count = res.totalCreated || totalCount;
-         toast.success(`¡${count} boletas exentas enviadas a la cola del Bot SII con éxito!`);
+         toast.success(`¡${count} boletas exentas enviadas a emisión con éxito!`);
          if (onSuccess) onSuccess();
          onClose();
       } catch (err) {
@@ -70,7 +70,7 @@ export default function BatchBoletearConfirmModal({
                      <span>Emisión Masiva de Boletas Exentas</span>
                   </div>
                   <p className="text-xs text-[var(--text-soft)] mt-1">
-                     Se enviarán como <strong>Boletas Exentas (DTE 41)</strong> y se conciliarán automáticamente con sus abonos bancarios al completarse la emisión.
+                     Se enviarán a emisión como <strong>Boletas Exentas (DTE 41)</strong> ante el portal del SII.
                   </p>
                </div>
                <div className="text-right sm:border-l sm:border-emerald-500/20 sm:pl-4">

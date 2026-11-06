@@ -2286,7 +2286,13 @@ export default function BankCartolasPage() {
                                           ⚠️ Verif. SII
                                        </span>
                                     )}
-                                    {boletaMap[bankTxId]?.status === 'failed' && (
+                                    {boletaMap[bankTxId]?.status === 'completed' && (
+                                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400" title={`Boleta emitida con Folio ${boletaMap[bankTxId]?.folio || ''}`}>
+                                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                           Folio {boletaMap[bankTxId]?.folio || 'Emitida'}
+                                        </span>
+                                     )}
+                                     {boletaMap[bankTxId]?.status === 'failed' && (
                                        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-red-600 dark:text-red-400" title={boletaMap[bankTxId]?.error_message}>
                                           ❌ Error boleta
                                        </span>
