@@ -3,12 +3,7 @@ import React, { useState } from 'react';
 import Modal from 'components/Modal';
 import { toast } from 'components/Toaster';
 import { enqueueBatchBoletas } from '../../services/boletaQueueApi';
-import {
-   DocumentTextIcon,
-   BanknotesIcon,
-   ShieldCheckIcon,
-   CheckCircleIcon,
-} from '@heroicons/react/24/outline';
+import { DocumentTextIcon } from '@heroicons/react/24/outline';
 
 const fmtCLP = (val) =>
    new Intl.NumberFormat('es-CL', {
@@ -60,33 +55,44 @@ export default function BatchBoletearConfirmModal({
    };
 
    return (
-      <Modal isOpen={isOpen} onClose={onClose} title={`¿Estás seguro de generar ${totalCount} boleta${totalCount > 1 ? 's' : ''}?`} maxWidth="max-w-2xl">
+      <Modal
+         isOpen={isOpen}
+         onClose={onClose}
+         title={`¿Estás seguro de generar ${totalCount} boleta${totalCount > 1 ? 's' : ''}?`}
+         maxWidth="max-w-2xl"
+      >
          <div className="space-y-4 text-sm text-[var(--text-main)]">
-            {/* Tarjeta de Resumen */}
-            <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-900 dark:text-emerald-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-               <div>
-                  <div className="text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5">
-                     <CheckCircleIcon className="w-4 h-4" />
-                     <span>Emisión Masiva de Boletas Exentas</span>
+            {/* Tarjeta de Resumen Corporativa y Neutra */}
+            <div className="p-4 rounded-xl bg-[var(--surface-1)] border border-[var(--border-subtle)] flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+               <div className="space-y-1.5">
+                  <div className="flex items-center gap-2">
+                     <span className="text-xs font-semibold text-[var(--heading)] tracking-wide uppercase">
+                        Emisión Masiva
+                     </span>
+                     <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-[var(--surface-2)] text-[var(--text-soft)] border border-[var(--border-subtle)]">
+                        Boleta Exenta (DTE 41)
+                     </span>
                   </div>
-                  <p className="text-xs text-[var(--text-soft)] mt-1">
-                     Se enviarán a emisión como <strong>Boletas Exentas (DTE 41)</strong> ante el portal del SII.
+                  <p className="text-xs text-[var(--text-soft)] leading-relaxed">
+                     Las operaciones seleccionadas se enviarán para su emisión oficial ante el Servicio de Impuestos Internos.
                   </p>
                </div>
-               <div className="text-right sm:border-l sm:border-emerald-500/20 sm:pl-4">
-                  <div className="text-[11px] uppercase font-semibold text-[var(--text-soft)]">Total a Boletear</div>
-                  <div className="text-xl font-black text-emerald-600 dark:text-emerald-400">
+               <div className="text-left sm:text-right sm:border-l sm:border-[var(--border-subtle)] sm:pl-5 shrink-0">
+                  <div className="text-[11px] uppercase font-semibold text-[var(--text-soft)] tracking-wider">
+                     Monto Total
+                  </div>
+                  <div className="text-xl font-bold font-mono text-[var(--heading)]">
                      {fmtCLP(totalAmount)}
                   </div>
-                  <div className="text-[11px] font-medium text-[var(--text-soft)]">
-                     {totalCount} movimiento{totalCount > 1 ? 's' : ''} seleccionado{totalCount > 1 ? 's' : ''}
+                  <div className="text-[11px] text-[var(--text-soft)] font-medium">
+                     {totalCount} movimiento{totalCount > 1 ? 's' : ''}
                   </div>
                </div>
             </div>
 
-            {/* Listado con scroll de los movimientos seleccionados */}
-            <div className="rounded-xl border border-[var(--border-subtle)] overflow-hidden">
-               <div className="bg-[var(--surface-2)] px-3 py-2 text-xs font-semibold text-[var(--text-soft)] flex justify-between">
+            {/* Listado de movimientos seleccionados */}
+            <div className="rounded-xl border border-[var(--border-subtle)] overflow-hidden bg-[var(--bg-content)]">
+               <div className="bg-[var(--surface-2)] px-3 py-2 text-[11px] font-semibold text-[var(--text-soft)] uppercase tracking-wider flex justify-between">
                   <span>Movimientos Seleccionados ({totalCount})</span>
                   <span>Monto</span>
                </div>
@@ -94,16 +100,19 @@ export default function BatchBoletearConfirmModal({
                   {selectedTransactions.map((tx, idx) => {
                      const monto = tx.remaining != null ? tx.remaining : Math.abs(tx.monto || 0);
                      return (
-                        <div key={tx._id || tx.id || idx} className="p-2.5 flex items-center justify-between gap-3 hover:bg-[var(--surface-1)]">
+                        <div
+                           key={tx._id || tx.id || idx}
+                           className="p-3 flex items-center justify-between gap-3 hover:bg-[var(--surface-1)] transition-colors"
+                        >
                            <div className="min-w-0">
                               <div className="font-medium text-[var(--heading)] truncate">
                                  {tx.descripcion || '(Sin descripción)'}
                               </div>
-                              <div className="text-[11px] text-[var(--text-soft)]">
+                              <div className="text-[11px] text-[var(--text-soft)] mt-0.5">
                                  {tx.fecha || 'Fecha desconocida'} • {tx.cuenta_corriente || 'Cta Cte'}
                               </div>
                            </div>
-                           <div className="font-bold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
+                           <div className="font-semibold font-mono text-[var(--heading)] whitespace-nowrap pl-3">
                               {fmtCLP(monto)}
                            </div>
                         </div>
@@ -113,12 +122,12 @@ export default function BatchBoletearConfirmModal({
             </div>
 
             {/* Botones de acción */}
-            <div className="flex justify-end gap-2.5 pt-3 border-t border-[var(--border-subtle)]">
+            <div className="flex justify-end items-center gap-2.5 pt-3 border-t border-[var(--border-subtle)]">
                <button
                   type="button"
                   disabled={isSubmitting}
                   onClick={onClose}
-                  className="px-4 py-2 rounded-xl text-xs font-medium border border-[var(--border-subtle)] hover:bg-[var(--surface-2)] text-[var(--text-soft)] transition"
+                  className="px-4 py-2 rounded-xl text-xs font-medium border border-[var(--border-subtle)] bg-[var(--surface-1)] hover:bg-[var(--surface-2)] text-[var(--text-soft)] hover:text-[var(--heading)] transition cursor-pointer disabled:opacity-50"
                >
                   Cancelar
                </button>
@@ -126,14 +135,14 @@ export default function BatchBoletearConfirmModal({
                   type="button"
                   disabled={isSubmitting}
                   onClick={handleConfirm}
-                  className="px-5 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white transition shadow-sm flex items-center gap-1.5 disabled:opacity-50"
+                  className="px-5 py-2 rounded-xl text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-white dark:bg-slate-100 dark:hover:bg-white dark:text-slate-900 shadow-sm transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                >
                   {isSubmitting ? (
-                     <span>Encolando boletas...</span>
+                     <span>Enviando a emisión...</span>
                   ) : (
                      <>
                         <DocumentTextIcon className="w-4 h-4" />
-                        <span>Confirmar y Generar ({totalCount})</span>
+                        <span>Confirmar emisión ({totalCount})</span>
                      </>
                   )}
                </button>
