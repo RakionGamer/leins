@@ -70,7 +70,7 @@ export default function BatchBoletearConfirmModal({
                      <span>Emisión Masiva de Boletas Exentas</span>
                   </div>
                   <p className="text-xs text-[var(--text-soft)] mt-1">
-                     Se enviarán al Bot de Harry como <strong>Boletas Exentas (DTE 41)</strong> y se conciliarán automáticamente en cuanto el bot suba los PDF.
+                     Se enviarán como <strong>Boletas Exentas (DTE 41)</strong> y se conciliarán automáticamente con sus abonos bancarios al completarse la emisión.
                   </p>
                </div>
                <div className="text-right sm:border-l sm:border-emerald-500/20 sm:pl-4">
@@ -129,11 +129,11 @@ export default function BatchBoletearConfirmModal({
                   className="px-5 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white transition shadow-sm flex items-center gap-1.5 disabled:opacity-50"
                >
                   {isSubmitting ? (
-                     <span>Enviando al Bot...</span>
+                     <span>Encolando boletas...</span>
                   ) : (
                      <>
                         <DocumentTextIcon className="w-4 h-4" />
-                        <span>Confirmar y Enviar al Bot ({totalCount})</span>
+                        <span>Confirmar y Generar ({totalCount})</span>
                      </>
                   )}
                </button>
