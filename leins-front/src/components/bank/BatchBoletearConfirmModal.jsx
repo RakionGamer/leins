@@ -36,6 +36,7 @@ export default function BatchBoletearConfirmModal({
             bank_transaction_id: tx.id || tx.raw?.id,
             amount: tx.remaining != null ? tx.remaining : Math.abs(tx.monto || 0),
             description: tx.descripcion || 'Venta',
+            customer_name: tx.descripcion || 'Venta',
          }));
 
          const res = await enqueueBatchBoletas({

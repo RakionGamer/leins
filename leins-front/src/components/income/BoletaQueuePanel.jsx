@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import env from '../../env';
 import { listBoletaRequests, cancelBoletaRequest } from '../../services/boletaQueueApi';
 import { toast } from 'components/Toaster';
+import PdfViewerModal from '../PdfViewerModal';
 import {
    DocumentTextIcon,
    ArrowPathIcon,
@@ -11,6 +12,7 @@ import {
    ExclamationTriangleIcon,
    XCircleIcon,
    ArrowDownTrayIcon,
+   EyeIcon,
 } from '@heroicons/react/24/outline';
 
 const fmtCLP = (val) =>
@@ -53,6 +55,7 @@ export default function BoletaQueuePanel({ entityId }) {
    const [loading, setLoading] = useState(true);
    const [statusFilter, setStatusFilter] = useState('all');
    const [cancellingId, setCancellingId] = useState(null);
+   const [viewingBoleta, setViewingBoleta] = useState(null);
 
    const loadData = useCallback(async () => {
       if (!entityId) return;
@@ -266,7 +269,7 @@ export default function BoletaQueuePanel({ entityId }) {
                                     <div className="font-medium text-[var(--text-main)] truncate max-w-xs">
                                        {r.description || 'Venta'}
                                     </div>
-                                    {r.customer_name && (
+                                    {r.customer_name && r.customer_name !== r.description && (
                                        <div className="text-[10px] text-[var(--text-soft)]">
                                           Receptor: {r.customer_name} {r.customer_rut ? `(${r.customer_rut})` : ''}
                                        </div>
@@ -319,15 +322,15 @@ export default function BoletaQueuePanel({ entityId }) {
                                  <td className="p-3 text-right whitespace-nowrap">
                                     <div className="flex items-center justify-end gap-1.5">
                                        {(r.pdf_path || r.pdf_url) && (
-                                          <a
-                                             href={pdfUrl}
-                                             target="_blank"
-                                             rel="noopener noreferrer"
-                                             className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--surface-2)] text-[var(--brand)] transition shadow-xs"
+                                          <button
+                                             type="button"
+                                             onClick={() => setViewingBoleta(r)}
+                                             className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--surface-2)] text-[var(--brand)] transition shadow-xs cursor-pointer active:scale-95"
+                                             title="Abrir visor de PDF"
                                           >
-                                             <ArrowDownTrayIcon className="w-3 h-3" />
+                                             <EyeIcon className="w-3.5 h-3.5" />
                                              PDF
-                                          </a>
+                                          </button>
                                        )}
                                        {(isPending || isFailed) && (
                                           <button
@@ -349,6 +352,18 @@ export default function BoletaQueuePanel({ entityId }) {
                </table>
             </div>
          </div>
+
+         {/* Modal Visor de PDF */}
+         {viewingBoleta && (
+            <PdfViewerModal
+               isOpen={Boolean(viewingBoleta)}
+               onClose={() => setViewingBoleta(null)}
+               pdfUrl={getBoletaPdfUrl(viewingBoleta.pdf_path || viewingBoleta.pdf_url)}
+               title={`Boleta ${viewingBoleta.is_exempt ? 'Exenta' : 'Afecta'} • Folio #${viewingBoleta.folio || viewingBoleta.id}`}
+               subtitle={`${viewingBoleta.customer_name || 'Consumidor Final'}${viewingBoleta.customer_rut ? ` (${viewingBoleta.customer_rut})` : ''} • Total: ${fmtCLP(viewingBoleta.amount)}`}
+               downloadFilename={viewingBoleta.pdf_filename || `boleta_folio_${viewingBoleta.folio || viewingBoleta.id}.pdf`}
+            />
+         )}
       </div>
    );
 }

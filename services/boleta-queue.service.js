@@ -84,7 +84,7 @@ class BoletaQueueService {
          vat_amount: vatAmount,
          description: description ? String(description).slice(0, 500) : null,
          customer_rut: customerRut ? String(customerRut).slice(0, 20) : null,
-         customer_name: customerName ? String(customerName).slice(0, 255) : null,
+         customer_name: customerName ? String(customerName).slice(0, 255) : (description ? String(description).slice(0, 255) : 'Venta'),
          is_exempt: finalIsExempt,
          doc_type_code: finalDocType,
          status: 'pending',
@@ -137,7 +137,7 @@ class BoletaQueueService {
             vat_amount: 0,
             description: item.description || item.descripcion || 'Venta',
             customer_rut: item.customer_rut || null,
-            customer_name: item.customer_name || 'Consumidor Final',
+            customer_name: item.customer_name || item.description || item.descripcion || 'Venta',
             is_exempt: true,
             doc_type_code: 41,
             status: 'pending',
@@ -185,7 +185,7 @@ class BoletaQueueService {
             monto: Math.round(Number(request.amount)),
             descripcion: request.description || 'Venta',
             cliente_rut: request.customer_rut || null,
-            cliente_nombre: request.customer_name || 'Consumidor Final',
+            cliente_nombre: request.customer_name || request.description || 'Venta',
             empresa: entityName,
             rut_empresa: entityRut,
             tipo_boleta: request.is_exempt ? 'exenta' : 'afecta',
@@ -216,7 +216,7 @@ class BoletaQueueService {
             monto: Math.round(Number(r.amount)),
             descripcion: r.description || 'Venta',
             cliente_rut: r.customer_rut || null,
-            cliente_nombre: r.customer_name || 'Consumidor Final',
+            cliente_nombre: r.customer_name || r.description || 'Venta',
             empresa: r.entity?.legal_name || 'EMPRESA',
             rut_empresa: r.entity?.tax_id || '',
             tipo_boleta: r.is_exempt ? 'exenta' : 'afecta',
@@ -261,17 +261,8 @@ class BoletaQueueService {
 
       // 1. Crear el documento oficial en entity_sii_documents
       const docTypeCode = request.doc_type_code || (request.is_exempt ? 41 : 39);
-      const todayYmd = new Date().toISOString().slice(0, 10);
-
-      // Si viene de un movimiento bancario, obtener su fecha
-      let issueDate = todayYmd;
-      let bankTx = null;
-      if (request.bank_transaction_id) {
-         bankTx = await models.EntityBankTransaction.findByPk(request.bank_transaction_id);
-         if (bankTx && bankTx.issued_at) {
-            issueDate = String(bankTx.issued_at).slice(0, 10);
-         }
-      }
+      // La fecha del documento SII debe ser la fecha real de emision de la boleta (hoy)
+      const issueDate = new Date().toISOString().slice(0, 10);
 
       const [yearStr, monthStr] = issueDate.split('-');
       const periodYear = Number(yearStr);
@@ -298,7 +289,7 @@ class BoletaQueueService {
             amount_net: request.is_exempt ? 0 : request.net_amount,
             amount_vat: request.is_exempt ? 0 : request.vat_amount,
             counterparty_rut: request.customer_rut || null,
-            counterparty_name: request.customer_name || 'Consumidor Final',
+            counterparty_name: request.customer_name || request.description || 'Venta',
             source: 'BOLETA_WORKER',
             state_id: 1,
             operation_type: 'INCOME',

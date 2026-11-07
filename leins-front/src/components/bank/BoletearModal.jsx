@@ -38,7 +38,7 @@ export default function BoletearModal({
          setDescription(transaction.descripcion || 'Venta de servicios');
          setIsExempt(true);
          setCustomerRut('');
-         setCustomerName('');
+         setCustomerName(transaction.descripcion || '');
       }
    }, [transaction]);
 
@@ -54,13 +54,14 @@ export default function BoletearModal({
 
       setIsSubmitting(true);
       try {
+         const finalDesc = description.trim() || transaction.descripcion || 'Venta';
          await enqueueBoleta({
             entityId,
             bank_transaction_id: transaction.id || transaction.raw?.id,
             amount: numAmount,
-            description: description.trim() || transaction.descripcion || 'Venta',
+            description: finalDesc,
             customer_rut: customerRut.trim() || null,
-            customer_name: customerName.trim() || 'Consumidor Final',
+            customer_name: customerName.trim() || finalDesc,
             is_exempt: isExempt,
             doc_type_code: isExempt ? 41 : 39,
          });

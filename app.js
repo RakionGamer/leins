@@ -31,6 +31,8 @@ app.use(helmet({
    referrerPolicy: { policy: 'no-referrer' },
    // permite cargar recursos de otros origenes (necesario para las imagenes)
    crossOriginResourcePolicy: { policy: 'cross-origin' },
+   // permite embeber visores de documentos en el frontend propio (app.leinsadvisor.cl)
+   frameguard: false,
 }));
 
 // hsts solo en produccion
@@ -80,7 +82,10 @@ app.use(express.urlencoded({ extended: true }));
 
 // 5. archivos estaticos (imagenes de avatar)
 app.use('/avatars', express.static(path.join(__dirname, 'public/avatars')));
-app.use('/uploads/boletas', express.static(path.join(__dirname, 'uploads/boletas')));
+app.use('/uploads/boletas', (req, res, next) => {
+   res.removeHeader('X-Frame-Options');
+   next();
+}, express.static(path.join(__dirname, 'uploads/boletas')));
 
 // 6. control de cache para autenticacion
 app.use(/^\/api\/v1\/auth\/.*/, (req, res, next) => {
