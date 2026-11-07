@@ -1,7 +1,7 @@
 // leins-front/src/components/income/BoletaQueuePanel.jsx
 import React, { useState, useEffect, useCallback } from 'react';
 import env from '../../env';
-import { listBoletaRequests, cancelBoletaRequest } from '../../services/boletaQueueApi';
+import { listBoletaRequests, cancelBoletaRequest, retryBoletaRequest, retryAllFailedBoletas } from '../../services/boletaQueueApi';
 import { toast } from 'components/Toaster';
 import PdfViewerModal from '../PdfViewerModal';
 import {
@@ -55,6 +55,8 @@ export default function BoletaQueuePanel({ entityId }) {
    const [loading, setLoading] = useState(true);
    const [statusFilter, setStatusFilter] = useState('all');
    const [cancellingId, setCancellingId] = useState(null);
+   const [retryingId, setRetryingId] = useState(null);
+   const [retryingAll, setRetryingAll] = useState(false);
    const [viewingBoleta, setViewingBoleta] = useState(null);
 
    const loadData = useCallback(async () => {
@@ -91,6 +93,32 @@ export default function BoletaQueuePanel({ entityId }) {
          toast.error(err.message || 'Error al cancelar');
       } finally {
          setCancellingId(null);
+      }
+   };
+
+   const handleRetry = async (id) => {
+      setRetryingId(id);
+      try {
+         await retryBoletaRequest(id, entityId);
+         toast.success('Solicitud re-encolada para emisión');
+         loadData();
+      } catch (err) {
+         toast.error(err.message || 'Error al reintentar la solicitud');
+      } finally {
+         setRetryingId(null);
+      }
+   };
+
+   const handleRetryAll = async () => {
+      setRetryingAll(true);
+      try {
+         const res = await retryAllFailedBoletas(entityId);
+         toast.success(res.message || 'Solicitudes re-encoladas');
+         loadData();
+      } catch (err) {
+         toast.error(err.message || 'Error al reintentar solicitudes');
+      } finally {
+         setRetryingAll(false);
       }
    };
 
@@ -140,7 +168,7 @@ export default function BoletaQueuePanel({ entityId }) {
                </div>
                <div>
                   <div className="text-[11px] font-semibold text-[var(--text-soft)] uppercase tracking-wider">
-                     Emitidas y Conciliadas
+                     Emitidas
                   </div>
                   <div className="text-lg font-bold text-emerald-600">{counts.completed}</div>
                </div>
@@ -187,17 +215,31 @@ export default function BoletaQueuePanel({ entityId }) {
                ))}
             </div>
 
-            <button
-               type="button"
-               onClick={() => {
-                  setLoading(true);
-                  loadData();
-               }}
-               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--surface-2)] transition"
-            >
-               <ArrowPathIcon className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-               <span>Actualizar</span>
-            </button>
+            <div className="flex items-center gap-2">
+               {counts.error > 0 && (
+                  <button
+                     type="button"
+                     onClick={handleRetryAll}
+                     disabled={retryingAll}
+                     className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-amber-500/10 text-amber-600 border border-amber-500/30 hover:bg-amber-500/20 transition cursor-pointer active:scale-95 disabled:opacity-50"
+                     title="Reintentar todas las boletas con error"
+                  >
+                     <ArrowPathIcon className={`w-3.5 h-3.5 ${retryingAll ? 'animate-spin' : ''}`} />
+                     <span>Reintentar fallidas ({counts.error})</span>
+                  </button>
+               )}
+               <button
+                  type="button"
+                  onClick={() => {
+                     setLoading(true);
+                     loadData();
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--surface-2)] transition"
+               >
+                  <ArrowPathIcon className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+                  <span>Actualizar</span>
+               </button>
+            </div>
          </div>
 
          {/* Tabla de Solicitudes */}
@@ -297,7 +339,7 @@ export default function BoletaQueuePanel({ entityId }) {
                                     {isCompleted && (
                                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
                                           <CheckCircleIcon className="w-3.5 h-3.5" />
-                                          Emitida y Conciliada
+                                          Emitida
                                        </span>
                                     )}
                                     {isFailed && (
@@ -330,6 +372,18 @@ export default function BoletaQueuePanel({ entityId }) {
                                           >
                                              <EyeIcon className="w-3.5 h-3.5" />
                                              PDF
+                                          </button>
+                                       )}
+                                       {(isFailed || isMaybe) && (
+                                          <button
+                                             type="button"
+                                             disabled={retryingId === r.id}
+                                             onClick={() => handleRetry(r.id)}
+                                             className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-amber-500/10 text-amber-600 border border-amber-500/30 hover:bg-amber-500/20 transition cursor-pointer active:scale-95 disabled:opacity-50"
+                                             title="Reintentar emisión en el SII"
+                                          >
+                                             <ArrowPathIcon className={`w-3.5 h-3.5 ${retryingId === r.id ? 'animate-spin' : ''}`} />
+                                             <span>Reintentar</span>
                                           </button>
                                        )}
                                        {(isPending || isFailed) && (

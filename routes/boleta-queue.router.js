@@ -33,6 +33,8 @@ router.post('/queue', jwtValidate, ensureEntityCreateAccess, controller.createRe
 router.post('/queue-batch', jwtValidate, ensureEntityCreateAccess, controller.createBatchRequests);
 router.get('/', jwtValidate, ensureEntityAccess, controller.listRequests);
 router.get('/active-map', jwtValidate, ensureEntityAccess, controller.getActiveMap);
+router.post('/retry-all', jwtValidate, ensureEntityAccess, controller.retryAllFailed);
+router.post('/:id/retry', jwtValidate, ensureEntityAccess, controller.retryRequest);
 router.delete('/:id', jwtValidate, ensureEntityAccess, controller.cancelRequest);
 router.get('/:id/download', jwtValidate, ensureEntityAccess, controller.downloadPdf);
 

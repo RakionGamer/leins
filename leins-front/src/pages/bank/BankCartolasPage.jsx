@@ -19,7 +19,7 @@ import BankCartolaDuplicatesAlert from '../../components/bank/BankCartolaDuplica
 import EmissoSyncPeriodModal from '../../components/bank/EmissoSyncPeriodModal';
 
 import BatchBoletearConfirmModal from '../../components/bank/BatchBoletearConfirmModal';
-import { getActiveBoletaMap, cancelBoletaRequest } from '../../services/boletaQueueApi';
+import { getActiveBoletaMap, cancelBoletaRequest, retryBoletaRequest } from '../../services/boletaQueueApi';
 
 // importamos nuestras nuevas herramientas de react query
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -2293,10 +2293,30 @@ export default function BankCartolasPage() {
                                         </span>
                                      )}
                                      {boletaMap[bankTxId]?.status === 'failed' && (
-                                       <span className="inline-flex items-center gap-1 text-[11px] font-medium text-red-600 dark:text-red-400" title={boletaMap[bankTxId]?.error_message}>
-                                          ❌ Error boleta
-                                       </span>
-                                    )}
+                                        <div className="inline-flex items-center gap-1.5">
+                                           <span className="inline-flex items-center gap-1 text-[11px] font-medium text-red-600 dark:text-red-400" title={boletaMap[bankTxId]?.error_message}>
+                                              ❌ Error boleta
+                                           </span>
+                                           <button
+                                              type="button"
+                                              onClick={async (e) => {
+                                                 e.stopPropagation();
+                                                 try {
+                                                    await retryBoletaRequest(boletaMap[bankTxId].id, entityId);
+                                                    toast.success('Solicitud re-encolada para emisión');
+                                                    queryClient.invalidateQueries({ queryKey: ['activeBoletaMap'] });
+                                                 } catch (err) {
+                                                    toast.error(err.message || 'Error al reintentar');
+                                                 }
+                                              }}
+                                              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-semibold rounded bg-amber-500/10 text-amber-600 border border-amber-500/30 hover:bg-amber-500/20 cursor-pointer active:scale-95 transition"
+                                              title="Reintentar emisión de boleta"
+                                           >
+                                              <ArrowPathIcon className="w-3 h-3" />
+                                              Reintentar
+                                           </button>
+                                        </div>
+                                     )}
                                  </div>
                               </td>
                               <td className="px-3 py-2 text-right">

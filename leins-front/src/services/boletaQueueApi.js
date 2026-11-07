@@ -93,3 +93,29 @@ export async function cancelBoletaRequest(id, entityId) {
    await ensureOk(res, 'No se pudo cancelar la solicitud de boleta');
    return (await parseJsonSafe(res)) || {};
 }
+
+/**
+ * Reintentar una solicitud de boleta fallida
+ */
+export async function retryBoletaRequest(id, entityId) {
+   const res = await fetchWithAuth(`/boletas/${id}/retry?entityId=${entityId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ entityId }),
+   });
+   await ensureOk(res, 'No se pudo reintentar la emisión de la boleta');
+   return (await parseJsonSafe(res)) || {};
+}
+
+/**
+ * Reintentar todas las solicitudes de boletas fallidas
+ */
+export async function retryAllFailedBoletas(entityId) {
+   const res = await fetchWithAuth(`/boletas/retry-all?entityId=${entityId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ entityId }),
+   });
+   await ensureOk(res, 'No se pudieron reintentar las boletas fallidas');
+   return (await parseJsonSafe(res)) || {};
+}

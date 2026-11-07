@@ -4,6 +4,7 @@
 const fs = require('fs');
 const path = require('path');
 const Boom = require('@hapi/boom');
+const { Op } = require('sequelize');
 const { models, sequelize } = require('../libs/sequelize');
 const BankService = require('./bank.service');
 
@@ -482,6 +483,77 @@ class BoletaQueueService {
 
       return { filePath, filename: request.pdf_filename };
    }
+
+   /**
+    * Reintentar una solicitud individual que falló o tuvo error
+    */
+   async retryRequest({ id, entityId }) {
+      const parsedId = Number(id);
+      const parsedEntityId = Number(entityId);
+      if (!Number.isInteger(parsedId) || parsedId <= 0) {
+         throw Boom.badRequest('id de solicitud inválido');
+      }
+
+      const request = await models.EntityBoletaRequest.findOne({
+         where: { id: parsedId, entity_id: parsedEntityId },
+      });
+
+      if (!request) {
+         throw Boom.notFound('Solicitud de boleta no encontrada');
+      }
+
+      if (request.status === 'completed') {
+         throw Boom.badRequest(`Esta boleta ya fue emitida exitosamente con el folio #${request.folio}`);
+      }
+
+      await request.update({
+         status: 'pending',
+         error_message: null,
+      });
+
+      return {
+         ok: true,
+         message: 'Solicitud re-encolada para emisión en el SII',
+         request: {
+            id: request.id,
+            status: 'pending',
+            entity_id: request.entity_id,
+            amount: request.amount,
+         },
+      };
+   }
+
+   /**
+    * Reintentar todas las solicitudes con error para una entidad
+    */
+   async retryAllFailed({ entityId }) {
+      const parsedEntityId = Number(entityId);
+      if (!Number.isInteger(parsedEntityId) || parsedEntityId <= 0) {
+         throw Boom.badRequest('entityId inválido');
+      }
+
+      const [count] = await models.EntityBoletaRequest.update(
+         {
+            status: 'pending',
+            error_message: null,
+         },
+         {
+            where: {
+               entity_id: parsedEntityId,
+               status: {
+                  [Op.in]: ['failed', 'posiblemente_emitida', 'cancelled'],
+               },
+            },
+         }
+      );
+
+      return {
+         ok: true,
+         message: `${count} solicitud(es) re-encolada(s) para emisión`,
+         count,
+      };
+   }
+
 }
 
 module.exports = BoletaQueueService;

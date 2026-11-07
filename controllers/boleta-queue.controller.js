@@ -176,6 +176,28 @@ const downloadPdf = async (req, res, next) => {
    }
 };
 
+
+const retryRequest = async (req, res, next) => {
+   try {
+      const { id } = req.params;
+      const { entityId } = req.body || req.query || {};
+      const result = await service.retryRequest({ id, entityId });
+      return res.status(200).json(result);
+   } catch (error) {
+      return next(error);
+   }
+};
+
+const retryAllFailed = async (req, res, next) => {
+   try {
+      const { entityId } = req.body || req.query || {};
+      const result = await service.retryAllFailed({ entityId });
+      return res.status(200).json(result);
+   } catch (error) {
+      return next(error);
+   }
+};
+
 module.exports = {
    getNextJob,
    consultPendingJobs,
@@ -187,4 +209,6 @@ module.exports = {
    getActiveMap,
    cancelRequest,
    downloadPdf,
+   retryRequest,
+   retryAllFailed,
 };
