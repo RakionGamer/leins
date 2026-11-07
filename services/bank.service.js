@@ -2819,6 +2819,7 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
          const stats = await this.persistEmissoMovements(dedupedRows, {
             entityId,
             entityBankAccountId: account.id,
+            system,
          });
 
          const updates = {
@@ -2848,7 +2849,70 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
    }
 
    // Persistencia y fusion inteligente de movimientos Emisso
-   async persistEmissoMovements(movements, { entityId, entityBankAccountId }) {
+   static normalizeEmissoMovementFields(m, system = '') {
+      const sys = String(system || '').toLowerCase();
+      const isSantander = sys.includes('santander') || Boolean(m.observacion && m.descripcionAmpliada) || m.counterpartySource === 'observacion';
+      const isBch = sys.includes('bch') || sys.includes('chile') || Boolean(m.codigoProducto || m.detalleGlosa);
+
+      let description = null;
+      let branch = null;
+
+      if (isSantander) {
+         // En Banco Santander Empresas:
+         // - m.observacion: "0780500158 Transf de MULTISERVICIOS V Y" (glosa con RUT y contraparte)
+         // - m.descripcionAmpliada: "Traspaso OfficeBanking a Tercero" (tipo de operacion)
+         // - m.descripcion: "AGUSTINAS" (sucursal bancaria)
+         const obs = String(m.observacion || '').trim();
+         const descAmp = String(m.descripcionAmpliada || '').trim();
+         const rawDesc = String(m.descripcion || m.glosa || m.description || '').trim();
+
+         if (obs) {
+            description = obs;
+            branch = m.sucursal || m.branch || m.canal || (rawDesc || null);
+         } else if (descAmp) {
+            description = descAmp;
+            branch = m.sucursal || m.branch || m.canal || (rawDesc || null);
+         } else {
+            description = rawDesc || null;
+            branch = m.sucursal || m.branch || m.canal || null;
+         }
+      } else if (isBch) {
+         // En Banco de Chile:
+         // - m.descripcion: "Traspaso De: Albert Leins Chacon Capote" (glosa)
+         // - m.canal: "Internet" o "Cerrillos" (sucursal / canal)
+         // - m.detalleGlosa: detalle extendido
+         description = String(m.descripcion || m.glosa || m.description || m.detail || '').trim() || null;
+         branch = m.sucursal || m.branch || m.canal || null;
+      } else {
+         // Otros bancos (BCI, BancoEstado, Scotiabank, Itau, BICE, etc.):
+         const obs = String(m.observacion || m.observation || '').trim();
+         const descAmp = String(m.descripcionAmpliada || '').trim();
+         const rawDesc = String(m.glosa || m.descripcion || m.description || m.detail || '').trim();
+
+         if (obs && obs !== rawDesc) {
+            description = obs;
+            branch = m.sucursal || m.branch || m.canal || (rawDesc || null);
+         } else if (rawDesc) {
+            description = rawDesc;
+            branch = m.sucursal || m.branch || m.canal || null;
+         } else if (descAmp) {
+            description = descAmp;
+            branch = m.sucursal || m.branch || m.canal || null;
+         }
+      }
+
+      if (description && description.length > 500) {
+         description = description.slice(0, 500);
+      }
+      if (branch && branch.length > 120) {
+         branch = branch.slice(0, 120);
+      }
+
+      return { description, branch };
+   }
+
+   // Persistencia y fusion inteligente de movimientos Emisso
+   async persistEmissoMovements(movements, { entityId, entityBankAccountId, system = null }) {
       if (!movements || !movements.length) return { saved: 0, updated: 0, skipped: 0 };
 
       let saved = 0;
@@ -2912,7 +2976,7 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
             const issuedAt = new Date(`${dateOnly}T00:00:00.000Z`);
             const externalId = m.id ? String(m.id).trim() : null;
             const status = m.estado || m.status || 'definitivo';
-            const description = m.glosa || m.descripcion || m.description || m.detail || null;
+            const { description, branch } = BankService.normalizeEmissoMovementFields(m, system);
             const balance = (m.saldoContable != null || m.saldo != null || m.balance != null)
                ? Number(m.saldoContable ?? m.saldo ?? m.balance)
                : null;
@@ -2921,7 +2985,7 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
                : m.numeroTransaccion ? String(m.numeroTransaccion)
                : m.documentRef ? String(m.documentRef)
                : null;
-            const branch = m.sucursal || m.branch || null;
+            // branch ya normalizado por #normalizeEmissoMovementFields
 
             const excludeClause = matchedIds.size ? { id: { [Op.notIn]: Array.from(matchedIds) } } : {};
 
@@ -2947,6 +3011,15 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
             if (m.fecha || m.movementDate || m.date) candidateDateStrings.add(String(m.fecha || m.movementDate || m.date).slice(0, 10));
             const candidateDates = Array.from(candidateDateStrings).filter(Boolean).map(s => new Date(`${s}T00:00:00.000Z`));
 
+            const candidateDescriptions = Array.from(new Set([
+               description,
+               m.descripcion,
+               m.glosa,
+               m.description,
+               m.observacion,
+               m.descripcionAmpliada
+            ].filter(Boolean)));
+
             // 2. Coincidencia por huella identica (mismo dia -operativo o contable-, tipo, monto y descripcion)
             if (!existing) {
                existing = await models.EntityBankTransaction.findOne({
@@ -2956,7 +3029,9 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
                      issued_at: candidateDates.length > 1 ? { [Op.in]: candidateDates } : issuedAt,
                      type: txType,
                      amount: amountAbs,
-                     description: description || { [Op.or]: [null, ''] },
+                     description: candidateDescriptions.length > 1
+                        ? { [Op.in]: candidateDescriptions }
+                        : (description || { [Op.or]: [null, ''] }),
                      ...excludeClause,
                   },
                   transaction: t,
@@ -2977,7 +3052,7 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
                         entity_bank_account_id: entityBankAccountId,
                         type: txType,
                         amount: amountAbs,
-                        description: description,
+                        description: candidateDescriptions.length > 1 ? { [Op.in]: candidateDescriptions } : description,
                         issued_at: { [Op.between]: [minDate, maxDate] },
                         external_id: { [Op.or]: [null, ''] },
                         ...excludeClause,
@@ -3019,10 +3094,16 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
                if (status && existing.status !== status) updates.status = status;
                if (balance != null && existing.balance !== balance) updates.balance = balance;
                if (documentRef && !existing.document_ref) updates.document_ref = documentRef;
-               if (branch && !existing.branch) updates.branch = branch;
+               if (branch && existing.branch !== branch) updates.branch = branch;
                if (txType && existing.type !== txType) updates.type = txType;
                if (amountAbs && Number(existing.amount) !== amountAbs) updates.amount = amountAbs;
-               if (description && (!existing.description || existing.status === 'provisorio')) {
+               const shouldUpdateDescription = description && (
+                  !existing.description ||
+                  existing.status === 'provisorio' ||
+                  (existing.description === m.descripcion && description !== m.descripcion) ||
+                  (externalId && existing.external_id === externalId && existing.description !== description)
+               );
+               if (shouldUpdateDescription) {
                   updates.description = description;
                }
 
