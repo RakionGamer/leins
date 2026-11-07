@@ -214,6 +214,37 @@ export default function SalesBoletas() {
       }
    };
 
+   const formatSourceLabel = (src) => {
+      const s = String(src || 'SII').toUpperCase();
+      if (s === 'BOLETA_WORKER' || s === 'BOT_SII' || s === 'EMISION_AUTOMATICA') return 'Emisión Automática';
+      if (s === 'MANUAL') return 'Manual';
+      return 'SII';
+   };
+
+   const getSourceBadge = (src) => {
+      const label = formatSourceLabel(src);
+      const s = String(src || 'SII').toUpperCase();
+      if (s === 'BOLETA_WORKER' || s === 'BOT_SII' || s === 'EMISION_AUTOMATICA') {
+         return {
+            label,
+            className: 'inline-flex rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-600 ring-1 ring-emerald-500/20 dark:bg-emerald-500/20 dark:text-emerald-400',
+            title: 'Emitida automáticamente a través de la integración SII',
+         };
+      }
+      if (s === 'MANUAL') {
+         return {
+            label,
+            className: 'inline-flex rounded-full bg-purple-100 px-2.5 py-1 text-xs font-semibold text-purple-700 ring-1 ring-purple-200 dark:bg-purple-900/30 dark:text-purple-400',
+            title: 'Ingresado manualmente en Leins',
+         };
+      }
+      return {
+         label,
+         className: 'inline-flex rounded-full bg-brand/10 px-2.5 py-1 text-xs font-semibold text-brand ring-1 ring-brand/20',
+         title: 'Sincronizado desde el SII',
+      };
+   };
+
    const orderArrow = (o) => (o === 'asc' ? '↑' : '↓');
    const intFmt = useMemo(() => new Intl.NumberFormat('es-CL'), []);
    const parsePosInt = (v, def) => { const n = Number(v); return Number.isFinite(n) && n > 0 ? Math.trunc(n) : def; };
@@ -472,7 +503,7 @@ export default function SalesBoletas() {
                   getSiiDocumentTypeLabel(it.doc_type_code),
                   it.counterparty_name || it.counterparty_rut || '',
                   exento, afecto, iva, total,
-                  it.source || 'SII'
+                  formatSourceLabel(it.source)
                ]);
             }
             totalPagesLocal = Number(payload.totalPages ?? 1);
@@ -686,6 +717,7 @@ export default function SalesBoletas() {
                         <select disabled={loading} className={selectCtrl} value={sourceFilter} onChange={(e) => { setSourceFilter(e.target.value); resetToFirstPage(); }}>
                            <option value="">Todos</option>
                            <option value="SII">SII</option>
+                           <option value="BOLETA_WORKER">Emisión Automática</option>
                            <option value="MANUAL">Manual</option>
                         </select>
                      </div>
@@ -866,9 +898,14 @@ export default function SalesBoletas() {
                               </td>
                               <td className="p-4 text-center">
                                  <div className="inline-flex items-center gap-1.5 justify-center">
-                                    <span className="inline-flex rounded-full bg-brand/10 px-2.5 py-1 text-xs font-semibold text-brand ring-1 ring-brand/20">
-                                       {r.source || 'SII'}
-                                    </span>
+                                    {(() => {
+                                       const badge = getSourceBadge(r.source);
+                                       return (
+                                          <span className={badge.className} title={badge.title}>
+                                             {badge.label}
+                                          </span>
+                                       );
+                                    })()}
                                     {r.doc_type_code === 61 && !r.nce_nde_reference && (
                                        <button onClick={() => openLinkModal(r)} className="p-1 rounded-lg text-brand hover:text-white hover:bg-brand transition cursor-pointer" title="Vincular a Factura">
                                           <LinkIcon className="w-3.5 h-3.5" />

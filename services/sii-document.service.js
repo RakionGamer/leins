@@ -239,7 +239,12 @@ class SiiDocumentsService {
       }
 
       if (source) {
-         where.source = String(source).toUpperCase();
+         const s = String(source).toUpperCase();
+         if (s === 'SII') {
+            where.source = { [Op.or]: ['SII', null] };
+         } else {
+            where.source = s;
+         }
       }
 
       const toYMD = (y, m, d) => `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
