@@ -189,7 +189,7 @@ class BoletaQueueService {
             empresa: entityName,
             rut_empresa: entityRut,
             tipo_boleta: request.is_exempt ? 'exenta' : 'afecta',
-            fecha: request.createdAt,
+            fecha: request.createdAt || request.created_at,
          },
       };
    }
@@ -220,7 +220,7 @@ class BoletaQueueService {
             empresa: r.entity?.legal_name || 'EMPRESA',
             rut_empresa: r.entity?.tax_id || '',
             tipo_boleta: r.is_exempt ? 'exenta' : 'afecta',
-            fecha: r.createdAt,
+            fecha: r.createdAt || r.created_at,
             estado: r.status,
          })),
       };
@@ -399,12 +399,25 @@ class BoletaQueueService {
          ],
       });
 
+      const formattedRows = rows.map((r) => {
+         const json = r.toJSON ? r.toJSON() : { ...r };
+         const createdAtVal = json.created_at || json.createdAt;
+         const updatedAtVal = json.updated_at || json.updatedAt;
+         return {
+            ...json,
+            created_at: createdAtVal,
+            createdAt: createdAtVal,
+            updated_at: updatedAtVal,
+            updatedAt: updatedAtVal,
+         };
+      });
+
       return {
          total: count,
          page: parsedPage,
          limit: parsedLimit,
          totalPages: Math.ceil(count / parsedLimit) || 1,
-         rows,
+         rows: formattedRows,
       };
    }
 
@@ -433,6 +446,8 @@ class BoletaQueueService {
                amount: r.amount,
                pdf_path: r.pdf_path,
                error_message: r.error_message,
+               created_at: r.created_at || r.createdAt,
+               createdAt: r.createdAt || r.created_at,
             };
          }
       }

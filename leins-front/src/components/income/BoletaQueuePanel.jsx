@@ -1,5 +1,6 @@
 // leins-front/src/components/income/BoletaQueuePanel.jsx
 import React, { useState, useEffect, useCallback } from 'react';
+import env from '../../env';
 import { listBoletaRequests, cancelBoletaRequest } from '../../services/boletaQueueApi';
 import { toast } from 'components/Toaster';
 import {
@@ -18,6 +19,34 @@ const fmtCLP = (val) =>
       currency: 'CLP',
       maximumFractionDigits: 0,
    }).format(Number(val) || 0);
+
+const getBoletaPdfUrl = (pdfPath) => {
+   if (!pdfPath) return '#';
+   if (pdfPath.startsWith('http://') || pdfPath.startsWith('https://')) return pdfPath;
+   const rawApi = env?.apiUrl || 'https://api.leinsadvisor.cl/api';
+   const baseUrl = rawApi.replace(/\/api\/?$/, '').replace(/\/v1\/?$/, '');
+   const cleanPath = pdfPath.startsWith('/') ? pdfPath : `/${pdfPath}`;
+   return `${baseUrl}${cleanPath}`;
+};
+
+const formatBoletaDate = (val) => {
+   if (!val) return '—';
+   try {
+      const d = typeof val === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(val)
+         ? new Date(`${val}T12:00:00`)
+         : new Date(val);
+      if (Number.isNaN(d.getTime())) return '—';
+      return d.toLocaleString('es-CL', {
+         day: '2-digit',
+         month: '2-digit',
+         year: 'numeric',
+         hour: '2-digit',
+         minute: '2-digit',
+      });
+   } catch {
+      return '—';
+   }
+};
 
 export default function BoletaQueuePanel({ entityId }) {
    const [requests, setRequests] = useState([]);
@@ -198,12 +227,29 @@ export default function BoletaQueuePanel({ entityId }) {
                            const isCompleted = r.status === 'completed';
                            const isFailed = r.status === 'failed';
                            const isMaybe = r.status === 'posiblemente_emitida';
+                           const rawDate = r.created_at || r.createdAt || r.bankTransaction?.issued_at || r.completed_at;
+                           const pdfUrl = getBoletaPdfUrl(r.pdf_path || r.pdf_url);
 
                            return (
                               <tr key={r.id} className="hover:bg-[var(--surface-1)] transition">
                                  <td className="p-3 font-mono font-medium">#{r.id}</td>
                                  <td className="p-3 whitespace-nowrap text-[var(--text-soft)]">
-                                    {r.created_at ? new Date(r.created_at).toLocaleString('es-CL') : '—'}
+                                    <div className="flex flex-col">
+                                       <span
+                                          className="font-medium text-[var(--text-main)]"
+                                          title={r.completed_at ? `Emitida en SII: ${formatBoletaDate(r.completed_at)}` : undefined}
+                                       >
+                                          {formatBoletaDate(rawDate)}
+                                       </span>
+                                       {r.bankTransaction?.issued_at && (
+                                          <span
+                                             className="text-[10px] text-[var(--text-soft)]"
+                                             title={`Fecha del movimiento bancario: ${r.bankTransaction.issued_at}`}
+                                          >
+                                             Mov: {String(r.bankTransaction.issued_at).slice(0, 10)}
+                                          </span>
+                                       )}
+                                    </div>
                                  </td>
                                  <td className="p-3">
                                     <span
@@ -272,11 +318,11 @@ export default function BoletaQueuePanel({ entityId }) {
                                  </td>
                                  <td className="p-3 text-right whitespace-nowrap">
                                     <div className="flex items-center justify-end gap-1.5">
-                                       {r.pdf_path && (
+                                       {(r.pdf_path || r.pdf_url) && (
                                           <a
-                                             href={r.pdf_path}
+                                             href={pdfUrl}
                                              target="_blank"
-                                             rel="noreferrer"
+                                             rel="noopener noreferrer"
                                              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--surface-2)] text-[var(--brand)] transition shadow-xs"
                                           >
                                              <ArrowDownTrayIcon className="w-3 h-3" />

@@ -87,13 +87,13 @@ const EntityBoletaRequestSchema = {
       allowNull: true,
       type: DataTypes.DATE,
    },
-   createdAt: {
+   created_at: {
       allowNull: false,
       type: DataTypes.DATE,
       field: 'created_at',
       defaultValue: Sequelize.NOW,
    },
-   updatedAt: {
+   updated_at: {
       allowNull: true,
       type: DataTypes.DATE,
       field: 'updated_at',
@@ -118,6 +118,8 @@ class EntityBoletaRequest extends Model {
          modelName: 'EntityBoletaRequest',
          timestamps: true,
          underscored: true,
+         createdAt: 'created_at',
+         updatedAt: 'updated_at',
       };
    }
 }

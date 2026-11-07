@@ -199,7 +199,20 @@ export default function SalesBoletas() {
    const [err, setErr] = useState(null);
 
    const dateFmt = useMemo(() => new Intl.DateTimeFormat('es-CL'), []);
-   const fmtDate = (s) => (s ? dateFmt.format(new Date(s)) : '');
+   const fmtDate = (s) => {
+      if (!s) return '—';
+      try {
+         const cleanStr = String(s).slice(0, 10);
+         if (/^\d{4}-\d{2}-\d{2}$/.test(cleanStr)) {
+            const [y, m, d] = cleanStr.split('-');
+            return `${d}/${m}/${y}`;
+         }
+         const parsed = new Date(s);
+         return Number.isNaN(parsed.getTime()) ? '—' : dateFmt.format(parsed);
+      } catch {
+         return '—';
+      }
+   };
 
    const orderArrow = (o) => (o === 'asc' ? '↑' : '↓');
    const intFmt = useMemo(() => new Intl.NumberFormat('es-CL'), []);
@@ -375,7 +388,7 @@ export default function SalesBoletas() {
                return {
                   id: it.id,
                   entity_id: it.entity_id,
-                  date: it.issue_date,
+                  date: it.issue_date || it.date || it.created_at || it.createdAt,
                   folio: it.folio,
                   doc_type: getSiiDocumentTypeLabel(it.doc_type_code),
                   doc_type_code: it.doc_type_code,
