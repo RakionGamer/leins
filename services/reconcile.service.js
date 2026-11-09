@@ -567,10 +567,6 @@ class ReconcileService {
          includeTotal: false,
          withHasMore: true,
          countOnly: true,
-         // ambos lados (bt y docs) quedan acotados a este mismo pool: el costo del
-         // cruce escala con el cuadrado de este numero, asi que lo dejamos chico
-         // a proposito (el badge solo necesita saber si hay "mas de N", no el detalle)
-         maxCandidates: Math.max(150, parsedCap * 3),
       });
 
       const probeTotal = Math.max(
@@ -606,7 +602,7 @@ class ReconcileService {
 
       if (!entityId) throw boom.badRequest("entityId is required");
       const parsedDaysWindow = Math.max(1, Number(daysWindow) || 45);
-      const resolvedMaxCandidates = countOnly ? Math.max(1, Number(maxCandidates) || 500) : null;
+      const resolvedMaxCandidates = (countOnly && maxCandidates) ? Math.max(1, Number(maxCandidates)) : null;
 
       // mapeo ventas/compras
       // para egresos (expense) solo compras recibidas: 33/34 y flag de recibido

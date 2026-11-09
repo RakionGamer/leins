@@ -663,6 +663,7 @@ export default function BankCartolasPage() {
          dateTo: applied.fechaFin,
          type: reconcileSuggestionType,
          accountId: reconcileSuggestionAccountId,
+         daysWindow: 45,
          cap: SUGGESTIONS_BADGE_CAP
       }],
       queryFn: ({ signal }) => fetchSuggestionsCount({
@@ -671,6 +672,7 @@ export default function BankCartolasPage() {
          type: reconcileSuggestionType || undefined,
          dateFrom: toYmd(applied.fechaIni) || undefined,
          dateTo: toYmd(applied.fechaFin) || undefined,
+         daysWindow: 45,
          cap: SUGGESTIONS_BADGE_CAP,
          signal // permite cancelar la peticion si el usuario cambia de filtros rapido
       }),

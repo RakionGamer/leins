@@ -260,6 +260,14 @@ export default function ReconcileSuggestionsPanel({
       Array.from(bulk.values()).reduce((sum, item) => sum + (Array.isArray(item?.pairs) ? item.pairs.length : 0), 0)
    ), [bulk]);
 
+   const bulkButtonLabel = useMemo(() => {
+      if (bulk.size === 0) return 'Conciliar sugeridas';
+      if (bulk.size === bulkPairsCount) {
+         return `Conciliar sugeridas (${bulk.size})`;
+      }
+      return `Conciliar sugeridas (${bulk.size} movs · ${bulkPairsCount} docs)`;
+   }, [bulk.size, bulkPairsCount]);
+
    useEffect(() => {
       const next = new Map();
       rows.forEach((r) => {
@@ -393,8 +401,9 @@ export default function ReconcileSuggestionsPanel({
                      className="btn btn-primary px-4 py-2 text-sm font-semibold disabled:opacity-50"
                      disabled={isBusy || bulk.size === 0}
                      onClick={doBulk}
+                     title={bulk.size > 0 ? `${bulk.size} movimiento(s) seleccionado(s) con ${bulkPairsCount} documento(s)` : undefined}
                   >
-                     Conciliar sugeridas ({bulkPairsCount})
+                     {bulkButtonLabel}
                   </button>
                </div>
             </div>
