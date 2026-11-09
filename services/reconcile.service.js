@@ -345,7 +345,7 @@ class ReconcileService {
       };
    }
 
-   #buildCandidateGroups({ tx, docs, amountTolerance, daysWindow, maxGroups = 3 }) {
+   #buildCandidateGroups({ tx, docs, amountTolerance, daysWindow, maxGroups = 3, stopOnFirst = false }) {
       const targetCents = this.#amountCents(tx.bank_remaining ?? tx.remaining_amount ?? tx.amount);
       const toleranceCents = Math.max(0, this.#amountCents(amountTolerance));
       if (targetCents <= 0 || !Array.isArray(docs) || docs.length < 2) return [];
@@ -389,16 +389,25 @@ class ReconcileService {
          if (nameKey) groupedByName.set(nameKey, [...(groupedByName.get(nameKey) || []), doc]);
       }
 
-      for (const docsOfDate of groupedByDate.values()) pushGroup("same_day_total", docsOfDate);
-      for (const docsOfRut of groupedByRut.values()) pushGroup("same_counterparty_window", docsOfRut);
-      for (const docsOfName of groupedByName.values()) pushGroup("same_name_window", docsOfName);
+      for (const docsOfDate of groupedByDate.values()) {
+         pushGroup("same_day_total", docsOfDate);
+         if (stopOnFirst && groups.length >= 1) return groups.slice(0, 1);
+      }
+      for (const docsOfRut of groupedByRut.values()) {
+         pushGroup("same_counterparty_window", docsOfRut);
+         if (stopOnFirst && groups.length >= 1) return groups.slice(0, 1);
+      }
+      for (const docsOfName of groupedByName.values()) {
+         pushGroup("same_name_window", docsOfName);
+         if (stopOnFirst && groups.length >= 1) return groups.slice(0, 1);
+      }
 
       const dfsDocs = usable.slice(0, 28).sort((a, b) => b._amountCents - a._amountCents);
       const suffix = new Array(dfsDocs.length + 1).fill(0);
       for (let i = dfsDocs.length - 1; i >= 0; i--) suffix[i] = suffix[i + 1] + dfsDocs[i]._amountCents;
 
       const dfs = (start, sum, selected) => {
-         if (groups.length >= maxGroups * 4) return;
+         if (groups.length >= maxGroups * 4 || (stopOnFirst && groups.length >= 1)) return;
          if (selected.length >= 2 && Math.abs(sum - targetCents) <= toleranceCents) {
             pushGroup("subset_sum", selected);
             return;
@@ -409,7 +418,7 @@ class ReconcileService {
          for (let i = start; i < dfsDocs.length; i++) {
             const next = dfsDocs[i];
             dfs(i + 1, sum + next._amountCents, [...selected, next]);
-            if (groups.length >= maxGroups * 4) return;
+            if (groups.length >= maxGroups * 4 || (stopOnFirst && groups.length >= 1)) return;
          }
       };
       dfs(0, 0, []);
@@ -423,7 +432,7 @@ class ReconcileService {
          .slice(0, maxGroups);
    }
 
-   // nuevo metodo exclusivo y ultra rapido para contar sugerencias
+   // conteo exacto de sugerencias verificadas (alineado con el motor del panel)
    async countSuggestions({
       entityId,
       accountId = null,
@@ -436,100 +445,23 @@ class ReconcileService {
    }) {
       if (!entityId) throw boom.badRequest("entityId is required");
 
-      const whereDocsByType = this.#whereDocsByType(type, "d");
-      const docMatchesBankType = this.#docMatchesBankType("d", "bt");
-      const doc2MatchesBankType = this.#docMatchesBankType("d2", "bt");
-      const docReconcileAmount = this.#documentReconcileAmountSql("d");
-      const docCreditNotesSum = this.#creditNotesSumSql("d");
-      const resolvedDateFrom = this.#resolveDefaultDateFrom(dateFrom);
-      const parsedDaysWindow = Number(daysWindow) || 45;
-
-      const params = {
+      const out = await this.suggestions({
          entityId,
          accountId,
-         dateFrom: resolvedDateFrom,
+         dateFrom,
          dateTo,
          amountTolerance: Number(amountTolerance),
-         daysWindow: parsedDaysWindow,
-         search: search ? `%${search}%` : null,
-      };
-      if (type) params.typeParam = type;
-
-      // usamos exists para cortar la busqueda al primer match
-      // esto evita el producto cartesiano que causaba la demora de 2 minutos
-      // ademas acotamos bt y docs por fecha (dateFrom siempre viene resuelto, con
-      // default de N meses) para no cruzar todo el historial sin conciliar cuando
-      // el usuario no filtra por fecha
-      const sqlCount = `
-         WITH bt AS (
-            SELECT
-            t.id,
-            t.type,
-            t.amount,
-            t.issued_at,
-            t.description,
-            (t.amount - IFNULL(SUM(btd.amount_applied),0)) AS remaining_amount
-            FROM entity_bank_transactions t
-            LEFT JOIN bank_transaction_documents btd
-            ON btd.entity_bank_transaction_id = t.id
-            WHERE t.entity_id = :entityId
-            ${accountId ? "AND t.entity_bank_account_id = :accountId" : ""}
-            ${type ? "AND t.type = :typeParam" : ""}
-            AND t.issued_at >= :dateFrom
-            ${dateTo ? "AND t.issued_at <  DATE_ADD(:dateTo, INTERVAL 1 DAY)" : ""}
-            GROUP BY t.id
-            HAVING remaining_amount > 0
-         ),
-         docs AS (
-            SELECT
-            d.id,
-            d.total_amount,
-            d.issue_date,
-            d.folio,
-            d.counterparty_rut,
-            d.operation_type,
-            d.received_date,
-            d.purchase_type,
-            (${docReconcileAmount} - IFNULL(SUM(btd.amount_applied),0) - ${docCreditNotesSum}) AS remaining_amount
-            FROM entity_sii_documents d
-            LEFT JOIN bank_transaction_documents btd
-            ON btd.entity_sii_document_id = d.id
-            WHERE d.entity_id = :entityId
-            ${whereDocsByType}
-            AND d.issue_date >= DATE_SUB(:dateFrom, INTERVAL ${parsedDaysWindow} DAY)
-            ${dateTo ? `AND d.issue_date <= DATE_ADD(:dateTo, INTERVAL ${parsedDaysWindow} DAY)` : ""}
-            GROUP BY d.id
-            HAVING remaining_amount > 0
-         )
-         SELECT /*+ MAX_EXECUTION_TIME(${ReconcileService.SUGGESTIONS_MAX_EXECUTION_TIME_MS}) */ COUNT(*) AS total
-         FROM bt
-         WHERE EXISTS (
-            SELECT 1 FROM docs d
-            WHERE ${docMatchesBankType}
-              AND (
-              ABS(bt.remaining_amount - d.remaining_amount) <= :amountTolerance
-              OR (
-                 SELECT COALESCE(SUM(d2.remaining_amount),0)
-                 FROM docs d2
-                 WHERE ${doc2MatchesBankType}
-                   AND (d2.counterparty_rut = d.counterparty_rut OR (d.counterparty_rut IS NULL AND d2.issue_date = d.issue_date))
-                   AND d2.remaining_amount <= bt.remaining_amount + :amountTolerance
-                   AND d2.issue_date BETWEEN DATE(DATE_SUB(bt.issued_at, INTERVAL ${Number(daysWindow)} DAY))
-                                         AND DATE(DATE_ADD(bt.issued_at, INTERVAL ${Number(daysWindow)} DAY))
-              ) >= bt.remaining_amount - :amountTolerance
-            )
-              AND d.issue_date BETWEEN DATE(DATE_SUB(bt.issued_at, INTERVAL ${Number(daysWindow)} DAY))
-                                   AND DATE(DATE_ADD(bt.issued_at, INTERVAL ${Number(daysWindow)} DAY))
-              ${search ? `AND (bt.description LIKE :search OR CAST(d.folio AS CHAR) LIKE :search OR d.counterparty_rut LIKE :search)` : ""}
-         )
-      `;
-
-      const [{ total }] = await this.#runQuery(sqlCount, {
-         replacements: params,
-         type: QueryTypes.SELECT,
+         daysWindow: Number(daysWindow),
+         search,
+         type,
+         limit: 2000,
+         offset: 0,
+         includeTotal: false,
+         withHasMore: false,
+         countOnly: true,
       });
 
-      return Number(total || 0);
+      return Number(out?.total || 0);
    }
 
    // conteo capado para badges: evita contar miles de filas cuando solo necesitamos "50+"
@@ -548,11 +480,8 @@ class ReconcileService {
 
       const parsedCap = Math.min(Math.max(Number(cap) || 50, 1), 500);
 
-      // Reutilizamos el mismo motor rapido del panel para evitar que el badge
-      // dependa de un SQL paralelo que pueda desalinearse con las sugerencias reales.
-      // countOnly evita traer el detalle de candidatos (no lo necesitamos para el badge)
-      // y acota cuantos movimientos pendientes se examinan, para que el conteo nunca
-      // dependa del volumen total de pendientes de la entidad.
+      // Reutilizamos el mismo motor del panel (incluyendo validacion real de candidatos
+      // y grupos) para que el badge nunca cuente falsos positivos del pre-filtro SQL.
       const out = await this.suggestions({
          entityId,
          accountId,
@@ -562,7 +491,7 @@ class ReconcileService {
          daysWindow: Number(daysWindow),
          search,
          type,
-         limit: parsedCap + 1,
+         limit: parsedCap,
          offset: 0,
          includeTotal: false,
          withHasMore: true,
@@ -593,9 +522,8 @@ class ReconcileService {
       search = null,
       includeTotal = true,
       withHasMore = false,
-      // countOnly: para el badge/conteo capado, donde no necesitamos el detalle
-      // de candidatos (pasos 2 y 2b) ni escanear todo el pendiente de la entidad:
-      // basta con saber si hay al menos N+1 movimientos con match
+      // countOnly: para el badge/conteo capado, verifica coincidencia real (1-a-1 o primer grupo)
+      // sin calcular scores/historial completo de cada documento
       countOnly = false,
       maxCandidates = null,
    }) {
@@ -620,35 +548,24 @@ class ReconcileService {
          )`
          : "";
 
-      const parsedLimit = Math.min(Math.max(Number(limit) || 50, 1), 200);
+      const maxLimit = countOnly ? 2000 : 200;
+      const parsedLimit = Math.min(Math.max(Number(limit) || 50, 1), maxLimit);
       const parsedOffset = Math.max(Number(offset) || 0, 0);
-      const queryLimit = withHasMore ? parsedLimit + 1 : parsedLimit;
+      const neededVerifiedCount = parsedOffset + parsedLimit + (withHasMore ? 1 : 0);
       const resolvedDateFrom = this.#resolveDefaultDateFrom(dateFrom);
 
-      const params = {
+      const baseParams = {
          entityId,
          accountId,
          dateFrom: resolvedDateFrom,
          dateTo,
          amountTolerance: Number(amountTolerance),
          daysWindow: parsedDaysWindow,
-         limit: queryLimit,
-         offset: parsedOffset,
          search: search ? `%${search}%` : null,
       };
-      if (type) params.typeParam = type;
-      if (resolvedMaxCandidates) params.maxCandidates = resolvedMaxCandidates;
+      if (type) baseParams.typeParam = type;
+      if (resolvedMaxCandidates) baseParams.maxCandidates = resolvedMaxCandidates;
 
-      // 1) paginacion por movimiento (no por candidato)
-      // dateFrom siempre viene resuelto (default de N meses si el usuario no filtra)
-      // para no cruzar todo el historial sin conciliar de la entidad
-      // en modo countOnly acotamos ademas cuantos movimientos pendientes se examinan
-      // (los mas recientes primero), para que el badge nunca dependa del volumen total
-      //
-      // Paginamos exclusivamente movimientos bancarios que cuenten con sugerencias potenciales
-      // (WHERE EXISTS en docs). Paginarlos sin ese filtro provocaba que si una pagina (ej. limit=20)
-      // solo contenia movimientos sin calce, el frontend los descartara mostrando "0 resultados"
-      // a pesar de haber sugerencias en la cartola.
       const btCte = `
          WITH bt AS (
             SELECT
@@ -674,6 +591,8 @@ class ReconcileService {
          )
       `;
 
+      // Pre-filtro SQL grueso: evita traer movimientos sin ningun documento posible,
+      // y exige >= 2 documentos en la rama de grupos para reducir falsos positivos.
       const sqlPageMovements = `
          ${btCte},
          docs AS (
@@ -684,6 +603,7 @@ class ReconcileService {
             d.folio,
             d.issue_date,
             d.counterparty_rut,
+            d.counterparty_name,
             d.operation_type,
             d.received_date,
             d.purchase_type,
@@ -694,10 +614,6 @@ class ReconcileService {
             ON btd.entity_sii_document_id = d.id
             WHERE d.entity_id = :entityId
             ${whereDocsByType}
-            -- acotado al rango real de bt (ya limitado a maxCandidates si viene), no a los
-            -- documentos mas recientes: si las cartolas se suben con menos frecuencia
-            -- que la sincronizacion SII, "los mas recientes de cada lado" pueden caer
-            -- en fechas distintas y el cruce nunca se encuentra
             AND d.issue_date >= DATE_SUB((SELECT MIN(bt2.issued_at) FROM bt bt2), INTERVAL ${parsedDaysWindow} DAY)
             AND d.issue_date <= DATE_ADD((SELECT MAX(bt2.issued_at) FROM bt bt2), INTERVAL ${parsedDaysWindow} DAY)
             GROUP BY d.id
@@ -719,389 +635,637 @@ class ReconcileService {
             AND (
                ABS(bt.remaining_amount - d.remaining_amount) <= :amountTolerance
                OR (
-                  SELECT COALESCE(SUM(d2.remaining_amount),0)
-                  FROM docs d2
-                  WHERE ${doc2MatchesBankType}
-                    AND (d2.counterparty_rut = d.counterparty_rut OR (d.counterparty_rut IS NULL AND d2.issue_date = d.issue_date))
-                    AND d2.remaining_amount <= bt.remaining_amount + :amountTolerance
-                    AND d2.issue_date BETWEEN DATE(DATE_SUB(bt.issued_at, INTERVAL ${parsedDaysWindow} DAY))
-                                          AND DATE(DATE_ADD(bt.issued_at, INTERVAL ${parsedDaysWindow} DAY))
-               ) >= bt.remaining_amount - :amountTolerance
+                  d.remaining_amount <= bt.remaining_amount + :amountTolerance
+                  AND (
+                     SELECT CASE
+                        WHEN COUNT(*) >= 2 THEN COALESCE(SUM(d2.remaining_amount), 0)
+                        ELSE NULL
+                     END
+                     FROM docs d2
+                     WHERE ${doc2MatchesBankType}
+                       AND (
+                          (d.counterparty_rut IS NOT NULL AND d2.counterparty_rut = d.counterparty_rut)
+                          OR (
+                             d.counterparty_rut IS NULL
+                             AND d2.issue_date = d.issue_date
+                             AND (bt.type = 'income' OR (d.counterparty_name IS NOT NULL AND d2.counterparty_name = d.counterparty_name))
+                          )
+                       )
+                       AND d2.remaining_amount <= bt.remaining_amount + :amountTolerance
+                       AND d2.issue_date BETWEEN DATE(DATE_SUB(bt.issued_at, INTERVAL ${parsedDaysWindow} DAY))
+                                             AND DATE(DATE_ADD(bt.issued_at, INTERVAL ${parsedDaysWindow} DAY))
+                  ) >= bt.remaining_amount - :amountTolerance
+               )
             )
             AND d.issue_date BETWEEN DATE(DATE_SUB(bt.issued_at, INTERVAL ${parsedDaysWindow} DAY))
                                  AND DATE(DATE_ADD(bt.issued_at, INTERVAL ${parsedDaysWindow} DAY))
             ${whereSearch}
          )
          ORDER BY bt.issued_at DESC, bt.id DESC
-         LIMIT :limit OFFSET :offset
+         LIMIT :coarseLimit OFFSET :coarseOffset
       `;
 
-      const pagedMovementRowsRaw = await this.#runQuery(sqlPageMovements, {
-         replacements: params,
-         type: QueryTypes.SELECT,
+      const getChunkDateRange = (chunkRows) => {
+         const times = chunkRows
+            .map((mv) => new Date(mv.issued_at).getTime())
+            .filter((ts) => Number.isFinite(ts));
+         if (!times.length) {
+            return {
+               chunkDateFrom: baseParams.dateFrom,
+               chunkDateTo: baseParams.dateTo || null,
+            };
+         }
+         const minDate = new Date(Math.min(...times));
+         const maxDate = new Date(Math.max(...times));
+         minDate.setUTCDate(minDate.getUTCDate() - 1);
+         maxDate.setUTCDate(maxDate.getUTCDate() + 1);
+         return {
+            chunkDateFrom: minDate.toISOString().slice(0, 10),
+            chunkDateTo: maxDate.toISOString().slice(0, 10),
+         };
+      };
+
+      const toBankTx = (mv) => ({
+         id: mv.bank_tx_id,
+         entity_bank_account_id: mv.entity_bank_account_id,
+         type: mv.type,
+         amount: Number(mv.amount),
+         issued_at: mv.issued_at,
+         description: mv.description,
+         remaining_amount: Number(mv.bank_remaining),
       });
 
-      if (!Array.isArray(pagedMovementRowsRaw)) {
-         throw boom.badImplementation("unexpected query result: expected an array of rows");
-      }
+      const verifyChunkLight = async (chunkRows, maxToCollect) => {
+         const txIdsCsv = chunkRows
+            .map((r) => Number(r.bank_tx_id))
+            .filter((id) => Number.isInteger(id) && id > 0)
+            .join(",");
+         if (!txIdsCsv) return [];
 
-      const hasMore = withHasMore && pagedMovementRowsRaw.length > parsedLimit;
-      const pagedMovementRows = hasMore ? pagedMovementRowsRaw.slice(0, parsedLimit) : pagedMovementRowsRaw;
+         const { chunkDateFrom, chunkDateTo } = getChunkDateRange(chunkRows);
+         const chunkParams = { ...baseParams, chunkDateFrom, chunkDateTo };
 
-      // acotamos el rango de documentos a revisar (pasos 2 y 2b) a las fechas reales
-      // de ESTA pagina +/- la ventana de dias, en vez de todo el rango dateFrom/dateTo
-      // (que puede ser 12 meses): normalmente una pagina de movimientos cae en pocos
-      // dias, asi que esto reduce muchisimo el trabajo sin perder ningun match posible
-      if (pagedMovementRows.length > 0) {
-         const pageDates = pagedMovementRows.map((mv) => new Date(mv.issued_at).getTime());
-         const pageMinDate = new Date(Math.min(...pageDates));
-         const pageMaxDate = new Date(Math.max(...pageDates));
-         params.pageDateFrom = pageMinDate.toISOString().slice(0, 10);
-         params.pageDateTo = pageMaxDate.toISOString().slice(0, 10);
-      } else {
-         params.pageDateFrom = params.dateFrom;
-         params.pageDateTo = params.dateTo || null;
-      }
+         const sqlSinglesLight = `
+            WITH bt AS (
+               SELECT
+               t.id,
+               t.entity_id,
+               t.type,
+               t.amount,
+               t.issued_at,
+               t.description,
+               (t.amount - IFNULL(SUM(btd.amount_applied),0)) AS remaining_amount
+               FROM entity_bank_transactions t
+               LEFT JOIN bank_transaction_documents btd
+               ON btd.entity_bank_transaction_id = t.id
+               WHERE t.entity_id = :entityId
+               AND t.id IN (${txIdsCsv})
+               ${accountId ? "AND t.entity_bank_account_id = :accountId" : ""}
+               ${type ? "AND t.type = :typeParam" : ""}
+               AND t.issued_at >= :dateFrom
+               ${dateTo ? "AND t.issued_at <  DATE_ADD(:dateTo, INTERVAL 1 DAY)" : ""}
+               GROUP BY t.id
+               HAVING remaining_amount > 0
+            ),
+            docs AS (
+               SELECT
+               d.id,
+               d.doc_type_code,
+               d.folio,
+               d.issue_date,
+               d.counterparty_rut,
+               d.operation_type,
+               d.received_date,
+               d.purchase_type,
+               (${docReconcileAmount} - IFNULL(SUM(btd.amount_applied),0) - ${docCreditNotesSum}) AS remaining_amount
+               FROM entity_sii_documents d
+               LEFT JOIN bank_transaction_documents btd
+               ON btd.entity_sii_document_id = d.id
+               WHERE d.entity_id = :entityId
+               ${whereDocsByType}
+               AND d.issue_date >= DATE_SUB(:chunkDateFrom, INTERVAL ${parsedDaysWindow} DAY)
+               AND d.issue_date <= DATE_ADD(:chunkDateTo, INTERVAL ${parsedDaysWindow} DAY)
+               GROUP BY d.id
+               HAVING remaining_amount > 0
+            )
+            SELECT /*+ MAX_EXECUTION_TIME(${ReconcileService.SUGGESTIONS_MAX_EXECUTION_TIME_MS}) */
+               DISTINCT bt.id AS bank_tx_id
+            FROM bt
+            JOIN docs d
+               ON ${docMatchesBankType}
+            AND ABS(bt.remaining_amount - d.remaining_amount) <= :amountTolerance
+            AND d.issue_date BETWEEN DATE(DATE_SUB(bt.issued_at, INTERVAL ${parsedDaysWindow} DAY))
+                                 AND DATE(DATE_ADD(bt.issued_at, INTERVAL ${parsedDaysWindow} DAY))
+            WHERE bt.id IN (${txIdsCsv})
+            ${whereSearch}
+         `;
 
-      // prearmamos salida por movimiento para mantener orden de pagina
-      const byTx = new Map();
-      for (const mv of pagedMovementRows) {
-         byTx.set(mv.bank_tx_id, {
-            bank_tx: {
-               id: mv.bank_tx_id,
-               entity_bank_account_id: mv.entity_bank_account_id,
-               type: mv.type,
-               amount: Number(mv.amount),
-               issued_at: mv.issued_at,
-               description: mv.description,
-               remaining_amount: Number(mv.bank_remaining),
-            },
-            candidates: [],
+         const singleRows = await this.#runQuery(sqlSinglesLight, {
+            replacements: chunkParams,
+            type: QueryTypes.SELECT,
          });
-      }
-
-      // 2) para esos movimientos de la pagina, traemos candidatos y dejamos top 3 por score
-      // (se salta en countOnly: el badge no necesita el detalle, solo el conteo/hasMore)
-      if (!countOnly && pagedMovementRows.length > 0) {
-         const txIdsCsv = pagedMovementRows
-            .map((r) => Number(r.bank_tx_id))
-            .filter((id) => Number.isInteger(id) && id > 0)
-            .join(",");
-
-         if (txIdsCsv) {
-            const sqlCandidates = `
-               WITH bt AS (
-                  SELECT
-                  t.id,
-                  t.entity_id,
-                  t.entity_bank_account_id,
-                  t.type,
-                  t.amount,
-                  t.issued_at,
-                  t.description,
-                  (t.amount - IFNULL(SUM(btd.amount_applied),0)) AS remaining_amount
-                  FROM entity_bank_transactions t
-                  LEFT JOIN bank_transaction_documents btd
-                  ON btd.entity_bank_transaction_id = t.id
-                  WHERE t.entity_id = :entityId
-                  ${accountId ? "AND t.entity_bank_account_id = :accountId" : ""}
-                  ${type ? "AND t.type = :typeParam" : ""}
-                  AND t.issued_at >= :dateFrom
-                  ${dateTo ? "AND t.issued_at <  DATE_ADD(:dateTo, INTERVAL 1 DAY)" : ""}
-                  GROUP BY t.id
-                  HAVING remaining_amount > 0
-               ),
-               docs AS (
-                  SELECT
-                  d.id,
-                  d.entity_id,
-                  d.doc_type_code,
-                  d.folio,
-                  d.issue_date,
-                  d.counterparty_rut,
-                  d.counterparty_name,
-                  d.operation_type,
-                  d.received_date,
-                  d.purchase_type,
-                  d.total_amount,
-                  (
-                     -- se calcula por documento (el CTE ya viene acotado a la fecha
-                     -- de esta pagina, ~pocas decenas de filas) en vez de por cada
-                     -- combinacion (movimiento, documento) resultante del join, que
-                     -- puede ser mucho mayor
-                     SELECT COUNT(*)
-                     FROM bank_transaction_documents hbtd
-                     JOIN entity_bank_transactions hbt
-                        ON hbt.id = hbtd.entity_bank_transaction_id
-                       AND hbt.entity_id = :entityId
-                     JOIN entity_sii_documents hd
-                        ON hd.id = hbtd.entity_sii_document_id
-                       AND hd.entity_id = :entityId
-                     WHERE d.counterparty_rut IS NOT NULL
-                       AND hd.counterparty_rut = d.counterparty_rut
-                       AND hd.id <> d.id
-                  ) AS historical_count,
-                  (${docReconcileAmount} - IFNULL(SUM(btd.amount_applied),0) - ${docCreditNotesSum}) AS remaining_amount
-                  FROM entity_sii_documents d
-                  LEFT JOIN bank_transaction_documents btd
-                  ON btd.entity_sii_document_id = d.id
-                  WHERE d.entity_id = :entityId
-                  ${whereDocsByType}
-                  AND d.issue_date >= DATE_SUB(:pageDateFrom, INTERVAL ${parsedDaysWindow} DAY)
-                  AND d.issue_date <= DATE_ADD(:pageDateTo, INTERVAL ${parsedDaysWindow} DAY)
-                  GROUP BY d.id
-                  HAVING remaining_amount > 0
-               )
-               SELECT /*+ MAX_EXECUTION_TIME(${ReconcileService.SUGGESTIONS_MAX_EXECUTION_TIME_MS}) */
-                  bt.id                       AS bank_tx_id,
-                  bt.entity_bank_account_id,
-                  bt.type,
-                  bt.amount,
-                  bt.issued_at,
-                  bt.description,
-                  bt.remaining_amount         AS bank_remaining,
-                  d.id                        AS doc_id,
-                  d.doc_type_code,
-                  d.folio,
-                  d.issue_date,
-                  d.counterparty_rut,
-                  d.counterparty_name,
-                  d.total_amount,
-                  d.historical_count,
-                  d.remaining_amount          AS doc_remaining
-               FROM bt
-               JOIN docs d
-                  ON ${docMatchesBankType}
-               AND ABS(bt.remaining_amount - d.remaining_amount) <= :amountTolerance
-               AND d.issue_date BETWEEN DATE(DATE_SUB(bt.issued_at, INTERVAL ${parsedDaysWindow} DAY))
-                                    AND DATE(DATE_ADD(bt.issued_at, INTERVAL ${parsedDaysWindow} DAY))
-               WHERE bt.id IN (${txIdsCsv})
-               ${whereSearch}
-               ORDER BY bt.issued_at DESC, bt.id DESC
-            `;
-
-            const candidateRows = await this.#runQuery(sqlCandidates, {
-               replacements: params,
-               type: QueryTypes.SELECT,
-            });
-
-            if (!Array.isArray(candidateRows)) {
-               throw boom.badImplementation("unexpected query result: expected an array of rows");
-            }
-
-            for (const r of candidateRows) {
-               const txBucket = byTx.get(r.bank_tx_id);
-               if (!txBucket) continue;
-
-               const daysDiff = Math.abs(
-                  Math.floor((new Date(r.issue_date).getTime() - new Date(r.issued_at).setHours(0, 0, 0, 0)) / 86400000)
-               );
-
-               // diferencia y formatos
-               const diffRaw = Number(r.doc_remaining) - Number(r.bank_remaining);
-               const diffAbs = Math.abs(diffRaw);
-               const diffFmt = Number.isInteger(diffAbs) ? String(diffAbs) : diffAbs.toFixed(2);
-
-               // razones legibles
-               const reasonAmount = diffAbs === 0 ? "monto=exacto" : `monto~+/-${diffFmt}`;
-               const docForScore = {
-                  id: r.doc_id,
-                  doc_type_code: r.doc_type_code,
-                  folio: r.folio,
-                  issue_date: r.issue_date,
-                  counterparty_rut: r.counterparty_rut,
-                  counterparty_name: r.counterparty_name,
-                  total_amount: Number(r.total_amount),
-                  remaining_amount: Number(r.doc_remaining),
-                  historical_count: Number(r.historical_count || 0),
-               };
-               const scoreMeta = this.#scoreDocumentForTx(docForScore, txBucket.bank_tx, {
-                  amountTolerance,
-                  daysWindow: params.daysWindow,
-               });
-
-               // push del candidato
-               txBucket.candidates.push({
-                  id: r.doc_id,
-                  doc_type_code: r.doc_type_code,
-                  folio: r.folio,
-                  issue_date: r.issue_date,
-                  total_amount: Number(r.total_amount),
-                  counterparty_rut: r.counterparty_rut,
-                  counterparty_name: r.counterparty_name,
-                  remaining_amount: Number(r.doc_remaining),
-                  score: scoreMeta.score,
-                  confidence: scoreMeta.confidence,
-                  reasons: [
-                     reasonAmount,
-                     `fecha+/-${params.daysWindow}d`,
-                     scoreMeta.hasRut ? "rut-emisor-en-glosa" : undefined,
-                     scoreMeta.hasName ? "nombre-en-glosa" : undefined,
-                     scoreMeta.hasFolio ? "folio-en-glosa" : undefined,
-                     scoreMeta.hasHistory ? "historial-contraparte" : undefined,
-                  ].filter(Boolean),
-                  signals: scoreMeta.signals,
-                  daysDiff
-               });
-            }
-         }
-      }
-
-      // 2b) sugerencias de grupos: varios documentos contra el mismo movimiento.
-      if (!countOnly && pagedMovementRows.length > 0) {
-         const txIdsCsv = pagedMovementRows
-            .map((r) => Number(r.bank_tx_id))
-            .filter((id) => Number.isInteger(id) && id > 0)
-            .join(",");
-
-         if (txIdsCsv) {
-            const sqlGroupCandidates = `
-               WITH bt AS (
-                  SELECT
-                  t.id,
-                  t.entity_id,
-                  t.entity_bank_account_id,
-                  t.type,
-                  t.amount,
-                  t.issued_at,
-                  t.description,
-                  (t.amount - IFNULL(SUM(btd.amount_applied),0)) AS remaining_amount
-                  FROM entity_bank_transactions t
-                  LEFT JOIN bank_transaction_documents btd
-                  ON btd.entity_bank_transaction_id = t.id
-                  WHERE t.entity_id = :entityId
-                  ${accountId ? "AND t.entity_bank_account_id = :accountId" : ""}
-                  ${type ? "AND t.type = :typeParam" : ""}
-                  AND t.issued_at >= :dateFrom
-                  ${dateTo ? "AND t.issued_at <  DATE_ADD(:dateTo, INTERVAL 1 DAY)" : ""}
-                  GROUP BY t.id
-                  HAVING remaining_amount > 0
-               ),
-               docs AS (
-                  SELECT
-                  d.id,
-                  d.entity_id,
-                  d.doc_type_code,
-                  d.folio,
-                  d.issue_date,
-                  d.counterparty_rut,
-                  d.counterparty_name,
-                  d.operation_type,
-                  d.received_date,
-                  d.purchase_type,
-                  d.total_amount,
-                  (
-                     -- se calcula por documento (el CTE ya viene acotado a la fecha
-                     -- de esta pagina): el paso 2b usa un match "suelto" (documento
-                     -- <= saldo del movimiento) que genera muchas mas combinaciones
-                     -- que el paso 2, asi que aqui es aun mas importante no repetir
-                     -- este calculo por cada combinacion resultante
-                     SELECT COUNT(*)
-                     FROM bank_transaction_documents hbtd
-                     JOIN entity_bank_transactions hbt
-                        ON hbt.id = hbtd.entity_bank_transaction_id
-                       AND hbt.entity_id = :entityId
-                     JOIN entity_sii_documents hd
-                        ON hd.id = hbtd.entity_sii_document_id
-                       AND hd.entity_id = :entityId
-                     WHERE d.counterparty_rut IS NOT NULL
-                       AND hd.counterparty_rut = d.counterparty_rut
-                       AND hd.id <> d.id
-                  ) AS historical_count,
-                  (${docReconcileAmount} - IFNULL(SUM(btd.amount_applied),0) - ${docCreditNotesSum}) AS remaining_amount
-                  FROM entity_sii_documents d
-                  LEFT JOIN bank_transaction_documents btd
-                  ON btd.entity_sii_document_id = d.id
-                  WHERE d.entity_id = :entityId
-                  ${whereDocsByType}
-                  AND d.issue_date >= DATE_SUB(:pageDateFrom, INTERVAL ${parsedDaysWindow} DAY)
-                  AND d.issue_date <= DATE_ADD(:pageDateTo, INTERVAL ${parsedDaysWindow} DAY)
-                  GROUP BY d.id
-                  HAVING remaining_amount > 0
-               )
-               SELECT /*+ MAX_EXECUTION_TIME(${ReconcileService.SUGGESTIONS_MAX_EXECUTION_TIME_MS}) */
-                  bt.id                       AS bank_tx_id,
-                  bt.amount,
-                  bt.issued_at,
-                  bt.description,
-                  bt.remaining_amount         AS bank_remaining,
-                  d.id                        AS doc_id,
-                  d.doc_type_code,
-                  d.folio,
-                  d.issue_date,
-                  d.counterparty_rut,
-                  d.counterparty_name,
-                  d.total_amount,
-                  d.historical_count,
-                  d.remaining_amount          AS doc_remaining
-               FROM bt
-               JOIN docs d
-                  ON ${docMatchesBankType}
-               AND d.remaining_amount <= bt.remaining_amount + :amountTolerance
-               AND d.issue_date BETWEEN DATE(DATE_SUB(bt.issued_at, INTERVAL ${parsedDaysWindow} DAY))
-                                    AND DATE(DATE_ADD(bt.issued_at, INTERVAL ${parsedDaysWindow} DAY))
-               WHERE bt.id IN (${txIdsCsv})
-               ${whereSearch}
-               ORDER BY bt.id DESC, d.issue_date ASC, d.remaining_amount DESC
-            `;
-
-            const groupRows = await this.#runQuery(sqlGroupCandidates, {
-               replacements: params,
-               type: QueryTypes.SELECT,
-            });
-
-            const docsByTx = new Map();
-            for (const r of groupRows) {
-               if (!byTx.has(r.bank_tx_id)) continue;
-               if (!docsByTx.has(r.bank_tx_id)) docsByTx.set(r.bank_tx_id, []);
-               docsByTx.get(r.bank_tx_id).push({
-                  id: r.doc_id,
-                  doc_type_code: r.doc_type_code,
-                  folio: r.folio,
-                  issue_date: r.issue_date,
-                  counterparty_rut: r.counterparty_rut,
-                  counterparty_name: r.counterparty_name,
-                  total_amount: Number(r.total_amount),
-                  remaining_amount: Number(r.doc_remaining),
-                  historical_count: Number(r.historical_count || 0),
-               });
-            }
-
-            for (const mv of pagedMovementRows) {
-               const txBucket = byTx.get(mv.bank_tx_id);
-               if (!txBucket) continue;
-               txBucket.candidate_groups = this.#buildCandidateGroups({
-                  tx: txBucket.bank_tx,
-                  docs: docsByTx.get(mv.bank_tx_id) || [],
-                  amountTolerance,
-                  daysWindow: parsedDaysWindow,
-                  maxGroups: 3,
-               });
-            }
-         }
-      }
-
-      // 3) ordenar candidatos por score y dejar top 3 por movimiento
-      const rowsOut = [];
-      for (const mv of pagedMovementRows) {
-         const v = byTx.get(mv.bank_tx_id);
-         if (!v) continue;
-
-         v.candidates.sort((a, b) =>
-            (b.score - a.score)
-            || (a.daysDiff - b.daysDiff)
-            || (b.remaining_amount - a.remaining_amount)
+         const singleMatchedIds = new Set(
+            (Array.isArray(singleRows) ? singleRows : []).map((r) => r.bank_tx_id)
          );
 
-         const top3 = v.candidates.slice(0, 3);
-         const best = top3.length ? 0 : null;
-         const candidateGroups = v.candidate_groups || [];
-         if (top3.length === 0 && candidateGroups.length === 0) continue;
-         const bestGroup = candidateGroups.length ? 0 : null;
-         rowsOut.push({ ...v, candidates: top3, candidate_groups: candidateGroups, best, best_group: bestGroup });
+         const groupMatchedIds = new Set();
+         const unmatchedRows = chunkRows.filter((mv) => !singleMatchedIds.has(mv.bank_tx_id));
+
+         if (unmatchedRows.length > 0 && singleMatchedIds.size < maxToCollect) {
+            const unmatchedIdsCsv = unmatchedRows
+               .map((r) => Number(r.bank_tx_id))
+               .filter((id) => Number.isInteger(id) && id > 0)
+               .join(",");
+
+            if (unmatchedIdsCsv) {
+               const { chunkDateFrom: gFrom, chunkDateTo: gTo } = getChunkDateRange(unmatchedRows);
+               const sqlGroupsLight = `
+                  WITH bt AS (
+                     SELECT
+                     t.id,
+                     t.entity_id,
+                     t.type,
+                     t.amount,
+                     t.issued_at,
+                     t.description,
+                     (t.amount - IFNULL(SUM(btd.amount_applied),0)) AS remaining_amount
+                     FROM entity_bank_transactions t
+                     LEFT JOIN bank_transaction_documents btd
+                     ON btd.entity_bank_transaction_id = t.id
+                     WHERE t.entity_id = :entityId
+                     AND t.id IN (${unmatchedIdsCsv})
+                     ${accountId ? "AND t.entity_bank_account_id = :accountId" : ""}
+                     ${type ? "AND t.type = :typeParam" : ""}
+                     AND t.issued_at >= :dateFrom
+                     ${dateTo ? "AND t.issued_at <  DATE_ADD(:dateTo, INTERVAL 1 DAY)" : ""}
+                     GROUP BY t.id
+                     HAVING remaining_amount > 0
+                  ),
+                  docs AS (
+                     SELECT
+                     d.id,
+                     d.doc_type_code,
+                     d.folio,
+                     d.issue_date,
+                     d.counterparty_rut,
+                     d.counterparty_name,
+                     d.operation_type,
+                     d.received_date,
+                     d.purchase_type,
+                     d.total_amount,
+                     (${docReconcileAmount} - IFNULL(SUM(btd.amount_applied),0) - ${docCreditNotesSum}) AS remaining_amount
+                     FROM entity_sii_documents d
+                     LEFT JOIN bank_transaction_documents btd
+                     ON btd.entity_sii_document_id = d.id
+                     WHERE d.entity_id = :entityId
+                     ${whereDocsByType}
+                     AND d.issue_date >= DATE_SUB(:chunkDateFrom, INTERVAL ${parsedDaysWindow} DAY)
+                     AND d.issue_date <= DATE_ADD(:chunkDateTo, INTERVAL ${parsedDaysWindow} DAY)
+                     GROUP BY d.id
+                     HAVING remaining_amount > 0
+                  )
+                  SELECT /*+ MAX_EXECUTION_TIME(${ReconcileService.SUGGESTIONS_MAX_EXECUTION_TIME_MS}) */
+                     bt.id                       AS bank_tx_id,
+                     d.id                        AS doc_id,
+                     d.doc_type_code,
+                     d.folio,
+                     d.issue_date,
+                     d.counterparty_rut,
+                     d.counterparty_name,
+                     d.total_amount,
+                     d.remaining_amount          AS doc_remaining
+                  FROM bt
+                  JOIN docs d
+                     ON ${docMatchesBankType}
+                  AND d.remaining_amount <= bt.remaining_amount + :amountTolerance
+                  AND d.issue_date BETWEEN DATE(DATE_SUB(bt.issued_at, INTERVAL ${parsedDaysWindow} DAY))
+                                       AND DATE(DATE_ADD(bt.issued_at, INTERVAL ${parsedDaysWindow} DAY))
+                  WHERE bt.id IN (${unmatchedIdsCsv})
+                  ${whereSearch}
+                  ORDER BY bt.id DESC, d.issue_date ASC, d.remaining_amount DESC
+               `;
+
+               const groupRows = await this.#runQuery(sqlGroupsLight, {
+                  replacements: { ...baseParams, chunkDateFrom: gFrom, chunkDateTo: gTo },
+                  type: QueryTypes.SELECT,
+               });
+
+               const docsByTx = new Map();
+               for (const r of (Array.isArray(groupRows) ? groupRows : [])) {
+                  if (!docsByTx.has(r.bank_tx_id)) docsByTx.set(r.bank_tx_id, []);
+                  docsByTx.get(r.bank_tx_id).push({
+                     id: r.doc_id,
+                     doc_type_code: r.doc_type_code,
+                     folio: r.folio,
+                     issue_date: r.issue_date,
+                     counterparty_rut: r.counterparty_rut,
+                     counterparty_name: r.counterparty_name,
+                     total_amount: Number(r.total_amount),
+                     remaining_amount: Number(r.doc_remaining),
+                     historical_count: 0,
+                  });
+               }
+
+               let totalVerifiedSoFar = singleMatchedIds.size;
+               for (const mv of unmatchedRows) {
+                  if (totalVerifiedSoFar >= maxToCollect) break;
+                  const docs = docsByTx.get(mv.bank_tx_id) || [];
+                  if (docs.length < 2) continue;
+                  const tx = toBankTx(mv);
+                  const groups = this.#buildCandidateGroups({
+                     tx,
+                     docs,
+                     amountTolerance,
+                     daysWindow: parsedDaysWindow,
+                     maxGroups: 1,
+                     stopOnFirst: true,
+                  });
+                  if (groups.length > 0) {
+                     groupMatchedIds.add(mv.bank_tx_id);
+                     totalVerifiedSoFar += 1;
+                  }
+               }
+            }
+         }
+
+         const out = [];
+         for (const mv of chunkRows) {
+            if (singleMatchedIds.has(mv.bank_tx_id) || groupMatchedIds.has(mv.bank_tx_id)) {
+               out.push({
+                  bank_tx: toBankTx(mv),
+                  candidates: [],
+                  candidate_groups: [],
+                  best: null,
+                  best_group: null,
+               });
+            }
+         }
+         return out;
+      };
+
+      const evaluateChunkFull = async (chunkRows) => {
+         const txIdsCsv = chunkRows
+            .map((r) => Number(r.bank_tx_id))
+            .filter((id) => Number.isInteger(id) && id > 0)
+            .join(",");
+         if (!txIdsCsv) return [];
+
+         const { chunkDateFrom, chunkDateTo } = getChunkDateRange(chunkRows);
+         const chunkParams = {
+            ...baseParams,
+            pageDateFrom: chunkDateFrom,
+            pageDateTo: chunkDateTo,
+         };
+
+         const byTx = new Map();
+         for (const mv of chunkRows) {
+            byTx.set(mv.bank_tx_id, {
+               bank_tx: toBankTx(mv),
+               candidates: [],
+            });
+         }
+
+         const sqlCandidates = `
+            WITH bt AS (
+               SELECT
+               t.id,
+               t.entity_id,
+               t.entity_bank_account_id,
+               t.type,
+               t.amount,
+               t.issued_at,
+               t.description,
+               (t.amount - IFNULL(SUM(btd.amount_applied),0)) AS remaining_amount
+               FROM entity_bank_transactions t
+               LEFT JOIN bank_transaction_documents btd
+               ON btd.entity_bank_transaction_id = t.id
+               WHERE t.entity_id = :entityId
+               AND t.id IN (${txIdsCsv})
+               ${accountId ? "AND t.entity_bank_account_id = :accountId" : ""}
+               ${type ? "AND t.type = :typeParam" : ""}
+               AND t.issued_at >= :dateFrom
+               ${dateTo ? "AND t.issued_at <  DATE_ADD(:dateTo, INTERVAL 1 DAY)" : ""}
+               GROUP BY t.id
+               HAVING remaining_amount > 0
+            ),
+            docs AS (
+               SELECT
+               d.id,
+               d.entity_id,
+               d.doc_type_code,
+               d.folio,
+               d.issue_date,
+               d.counterparty_rut,
+               d.counterparty_name,
+               d.operation_type,
+               d.received_date,
+               d.purchase_type,
+               d.total_amount,
+               (
+                  SELECT COUNT(*)
+                  FROM bank_transaction_documents hbtd
+                  JOIN entity_bank_transactions hbt
+                     ON hbt.id = hbtd.entity_bank_transaction_id
+                    AND hbt.entity_id = :entityId
+                  JOIN entity_sii_documents hd
+                     ON hd.id = hbtd.entity_sii_document_id
+                    AND hd.entity_id = :entityId
+                  WHERE d.counterparty_rut IS NOT NULL
+                    AND hd.counterparty_rut = d.counterparty_rut
+                    AND hd.id <> d.id
+               ) AS historical_count,
+               (${docReconcileAmount} - IFNULL(SUM(btd.amount_applied),0) - ${docCreditNotesSum}) AS remaining_amount
+               FROM entity_sii_documents d
+               LEFT JOIN bank_transaction_documents btd
+               ON btd.entity_sii_document_id = d.id
+               WHERE d.entity_id = :entityId
+               ${whereDocsByType}
+               AND d.issue_date >= DATE_SUB(:pageDateFrom, INTERVAL ${parsedDaysWindow} DAY)
+               AND d.issue_date <= DATE_ADD(:pageDateTo, INTERVAL ${parsedDaysWindow} DAY)
+               GROUP BY d.id
+               HAVING remaining_amount > 0
+            )
+            SELECT /*+ MAX_EXECUTION_TIME(${ReconcileService.SUGGESTIONS_MAX_EXECUTION_TIME_MS}) */
+               bt.id                       AS bank_tx_id,
+               bt.entity_bank_account_id,
+               bt.type,
+               bt.amount,
+               bt.issued_at,
+               bt.description,
+               bt.remaining_amount         AS bank_remaining,
+               d.id                        AS doc_id,
+               d.doc_type_code,
+               d.folio,
+               d.issue_date,
+               d.counterparty_rut,
+               d.counterparty_name,
+               d.total_amount,
+               d.historical_count,
+               d.remaining_amount          AS doc_remaining
+            FROM bt
+            JOIN docs d
+               ON ${docMatchesBankType}
+            AND ABS(bt.remaining_amount - d.remaining_amount) <= :amountTolerance
+            AND d.issue_date BETWEEN DATE(DATE_SUB(bt.issued_at, INTERVAL ${parsedDaysWindow} DAY))
+                                 AND DATE(DATE_ADD(bt.issued_at, INTERVAL ${parsedDaysWindow} DAY))
+            WHERE bt.id IN (${txIdsCsv})
+            ${whereSearch}
+            ORDER BY bt.issued_at DESC, bt.id DESC
+         `;
+
+         const candidateRows = await this.#runQuery(sqlCandidates, {
+            replacements: chunkParams,
+            type: QueryTypes.SELECT,
+         });
+
+         if (!Array.isArray(candidateRows)) {
+            throw boom.badImplementation("unexpected query result: expected an array of rows");
+         }
+
+         for (const r of candidateRows) {
+            const txBucket = byTx.get(r.bank_tx_id);
+            if (!txBucket) continue;
+
+            const daysDiff = Math.abs(
+               Math.floor((new Date(r.issue_date).getTime() - new Date(r.issued_at).setHours(0, 0, 0, 0)) / 86400000)
+            );
+
+            const diffRaw = Number(r.doc_remaining) - Number(r.bank_remaining);
+            const diffAbs = Math.abs(diffRaw);
+            const diffFmt = Number.isInteger(diffAbs) ? String(diffAbs) : diffAbs.toFixed(2);
+
+            const reasonAmount = diffAbs === 0 ? "monto=exacto" : `monto~+/-${diffFmt}`;
+            const docForScore = {
+               id: r.doc_id,
+               doc_type_code: r.doc_type_code,
+               folio: r.folio,
+               issue_date: r.issue_date,
+               counterparty_rut: r.counterparty_rut,
+               counterparty_name: r.counterparty_name,
+               total_amount: Number(r.total_amount),
+               remaining_amount: Number(r.doc_remaining),
+               historical_count: Number(r.historical_count || 0),
+            };
+            const scoreMeta = this.#scoreDocumentForTx(docForScore, txBucket.bank_tx, {
+               amountTolerance,
+               daysWindow: parsedDaysWindow,
+            });
+
+            txBucket.candidates.push({
+               id: r.doc_id,
+               doc_type_code: r.doc_type_code,
+               folio: r.folio,
+               issue_date: r.issue_date,
+               total_amount: Number(r.total_amount),
+               counterparty_rut: r.counterparty_rut,
+               counterparty_name: r.counterparty_name,
+               remaining_amount: Number(r.doc_remaining),
+               score: scoreMeta.score,
+               confidence: scoreMeta.confidence,
+               reasons: [
+                  reasonAmount,
+                  `fecha+/-${parsedDaysWindow}d`,
+                  scoreMeta.hasRut ? "rut-emisor-en-glosa" : undefined,
+                  scoreMeta.hasName ? "nombre-en-glosa" : undefined,
+                  scoreMeta.hasFolio ? "folio-en-glosa" : undefined,
+                  scoreMeta.hasHistory ? "historial-contraparte" : undefined,
+               ].filter(Boolean),
+               signals: scoreMeta.signals,
+               daysDiff
+            });
+         }
+
+         const sqlGroupCandidates = `
+            WITH bt AS (
+               SELECT
+               t.id,
+               t.entity_id,
+               t.entity_bank_account_id,
+               t.type,
+               t.amount,
+               t.issued_at,
+               t.description,
+               (t.amount - IFNULL(SUM(btd.amount_applied),0)) AS remaining_amount
+               FROM entity_bank_transactions t
+               LEFT JOIN bank_transaction_documents btd
+               ON btd.entity_bank_transaction_id = t.id
+               WHERE t.entity_id = :entityId
+               AND t.id IN (${txIdsCsv})
+               ${accountId ? "AND t.entity_bank_account_id = :accountId" : ""}
+               ${type ? "AND t.type = :typeParam" : ""}
+               AND t.issued_at >= :dateFrom
+               ${dateTo ? "AND t.issued_at <  DATE_ADD(:dateTo, INTERVAL 1 DAY)" : ""}
+               GROUP BY t.id
+               HAVING remaining_amount > 0
+            ),
+            docs AS (
+               SELECT
+               d.id,
+               d.entity_id,
+               d.doc_type_code,
+               d.folio,
+               d.issue_date,
+               d.counterparty_rut,
+               d.counterparty_name,
+               d.operation_type,
+               d.received_date,
+               d.purchase_type,
+               d.total_amount,
+               (
+                  SELECT COUNT(*)
+                  FROM bank_transaction_documents hbtd
+                  JOIN entity_bank_transactions hbt
+                     ON hbt.id = hbtd.entity_bank_transaction_id
+                    AND hbt.entity_id = :entityId
+                  JOIN entity_sii_documents hd
+                     ON hd.id = hbtd.entity_sii_document_id
+                    AND hd.entity_id = :entityId
+                  WHERE d.counterparty_rut IS NOT NULL
+                    AND hd.counterparty_rut = d.counterparty_rut
+                    AND hd.id <> d.id
+               ) AS historical_count,
+               (${docReconcileAmount} - IFNULL(SUM(btd.amount_applied),0) - ${docCreditNotesSum}) AS remaining_amount
+               FROM entity_sii_documents d
+               LEFT JOIN bank_transaction_documents btd
+               ON btd.entity_sii_document_id = d.id
+               WHERE d.entity_id = :entityId
+               ${whereDocsByType}
+               AND d.issue_date >= DATE_SUB(:pageDateFrom, INTERVAL ${parsedDaysWindow} DAY)
+               AND d.issue_date <= DATE_ADD(:pageDateTo, INTERVAL ${parsedDaysWindow} DAY)
+               GROUP BY d.id
+               HAVING remaining_amount > 0
+            )
+            SELECT /*+ MAX_EXECUTION_TIME(${ReconcileService.SUGGESTIONS_MAX_EXECUTION_TIME_MS}) */
+               bt.id                       AS bank_tx_id,
+               bt.amount,
+               bt.issued_at,
+               bt.description,
+               bt.remaining_amount         AS bank_remaining,
+               d.id                        AS doc_id,
+               d.doc_type_code,
+               d.folio,
+               d.issue_date,
+               d.counterparty_rut,
+               d.counterparty_name,
+               d.total_amount,
+               d.historical_count,
+               d.remaining_amount          AS doc_remaining
+            FROM bt
+            JOIN docs d
+               ON ${docMatchesBankType}
+            AND d.remaining_amount <= bt.remaining_amount + :amountTolerance
+            AND d.issue_date BETWEEN DATE(DATE_SUB(bt.issued_at, INTERVAL ${parsedDaysWindow} DAY))
+                                 AND DATE(DATE_ADD(bt.issued_at, INTERVAL ${parsedDaysWindow} DAY))
+            WHERE bt.id IN (${txIdsCsv})
+            ${whereSearch}
+            ORDER BY bt.id DESC, d.issue_date ASC, d.remaining_amount DESC
+         `;
+
+         const groupRows = await this.#runQuery(sqlGroupCandidates, {
+            replacements: chunkParams,
+            type: QueryTypes.SELECT,
+         });
+
+         const docsByTx = new Map();
+         for (const r of (Array.isArray(groupRows) ? groupRows : [])) {
+            if (!byTx.has(r.bank_tx_id)) continue;
+            if (!docsByTx.has(r.bank_tx_id)) docsByTx.set(r.bank_tx_id, []);
+            docsByTx.get(r.bank_tx_id).push({
+               id: r.doc_id,
+               doc_type_code: r.doc_type_code,
+               folio: r.folio,
+               issue_date: r.issue_date,
+               counterparty_rut: r.counterparty_rut,
+               counterparty_name: r.counterparty_name,
+               total_amount: Number(r.total_amount),
+               remaining_amount: Number(r.doc_remaining),
+               historical_count: Number(r.historical_count || 0),
+            });
+         }
+
+         const out = [];
+         for (const mv of chunkRows) {
+            const v = byTx.get(mv.bank_tx_id);
+            if (!v) continue;
+
+            v.candidate_groups = this.#buildCandidateGroups({
+               tx: v.bank_tx,
+               docs: docsByTx.get(mv.bank_tx_id) || [],
+               amountTolerance,
+               daysWindow: parsedDaysWindow,
+               maxGroups: 3,
+            });
+
+            v.candidates.sort((a, b) =>
+               (b.score - a.score)
+               || (a.daysDiff - b.daysDiff)
+               || (b.remaining_amount - a.remaining_amount)
+            );
+
+            const top3 = v.candidates.slice(0, 3);
+            const best = top3.length ? 0 : null;
+            const candidateGroups = v.candidate_groups || [];
+            if (top3.length === 0 && candidateGroups.length === 0) continue;
+            const bestGroup = candidateGroups.length ? 0 : null;
+            out.push({ ...v, candidates: top3, candidate_groups: candidateGroups, best, best_group: bestGroup });
+         }
+         return out;
+      };
+
+      const coarseBatchSize = 250;
+      const verifyChunkSize = 100;
+      const maxCoarseScan = 2000;
+      let coarseOffset = 0;
+      let scannedCoarse = 0;
+      let exhaustedCoarse = false;
+      const verifiedAll = [];
+
+      while (verifiedAll.length < neededVerifiedCount && scannedCoarse < maxCoarseScan) {
+         const coarseBatch = await this.#runQuery(sqlPageMovements, {
+            replacements: {
+               ...baseParams,
+               coarseLimit: coarseBatchSize,
+               coarseOffset,
+            },
+            type: QueryTypes.SELECT,
+         });
+
+         if (!Array.isArray(coarseBatch)) {
+            throw boom.badImplementation("unexpected query result: expected an array of rows");
+         }
+
+         scannedCoarse += coarseBatch.length;
+         coarseOffset += coarseBatch.length;
+         if (coarseBatch.length < coarseBatchSize) {
+            exhaustedCoarse = true;
+         }
+         if (coarseBatch.length === 0) break;
+
+         for (let i = 0; i < coarseBatch.length; i += verifyChunkSize) {
+            const chunkRows = coarseBatch.slice(i, i + verifyChunkSize);
+            const remainingNeeded = neededVerifiedCount - verifiedAll.length;
+            if (remainingNeeded <= 0) break;
+
+            const needDetailsForChunk = !countOnly && (verifiedAll.length + chunkRows.length > parsedOffset);
+            const chunkVerified = needDetailsForChunk
+               ? await evaluateChunkFull(chunkRows)
+               : await verifyChunkLight(chunkRows, remainingNeeded);
+
+            for (const item of chunkVerified) {
+               verifiedAll.push(item);
+            }
+
+            if (verifiedAll.length >= neededVerifiedCount) break;
+         }
+
+         if (exhaustedCoarse) break;
       }
+
+      const rowsOut = verifiedAll.slice(parsedOffset, parsedOffset + parsedLimit);
+      const hasMore = withHasMore && (verifiedAll.length > parsedOffset + parsedLimit);
+
       if (!includeTotal) {
-         const estimatedTotal = parsedOffset + pagedMovementRows.length + (hasMore ? 1 : 0);
+         const estimatedTotal = parsedOffset + rowsOut.length + (hasMore ? 1 : 0);
          return {
             total: estimatedTotal,
             rows: rowsOut,
@@ -1110,7 +1274,10 @@ class ReconcileService {
          };
       }
 
-      // obtenemos el total real usando conteo completo (modo legado)
+      if (exhaustedCoarse) {
+         return { total: verifiedAll.length, rows: rowsOut };
+      }
+
       const total = await this.countSuggestions({
          entityId,
          accountId,
@@ -1125,7 +1292,6 @@ class ReconcileService {
       return { total: Number(total || 0), rows: rowsOut };
 
    }
-
 }
 
 module.exports = ReconcileService;
