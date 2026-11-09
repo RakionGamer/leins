@@ -7,8 +7,8 @@ const superAdminService = new SuperAdminService();
 
 const SORT_COLUMNS = {
    id: 'e.id',
-   name: 'e.legal_name',
-   rut: 'e.tax_id',
+   name: "LOWER(COALESCE(e.legal_name, ''))",
+   rut: "LPAD(REPLACE(SUBSTRING_INDEX(TRIM(COALESCE(e.tax_id, '')), '-', 1), '.', ''), 12, '0')",
 };
 
 // nota: AdminEntity y UserEntity NO estan aqui a proposito: son solo vinculos de
@@ -27,9 +27,19 @@ function normalizeOrder(value) {
    return String(value || 'asc').toLowerCase() === 'desc' ? 'DESC' : 'ASC';
 }
 
-function normalizeSort(value) {
+function normalizeSortKey(value) {
    const key = String(value || 'name').toLowerCase();
-   return SORT_COLUMNS[key] || SORT_COLUMNS.name;
+   return Object.prototype.hasOwnProperty.call(SORT_COLUMNS, key) ? key : 'name';
+}
+
+function buildOrderBySql(sort, order) {
+   const key = normalizeSortKey(sort);
+   const dir = normalizeOrder(order);
+   const col = SORT_COLUMNS[key];
+
+   if (key === 'id') return `${col} ${dir}`;
+   if (key === 'rut') return `${col} ${dir}, e.tax_id ${dir}, e.id ${dir}`;
+   return `${col} ${dir}, e.id ${dir}`;
 }
 
 function normalizeRut(value) {
@@ -155,8 +165,7 @@ function mapEntityRow(row) {
 class EntitiesService {
    async listAll({ q = null, limit = 20, offset = 0, activeOnly = false, id = null, sort = 'name', order = 'asc' } = {}) {
       const ACTIVE_STATE_ID = Number(process.env.ACTIVE_STATE_ID || 1);
-      const sortColumn = normalizeSort(sort);
-      const sortOrder = normalizeOrder(order);
+      const orderBySql = buildOrderBySql(sort, order);
       const parsedId = Number.isInteger(Number(id)) ? Number(id) : null;
       const filters = buildEntityFilters({
          q,
@@ -170,7 +179,7 @@ class EntitiesService {
          FROM entities e
          WHERE 1=1
          ${filters.whereSql}
-         ORDER BY ${sortColumn} ${sortOrder}
+         ORDER BY ${orderBySql}
          LIMIT :limit OFFSET :offset
       `;
       const sqlCount = `
@@ -196,8 +205,7 @@ class EntitiesService {
 
    async listForUser({ userId, q = null, limit = 20, offset = 0, activeOnly = false, id = null, sort = 'name', order = 'asc' } = {}) {
       const ACTIVE_STATE_ID = Number(process.env.ACTIVE_STATE_ID || 1);
-      const sortColumn = normalizeSort(sort);
-      const sortOrder = normalizeOrder(order);
+      const orderBySql = buildOrderBySql(sort, order);
       const parsedId = Number.isInteger(Number(id)) ? Number(id) : null;
 
       if (!userId) throw boom.badRequest('userId is required');
@@ -219,7 +227,7 @@ class EntitiesService {
          SELECT e.id, e.legal_name AS name, e.legal_name, e.tax_id AS rut, e.tax_id, e.state_id,
                 1 AS can_create, 1 AS can_update, (NOT ue.read_only) AS can_delete, 0 AS is_admin
          ${baseJoin}
-         ORDER BY ${sortColumn} ${sortOrder}
+         ORDER BY ${orderBySql}
          LIMIT :limit OFFSET :offset
       `;
       const sqlCount = `SELECT COUNT(*) AS total ${baseJoin}`;
@@ -259,8 +267,7 @@ class EntitiesService {
 
    async listForSuperAdmin({ superAdminId, q = null, limit = 20, offset = 0, activeOnly = false, id = null, sort = 'name', order = 'asc' } = {}) {
       const ACTIVE_STATE_ID = Number(process.env.ACTIVE_STATE_ID || 1);
-      const sortColumn = normalizeSort(sort);
-      const sortOrder = normalizeOrder(order);
+      const orderBySql = buildOrderBySql(sort, order);
       const parsedId = Number.isInteger(Number(id)) ? Number(id) : null;
 
       if (!superAdminId) throw boom.badRequest('superAdminId is required');
@@ -280,10 +287,14 @@ class EntitiesService {
          ${filters.whereSql}
       `;
       const sql = `
-         SELECT DISTINCT e.id, e.legal_name AS name, e.legal_name, e.tax_id AS rut, e.tax_id, e.state_id,
-                ae.can_create, ae.can_update, ae.can_delete, ae.is_admin
+         SELECT e.id, e.legal_name AS name, e.legal_name, e.tax_id AS rut, e.tax_id, e.state_id,
+                MAX(ae.can_create) AS can_create,
+                MAX(ae.can_update) AS can_update,
+                MAX(ae.can_delete) AS can_delete,
+                MAX(ae.is_admin) AS is_admin
          ${baseJoin}
-         ORDER BY ${sortColumn} ${sortOrder}
+         GROUP BY e.id, e.legal_name, e.tax_id, e.state_id
+         ORDER BY ${orderBySql}
          LIMIT :limit OFFSET :offset
       `;
       const sqlCount = `

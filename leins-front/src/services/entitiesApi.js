@@ -20,7 +20,10 @@ async function ensureOk(res, fallbackMessage) {
    if (res.ok) return null;
    const payload = await parseJsonSafe(res);
    const message = extractErrorMessage(payload) || `${fallbackMessage} (${res.status})`;
-   throw new Error(message);
+   const err = new Error(message);
+   err.status = res.status;
+   err.payload = payload;
+   throw err;
 }
 
 function entityHasAssignedAdmin(row) {
@@ -346,7 +349,8 @@ export async function listBankAccounts({ entityId, signal } = {}) {
 
    return {
       rows: json.rows ?? [],
-      total: Number(json.total ?? 0)
+      total: Number(json.total ?? 0),
+      emisso_sync_quota: json.emisso_sync_quota ?? null
    };
 }
 

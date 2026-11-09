@@ -751,6 +751,7 @@ const syncEmissoAccount = asyncHandler(async (req, res) => {
       periods,
       fromPeriod,
       toPeriod,
+      trackManualQuota: true,
    });
 
    res.json(out);
@@ -807,6 +808,7 @@ const handleEmissoWebhook = asyncHandler(async (req, res) => {
       service.syncFromEmisso({
          entityId: acc.entity_id,
          bankAccountId: acc.id,
+         trackManualQuota: false,
       }).catch((err) => {
          logError('EMISSO_WEBHOOK_BACKGROUND_SYNC_ERROR', {
             bankAccountId: acc.id,

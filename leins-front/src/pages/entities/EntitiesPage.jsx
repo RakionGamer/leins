@@ -6,7 +6,8 @@ import { useEntity } from '../../context/EntityContext';
 import { formatRutCL } from '../../utils/validators';
 import EntityCredentialsPanel from './EntityCredentialsPanel';
 import ClientUsersPanel from './ClientUsersPanel';
-import { PlusIcon } from '@heroicons/react/24/outline';
+import EntityRowActionsMenu from './EntityRowActionsMenu';
+import { PlusIcon, ArrowUpIcon, ArrowDownIcon } from '@heroicons/react/24/outline';
 import {
    listEntities,
    createEntity,
@@ -90,6 +91,16 @@ export default function EntitiesPage() {
    const resetForm = () => {
       setForm(DEFAULT_FORM);
       setEditingId(null);
+   };
+
+   const handleHeaderSort = (columnKey) => {
+      if (sortBy === columnKey) {
+         setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+      } else {
+         setSortBy(columnKey);
+         setSortOrder('asc');
+      }
+      setPage(0);
    };
 
    const openCreateModal = () => {
@@ -282,14 +293,15 @@ export default function EntitiesPage() {
 
                <div className="mt-3 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
                   <div className="inline-flex items-center gap-2">
-                     <label className="text-xs text-[var(--text-soft)]">Ordenar por</label>
+                     <label htmlFor="entities-sort-by" className="text-xs text-[var(--text-soft)] whitespace-nowrap">Ordenar por</label>
                      <select
+                        id="entities-sort-by"
                         value={sortBy}
                         onChange={(e) => {
                            setSortBy(e.target.value);
                            setPage(0);
                         }}
-                        className="border border-[var(--border-subtle)] bg-[var(--surface-1)] rounded-lg px-2 py-1.5 text-sm"
+                        className="min-w-[128px] border border-[var(--border-subtle)] bg-[var(--surface-1)] text-[var(--text-main)] rounded-lg pl-3 pr-9 py-1.5 text-sm cursor-pointer"
                      >
                         <option value="name">Nombre</option>
                         <option value="rut">RUT</option>
@@ -297,20 +309,37 @@ export default function EntitiesPage() {
                      </select>
                   </div>
                   <div className="inline-flex items-center gap-2">
-                     <label className="text-xs text-[var(--text-soft)]">Direccion</label>
+                     <label htmlFor="entities-sort-order" className="text-xs text-[var(--text-soft)] whitespace-nowrap">Dirección</label>
                      <select
+                        id="entities-sort-order"
                         value={sortOrder}
                         onChange={(e) => {
                            setSortOrder(e.target.value);
                            setPage(0);
                         }}
-                        className="border border-[var(--border-subtle)] bg-[var(--surface-1)] rounded-lg px-2 py-1.5 text-sm"
+                        className="min-w-[144px] border border-[var(--border-subtle)] bg-[var(--surface-1)] text-[var(--text-main)] rounded-lg pl-3 pr-9 py-1.5 text-sm cursor-pointer"
                      >
                         <option value="asc">Ascendente</option>
                         <option value="desc">Descendente</option>
                      </select>
+                     <button
+                        type="button"
+                        onClick={() => {
+                           setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+                           setPage(0);
+                        }}
+                        className="inline-flex h-[34px] w-[34px] items-center justify-center rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-1)] text-[var(--text-main)] hover:bg-[var(--surface-2)] transition cursor-pointer"
+                        title={sortOrder === 'asc' ? 'Orden ascendente (clic para cambiar a descendente)' : 'Orden descendente (clic para cambiar a ascendente)'}
+                        aria-label={sortOrder === 'asc' ? 'Cambiar dirección a descendente' : 'Cambiar dirección a ascendente'}
+                     >
+                        {sortOrder === 'asc' ? (
+                           <ArrowUpIcon className="h-4 w-4" />
+                        ) : (
+                           <ArrowDownIcon className="h-4 w-4" />
+                        )}
+                     </button>
                   </div>
-                  <label className="inline-flex items-center gap-2 text-xs text-[var(--text-soft)]">
+                  <label className="inline-flex items-center gap-2 text-xs text-[var(--text-soft)] cursor-pointer select-none">
                      <input
                         type="checkbox"
                         checked={activeOnly}
@@ -318,6 +347,7 @@ export default function EntitiesPage() {
                            setActiveOnly(e.target.checked);
                            setPage(0);
                         }}
+                        className="rounded border-[var(--border-subtle)] text-[var(--brand)] focus:ring-[var(--brand)]"
                      />
                      Solo activas
                   </label>
@@ -333,15 +363,54 @@ export default function EntitiesPage() {
                   <div className="mt-4 text-sm text-[var(--text-soft)]">Cargando entidades...</div>
                ) : (
                   <div className="mt-4 overflow-x-auto">
-                     <table className="w-full min-w-[760px] text-sm">
+                     <table className="w-full min-w-[700px] text-sm">
                         <thead>
                            <tr className="border-b border-[var(--border-subtle)] text-[var(--text-soft)]">
-                              <th className="text-left py-2 px-2">Nombre</th>
-                              <th className="text-left py-2 px-2">RUT</th>
+                              <th className="text-left py-2 px-2">
+                                 <button
+                                    type="button"
+                                    onClick={() => handleHeaderSort('name')}
+                                    className={`inline-flex items-center gap-1 font-semibold hover:text-[var(--heading)] transition cursor-pointer ${sortBy === 'name' ? 'text-[var(--heading)]' : 'text-[var(--text-soft)]'}`}
+                                 >
+                                    <span>Nombre</span>
+                                    {sortBy === 'name' && (
+                                       sortOrder === 'asc'
+                                          ? <ArrowUpIcon className="h-3.5 w-3.5 text-[var(--brand)]" />
+                                          : <ArrowDownIcon className="h-3.5 w-3.5 text-[var(--brand)]" />
+                                    )}
+                                 </button>
+                              </th>
+                              <th className="text-left py-2 px-2">
+                                 <button
+                                    type="button"
+                                    onClick={() => handleHeaderSort('rut')}
+                                    className={`inline-flex items-center gap-1 font-semibold hover:text-[var(--heading)] transition cursor-pointer ${sortBy === 'rut' ? 'text-[var(--heading)]' : 'text-[var(--text-soft)]'}`}
+                                 >
+                                    <span>RUT</span>
+                                    {sortBy === 'rut' && (
+                                       sortOrder === 'asc'
+                                          ? <ArrowUpIcon className="h-3.5 w-3.5 text-[var(--brand)]" />
+                                          : <ArrowDownIcon className="h-3.5 w-3.5 text-[var(--brand)]" />
+                                    )}
+                                 </button>
+                              </th>
                               <th className="text-left py-2 px-2">Estado</th>
-                              <th className="text-left py-2 px-2">Razon social</th>
-                              <th className="text-left py-2 px-2">ID</th>
-                              <th className="text-right py-2 px-2">Acciones</th>
+                              <th className="text-left py-2 px-2">Razón social</th>
+                              <th className="text-left py-2 px-2">
+                                 <button
+                                    type="button"
+                                    onClick={() => handleHeaderSort('id')}
+                                    className={`inline-flex items-center gap-1 font-semibold hover:text-[var(--heading)] transition cursor-pointer ${sortBy === 'id' ? 'text-[var(--heading)]' : 'text-[var(--text-soft)]'}`}
+                                 >
+                                    <span>ID</span>
+                                    {sortBy === 'id' && (
+                                       sortOrder === 'asc'
+                                          ? <ArrowUpIcon className="h-3.5 w-3.5 text-[var(--brand)]" />
+                                          : <ArrowDownIcon className="h-3.5 w-3.5 text-[var(--brand)]" />
+                                    )}
+                                 </button>
+                              </th>
+                              <th className="w-[68px] text-right py-2 px-2">Acciones</th>
                            </tr>
                         </thead>
                         <tbody>
@@ -378,62 +447,22 @@ export default function EntitiesPage() {
                                     <td className="py-2 px-2 text-[var(--text-main)]">{row.legal_name || '-'}</td>
                                     <td className="py-2 px-2 text-[var(--text-soft)]">{row.id}</td>
                                     <td className="py-2 px-2">
-                                       <div className="flex justify-end gap-2">
-                                          <button
-                                             type="button"
-                                             onClick={() => selectEntity(row)}
-                                             disabled={!isActive}
-                                             className="px-3 py-1.5 rounded-md border border-emerald-300 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                                          >
-                                             Seleccionar
-                                          </button>
-                                          {canUpdate && (
-                                             <button
-                                                type="button"
-                                                onClick={() => startEdit(row)}
-                                                className="px-3 py-1.5 rounded-md border border-[var(--border-subtle)] text-[var(--text-main)] hover:bg-[var(--surface-1)]"
-                                             >
-                                                Editar
-                                             </button>
-                                          )}
-                                          {canUpdate && (
-                                             <button
-                                                type="button"
-                                                onClick={() => setCredentialsEntity(row)}
-                                                className="px-3 py-1.5 rounded-md border border-sky-300 text-sky-700 hover:bg-sky-50"
-                                             >
-                                                Credenciales
-                                             </button>
-                                          )}
-                                          <button
-                                             type="button"
-                                             onClick={() => setClientsEntity(row)}
-                                             className="px-3 py-1.5 rounded-md border border-violet-300 text-violet-700 hover:bg-violet-50"
-                                          >
-                                             Clientes
-                                          </button>
-                                          {canUpdate && (
-                                             <button
-                                                type="button"
-                                                onClick={() => onToggleState(row)}
-                                                disabled={Number(changingStateId) === Number(row.id)}
-                                                className={`px-3 py-1.5 rounded-md text-white ${Number(changingStateId) === Number(row.id) ? 'bg-gray-400' : isActive ? 'bg-[var(--danger)]' : 'bg-emerald-600'}`}
-                                             >
-                                                {Number(changingStateId) === Number(row.id)
-                                                   ? 'Guardando...'
-                                                   : isActive ? 'Desactivar' : 'Activar'}
-                                             </button>
-                                          )}
-                                          {canDelete && (
-                                             <button
-                                                type="button"
-                                                onClick={() => onDelete(row)}
-                                                disabled={Number(deletingId) === Number(row.id)}
-                                                className="px-3 py-1.5 rounded-md border border-[var(--danger)] text-[var(--danger)] hover:bg-[var(--danger)] hover:text-white disabled:opacity-50"
-                                             >
-                                                {Number(deletingId) === Number(row.id) ? 'Eliminando...' : 'Eliminar'}
-                                             </button>
-                                          )}
+                                       <div className="flex justify-end">
+                                          <EntityRowActionsMenu
+                                             row={row}
+                                             isSelected={isSelected}
+                                             isActive={isActive}
+                                             canUpdate={canUpdate}
+                                             canDelete={canDelete}
+                                             isChangingState={Number(changingStateId) === Number(row.id)}
+                                             isDeleting={Number(deletingId) === Number(row.id)}
+                                             onSelect={selectEntity}
+                                             onEdit={startEdit}
+                                             onOpenCredentials={setCredentialsEntity}
+                                             onOpenClients={setClientsEntity}
+                                             onToggleState={onToggleState}
+                                             onDelete={onDelete}
+                                          />
                                        </div>
                                     </td>
                                  </tr>
@@ -447,7 +476,7 @@ export default function EntitiesPage() {
                {!isLoading && (
                   <div className="mt-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-t border-[var(--border-subtle)] pt-3">
                      <div className="text-sm text-[var(--text-soft)]">
-                        Pagina {Math.min(page + 1, totalPages)} de {totalPages}
+                        Página {Math.min(page + 1, totalPages)} de {totalPages}
                      </div>
                      <div className="flex items-center gap-2">
                         <button
@@ -467,12 +496,13 @@ export default function EntitiesPage() {
                            Siguiente
                         </button>
                         <select
+                           aria-label="Filas por página"
                            value={pageSize}
                            onChange={(e) => {
                               setPageSize(Number(e.target.value));
                               setPage(0);
                            }}
-                           className="border border-[var(--border-subtle)] bg-[var(--surface-1)] rounded-lg px-2 py-1.5 text-sm"
+                           className="min-w-[82px] border border-[var(--border-subtle)] bg-[var(--surface-1)] text-[var(--text-main)] rounded-lg pl-3 pr-9 py-1.5 text-sm cursor-pointer"
                         >
                            <option value={25}>25</option>
                            <option value={50}>50</option>

@@ -27,6 +27,8 @@ export default function EmissoSyncPeriodModal({
    onClose,
    entityId,
    account,
+   syncQuota = null,
+   onQuotaUpdate,
    onSyncCompleted
 }) {
    const [mode, setMode] = useState('single'); // 'single' o 'range'
@@ -42,7 +44,16 @@ export default function EmissoSyncPeriodModal({
 
    if (!isOpen || !account) return null;
 
+   const used = Math.max(0, Number(syncQuota?.used ?? 0));
+   const limit = Math.max(1, Number(syncQuota?.limit ?? 100));
+   const limitReached = Boolean(syncQuota && used >= limit);
+
    const handleSync = async () => {
+      if (limitReached) {
+         toast.error(`Has alcanzado el límite mensual de sincronizaciones manuales (${used}/${limit}) para este mes. La sincronización automática cada 4 horas sigue activa.`);
+         return;
+      }
+
       setLoading(true);
       try {
          let payload = {
@@ -59,15 +70,21 @@ export default function EmissoSyncPeriodModal({
          }
 
          const resp = await syncEmissoBankAccount(payload);
+         if (resp?.emisso_sync_quota && onQuotaUpdate) {
+            onQuotaUpdate(resp.emisso_sync_quota);
+         }
          toast.success(
             `Sincronización finalizada: ${resp.saved || 0} movimientos nuevos, ${resp.updated || 0} actualizados`
          );
 
          if (onSyncCompleted) {
-            await onSyncCompleted();
+            await onSyncCompleted(resp);
          }
          onClose();
       } catch (err) {
+         if (err?.payload?.emisso_sync_quota && onQuotaUpdate) {
+            onQuotaUpdate(err.payload.emisso_sync_quota);
+         }
          toast.error(err?.message || 'Error al sincronizar movimientos del período');
       } finally {
          setLoading(false);
@@ -78,8 +95,8 @@ export default function EmissoSyncPeriodModal({
       <Modal isOpen={isOpen} onClose={onClose} title="Sincronizar Movimientos del Banco" maxWidth="max-w-lg">
          <div className="space-y-4">
             {/* Resumen de la cuenta */}
-            <div className="p-3.5 bg-surface-1 rounded-xl border border-border-subtle text-xs">
-               <div className="flex items-center justify-between">
+            <div className="p-3.5 bg-surface-1 rounded-xl border border-border-subtle text-xs space-y-2">
+               <div className="flex items-center justify-between gap-2">
                   <span className="font-semibold text-sm text-heading">
                      {account.bank_name || 'Banco'}
                   </span>
@@ -87,7 +104,29 @@ export default function EmissoSyncPeriodModal({
                      Cuenta: {account.account_number}
                   </span>
                </div>
+               {syncQuota && (
+                  <div className="flex items-center justify-between pt-2 border-t border-border-subtle/70">
+                     <span className="text-text-soft">Sincronizaciones manuales del mes</span>
+                     <span
+                        className={`font-mono text-[11px] font-semibold px-2 py-0.5 rounded border ${
+                           limitReached
+                              ? 'bg-red-500/15 text-red-600 dark:text-red-300 border-red-500/30'
+                              : used >= Math.floor(limit * 0.85)
+                                 ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30'
+                                 : 'bg-surface-2 text-heading border-border-subtle'
+                        }`}
+                     >
+                        {used}/{limit}
+                     </span>
+                  </div>
+               )}
             </div>
+
+            {limitReached && (
+               <div className="p-3 rounded-xl border border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-300 text-xs">
+                  Has alcanzado el límite mensual de {limit} sincronizaciones manuales ({used}/{limit}). La sincronización automática cada 4 horas continúa activa.
+               </div>
+            )}
 
             {/* Pestañas de modo (Segmented Control estilo neutral tipo Cloudflare) */}
             <div className="grid grid-cols-2 p-1 bg-surface-2 rounded-xl border border-border-subtle text-xs">
@@ -234,8 +273,8 @@ export default function EmissoSyncPeriodModal({
                <button
                   type="button"
                   onClick={handleSync}
-                  disabled={loading}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold bg-brand text-white hover:bg-brand-strong transition shadow-sm flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
+                  disabled={loading || limitReached}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold bg-brand text-white hover:bg-brand-strong transition shadow-sm flex items-center gap-1.5 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                >
                   {loading && <span className="loading loading-spinner loading-xs" />}
                   <span>Sincronizar período</span>

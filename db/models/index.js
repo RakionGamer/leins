@@ -31,6 +31,7 @@ const { AccountingEntryItem, AccountingEntryItemSchema } = require('./accounting
 const { EntityContact, EntityContactSchema } = require('./entity-contact.model');
 const { AccountingCostCenter, AccountingCostCenterSchema } = require('./accounting-cost-center.model');
 const { EntityBoletaRequest, EntityBoletaRequestSchema } = require('./entity-boleta-request.model');
+const { EntityBankSyncUsage, EntityBankSyncUsageSchema } = require('./entity-bank-sync-usage.model');
 
 function setupModels(sequelize) {
    // 1) init
@@ -65,6 +66,7 @@ function setupModels(sequelize) {
    EntityContact.init(EntityContactSchema, EntityContact.config(sequelize));
    AccountingCostCenter.init(AccountingCostCenterSchema, AccountingCostCenter.config(sequelize));
    EntityBoletaRequest.init(EntityBoletaRequestSchema, EntityBoletaRequest.config(sequelize));
+   EntityBankSyncUsage.init(EntityBankSyncUsageSchema, EntityBankSyncUsage.config(sequelize));
 
    // 2) associate
    if (State.associate) State.associate(sequelize.models);
@@ -97,6 +99,7 @@ function setupModels(sequelize) {
    if (EntityContact.associate) EntityContact.associate(sequelize.models);
    if (AccountingCostCenter.associate) AccountingCostCenter.associate(sequelize.models);
    if (EntityBoletaRequest.associate) EntityBoletaRequest.associate(sequelize.models);
+   if (EntityBankSyncUsage.associate) EntityBankSyncUsage.associate(sequelize.models);
 }
 
 module.exports = setupModels;

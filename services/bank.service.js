@@ -9,6 +9,30 @@ const { logInfo, logWarn, logError } = require('../utils/logger');
 const EmissoService = require('./emisso.service');
 
 class BankService {
+   static getMonthlySyncLimit() {
+      const raw = Number(process.env.EMISSO_MONTHLY_SYNC_LIMIT);
+      return Number.isInteger(raw) && raw > 0 ? raw : 100;
+   }
+
+   static getCurrentSyncPeriod(now = new Date()) {
+      const tz = config.tz || 'America/Santiago';
+      try {
+         const parts = new Intl.DateTimeFormat('en-CA', {
+            timeZone: tz,
+            year: 'numeric',
+            month: '2-digit',
+         }).formatToParts(now);
+         const year = parts.find((p) => p.type === 'year')?.value;
+         const month = parts.find((p) => p.type === 'month')?.value;
+         if (year && month) return `${year}-${month}`;
+      } catch {
+         // fallback al reloj local si TZ es invalido
+      }
+
+      const fallbackDate = now instanceof Date ? now : new Date();
+      return `${fallbackDate.getFullYear()}-${String(fallbackDate.getMonth() + 1).padStart(2, '0')}`;
+   }
+
    static #normalizeRut(value) {
       return String(value || "").toUpperCase().replace(/[^0-9K]/g, "");
    }
@@ -904,23 +928,138 @@ class BankService {
       return result;
    }
 
+   async getManualSyncQuota({ entityId, period = null } = {}) {
+      const parsedEntityId = Number(entityId);
+      if (!Number.isInteger(parsedEntityId) || parsedEntityId <= 0) {
+         throw boom.badRequest('entityId invalido');
+      }
+
+      const targetPeriod = /^\d{4}-\d{2}$/.test(String(period || ''))
+         ? String(period)
+         : BankService.getCurrentSyncPeriod();
+      const limit = BankService.getMonthlySyncLimit();
+
+      const rows = await sequelize.query(`
+         SELECT manual_sync_count
+         FROM entity_bank_sync_usage
+         WHERE entity_id = :entityId
+           AND period = :period
+         LIMIT 1
+      `, {
+         type: QueryTypes.SELECT,
+         replacements: { entityId: parsedEntityId, period: targetPeriod }
+      });
+
+      const used = Math.max(0, Number(rows[0]?.manual_sync_count || 0));
+      return {
+         used,
+         limit,
+         remaining: Math.max(0, limit - used),
+         period: targetPeriod,
+      };
+   }
+
+   async consumeManualSyncQuota({ entityId, bankAccountId = null, period = null } = {}) {
+      const parsedEntityId = Number(entityId);
+      if (!Number.isInteger(parsedEntityId) || parsedEntityId <= 0) {
+         throw boom.badRequest('entityId invalido');
+      }
+
+      const parsedAccountId = Number.isInteger(Number(bankAccountId)) && Number(bankAccountId) > 0
+         ? Number(bankAccountId)
+         : null;
+      const targetPeriod = /^\d{4}-\d{2}$/.test(String(period || ''))
+         ? String(period)
+         : BankService.getCurrentSyncPeriod();
+      const limit = BankService.getMonthlySyncLimit();
+
+      await sequelize.query(`
+         INSERT IGNORE INTO entity_bank_sync_usage (
+            entity_id,
+            period,
+            manual_sync_count,
+            created_at,
+            updated_at
+         ) VALUES (
+            :entityId,
+            :period,
+            0,
+            NOW(),
+            NOW()
+         )
+      `, {
+         replacements: {
+            entityId: parsedEntityId,
+            period: targetPeriod,
+         }
+      });
+
+      const [updateResult, updateMeta] = await sequelize.query(`
+         UPDATE entity_bank_sync_usage
+         SET manual_sync_count = manual_sync_count + 1,
+             last_manual_sync_at = NOW(),
+             last_sync_account_id = :bankAccountId,
+             updated_at = NOW()
+         WHERE entity_id = :entityId
+           AND period = :period
+           AND manual_sync_count < :limit
+      `, {
+         type: QueryTypes.UPDATE,
+         replacements: {
+            entityId: parsedEntityId,
+            period: targetPeriod,
+            bankAccountId: parsedAccountId,
+            limit,
+         }
+      });
+
+      const affectedRows = Number(
+         typeof updateMeta === 'number'
+            ? updateMeta
+            : updateMeta?.affectedRows ?? updateResult?.affectedRows ?? updateResult ?? 0
+      );
+
+      if (affectedRows === 0) {
+         const quota = await this.getManualSyncQuota({
+            entityId: parsedEntityId,
+            period: targetPeriod,
+         });
+         throw boom.tooManyRequests(
+            `Has alcanzado el límite mensual de sincronizaciones manuales (${quota.used}/${quota.limit}) para este mes. La sincronización automática cada 4 horas sigue activa.`,
+            {
+               emisso_sync_quota: quota,
+               code: 'EMISSO_MONTHLY_LIMIT_REACHED',
+            }
+         );
+      }
+
+      return this.getManualSyncQuota({
+         entityId: parsedEntityId,
+         period: targetPeriod,
+      });
+   }
+
    async listBankAccounts({ entityId } = {}) {
       const parsedEntityId = Number(entityId);
       if (!Number.isInteger(parsedEntityId) || parsedEntityId <= 0) {
          throw boom.badRequest('entityId invalido');
       }
 
-      const rows = await models.EntityBankAccount.findAll({
-         where: { entity_id: parsedEntityId },
-         attributes: ['id', 'entity_id', 'bank_name', 'account_number', 'currency', 'initial_balance', 'initial_balance_date', 'emisso_connection_id', 'emisso_system', 'last_synced_at', 'sync_status', 'createdAt', 'updatedAt'],
-         order: [['bank_name', 'ASC'], ['id', 'ASC']]
-      });
+      const [rows, emissoSyncQuota] = await Promise.all([
+         models.EntityBankAccount.findAll({
+            where: { entity_id: parsedEntityId },
+            attributes: ['id', 'entity_id', 'bank_name', 'account_number', 'currency', 'initial_balance', 'initial_balance_date', 'emisso_connection_id', 'emisso_system', 'last_synced_at', 'sync_status', 'createdAt', 'updatedAt'],
+            order: [['bank_name', 'ASC'], ['id', 'ASC']]
+         }),
+         this.getManualSyncQuota({ entityId: parsedEntityId }),
+      ]);
 
       const mapped = rows.map((r) => BankService.#mapBankAccountRow(r));
       return {
          ok: true,
          total: mapped.length,
-         rows: mapped
+         rows: mapped,
+         emisso_sync_quota: emissoSyncQuota,
       };
    }
 
@@ -2726,7 +2865,7 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
    }
 
    // Sincroniza movimientos de Emisso para una cuenta bancaria especifica
-   async syncFromEmisso({ entityId, bankAccountId, periods, fromPeriod, toPeriod }) {
+   async syncFromEmisso({ entityId, bankAccountId, periods, fromPeriod, toPeriod, trackManualQuota = false } = {}) {
       if (!entityId || !bankAccountId) {
          throw boom.badRequest('entityId y bankAccountId son requeridos');
       }
@@ -2738,6 +2877,14 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
       if (!account) throw boom.notFound('Cuenta bancaria no encontrada');
       if (!account.emisso_connection_id) {
          throw boom.badRequest('Esta cuenta bancaria no tiene una conexion de Emisso asociada');
+      }
+
+      let manualQuota = null;
+      if (trackManualQuota) {
+         manualQuota = await this.consumeManualSyncQuota({
+            entityId,
+            bankAccountId: account.id,
+         });
       }
 
       const connectionId = account.emisso_connection_id;
@@ -2840,6 +2987,7 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
             connectionId,
             ...stats,
             totalRows: allRows.length,
+            ...(manualQuota ? { emisso_sync_quota: manualQuota } : {}),
          };
       } catch (err) {
          await account.update({ sync_status: 'error' }).catch(() => {});

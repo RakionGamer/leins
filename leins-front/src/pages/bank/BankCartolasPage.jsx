@@ -755,10 +755,31 @@ export default function BankCartolasPage() {
 
    const [showSyncPeriodModal, setShowSyncPeriodModal] = useState(false);
 
+   const emissoSyncQuota = accountsData?.emisso_sync_quota || null;
+   const emissoSyncUsed = Math.max(0, Number(emissoSyncQuota?.used ?? 0));
+   const emissoSyncLimit = Math.max(1, Number(emissoSyncQuota?.limit ?? 100));
+   const emissoLimitReached = Boolean(emissoSyncQuota && emissoSyncUsed >= emissoSyncLimit);
+   const hasEmissoQuotaLoaded = Boolean(emissoSyncQuota);
+
+   const updateCachedEmissoQuota = useCallback((nextQuota) => {
+      if (!entityId || !nextQuota || typeof nextQuota !== 'object') return;
+      queryClient.setQueryData(['bankAccounts', entityId], (prev) => {
+         if (!prev || typeof prev !== 'object') return prev;
+         return {
+            ...prev,
+            emisso_sync_quota: nextQuota,
+         };
+      });
+   }, [entityId, queryClient]);
+
    const handleManualEmissoSync = async () => {
       if (!entityId || !currentSelectedAccount?.id) return;
       if (!currentSelectedAccount.emisso_connection_id) {
          toast.info("Esta cuenta no tiene una conexión automática de Emisso configurada.");
+         return;
+      }
+      if (emissoLimitReached) {
+         toast.error(`Has alcanzado el límite mensual de sincronizaciones manuales (${emissoSyncUsed}/${emissoSyncLimit}) para este mes. La sincronización automática cada 4 horas sigue activa.`);
          return;
       }
 
@@ -768,12 +789,21 @@ export default function BankCartolasPage() {
             entityId,
             id: currentSelectedAccount.id,
          });
+         if (resp?.emisso_sync_quota) {
+            updateCachedEmissoQuota(resp.emisso_sync_quota);
+         }
          toast.success(`Sincronización completada: ${resp.saved || 0} nuevos, ${resp.updated || 0} actualizados`);
          await queryClient.invalidateQueries({ queryKey: ['bankAccounts', entityId] });
          await queryClient.invalidateQueries({ queryKey: ['bankTransactions'] });
          await queryClient.invalidateQueries({ queryKey: ['bankTotals'] });
          await queryClient.invalidateQueries({ queryKey: ['sugerenciasCount'] });
       } catch (err) {
+         if (err?.payload?.emisso_sync_quota) {
+            updateCachedEmissoQuota(err.payload.emisso_sync_quota);
+         }
+         if (err?.status === 429) {
+            await queryClient.invalidateQueries({ queryKey: ['bankAccounts', entityId] });
+         }
          toast.error(err?.message || "Error al sincronizar con el banco");
       } finally {
          setIsManualSyncing(false);
@@ -2055,22 +2085,42 @@ export default function BankCartolasPage() {
                            <button
                               type="button"
                               onClick={handleManualEmissoSync}
-                              disabled={isManualSyncing || currentSelectedAccount?.sync_status === 'syncing'}
-                              className="inline-flex items-center gap-2 px-3.5 h-full text-xs font-semibold text-[var(--text-main)] hover:bg-[var(--surface-2)] transition disabled:opacity-50 cursor-pointer"
-                              title="Actualizar movimientos automáticamente con el banco"
+                              disabled={isManualSyncing || currentSelectedAccount?.sync_status === 'syncing' || emissoLimitReached}
+                              className="inline-flex items-center gap-2 px-3.5 h-full text-xs font-semibold text-[var(--text-main)] hover:bg-[var(--surface-2)] transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                              title={
+                                 emissoLimitReached
+                                    ? `Límite mensual alcanzado (${emissoSyncUsed}/${emissoSyncLimit} sincronizaciones manuales este mes). La sincronización automática cada 4 horas sigue activa.`
+                                    : `Actualizar movimientos manualmente con el banco (${emissoSyncUsed} de ${emissoSyncLimit} usos este mes)`
+                              }
                            >
-                              <svg className={`w-3.5 h-3.5 text-[var(--brand)] ${isManualSyncing ? 'animate-spin' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <svg className={`w-3.5 h-3.5 text-[var(--brand)] shrink-0 ${isManualSyncing ? 'animate-spin' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                  <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
                               </svg>
                               <span>{isManualSyncing ? 'Sincronizando...' : 'Actualizar movimientos'}</span>
+                              <span
+                                 data-testid="emisso-sync-counter"
+                                 className={`px-1.5 py-0.5 rounded-md text-[11px] font-mono font-semibold border leading-none ${
+                                    emissoLimitReached
+                                       ? 'bg-red-500/15 text-red-600 dark:text-red-300 border-red-500/30'
+                                       : emissoSyncUsed >= Math.floor(emissoSyncLimit * 0.85)
+                                          ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30'
+                                          : 'bg-[var(--surface-2)] text-[var(--text-soft)] border-[var(--border-subtle)]'
+                                 }`}
+                              >
+                                 {hasEmissoQuotaLoaded ? `${emissoSyncUsed}/${emissoSyncLimit}` : `—/${emissoSyncLimit}`}
+                              </span>
                            </button>
 
                            <button
                               type="button"
                               onClick={() => setShowSyncPeriodModal(true)}
-                              disabled={isManualSyncing || currentSelectedAccount?.sync_status === 'syncing'}
-                              className="px-3 h-full text-xs font-semibold text-[var(--text-soft)] hover:text-[var(--heading)] hover:bg-[var(--surface-2)] border-l border-[var(--border-subtle)] transition disabled:opacity-50 cursor-pointer"
-                              title="Sincronizar mes específico o rango histórico"
+                              disabled={isManualSyncing || currentSelectedAccount?.sync_status === 'syncing' || emissoLimitReached}
+                              className="px-3 h-full text-xs font-semibold text-[var(--text-soft)] hover:text-[var(--heading)] hover:bg-[var(--surface-2)] border-l border-[var(--border-subtle)] transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                              title={
+                                 emissoLimitReached
+                                    ? `Límite mensual alcanzado (${emissoSyncUsed}/${emissoSyncLimit}). Espera al próximo mes o utiliza la sincronización automática.`
+                                    : 'Sincronizar mes específico o rango histórico'
+                              }
                            >
                               <span>Histórico</span>
                            </button>
@@ -3379,7 +3429,12 @@ export default function BankCartolasPage() {
             onClose={() => setShowSyncPeriodModal(false)}
             entityId={entityId}
             account={currentSelectedAccount}
-            onSyncCompleted={async () => {
+            syncQuota={emissoSyncQuota}
+            onQuotaUpdate={updateCachedEmissoQuota}
+            onSyncCompleted={async (resp) => {
+               if (resp?.emisso_sync_quota) {
+                  updateCachedEmissoQuota(resp.emisso_sync_quota);
+               }
                await queryClient.invalidateQueries({ queryKey: ['bankAccounts', entityId] });
                await queryClient.invalidateQueries({ queryKey: ['bankTransactions'] });
                await queryClient.invalidateQueries({ queryKey: ['bankTotals'] });

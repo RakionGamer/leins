@@ -122,6 +122,22 @@ setupModels(sequelize);
       } catch {}
 
       try {
+         await sequelize.query(`
+            CREATE TABLE IF NOT EXISTS entity_bank_sync_usage (
+               id INT AUTO_INCREMENT PRIMARY KEY,
+               entity_id INT NOT NULL,
+               period CHAR(7) NOT NULL,
+               manual_sync_count INT NOT NULL DEFAULT 0,
+               last_manual_sync_at DATETIME NULL,
+               last_sync_account_id INT NULL,
+               created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+               updated_at DATETIME NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+               UNIQUE KEY uq_entity_bank_sync_usage_entity_period (entity_id, period)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+         `);
+      } catch {}
+
+      try {
          const [cols] = await sequelize.query(`
             SELECT COLUMN_NAME 
             FROM information_schema.COLUMNS 
