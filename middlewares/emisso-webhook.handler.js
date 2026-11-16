@@ -26,7 +26,7 @@ function createEmissoWebhookVerifier(options = {}) {
    return function verifyEmissoWebhook(req, res, next) {
       const configuredSecret = Object.prototype.hasOwnProperty.call(options, 'secret')
          ? options.secret
-         : (process.env.EMISSO_WEBHOOK_SECRET ?? config.emissoWebhookSecret);
+         : (process.env.EMISSO_WEBHOOK_SECRET ?? process.env.EMISSO_WEBHOOK_URL ?? config.emissoWebhookSecret);
 
       const keys = parseWebhookSecrets(configuredSecret);
       if (!keys.length) {
