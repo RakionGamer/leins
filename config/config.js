@@ -20,6 +20,8 @@ const config = {
       String(process.env.ALLOW_UNSCOPED_SUPERADMIN_ENTITY_ACCESS || 'false').toLowerCase() === 'true',
    emissoApiUrl: process.env.EMISSO_API_URL || 'https://connect.emisso.ai/api/v1',
    emissoApiKey: process.env.EMISSO_API_KEY || '',
+   emissoWebhookSecret: process.env.EMISSO_WEBHOOK_SECRET || '',
+   emissoWebhookToleranceSeconds: parseInt(process.env.EMISSO_WEBHOOK_TOLERANCE_SECONDS || '300', 10),
 };
 
 module.exports = {

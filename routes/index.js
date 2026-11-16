@@ -28,7 +28,7 @@ function routerApi(app) {
    router.use('/state', jwtValidate, statesRouter);
    router.use('/super-admin', jwtValidate, superAdminsRouter);
    router.use('/sii-documents', jwtValidate, siiDocumentsRouter);
-   router.use('/banks', jwtValidate, bankRouter);
+   router.use('/banks', bankRouter);
    router.use('/entities', jwtValidate, entitiesRouter);
    router.use('/notifications', jwtValidate, notificationsRouter);
    router.use('/dashboard', jwtValidate, dashboardRouter);

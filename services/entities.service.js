@@ -1,3 +1,4 @@
+const { sanitizePermissions } = require('../utils/permissions.constants');
 const boom = require('@hapi/boom');
 const { sequelize, models } = require('../libs/sequelize');
 const { Op, QueryTypes } = require('sequelize');
@@ -145,20 +146,29 @@ function buildEntityFilters({ q, activeOnly, id, activeStateId }) {
 
 function mapEntityRow(row) {
    if (!row) return null;
+   let granular = null;
+   if (row.granular_permissions) {
+      try {
+         const parsed = typeof row.granular_permissions === 'string'
+            ? JSON.parse(row.granular_permissions)
+            : row.granular_permissions;
+         granular = sanitizePermissions(parsed);
+      } catch {}
+   }
    return {
       id: Number(row.id),
       name: row.name || row.legal_name,
       rut: row.rut || row.tax_id,
       legal_name: row.legal_name || row.name || null,
       state_id: Number(row.state_id || 0),
-      // permisos del actor que pidio el listado sobre esta entidad puntual
-      // (vienen de admin_entities para super_admin, o de user_entities.read_only para clientes)
       permissions: {
          can_create: row.can_create == null ? true : Boolean(row.can_create),
          can_update: row.can_update == null ? true : Boolean(row.can_update),
          can_delete: row.can_delete == null ? true : Boolean(row.can_delete),
          is_admin: Boolean(row.is_admin),
+         ...(granular ? { granular } : {}),
       },
+      granular_permissions: granular,
    };
 }
 
@@ -225,6 +235,7 @@ class EntitiesService {
       `;
       const sql = `
          SELECT e.id, e.legal_name AS name, e.legal_name, e.tax_id AS rut, e.tax_id, e.state_id,
+                ue.permissions AS granular_permissions,
                 1 AS can_create, 1 AS can_update, (NOT ue.read_only) AS can_delete, 0 AS is_admin
          ${baseJoin}
          ORDER BY ${orderBySql}

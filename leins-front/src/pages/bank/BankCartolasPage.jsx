@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import * as XLSX from "xlsx";
 import { useAuth } from '../../context/AuthContext';
+import { usePermissions } from '../../hooks/usePermissions';
 import { useEntityRequired } from '../../hooks/useEntityRequired';
 import EntityRequiredNotice from 'components/EntityRequiredNotice';
 import ReconcileSuggestionsPanel from 'components/ReconcileSuggestionsPanel';
@@ -440,11 +441,16 @@ export default function BankCartolasPage() {
    const queryClient = useQueryClient();
    const { auth, isClient } = useAuth();
    const { entityId, ready, permissions } = useEntityRequired();
-   const canDelete = permissions?.can_delete ?? true;
-   // agregar movimientos, conciliar y deshacer conciliaciones quedan reservados al administrador;
-   // el cliente solo puede ver el detalle y eliminar movimientos propios sin conciliar
-   const canCreate = (permissions?.can_create ?? true) && !isClient;
-   const canUpdate = (permissions?.can_update ?? true) && !isClient;
+   const { can } = usePermissions();
+   const canBoletear = can('bank_movements', 'boletear');
+   const canSyncBank = can('bank_movements', 'bank_sync');
+   const canUploadCartola = can('bank_movements', 'upload_cartola');
+   const canReconcile = can('bank_movements', 'reconcile');
+   const canUnreconcile = can('bank_movements', 'unreconcile');
+   const canDeleteMovement = can('bank_movements', 'delete_movement');
+   const canCreate = canUploadCartola;
+   const canUpdate = canReconcile;
+   const canDelete = canDeleteMovement;
 
    const hasAuth = !!(auth?.accessToken || localStorage.getItem("accessToken"));
    const headers = useMemo(() => {
@@ -2080,7 +2086,7 @@ export default function BankCartolasPage() {
                         </div>
                      )}
 
-                     {currentSelectedAccount?.emisso_connection_id && canUpdate && (
+                     {currentSelectedAccount?.emisso_connection_id && canSyncBank && (
                         <div className="inline-flex items-center h-10 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-1)] shadow-xs overflow-hidden shrink-0">
                            <button
                               type="button"
@@ -2127,7 +2133,7 @@ export default function BankCartolasPage() {
                         </div>
                      )}
 
-                     {canCreate && (
+                     {canUploadCartola && (
                         <button
                            type="button"
                            onClick={openUploadModal}
@@ -2140,7 +2146,7 @@ export default function BankCartolasPage() {
                         </button>
                      )}
 
-                     {canCreate && (
+                     {canBoletear && (
                         <button
                            type="button"
                            disabled={selectedBoleteoIds.size === 0}
@@ -2313,7 +2319,7 @@ export default function BankCartolasPage() {
                                           ? `${fmtCLP(remaining)} por conciliar`
                                           : `${fmtCLP(Math.abs(r.monto))} conciliado`}
                                     </div>
-                                    {remaining > 0 && canCreate && (
+                                    {remaining > 0 && canReconcile && (
                                        <button
                                           className="px-3 py-1 rounded-lg bg-[var(--brand)] text-white text-xs hover:opacity-90 transition shadow-xs"
                                           onClick={() => openConciliar(r)}
@@ -2387,7 +2393,7 @@ export default function BankCartolasPage() {
                                     >
                                        Detalle
                                     </button>
-                                    {canDelete && appliedSum <= 0 && (
+                                    {canDeleteMovement && appliedSum <= 0 && (
                                        <button
                                           type="button"
                                           disabled={deletingTxId === bankTxId}
@@ -3564,7 +3570,7 @@ export default function BankCartolasPage() {
                                              <td className="p-3 text-right text-[var(--text-main)]">{fmtCLP(row.doc_amount || 0)}</td>
                                              <td className="p-3 text-right font-semibold text-[var(--heading)]">{fmtCLP(row.amount_applied || 0)}</td>
                                              <td className="p-3 text-right">
-                                                {canDelete && !isClient && (
+                                                {canUnreconcile && (
                                                    <button
                                                       type="button"
                                                       className="px-2.5 py-1 rounded-md text-xs font-medium border border-[var(--danger)] text-[var(--danger)] hover:bg-[var(--danger)] hover:text-white transition-colors disabled:opacity-50"

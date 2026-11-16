@@ -47,6 +47,33 @@ setupModels(sequelize);
          // Silently ignore si la tabla aun no existe
       }
 
+      // Asegurar columna permissions en users y user_entities si no existen
+      try {
+         const [userPermCols] = await sequelize.query(`
+            SELECT COUNT(*) AS cnt 
+            FROM information_schema.COLUMNS 
+            WHERE TABLE_SCHEMA = DATABASE() 
+              AND TABLE_NAME = 'users' 
+              AND COLUMN_NAME = 'permissions'
+         `);
+         if (Number(userPermCols[0]?.cnt || 0) === 0) {
+            await sequelize.query(`ALTER TABLE users ADD COLUMN permissions JSON NULL`);
+         }
+      } catch {}
+
+      try {
+         const [uePermCols] = await sequelize.query(`
+            SELECT COUNT(*) AS cnt 
+            FROM information_schema.COLUMNS 
+            WHERE TABLE_SCHEMA = DATABASE() 
+              AND TABLE_NAME = 'user_entities' 
+              AND COLUMN_NAME = 'permissions'
+         `);
+         if (Number(uePermCols[0]?.cnt || 0) === 0) {
+            await sequelize.query(`ALTER TABLE user_entities ADD COLUMN permissions JSON NULL`);
+         }
+      } catch {}
+
       // Asegurar índices de alto rendimiento para búsqueda instantánea de conciliaciones
       try {
          await sequelize.query(`CREATE INDEX idx_btd_doc ON bank_transaction_documents (entity_sii_document_id)`);

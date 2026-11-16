@@ -77,7 +77,14 @@ app.use((req, res, next) => {
 });
 
 // 4. parsers de cuerpo (json y urlencoded)
-app.use(express.json());
+app.use(express.json({
+   verify: (req, _res, buf) => {
+      const pathOnly = String(req.originalUrl || req.url || '').split('?')[0].replace(/\/+$/, '');
+      if (pathOnly === '/api/v1/banks/webhook-emisso') {
+         req.rawBody = buf;
+      }
+   }
+}));
 app.use(express.urlencoded({ extended: true }));
 
 // 5. archivos estaticos (imagenes de avatar)

@@ -6,6 +6,7 @@ const multer = require('multer');
 const controller = require('../controllers/boleta-queue.controller');
 const { jwtValidate } = require('../middlewares/auth.handler');
 const { requireEntityAccess } = require('../middlewares/entity-access.handler');
+const { requireEntityPermission } = require('../middlewares/permission.handler');
 
 const router = express.Router();
 const ensureEntityAccess = requireEntityAccess();
@@ -29,13 +30,13 @@ router.post('/error', controller.reportError);
 router.post('/api_boletas_error.php', controller.reportError);
 
 // 2. Rutas internas de Leins (autenticadas con JWT y entidad)
-router.post('/queue', jwtValidate, ensureEntityCreateAccess, controller.createRequest);
-router.post('/queue-batch', jwtValidate, ensureEntityCreateAccess, controller.createBatchRequests);
+router.post('/queue', jwtValidate, ensureEntityCreateAccess, requireEntityPermission('bank_movements', 'boletear'), controller.createRequest);
+router.post('/queue-batch', jwtValidate, ensureEntityCreateAccess, requireEntityPermission('bank_movements', 'boletear'), controller.createBatchRequests);
 router.get('/', jwtValidate, ensureEntityAccess, controller.listRequests);
 router.get('/active-map', jwtValidate, ensureEntityAccess, controller.getActiveMap);
-router.post('/retry-all', jwtValidate, ensureEntityAccess, controller.retryAllFailed);
-router.post('/:id/retry', jwtValidate, ensureEntityAccess, controller.retryRequest);
-router.delete('/:id', jwtValidate, ensureEntityAccess, controller.cancelRequest);
+router.post('/retry-all', jwtValidate, ensureEntityAccess, requireEntityPermission('bank_movements', 'boletear'), controller.retryAllFailed);
+router.post('/:id/retry', jwtValidate, ensureEntityAccess, requireEntityPermission('bank_movements', 'boletear'), controller.retryRequest);
+router.delete('/:id', jwtValidate, ensureEntityAccess, requireEntityPermission('bank_movements', 'boletear'), controller.cancelRequest);
 router.get('/:id/download', jwtValidate, ensureEntityAccess, controller.downloadPdf);
 
 module.exports = router;

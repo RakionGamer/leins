@@ -5,6 +5,7 @@ const UserEntitySchema = {
   user_id: { allowNull: false, type: DataTypes.INTEGER },
   entity_id: { allowNull: false, type: DataTypes.INTEGER },
   read_only: { allowNull: false, type: DataTypes.BOOLEAN, defaultValue: true },
+  permissions: { allowNull: true, type: DataTypes.JSON },
   createdAt: { allowNull: false, type: DataTypes.DATE, field: 'created_at', defaultValue: Sequelize.NOW },
 };
 class UserEntity extends Model {

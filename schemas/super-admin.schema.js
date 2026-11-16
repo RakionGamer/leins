@@ -4,17 +4,16 @@ const Joi = require('joi');
 const id = Joi.number().integer();
 const username = Joi.string().alphanum().min(3).max(60);
 const email = Joi.string().email();
-const password = Joi.string().min(6); // ajusta la seguridad segun necesites
+const password = Joi.string().min(6);
 const name = Joi.string().min(2).max(255);
 const lastName = Joi.string().min(2).max(255);
-// phone permite nulo o vacio para evitar errores si el usuario lo borra
 const phone = Joi.string().pattern(/^[0-9+ ]+$/).min(8).max(15).allow(null, '');
 const avatarUrl = Joi.string().uri().allow(null, '');
 const theme = Joi.string().valid('light', 'dark');
 const stateId = Joi.number().integer();
 const booleanField = Joi.boolean();
 
-// schema para crear (post /)
+// schema para crear super admin
 const createSuperAdminSchema = Joi.object({
    username: username.required(),
    email: email.required(),
@@ -38,23 +37,20 @@ const updateSuperAdminSchema = Joi.object({
    email: email
 });
 
-// schema para cambiar contrasena (post /change-password)
+// schema para cambiar contrasena
 const changePasswordSchema = Joi.object({
    oldPassword: Joi.string().required(),
    newPassword: password.required(),
 });
 
-// schema para params (get /:id)
 const getSuperAdminSchema = Joi.object({
    id: id.required(),
 });
 
-// schema para eliminar (delete /:id)
 const deleteSuperAdminSchema = Joi.object({
    id: id.required(),
 });
 
-// schema para tema (patch /theme)
 const updateThemeSchema = Joi.object({
    theme: theme.required(),
 });
@@ -96,7 +92,6 @@ const updateEntityAssignmentSchema = Joi.object({
    isAdmin: Joi.boolean().optional(),
 }).min(1);
 
-
 const clientUsername = Joi.string().min(3).max(60).pattern(/^[a-zA-Z0-9._-]+$/);
 
 const createClientUserSchema = Joi.object({
@@ -108,14 +103,21 @@ const createClientUserSchema = Joi.object({
    last_name: Joi.string().max(255).allow(null, '').optional(),
    entityId: id.optional(),
    entity_id: id.optional(),
+   entityIds: Joi.array().items(id).optional(),
+   entity_ids: Joi.array().items(id).optional(),
+   permissions: Joi.object().optional(),
+   preset: Joi.string().optional(),
    readOnly: booleanField.optional(),
    read_only: booleanField.optional(),
-}).or('entityId', 'entity_id');
+});
 
 const listClientUsersQuerySchema = Joi.object({
    entityId: id.optional(),
    entity_id: id.optional(),
-}).or('entityId', 'entity_id');
+   search: Joi.string().allow('', null).optional(),
+   page: Joi.number().integer().min(1).optional(),
+   limit: Joi.number().integer().min(1).max(100).optional(),
+});
 
 const clientUserEntityParamsSchema = Joi.object({
    userId: id.required(),
@@ -125,7 +127,8 @@ const clientUserEntityParamsSchema = Joi.object({
 const updateClientUserEntityAccessSchema = Joi.object({
    readOnly: booleanField.optional(),
    read_only: booleanField.optional(),
-}).or('readOnly', 'read_only');
+   permissions: Joi.object().optional(),
+});
 
 const clientUserParamsSchema = Joi.object({
    userId: id.required(),
@@ -133,12 +136,28 @@ const clientUserParamsSchema = Joi.object({
 
 const updateClientUserSchema = Joi.object({
    username: clientUsername.optional(),
+   email: email.optional(),
    name: Joi.string().max(255).allow(null, '').optional(),
    lastName: Joi.string().max(255).allow(null, '').optional(),
    last_name: Joi.string().max(255).allow(null, '').optional(),
    password: Joi.string().min(6).allow(null, '').optional(),
    entityId: id.optional(),
    entity_id: id.optional(),
+   entityIds: Joi.array().items(id).optional(),
+   permissions: Joi.object().optional(),
+   state_id: Joi.number().valid(1, 2).optional(),
+   stateId: Joi.number().valid(1, 2).optional(),
+});
+
+const updateClientPermissionsSchema = Joi.object({
+   permissions: Joi.object().required(),
+   entityId: id.optional(),
+   entity_id: id.optional(),
+});
+
+const assignClientEntitiesSchema = Joi.object({
+   entityIds: Joi.array().items(id).required(),
+   permissions: Joi.object().optional(),
 });
 
 module.exports = {
@@ -158,5 +177,7 @@ module.exports = {
    clientUserEntityParamsSchema,
    updateClientUserEntityAccessSchema,
    clientUserParamsSchema,
-   updateClientUserSchema
+   updateClientUserSchema,
+   updateClientPermissionsSchema,
+   assignClientEntitiesSchema,
 };

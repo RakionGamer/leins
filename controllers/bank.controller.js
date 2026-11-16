@@ -2,7 +2,7 @@ const boom = require('@hapi/boom');
 const BankService = require('../services/bank.service');
 const ReconcileService = require('../services/reconcile.service');
 const asyncHandler = require('../utils/helpers/asyncHandler');
-const { logInfo, logError } = require('../utils/logger');
+const { logInfo, logWarn, logError } = require('../utils/logger');
 
 // instanciamos los servicios
 const service = new BankService();
@@ -778,16 +778,171 @@ const createEmissoConnectLink = asyncHandler(async (req, res) => {
    res.json(out);
 });
 
-// Receptor del webhook de Emisso Connect (cuando termina la sincronizacion automatica)
+const NON_BANK_EMISSO_CONNECTORS = new Set([
+   'sii',
+   'previred',
+   'tgr',
+   'dt',
+   'direccion_trabajo',
+   'mercadopublico',
+   'pjud',
+   'gmail',
+   'outlook',
+   'x',
+   'linkedin',
+   'instagram',
+   'meta_ads',
+   'shopify',
+   'notta',
+   'core',
+   'echo',
+   'indicadores',
+]);
+
+const EMISSO_WEBHOOK_DEDUP_TTL_MS = 24 * 60 * 60 * 1000;
+const EMISSO_WEBHOOK_DEDUP_MAX_SIZE = 2000;
+const processedEmissoWebhookIds = new Map();
+
+function hasProcessedEmissoWebhookId(webhookId, now = Date.now()) {
+   if (!webhookId) return false;
+   const expiresAt = processedEmissoWebhookIds.get(webhookId);
+   if (!expiresAt) return false;
+   if (expiresAt <= now) {
+      processedEmissoWebhookIds.delete(webhookId);
+      return false;
+   }
+   return true;
+}
+
+function markEmissoWebhookIdProcessed(webhookId, now = Date.now()) {
+   if (!webhookId) return;
+   for (const [key, exp] of processedEmissoWebhookIds.entries()) {
+      if (exp <= now) {
+         processedEmissoWebhookIds.delete(key);
+      } else {
+         break;
+      }
+   }
+   processedEmissoWebhookIds.set(webhookId, now + EMISSO_WEBHOOK_DEDUP_TTL_MS);
+   while (processedEmissoWebhookIds.size > EMISSO_WEBHOOK_DEDUP_MAX_SIZE) {
+      const oldestKey = processedEmissoWebhookIds.keys().next().value;
+      if (!oldestKey) break;
+      processedEmissoWebhookIds.delete(oldestKey);
+   }
+}
+
+// Receptor del webhook de Emisso Connect (cuando termina la sincronizacion automatica o a pedido)
 const handleEmissoWebhook = asyncHandler(async (req, res) => {
    const { models } = require('../libs/sequelize');
+   const webhookId = req.emissoWebhook?.id || req.get('webhook-id') || null;
    const eventData = req.body || {};
-   const connectionId = eventData.conexionId || eventData.connectionId || eventData.data?.conexionId || eventData.data?.connectionId;
+   const eventType = String(
+      eventData.type || eventData.event || eventData.tipo || eventData.action || ''
+   ).trim();
+
+   const connectionObj = eventData.data?.connection || eventData.connection || null;
+   const connectionId = (
+      connectionObj?.id ||
+      eventData.data?.connection_id ||
+      eventData.data?.connectionId ||
+      eventData.data?.conexionId ||
+      eventData.connection_id ||
+      eventData.connectionId ||
+      eventData.conexionId ||
+      null
+   );
+   const connector = String(
+      connectionObj?.connector || eventData.data?.connector || eventData.connector || ''
+   ).toLowerCase().trim() || null;
+
+   const rawPeriodo = eventData.data?.periodo || eventData.periodo || null;
+   const periodo = (typeof rawPeriodo === 'string' && /^\d{4}-\d{2}$/.test(rawPeriodo.trim()))
+      ? rawPeriodo.trim()
+      : null;
+   const jobId = eventData.data?.job_id || eventData.data?.jobId || eventData.job_id || null;
+   const trigger = eventData.data?.trigger || null;
 
    logInfo('EMISSO_WEBHOOK_RECEIVED', {
-      event: eventData.event || eventData.tipo || eventData.action,
-      connectionId
+      webhookId,
+      event: eventType || null,
+      connectionId,
+      connector,
+      periodo,
+      jobId,
+      trigger,
    });
+
+   if (eventType === 'webhook.test' || (eventData.data?.test === true && !connectionId)) {
+      return res.status(200).json({
+         ok: true,
+         status: 'test_received',
+         event: eventType || 'webhook.test',
+         endpointId: eventData.data?.endpoint_id || null,
+      });
+   }
+
+   if (eventType === 'sync.failed') {
+      logWarn('EMISSO_WEBHOOK_SYNC_FAILED', {
+         webhookId,
+         jobId,
+         connectionId,
+         connector,
+         periodo,
+         lastError: eventData.data?.last_error || null,
+         trigger,
+      });
+      return res.status(200).json({
+         ok: true,
+         status: 'acknowledged_sync_failed',
+         event: eventType,
+         connectionId,
+      });
+   }
+
+   if (eventType !== 'sync.succeeded' && eventType !== 'sync.partial') {
+      return res.status(200).json({
+         ok: true,
+         status: 'ignored_event_type',
+         event: eventType || null,
+      });
+   }
+
+   if (connector && NON_BANK_EMISSO_CONNECTORS.has(connector)) {
+      return res.status(200).json({
+         ok: true,
+         status: 'ignored_non_bank_connector',
+         connector,
+      });
+   }
+
+   const rawAlcances = Array.isArray(eventData.data?.alcances)
+      ? eventData.data.alcances
+      : (Array.isArray(eventData.data?.outcomes)
+         ? eventData.data.outcomes.map((o) => o?.alcance).filter(Boolean)
+         : []);
+
+   if (rawAlcances.length > 0) {
+      const hasMovementsScope = rawAlcances.some((alcance) => {
+         const lower = String(alcance || '').toLowerCase();
+         return lower.includes('movimiento') || lower.includes('transferencia');
+      });
+      if (!hasMovementsScope) {
+         return res.status(200).json({
+            ok: true,
+            status: 'ignored_no_movimientos_scope',
+            alcances: rawAlcances,
+         });
+      }
+   }
+
+   if (hasProcessedEmissoWebhookId(webhookId)) {
+      logInfo('EMISSO_WEBHOOK_DUPLICATE_IGNORED', { webhookId, connectionId, periodo });
+      return res.status(200).json({
+         ok: true,
+         status: 'duplicate_ignored',
+         webhookId,
+      });
+   }
 
    if (!connectionId) {
       return res.status(200).json({ ok: true, status: 'ignored_missing_connection_id' });
@@ -799,25 +954,45 @@ const handleEmissoWebhook = asyncHandler(async (req, res) => {
    });
 
    if (!accounts.length) {
-      logWarn('EMISSO_WEBHOOK_NO_MATCHING_ACCOUNT', { connectionId });
+      logWarn('EMISSO_WEBHOOK_NO_MATCHING_ACCOUNT', { webhookId, connectionId, connector });
       return res.status(200).json({ ok: true, status: 'no_matching_account' });
    }
 
-   // Dispara la persistencia de movimientos en segundo plano sin bloquear el webhook
-   for (const acc of accounts) {
-      service.syncFromEmisso({
-         entityId: acc.entity_id,
-         bankAccountId: acc.id,
-         trackManualQuota: false,
-      }).catch((err) => {
-         logError('EMISSO_WEBHOOK_BACKGROUND_SYNC_ERROR', {
-            bankAccountId: acc.id,
-            error: err.message
-         });
-      });
-   }
+   markEmissoWebhookIdProcessed(webhookId);
 
-   res.status(200).json({ ok: true, accountsQueued: accounts.length });
+   const syncPeriods = periodo ? [periodo] : undefined;
+
+   // Dispara la lectura desde cache de Emisso y persistencia en segundo plano (sin consumo de cuota manual ni nuevo login al banco)
+   void (async () => {
+      for (const acc of accounts) {
+         try {
+            await service.syncFromEmisso({
+               entityId: acc.entity_id,
+               bankAccountId: acc.id,
+               ...(syncPeriods ? { periods: syncPeriods } : {}),
+               trackManualQuota: false,
+               skipPortalSync: true,
+            });
+         } catch (err) {
+            logError('EMISSO_WEBHOOK_BACKGROUND_SYNC_ERROR', {
+               webhookId,
+               connectionId,
+               bankAccountId: acc.id,
+               periodo,
+               error: err.message,
+            });
+         }
+      }
+   })();
+
+   return res.status(200).json({
+      ok: true,
+      status: 'queued',
+      event: eventType,
+      connectionId,
+      periodo,
+      accountsQueued: accounts.length,
+   });
 });
 
 module.exports = {

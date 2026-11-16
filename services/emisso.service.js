@@ -22,6 +22,45 @@ class EmissoService {
       return headers;
    }
 
+   async #controlRequest(method, path, body = null) {
+      const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+      const url = `${this.baseUrl}${normalizedPath}`;
+      const headers = this.#getHeaders();
+
+      try {
+         const response = await fetch(url, {
+            method,
+            headers,
+            ...(body !== null && body !== undefined ? { body: JSON.stringify(body) } : {}),
+         });
+
+         const text = await response.text();
+         let resJson;
+         try {
+            resJson = text ? JSON.parse(text) : null;
+         } catch {
+            resJson = { raw: text };
+         }
+
+         if (!response.ok) {
+            const errorMsg = resJson?.error?.message || resJson?.message || `Error HTTP ${response.status} de Emisso`;
+            logError('EMISSO_API_ERROR', { status: response.status, method, path: normalizedPath, message: errorMsg, resJson });
+            const err = new Error(errorMsg);
+            err.status = response.status;
+            err.details = resJson;
+            throw err;
+         }
+
+         return resJson?.data ?? resJson;
+      } catch (err) {
+         if (err.name === 'AbortError') {
+            logError('EMISSO_TIMEOUT', { method, path: normalizedPath });
+            throw new Error('Tiempo de espera agotado al conectar con Emisso Connect');
+         }
+         throw err;
+      }
+   }
+
    async #executeTool(toolName, input = {}, connectionId = null) {
       const url = `${this.baseUrl}/tools/${toolName}/execute`;
       const headers = this.#getHeaders(connectionId);
@@ -112,6 +151,52 @@ class EmissoService {
       } while (cursor && page < maxPages);
 
       return allRows;
+   }
+
+   // 7. Consultar estado de un trabajo de sincronizacion
+   async getSyncJob(jobId) {
+      return this.#controlRequest('GET', `/syncs/${encodeURIComponent(jobId)}`);
+   }
+
+   // 8. Gestion de endpoints webhook en Emisso Connect (/api/v1/webhooks)
+   async listWebhooks() {
+      return this.#controlRequest('GET', '/webhooks');
+   }
+
+   async createWebhook({ url, eventTypes = ['sync.succeeded', 'sync.failed'], connectionId = null } = {}) {
+      const payload = { url };
+      if (Array.isArray(eventTypes) && eventTypes.length) {
+         payload.event_types = eventTypes;
+      }
+      if (connectionId) {
+         payload.connection_id = connectionId;
+      }
+      return this.#controlRequest('POST', '/webhooks', payload);
+   }
+
+   async updateWebhook(webhookId, updates = {}) {
+      return this.#controlRequest('PATCH', `/webhooks/${encodeURIComponent(webhookId)}`, updates);
+   }
+
+   async deleteWebhook(webhookId) {
+      return this.#controlRequest('DELETE', `/webhooks/${encodeURIComponent(webhookId)}`);
+   }
+
+   async rollWebhookSecret(webhookId) {
+      return this.#controlRequest('POST', `/webhooks/${encodeURIComponent(webhookId)}/roll-secret`, {});
+   }
+
+   async listWebhookDeliveries(webhookId, limit = 50) {
+      const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 100);
+      return this.#controlRequest('GET', `/webhooks/${encodeURIComponent(webhookId)}/deliveries?limit=${safeLimit}`);
+   }
+
+   async resendWebhookDelivery(webhookId, deliveryId) {
+      return this.#controlRequest(
+         'POST',
+         `/webhooks/${encodeURIComponent(webhookId)}/deliveries/${encodeURIComponent(deliveryId)}/resend`,
+         {}
+      );
    }
 }
 

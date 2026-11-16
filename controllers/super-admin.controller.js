@@ -249,10 +249,25 @@ const removeEntityFromSuperAdmin = asyncHandler(async (req, res) => {
    res.status(200).json(out);
 });
 
-// crea una cuenta cliente (users) y la vincula a una entidad
+// crea una cuenta cliente (users) y la vincula a una o varias entidades con permisos
 const createClientUser = asyncHandler(async (req, res) => {
    const actorId = req.user?.sub || req.user?.id;
-   const { username, email, password, name, last_name, lastName, entityId, entity_id, read_only, readOnly } = req.body || {};
+   const {
+      username,
+      email,
+      password,
+      name,
+      last_name,
+      lastName,
+      entityId,
+      entity_id,
+      entityIds,
+      entity_ids,
+      permissions,
+      preset,
+      read_only,
+      readOnly
+   } = req.body || {};
 
    const out = await service.createClientUser({
       actorId,
@@ -262,39 +277,174 @@ const createClientUser = asyncHandler(async (req, res) => {
       name,
       lastName: lastName ?? last_name,
       entityId: entityId ?? entity_id,
-      readOnly: readOnly ?? read_only ?? true,
+      entityIds: entityIds ?? entity_ids,
+      permissions,
+      preset,
+      readOnly: readOnly ?? read_only ?? false,
    });
 
    logInfo('CLIENT_USER_CREATED', {
       rid: req.rid,
       author: actorId,
       newUserId: out.row?.id,
-      entityId: out.row?.entity_id
    });
 
    res.status(201).json(out);
 });
 
-// lista clientes vinculados a una entidad
+// lista clientes (con soporte de búsqueda, paginación y filtro opcional de entidad)
 const listClientUsers = asyncHandler(async (req, res) => {
    const actorId = req.user?.sub || req.user?.id;
    const entityId = req.query?.entityId || req.query?.entity_id;
+   const search = req.query?.search;
+   const page = req.query?.page;
+   const limit = req.query?.limit;
 
-   const out = await service.listClientUsers({ actorId, entityId });
+   const out = await service.listClientUsers({ actorId, entityId, search, page, limit });
    res.status(200).json(out);
 });
 
-// cambia el permiso read_only de un cliente sobre una entidad
+// obtener un cliente por id
+const getClientUserById = asyncHandler(async (req, res) => {
+   const actorId = req.user?.sub || req.user?.id;
+   const { userId } = req.params;
+
+   const out = await service.getClientUserById({ actorId, userId });
+   res.status(200).json(out);
+});
+
+// edita datos de un cliente
+const updateClientUser = asyncHandler(async (req, res) => {
+   const actorId = req.user?.sub || req.user?.id;
+   const { userId } = req.params;
+   const {
+      username,
+      email,
+      name,
+      last_name,
+      lastName,
+      entityId,
+      entity_id,
+      entityIds,
+      entity_ids,
+      password,
+      permissions,
+      stateId,
+      state_id
+   } = req.body || {};
+
+   const out = await service.updateClientUser({
+      actorId,
+      userId,
+      entityId: entityId ?? entity_id,
+      entityIds: entityIds ?? entity_ids,
+      username,
+      email,
+      name,
+      lastName: lastName ?? last_name,
+      password,
+      permissions,
+      stateId: stateId ?? state_id,
+   });
+
+   logInfo('CLIENT_USER_UPDATED', {
+      rid: req.rid,
+      author: actorId,
+      userId: Number(userId),
+   });
+
+   res.status(200).json(out);
+});
+
+// cambia estado de cliente (1 activo, 2 suspendido)
+const changeClientUserState = asyncHandler(async (req, res) => {
+   const actorId = req.user?.sub || req.user?.id;
+   const { userId } = req.params;
+   const { state_id, stateId } = req.body || {};
+
+   const out = await service.changeClientUserState({
+      actorId,
+      userId,
+      stateId: stateId ?? state_id,
+   });
+
+   logInfo('CLIENT_USER_STATE_CHANGED', {
+      rid: req.rid,
+      author: actorId,
+      userId: Number(userId),
+      state_id: out.state_id
+   });
+
+   res.status(200).json(out);
+});
+
+// elimina un cliente
+const deleteClientUser = asyncHandler(async (req, res) => {
+   const actorId = req.user?.sub || req.user?.id;
+   const { userId } = req.params;
+
+   const out = await service.deleteClientUser({ actorId, userId });
+
+   logInfo('CLIENT_USER_DELETED', {
+      rid: req.rid,
+      author: actorId,
+      userId: Number(userId)
+   });
+
+   res.status(200).json(out);
+});
+
+// obtiene la matriz de permisos de un cliente
+const getClientUserPermissions = asyncHandler(async (req, res) => {
+   const actorId = req.user?.sub || req.user?.id;
+   const { userId } = req.params;
+   const entityId = req.query?.entityId || req.query?.entity_id;
+
+   const out = await service.getClientUserPermissions({ actorId, userId, entityId });
+   res.status(200).json(out);
+});
+
+// actualiza la matriz de permisos de un cliente
+const updateClientUserPermissions = asyncHandler(async (req, res) => {
+   const actorId = req.user?.sub || req.user?.id;
+   const { userId } = req.params;
+   const { permissions, entityId, entity_id } = req.body || {};
+
+   const out = await service.updateClientUserPermissions({
+      actorId,
+      userId,
+      entityId: entityId ?? entity_id,
+      permissions
+   });
+
+   logInfo('CLIENT_USER_PERMISSIONS_UPDATED', {
+      rid: req.rid,
+      author: actorId,
+      userId: Number(userId),
+      entityId: out.entityId
+   });
+
+   res.status(200).json(out);
+});
+
+// catalogo canonico de modulos y permisos
+const getPermissionsCatalog = asyncHandler(async (req, res) => {
+   const out = service.getPermissionsCatalog();
+   res.status(200).json(out);
+});
+
+// cambia el permiso read_only de un cliente sobre una entidad puntual (legacy)
 const updateClientUserEntityAccess = asyncHandler(async (req, res) => {
    const actorId = req.user?.sub || req.user?.id;
    const { userId, entityId } = req.params;
-   const { read_only, readOnly } = req.body || {};
+   const { read_only, readOnly, permissions } = req.body || {};
 
    const out = await service.updateClientUserEntityAccess({
       actorId,
       userId,
       entityId,
       readOnly: readOnly ?? read_only,
+      permissions
    });
 
    logInfo('CLIENT_USER_ENTITY_ACCESS_UPDATED', {
@@ -308,37 +458,17 @@ const updateClientUserEntityAccess = asyncHandler(async (req, res) => {
    res.status(200).json(out);
 });
 
-// edita username/nombre/apellido de un cliente - solo super_admin
-const updateClientUser = asyncHandler(async (req, res) => {
-   const actorId = req.user?.sub || req.user?.id;
-   const { userId } = req.params;
-   const { username, name, last_name, lastName, entityId, entity_id, password } = req.body || {};
-
-   const out = await service.updateClientUser({
-      actorId,
-      userId,
-      entityId: entityId ?? entity_id,
-      username,
-      name,
-      lastName: lastName ?? last_name,
-      password,
-   });
-
-   logInfo('CLIENT_USER_UPDATED', {
-      rid: req.rid,
-      author: actorId,
-      userId: Number(userId),
-      entityId: out.row?.entity_id
-   });
-
-   res.status(200).json(out);
-});
-
 module.exports = {
    createSuperAdmin,
    createClientUser,
    listClientUsers,
+   getClientUserById,
    updateClientUser,
+   changeClientUserState,
+   deleteClientUser,
+   getClientUserPermissions,
+   updateClientUserPermissions,
+   getPermissionsCatalog,
    updateClientUserEntityAccess,
    getProfile,
    changePassword,

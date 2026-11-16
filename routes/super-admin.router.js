@@ -100,38 +100,80 @@ router.delete('/:id/entities/:entityId',
 );
 
 // ==========================================
-//  clientes (cuentas de autogestion por entidad)
+//  CLIENTES (GESTIÓN DE CLIENTES Y PERMISOS)
 //  deben ir antes de "/:id" para que express no las confunda con un id
 // ==========================================
 
-// crea una cuenta cliente y la vincula a una entidad
+// catálogo de módulos y permisos
+router.get('/clients/permissions/catalog',
+   isSuperAdmin,
+   superAdminController.getPermissionsCatalog
+);
+
+// crea una cuenta cliente con entidades y permisos
 router.post('/clients',
    isSuperAdmin,
    validatorHandler(createClientUserSchema, 'body'),
    superAdminController.createClientUser
 );
 
-// lista clientes vinculados a una entidad
+// lista clientes (con soporte de búsqueda, paginación y filtro opcional de entidad)
 router.get('/clients',
    isSuperAdmin,
    validatorHandler(listClientUsersQuerySchema, 'query'),
    superAdminController.listClientUsers
 );
 
-// cambia el permiso read_only de un cliente sobre una entidad
-router.patch('/clients/:userId/entities/:entityId',
+// obtiene un cliente puntual por id
+router.get('/clients/:userId',
    isSuperAdmin,
-   validatorHandler(clientUserEntityParamsSchema, 'params'),
-   validatorHandler(updateClientUserEntityAccessSchema, 'body'),
-   superAdminController.updateClientUserEntityAccess
+   validatorHandler(clientUserParamsSchema, 'params'),
+   superAdminController.getClientUserById
 );
 
-// edita username/nombre/apellido de un cliente
+// edita datos y entidades de un cliente
 router.patch('/clients/:userId',
    isSuperAdmin,
    validatorHandler(clientUserParamsSchema, 'params'),
    validatorHandler(updateClientUserSchema, 'body'),
    superAdminController.updateClientUser
+);
+
+// activa o suspende la cuenta de un cliente
+router.patch('/clients/:userId/state',
+   isSuperAdmin,
+   validatorHandler(clientUserParamsSchema, 'params'),
+   superAdminController.changeClientUserState
+);
+
+// elimina un cliente
+router.delete('/clients/:userId',
+   isSuperAdmin,
+   validatorHandler(clientUserParamsSchema, 'params'),
+   superAdminController.deleteClientUser
+);
+
+// consulta matriz de permisos de un cliente
+router.get('/clients/:userId/permissions',
+   isSuperAdmin,
+   validatorHandler(clientUserParamsSchema, 'params'),
+   superAdminController.getClientUserPermissions
+);
+
+// actualiza matriz de permisos de un cliente
+router.put('/clients/:userId/permissions',
+   isSuperAdmin,
+   validatorHandler(clientUserParamsSchema, 'params'),
+   validatorHandler(updateClientPermissionsSchema, 'body'),
+   superAdminController.updateClientUserPermissions
+);
+
+// cambia el permiso read_only o permisos sobre una entidad puntual (legacy)
+router.patch('/clients/:userId/entities/:entityId',
+   isSuperAdmin,
+   validatorHandler(clientUserEntityParamsSchema, 'params'),
+   validatorHandler(updateClientUserEntityAccessSchema, 'body'),
+   superAdminController.updateClientUserEntityAccess
 );
 
 // obtener un super admin por id

@@ -16,6 +16,7 @@ import { useEntityRequired } from '../hooks/useEntityRequired';
 import { withEntityId } from '../utils/withEntityId';
 import { entityScopedPaths } from '../app/routes.config';
 import { useAuth } from '../context/AuthContext';
+import { usePermissions } from '../hooks/usePermissions';
 import { useMemo, useState, useEffect, useRef } from 'react';
 
 export default function Sidebar({ onLogout, onClose, collapsed, setCollapsed }) {
@@ -23,6 +24,7 @@ export default function Sidebar({ onLogout, onClose, collapsed, setCollapsed }) 
    const { pathname } = useLocation();
    const { entityId, ready: hasActiveEntity } = useEntityRequired();
    const { isClient } = useAuth();
+   const { can } = usePermissions();
    const hoverTimer = useRef(null);
 
    // estado para controlar si la barra esta fijada
@@ -74,61 +76,64 @@ export default function Sidebar({ onLogout, onClose, collapsed, setCollapsed }) 
             { label: 'Dashboard', to: '/dashboard', icon: HomeIcon },
             // clientes solo autogestionan su(s) entidad(es) asignada(s), no la administracion global
             ...(isClient ? [] : [
-               { label: 'Super administradores', to: '/super-admin', icon: UserGroupIcon },
+               { label: 'Usuarios', to: '/super-admin', icon: UserGroupIcon },
                { label: 'Entidades', to: '/entities', icon: BuildingOffice2Icon },
             ]),
          ];
 
          if (!hasActiveEntity) return baseMenu;
 
+         // Construir grupos filtrando según permisos granulares
+         const incomeChildren = [
+            ...(can('income_sales', 'view') ? [{ label: 'Ventas (Boletas y Facturas)', to: '/income/sales-boletas' }] : []),
+            ...(can('income_receivables', 'view') ? [{ label: 'Cuentas por cobrar', to: '/income/receivables' }] : []),
+         ];
+
+         const expensesChildren = [
+            ...(can('expenses_purchases', 'view') ? [{ label: 'Compras', to: '/expenses/purchases' }] : []),
+            ...(can('expenses_honorarium', 'view') ? [{ label: 'Boletas de honorarios', to: '/expenses/honorarium-receipts' }] : []),
+            ...(can('expenses_payables', 'view') ? [{ label: 'Cuentas por pagar', to: '/expenses/payables' }] : []),
+         ];
+
+         const bankChildren = [
+            ...(can('bank_movements', 'view') ? [{ label: 'Movimientos bancarios', to: '/bank/cartolas' }] : []),
+            ...(can('bank_accounts', 'view') ? [{ label: 'Cuentas bancarias', to: '/bank/accounts' }] : []),
+         ];
+
+         const accountingChildren = [
+            ...(can('accounting', 'entries_view') ? [{ label: 'Asientos contables', to: '/accounting/entries' }] : []),
+            ...(can('accounting', 'accounts_view') ? [{ label: 'Plan de cuentas', to: '/accounting/accounts' }] : []),
+            ...(can('accounting', 'rules_view') ? [{ label: 'Asociación proveedores', to: '/accounting/rules' }] : []),
+            ...(can('accounting', 'reports_view') ? [{ label: 'Saldos por RUT', to: '/accounting/balances' }] : []),
+            ...(can('accounting', 'reports_view') ? [{ label: 'Estado de Resultados', to: '/accounting/income-statement' }] : []),
+            ...(can('accounting', 'reports_view') ? [{ label: 'Flujo de Caja', to: '/accounting/cash-flow' }] : []),
+         ];
+
          return [
             ...baseMenu,
-         // grupo ingresos
-         {
-            label: 'Ingresos',
-            icon: ArrowTrendingUpIcon,
-            children: [
-               { label: 'Ventas (Boletas y Facturas)', to: '/income/sales-boletas' },
-               { label: 'Cuentas por cobrar', to: '/income/receivables' },
-            ],
-         },
-
-         // grupo egresos
-         {
-            label: 'Egresos',
-            icon: ArrowTrendingDownIcon,
-            children: [
-               { label: 'Compras', to: '/expenses/purchases' },
-               { label: 'Boletas de honorarios', to: '/expenses/honorarium-receipts' },
-               { label: 'Cuentas por pagar', to: '/expenses/payables' },
-            ],
-         },
-
-         {
-            label: 'Banco',
-            icon: BanknotesIcon,
-            children: [
-               { label: 'Movimientos bancarios', to: '/bank/cartolas' },
-               // la gestion de cuentas bancarias queda reservada al administrador
-               ...(isClient ? [] : [{ label: 'Cuentas bancarias', to: '/bank/accounts' }]),
-            ],
-         },
-
-         {
-            label: 'Contabilidad',
-            icon: BookOpenIcon,
-            children: [
-               { label: 'Asientos contables', to: '/accounting/entries' },
-               { label: 'Plan de cuentas', to: '/accounting/accounts' },
-               { label: 'Asociación proveedores', to: '/accounting/rules' },
-               { label: 'Saldos por RUT', to: '/accounting/balances' },
-               { label: 'Estado de Resultados', to: '/accounting/income-statement' },
-               { label: 'Flujo de Caja', to: '/accounting/cash-flow' },
-            ],
-         },
+            ...(incomeChildren.length ? [{
+               label: 'Ingresos',
+               icon: ArrowTrendingUpIcon,
+               children: incomeChildren,
+            }] : []),
+            ...(expensesChildren.length ? [{
+               label: 'Egresos',
+               icon: ArrowTrendingDownIcon,
+               children: expensesChildren,
+            }] : []),
+            ...(bankChildren.length ? [{
+               label: 'Banco',
+               icon: BanknotesIcon,
+               children: bankChildren,
+            }] : []),
+            ...(accountingChildren.length ? [{
+               label: 'Contabilidad',
+               icon: BookOpenIcon,
+               children: accountingChildren,
+            }] : []),
          ];
       },
-      [hasActiveEntity, isClient]
+      [hasActiveEntity, isClient, can]
    );
 
    const initialOpen = useMemo(() => {

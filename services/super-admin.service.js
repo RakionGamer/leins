@@ -1,3 +1,4 @@
+const { PERMISSION_MODULES, getDefaultPermissions, getPresetPermissions, sanitizePermissions } = require('../utils/permissions.constants');
 const boom = require('@hapi/boom');
 const bcrypt = require('bcryptjs');
 const { Op } = require('sequelize')
@@ -357,128 +358,263 @@ class SuperAdminService {
 
    // ==========================================
    //  clientes (tabla `users`): cuentas de autogestion para entidades
+      // ==========================================
+   //  GESTIÓN DE CLIENTES (USERS) Y PERMISOS
    // ==========================================
 
    mapClientUserRow(row) {
+      const entityLinks = row.entities || row.user_entities || [];
+      const assignedEntities = Array.isArray(entityLinks)
+         ? entityLinks.map(e => ({
+            id: Number(e.id || e.entity_id),
+            name: e.legal_name || e.name || (e.entity && e.entity.legal_name) || `Entidad ${e.id || e.entity_id}`,
+            rut: e.tax_id || (e.entity && e.entity.tax_id) || '',
+            read_only: e.read_only !== undefined ? Boolean(e.read_only) : (e.UserEntity ? Boolean(e.UserEntity.read_only) : true),
+            permissions: e.permissions || (e.UserEntity ? e.UserEntity.permissions : null),
+         }))
+         : [];
+
       return {
          id: Number(row.id),
          username: row.username,
          email: row.email,
          name: row.name || null,
          last_name: row.last_name || null,
-         entity_id: Number(row.entity_id),
-         read_only: Boolean(row.read_only),
+         state_id: Number(row.state_id || 1),
          created_at: row.created_at || row.createdAt || null,
+         permissions: sanitizePermissions(row.permissions),
+         entities: assignedEntities,
+         entities_count: assignedEntities.length,
       };
    }
 
-   // crea una cuenta cliente (users) y la vincula a una entidad via user_entities
-   async createClientUser({ actorId, username, email, password, name = null, lastName = null, entityId, readOnly = true } = {}) {
-      if (!username || !email || !password) {
-         throw boom.badRequest('username, email y password son obligatorios');
+   getPermissionsCatalog() {
+      return {
+         modules: PERMISSION_MODULES,
+         presets: {
+            READ_ONLY: getPresetPermissions('READ_ONLY'),
+            OPERATIVE_STANDARD: getPresetPermissions('OPERATIVE_STANDARD'),
+            FULL_ACCESS: getPresetPermissions('FULL_ACCESS'),
+            CLEAR_ALL: getPresetPermissions('CLEAR_ALL'),
+         }
+      };
+   }
+
+   async listClientUsers({ actorId, entityId, search, page = 1, limit = 10 } = {}) {
+      const offset = (Number(page) - 1) * Number(limit);
+      const parsedLimit = Number(limit) || 10;
+      const parsedEntityId = entityId ? Number(entityId) : null;
+
+      const whereUser = {};
+      if (search && String(search).trim() !== '') {
+         const cleanSearch = `%${String(search).trim()}%`;
+         whereUser[Op.or] = [
+            { username: { [Op.like]: cleanSearch } },
+            { email: { [Op.like]: cleanSearch } },
+            { name: { [Op.like]: cleanSearch } },
+            { last_name: { [Op.like]: cleanSearch } },
+         ];
       }
 
-      const parsedEntityId = Number(entityId);
-      if (!Number.isInteger(parsedEntityId) || parsedEntityId <= 0) {
-         throw boom.badRequest('entityId invalido');
-      }
+      if (parsedEntityId) {
+         const canManage = await this.canActorManageEntity({ actorId, entityId: parsedEntityId });
+         if (!canManage) throw boom.forbidden('no puedes ver clientes de una entidad que no administras');
 
-      return await sequelize.transaction(async (transaction) => {
-         const entity = await models.Entity.findByPk(parsedEntityId, { attributes: ['id'], transaction });
-         if (!entity) throw boom.notFound('entidad no encontrada');
-
-         const canManage = await this.canActorManageEntity({ actorId, entityId: parsedEntityId, action: 'create', transaction });
-         if (!canManage) throw boom.forbidden('no tienes permiso para crear clientes en esta entidad');
-
-         const existsUsername = await models.User.findOne({ where: { username }, transaction });
-         if (existsUsername) throw boom.conflict('ya existe un usuario con ese username');
-
-         const existsEmail = await models.User.findOne({ where: { email }, transaction });
-         if (existsEmail) throw boom.conflict('ya existe un usuario con ese email');
-
-         const password_hash = await bcrypt.hash(password, 10);
-
-         const user = await models.User.create({
-            username,
-            email,
-            password_hash,
-            name: name || null,
-            last_name: lastName || null,
-            state_id: 1,
-         }, { transaction });
-
-         const link = await models.UserEntity.create({
-            user_id: user.id,
-            entity_id: parsedEntityId,
-            read_only: Boolean(readOnly),
-         }, { transaction });
+         const { count, rows } = await models.UserEntity.findAndCountAll({
+            where: { entity_id: parsedEntityId },
+            include: [{
+               model: models.User,
+               as: 'user',
+               where: Object.keys(whereUser).length ? whereUser : undefined,
+               attributes: ['id', 'username', 'email', 'name', 'last_name', 'state_id', 'permissions', 'created_at'],
+            }, {
+               model: models.Entity,
+               as: 'entity',
+               attributes: ['id', 'legal_name', 'tax_id'],
+            }],
+            order: [['id', 'DESC']],
+            limit: parsedLimit,
+            offset: offset >= 0 ? offset : 0,
+         });
 
          return {
             ok: true,
-            row: this.mapClientUserRow({
-               id: user.id,
-               username: user.username,
-               email: user.email,
-               name: user.name,
-               last_name: user.last_name,
-               entity_id: link.entity_id,
-               read_only: link.read_only,
-               created_at: user.createdAt,
-            }),
+            total: count,
+            page: Number(page),
+            limit: parsedLimit,
+            rows: rows.map(r => ({
+               id: Number(r.user.id),
+               username: r.user.username,
+               email: r.user.email,
+               name: r.user.name,
+               last_name: r.user.last_name,
+               state_id: Number(r.user.state_id || 1),
+               created_at: r.user.created_at,
+               permissions: sanitizePermissions(r.permissions || r.user.permissions),
+               read_only: Boolean(r.read_only),
+               entity_id: r.entity_id,
+               entities: [{
+                  id: r.entity?.id || r.entity_id,
+                  name: r.entity?.legal_name || `Entidad ${r.entity_id}`,
+                  rut: r.entity?.tax_id || '',
+                  read_only: Boolean(r.read_only),
+                  permissions: r.permissions,
+               }],
+               entities_count: 1,
+            }))
          };
-      });
-   }
-
-   // lista clientes (users) vinculados a una entidad
-   async listClientUsers({ actorId, entityId } = {}) {
-      const parsedEntityId = Number(entityId);
-      if (!Number.isInteger(parsedEntityId) || parsedEntityId <= 0) {
-         throw boom.badRequest('entityId invalido');
       }
 
-      const canManage = await this.canActorManageEntity({ actorId, entityId: parsedEntityId });
-      if (!canManage) throw boom.forbidden('no puedes ver clientes de una entidad que no administras');
-
-      const rows = await models.UserEntity.findAll({
-         where: { entity_id: parsedEntityId },
-         include: [{ model: models.User, as: 'user', attributes: ['id', 'username', 'email', 'name', 'last_name'] }],
+      const { count, rows } = await models.User.findAndCountAll({
+         where: whereUser,
+         attributes: ['id', 'username', 'email', 'name', 'last_name', 'state_id', 'permissions', 'created_at'],
+         include: [{
+            model: models.Entity,
+            as: 'entities',
+            attributes: ['id', 'legal_name', 'tax_id'],
+            through: { attributes: ['id', 'read_only', 'permissions'] },
+            required: false,
+         }],
+         distinct: true,
          order: [['id', 'DESC']],
+         limit: parsedLimit,
+         offset: offset >= 0 ? offset : 0,
       });
 
       return {
          ok: true,
-         rows: rows.map((row) => this.mapClientUserRow({
-            id: row.user.id,
-            username: row.user.username,
-            email: row.user.email,
-            name: row.user.name,
-            last_name: row.user.last_name,
-            entity_id: row.entity_id,
-            read_only: row.read_only,
-            created_at: row.createdAt,
-         })),
+         total: count,
+         page: Number(page),
+         limit: parsedLimit,
+         rows: rows.map(u => this.mapClientUserRow(u)),
       };
    }
 
-   // edita datos de perfil de un cliente (username, nombre, apellido) - solo super_admin
-   async updateClientUser({ actorId, userId, entityId, username, name, lastName, password } = {}) {
+   async getClientUserById({ actorId, userId } = {}) {
       const parsedUserId = Number(userId);
-      const parsedEntityId = Number(entityId);
-      if (!Number.isInteger(parsedUserId) || parsedUserId <= 0) throw boom.badRequest('userId invalido');
-      if (!Number.isInteger(parsedEntityId) || parsedEntityId <= 0) throw boom.badRequest('entityId invalido');
+      if (!Number.isInteger(parsedUserId) || parsedUserId <= 0) {
+         throw boom.badRequest('userId inválido');
+      }
 
-      const canManage = await this.canActorManageEntity({ actorId, entityId: parsedEntityId, action: 'update' });
-      if (!canManage) throw boom.forbidden('no tienes permiso para editar clientes de esta entidad');
+      const user = await models.User.findByPk(parsedUserId, {
+         attributes: ['id', 'username', 'email', 'name', 'last_name', 'state_id', 'permissions', 'created_at'],
+         include: [{
+            model: models.Entity,
+            as: 'entities',
+            attributes: ['id', 'legal_name', 'tax_id'],
+            through: { attributes: ['id', 'read_only', 'permissions'] },
+            required: false,
+         }],
+      });
+
+      if (!user) throw boom.notFound('Cliente no encontrado');
+      return { ok: true, client: this.mapClientUserRow(user) };
+   }
+
+   async createClientUser({
+      actorId,
+      username,
+      email,
+      password,
+      name = null,
+      lastName = null,
+      last_name = null,
+      entityId = null,
+      entity_id = null,
+      entityIds = [],
+      entity_ids = [],
+      permissions = null,
+      preset = 'OPERATIVE_STANDARD',
+      readOnly = false,
+      read_only = false,
+   } = {}) {
+      if (!username || !email || !password) {
+         throw boom.badRequest('username, email y password son obligatorios');
+      }
+
+      const cleanPermissions = permissions
+         ? sanitizePermissions(permissions)
+         : getPresetPermissions(preset);
+
+      const targetEntityIds = [
+         entityId,
+         entity_id,
+         ...(Array.isArray(entityIds) ? entityIds : []),
+         ...(Array.isArray(entity_ids) ? entity_ids : []),
+      ].filter(id => id != null && Number.isInteger(Number(id)) && Number(id) > 0).map(Number);
+      const uniqueEntityIds = [...new Set(targetEntityIds)];
 
       return await sequelize.transaction(async (transaction) => {
-         const link = await models.UserEntity.findOne({
-            where: { user_id: parsedUserId, entity_id: parsedEntityId },
+         for (const eid of uniqueEntityIds) {
+            const canManage = await this.canActorManageEntity({ actorId, entityId: eid, action: 'create', transaction });
+            if (!canManage) throw boom.forbidden(`No tienes permiso para asignar la entidad ${eid}`);
+         }
+
+         const existsUsername = await models.User.findOne({ where: { username }, transaction });
+         if (existsUsername) throw boom.conflict('Ya existe un usuario con ese username');
+
+         const existsEmail = await models.User.findOne({ where: { email }, transaction });
+         if (existsEmail) throw boom.conflict('Ya existe un usuario con ese email');
+
+         const password_hash = await bcrypt.hash(password, 10);
+
+         const user = await models.User.create({
+            username: String(username).trim(),
+            email: String(email).trim().toLowerCase(),
+            password_hash,
+            name: name || null,
+            last_name: lastName || last_name || null,
+            state_id: 1,
+            permissions: cleanPermissions,
+         }, { transaction });
+
+         const isReadOnly = Boolean(readOnly || read_only);
+         for (const eid of uniqueEntityIds) {
+            await models.UserEntity.create({
+               user_id: user.id,
+               entity_id: eid,
+               read_only: isReadOnly,
+               permissions: cleanPermissions,
+            }, { transaction });
+         }
+
+         const createdWithEntities = await models.User.findByPk(user.id, {
+            include: [{
+               model: models.Entity,
+               as: 'entities',
+               attributes: ['id', 'legal_name', 'tax_id'],
+               through: { attributes: ['id', 'read_only', 'permissions'] },
+            }],
             transaction,
          });
-         if (!link) throw boom.notFound('el cliente no esta vinculado a esta entidad');
 
+         return {
+            ok: true,
+            row: this.mapClientUserRow(createdWithEntities),
+         };
+      });
+   }
+
+   async updateClientUser({
+      actorId,
+      userId,
+      username,
+      email,
+      name,
+      lastName,
+      last_name,
+      password,
+      permissions,
+      entityIds,
+      stateId,
+      state_id,
+   } = {}) {
+      const parsedUserId = Number(userId);
+      if (!Number.isInteger(parsedUserId) || parsedUserId <= 0) throw boom.badRequest('userId inválido');
+
+      return await sequelize.transaction(async (transaction) => {
          const user = await models.User.findByPk(parsedUserId, { transaction });
-         if (!user) throw boom.notFound('cliente no encontrado');
+         if (!user) throw boom.notFound('Cliente no encontrado');
 
          const changes = {};
 
@@ -487,56 +623,198 @@ class SuperAdminService {
                where: { username, id: { [Op.ne]: parsedUserId } },
                transaction,
             });
-            if (existsUsername) throw boom.conflict('ya existe un usuario con ese username');
-            changes.username = username;
+            if (existsUsername) throw boom.conflict('Ya existe un usuario con ese username');
+            changes.username = String(username).trim();
+         }
+
+         if (email !== undefined && email !== user.email) {
+            const existsEmail = await models.User.findOne({
+               where: { email: String(email).trim().toLowerCase(), id: { [Op.ne]: parsedUserId } },
+               transaction,
+            });
+            if (existsEmail) throw boom.conflict('Ya existe un usuario con ese email');
+            changes.email = String(email).trim().toLowerCase();
          }
 
          if (name !== undefined) changes.name = name || null;
-         if (lastName !== undefined) changes.last_name = lastName || null;
+         if (lastName !== undefined || last_name !== undefined) {
+            changes.last_name = lastName || last_name || null;
+         }
+
+         const finalState = stateId !== undefined ? stateId : state_id;
+         if (finalState !== undefined && [1, 2].includes(Number(finalState))) {
+            changes.state_id = Number(finalState);
+         }
+
          if (password !== undefined && password !== null && String(password).trim().length > 0) {
             const cleanPass = String(password).trim();
-            if (cleanPass.length < 6) {
-               throw boom.badRequest('la clave debe tener al menos 6 caracteres');
-            }
+            if (cleanPass.length < 6) throw boom.badRequest('La clave debe tener al menos 6 caracteres');
             changes.password_hash = await bcrypt.hash(cleanPass, 10);
+         }
+
+         if (permissions !== undefined && permissions !== null && typeof permissions === 'object') {
+            changes.permissions = sanitizePermissions(permissions);
          }
 
          if (Object.keys(changes).length) {
             await user.update(changes, { transaction });
          }
 
+         if (Array.isArray(entityIds)) {
+            const cleanEntityIds = entityIds.map(Number).filter(id => Number.isInteger(id) && id > 0);
+            await models.UserEntity.destroy({
+               where: {
+                  user_id: parsedUserId,
+                  ...(cleanEntityIds.length ? { entity_id: { [Op.notIn]: cleanEntityIds } } : {})
+               },
+               transaction,
+            });
+
+            for (const eid of cleanEntityIds) {
+               const existing = await models.UserEntity.findOne({
+                  where: { user_id: parsedUserId, entity_id: eid },
+                  transaction,
+               });
+               if (!existing) {
+                  await models.UserEntity.create({
+                     user_id: parsedUserId,
+                     entity_id: eid,
+                     read_only: false,
+                     permissions: changes.permissions || user.permissions,
+                  }, { transaction });
+               }
+            }
+         }
+
+         const updated = await models.User.findByPk(parsedUserId, {
+            include: [{
+               model: models.Entity,
+               as: 'entities',
+               attributes: ['id', 'legal_name', 'tax_id'],
+               through: { attributes: ['id', 'read_only', 'permissions'] },
+            }],
+            transaction,
+         });
+
          return {
             ok: true,
-            row: this.mapClientUserRow({
-               id: user.id,
-               username: user.username,
-               email: user.email,
-               name: user.name,
-               last_name: user.last_name,
-               entity_id: parsedEntityId,
-               read_only: link.read_only,
-               created_at: user.createdAt,
-            }),
+            row: this.mapClientUserRow(updated),
          };
       });
    }
 
-   // cambia el permiso read_only de un cliente sobre una entidad puntual
-   async updateClientUserEntityAccess({ actorId, userId, entityId, readOnly } = {}) {
+   async changeClientUserState({ actorId, userId, stateId } = {}) {
+      const parsedUserId = Number(userId);
+      const parsedState = Number(stateId);
+      if (![1, 2].includes(parsedState)) throw boom.badRequest('stateId debe ser 1 (activo) o 2 (suspendido)');
+
+      const user = await models.User.findByPk(parsedUserId);
+      if (!user) throw boom.notFound('Cliente no encontrado');
+
+      user.state_id = parsedState;
+      await user.save();
+
+      return { ok: true, user_id: parsedUserId, state_id: parsedState };
+   }
+
+   async deleteClientUser({ actorId, userId } = {}) {
+      const parsedUserId = Number(userId);
+      const user = await models.User.findByPk(parsedUserId);
+      if (!user) throw boom.notFound('Cliente no encontrado');
+
+      await sequelize.transaction(async (transaction) => {
+         await models.UserEntity.destroy({ where: { user_id: parsedUserId }, transaction });
+         await models.RefreshTokenUser.destroy({ where: { user_id: parsedUserId }, transaction });
+         await user.destroy({ transaction });
+      });
+
+      return { ok: true, id: parsedUserId };
+   }
+
+   async getClientUserPermissions({ actorId, userId, entityId = null } = {}) {
+      const parsedUserId = Number(userId);
+      const user = await models.User.findByPk(parsedUserId);
+      if (!user) throw boom.notFound('Cliente no encontrado');
+
+      if (entityId) {
+         const link = await models.UserEntity.findOne({
+            where: { user_id: parsedUserId, entity_id: Number(entityId) },
+         });
+         return {
+            ok: true,
+            userId: parsedUserId,
+            entityId: Number(entityId),
+            permissions: sanitizePermissions(link?.permissions || user.permissions),
+            isCustomEntity: Boolean(link?.permissions),
+         };
+      }
+
+      return {
+         ok: true,
+         userId: parsedUserId,
+         entityId: null,
+         permissions: sanitizePermissions(user.permissions),
+      };
+   }
+
+   async updateClientUserPermissions({ actorId, userId, entityId = null, permissions } = {}) {
+      const parsedUserId = Number(userId);
+      const user = await models.User.findByPk(parsedUserId);
+      if (!user) throw boom.notFound('Cliente no encontrado');
+
+      const cleanPerms = sanitizePermissions(permissions);
+
+      if (entityId) {
+         const link = await models.UserEntity.findOne({
+            where: { user_id: parsedUserId, entity_id: Number(entityId) },
+         });
+         if (!link) throw boom.notFound('El cliente no está vinculado a esta entidad');
+
+         link.permissions = cleanPerms;
+         const hasAnyWrite = Object.values(cleanPerms).some(m =>
+            Object.entries(m).some(([k, v]) => !k.includes('view') && v === true)
+         );
+         link.read_only = !hasAnyWrite;
+         await link.save();
+
+         return {
+            ok: true,
+            userId: parsedUserId,
+            entityId: Number(entityId),
+            permissions: cleanPerms,
+         };
+      }
+
+      user.permissions = cleanPerms;
+      await user.save();
+
+      await models.UserEntity.update(
+         { permissions: cleanPerms },
+         { where: { user_id: parsedUserId } }
+      );
+
+      return {
+         ok: true,
+         userId: parsedUserId,
+         entityId: null,
+         permissions: cleanPerms,
+      };
+   }
+
+   async updateClientUserEntityAccess({ actorId, userId, entityId, readOnly, permissions } = {}) {
       const parsedUserId = Number(userId);
       const parsedEntityId = Number(entityId);
-      if (!Number.isInteger(parsedUserId) || parsedUserId <= 0) throw boom.badRequest('userId invalido');
-      if (!Number.isInteger(parsedEntityId) || parsedEntityId <= 0) throw boom.badRequest('entityId invalido');
-
-      const canManage = await this.canActorManageEntity({ actorId, entityId: parsedEntityId, action: 'update' });
-      if (!canManage) throw boom.forbidden('no tienes permiso para editar clientes de esta entidad');
-
       const link = await models.UserEntity.findOne({
          where: { user_id: parsedUserId, entity_id: parsedEntityId },
       });
-      if (!link) throw boom.notFound('el cliente no esta vinculado a esta entidad');
+      if (!link) throw boom.notFound('El cliente no está vinculado a esta entidad');
 
-      link.read_only = Boolean(readOnly);
+      if (permissions) {
+         link.permissions = sanitizePermissions(permissions);
+      }
+      if (readOnly !== undefined) {
+         link.read_only = Boolean(readOnly);
+      }
       await link.save();
 
       return { ok: true, user_id: parsedUserId, entity_id: parsedEntityId, read_only: link.read_only };

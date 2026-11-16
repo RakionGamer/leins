@@ -2865,7 +2865,7 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
    }
 
    // Sincroniza movimientos de Emisso para una cuenta bancaria especifica
-   async syncFromEmisso({ entityId, bankAccountId, periods, fromPeriod, toPeriod, trackManualQuota = false } = {}) {
+   async syncFromEmisso({ entityId, bankAccountId, periods, fromPeriod, toPeriod, trackManualQuota = false, skipPortalSync = false } = {}) {
       if (!entityId || !bankAccountId) {
          throw boom.badRequest('entityId y bankAccountId son requeridos');
       }
@@ -2894,12 +2894,14 @@ doc.get?.("operation_type") || doc.getDataValue?.("operation_type") || doc.opera
       await account.update({ sync_status: 'syncing' });
 
       try {
-         // 1. Sincroniza en el portal bancario
-         try {
-            await emisso.syncBankConnection(system, connectionId, ['saldos', 'movimientos']);
-         } catch (syncErr) {
-            logWarn('EMISSO_PORTAL_SYNC_WARN', { message: syncErr.message, connectionId });
-            // Continuamos consultando la cache existente si la sincronizacion en vivo falla o ya esta encolada
+         // 1. Sincroniza en el portal bancario (omitido cuando proviene del webhook para evitar re-encolar logins)
+         if (!skipPortalSync) {
+            try {
+               await emisso.syncBankConnection(system, connectionId, ['saldos', 'movimientos']);
+            } catch (syncErr) {
+               logWarn('EMISSO_PORTAL_SYNC_WARN', { message: syncErr.message, connectionId });
+               // Continuamos consultando la cache existente si la sincronizacion en vivo falla o ya esta encolada
+            }
          }
 
          // 2. Determina los periodos a consultar
