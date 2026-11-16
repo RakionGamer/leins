@@ -49,22 +49,21 @@ export default function ClientEntitiesModal({ isOpen, onClose, client, onSuccess
       }
    };
 
+   const clientDisplayName = client?.name
+      ? `${client.name} ${client.last_name || ''}`.trim()
+      : client?.username;
+
    return (
-      <Modal isOpen={isOpen} onClose={onClose} size="lg">
-         <div className="p-6 space-y-5">
-            <div className="flex items-center gap-3 pb-3 border-b border-border-subtle">
-               <div className="w-10 h-10 rounded-2xl bg-brand/10 text-brand flex items-center justify-center font-bold">
-                  <BuildingOffice2Icon className="w-6 h-6" />
-               </div>
-               <div>
-                  <h2 className="text-xl font-bold text-heading dark:text-white">
-                     Empresas Asignadas: {client.name ? `${client.name} ${client.last_name || ''}` : client.username}
-                  </h2>
-                  <p className="text-xs text-text-soft">
-                     Marca las empresas que este cliente podrá gestionar en el portal.
-                  </p>
-               </div>
-            </div>
+      <Modal
+         isOpen={isOpen}
+         onClose={onClose}
+         maxWidth="max-w-2xl"
+         title={`Empresas Asignadas — ${clientDisplayName}`}
+      >
+         <div className="space-y-4">
+            <p className="text-xs text-text-soft -mt-1 pb-3 border-b border-border-subtle">
+               Marca las empresas que este cliente podrá gestionar en el portal.
+            </p>
 
             <div className="max-h-72 overflow-y-auto divide-y divide-border-subtle/50 rounded-2xl border border-border-subtle bg-bg-content p-2">
                {loadingEntities ? (

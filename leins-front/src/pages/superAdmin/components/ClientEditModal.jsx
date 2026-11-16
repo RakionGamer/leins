@@ -60,19 +60,16 @@ export default function ClientEditModal({ isOpen, onClose, client, onSuccess }) 
    };
 
    return (
-      <Modal isOpen={isOpen} onClose={onClose} size="lg">
-         <form onSubmit={handleSubmit} className="p-6 space-y-5">
-            <div className="flex items-center gap-3 pb-3 border-b border-border-subtle">
-               <div className="w-10 h-10 rounded-2xl bg-brand/10 text-brand flex items-center justify-center font-bold">
-                  <PencilSquareIcon className="w-6 h-6" />
-               </div>
-               <div>
-                  <h2 className="text-xl font-bold text-heading dark:text-white">Editar Cliente</h2>
-                  <p className="text-xs text-text-soft">
-                     Modifica los datos personales o restablece la contraseña de este cliente.
-                  </p>
-               </div>
-            </div>
+      <Modal
+         isOpen={isOpen}
+         onClose={onClose}
+         maxWidth="max-w-xl"
+         title={`Editar Cliente — ${client?.username || ''}`}
+      >
+         <form onSubmit={handleSubmit} className="space-y-4">
+            <p className="text-xs text-text-soft -mt-1 pb-3 border-b border-border-subtle">
+               Modifica los datos personales o restablece la contraseña de este cliente.
+            </p>
 
             <FormError message={formError} />
 

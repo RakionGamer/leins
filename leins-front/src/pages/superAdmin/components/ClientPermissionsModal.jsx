@@ -6,7 +6,7 @@ import SpinnerButton from 'components/SpinnerButton';
 import { updateClientUserPermissions } from '../../../services/clientUsersApi';
 import { toast } from 'components/Toaster';
 import { getDefaultPermissions } from '../../../constants/permissions';
-import { ShieldCheckIcon, BuildingOffice2Icon } from '@heroicons/react/24/outline';
+import { BuildingOffice2Icon, UserCircleIcon } from '@heroicons/react/24/outline';
 
 export default function ClientPermissionsModal({ isOpen, onClose, client, onSuccess }) {
    const [permissions, setPermissions] = useState(getDefaultPermissions());
@@ -54,53 +54,65 @@ export default function ClientPermissionsModal({ isOpen, onClose, client, onSucc
    };
 
    const clientEntities = client.entities || [];
+   const clientDisplayName = client.name
+      ? `${client.name} ${client.last_name || ''}`.trim()
+      : client.username;
 
    return (
-      <Modal isOpen={isOpen} onClose={onClose} size="4xl">
-         <div className="p-6 max-h-[88vh] overflow-y-auto">
-            {/* CABECERA */}
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-border-subtle">
-               <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-brand/10 text-brand flex items-center justify-center font-bold">
-                     <ShieldCheckIcon className="w-6 h-6" />
+      <Modal
+         isOpen={isOpen}
+         onClose={onClose}
+         maxWidth="max-w-6xl"
+         title={`Permisos Granulares — ${clientDisplayName}`}
+      >
+         <div className="space-y-5">
+            {/* SUB-HEADER: DATOS CLIENTE Y SELECTOR DE ALCANCE */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 p-3.5 rounded-2xl bg-surface-1 border border-border-subtle">
+               <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-brand/10 text-brand flex items-center justify-center shrink-0">
+                     <UserCircleIcon className="w-5 h-5" />
                   </div>
                   <div>
-                     <h2 className="text-xl font-bold text-heading dark:text-white">
-                        Permisos Granulares: {client.name ? `${client.name} ${client.last_name || ''}` : client.username}
-                     </h2>
-                     <p className="text-xs text-text-soft">
-                        @{client.username} &bull; {client.email}
-                     </p>
+                     <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-heading dark:text-white">
+                           {clientDisplayName}
+                        </span>
+                        <span className="text-[11px] px-2 py-0.5 rounded-full bg-brand/10 text-brand font-semibold">
+                           @{client.username}
+                        </span>
+                     </div>
+                     <p className="text-xs text-text-soft mt-0.5">{client.email}</p>
                   </div>
                </div>
 
-               {/* SELECTOR DE SCOPE (GLOBAL VS EMPRESA ESPECÍFICA) */}
-               {clientEntities.length > 0 && (
-                  <div className="flex items-center gap-2">
-                     <BuildingOffice2Icon className="w-4 h-4 text-text-soft" />
-                     <select
-                        value={selectedEntityId || ''}
-                        onChange={(e) => setSelectedEntityId(e.target.value ? Number(e.target.value) : null)}
-                        className="text-xs font-semibold px-3 py-1.5 rounded-xl border border-border-subtle bg-bg-content text-text-main focus:ring-brand focus:border-brand shadow-2xs"
-                     >
-                        <option value="">Permisos Globales (Todas las empresas)</option>
-                        {clientEntities.map((ent) => (
-                           <option key={ent.id} value={ent.id}>
-                              {ent.name} ({ent.rut || `ID ${ent.id}`})
-                           </option>
-                        ))}
-                     </select>
-                  </div>
-               )}
+               {/* SELECTOR DE ALCANCE (GLOBAL VS EMPRESA ESPECÍFICA) */}
+               <div className="flex items-center gap-2 bg-bg-content p-1.5 rounded-xl border border-border-subtle shadow-2xs">
+                  <BuildingOffice2Icon className="w-4 h-4 text-brand ml-1.5 shrink-0" />
+                  <span className="text-xs font-semibold text-text-soft hidden sm:inline">Alcance:</span>
+                  <select
+                     value={selectedEntityId || ''}
+                     onChange={(e) => setSelectedEntityId(e.target.value ? Number(e.target.value) : null)}
+                     className="text-xs font-semibold px-2.5 py-1.5 rounded-lg border-0 bg-transparent text-text-main focus:ring-0 focus:outline-none cursor-pointer"
+                  >
+                     <option value="">Permisos Globales (Todas las empresas)</option>
+                     {clientEntities.map((ent) => (
+                        <option key={ent.id} value={ent.id}>
+                           {ent.name} ({ent.rut || `ID ${ent.id}`})
+                        </option>
+                     ))}
+                  </select>
+               </div>
             </div>
 
-            {/* CONTENIDO: MATRIZ */}
-            <div className="mt-6">
-               <PermissionsMatrix permissions={permissions} onChange={setPermissions} disabled={saving} />
-            </div>
+            {/* MATRIZ DE PERMISOS GRANULARES */}
+            <PermissionsMatrix
+               permissions={permissions}
+               onChange={setPermissions}
+               disabled={saving}
+            />
 
-            {/* PIE / BOTONES */}
-            <div className="mt-6 pt-4 border-t border-border-subtle flex justify-end items-center gap-3">
+            {/* BOTONES DE ACCIÓN */}
+            <div className="pt-4 border-t border-border-subtle flex items-center justify-end gap-3">
                <button
                   type="button"
                   onClick={onClose}
@@ -112,7 +124,7 @@ export default function ClientPermissionsModal({ isOpen, onClose, client, onSucc
                <SpinnerButton
                   loading={saving}
                   onClick={handleSave}
-                  className="bg-brand text-white px-5 py-2 rounded-xl text-sm font-bold shadow-lg hover:bg-brand-strong transition cursor-pointer active:scale-95"
+                  className="bg-brand text-white px-6 py-2 rounded-xl text-sm font-bold shadow-md hover:bg-brand-strong transition cursor-pointer active:scale-95"
                >
                   Guardar Permisos
                </SpinnerButton>
@@ -121,3 +133,4 @@ export default function ClientPermissionsModal({ isOpen, onClose, client, onSucc
       </Modal>
    );
 }
+

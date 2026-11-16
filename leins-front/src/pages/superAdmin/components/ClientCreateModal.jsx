@@ -66,20 +66,16 @@ export default function ClientCreateModal({ isOpen, onClose, onSuccess }) {
    };
 
    return (
-      <Modal isOpen={isOpen} onClose={onClose} size="4xl">
-         <form onSubmit={handleSubmit} className="p-6 max-h-[88vh] overflow-y-auto space-y-6">
-            {/* ENCABEZADO */}
-            <div className="flex items-center gap-3 pb-4 border-b border-border-subtle">
-               <div className="w-10 h-10 rounded-2xl bg-brand/10 text-brand flex items-center justify-center font-bold">
-                  <UserPlusIcon className="w-6 h-6" />
-               </div>
-               <div>
-                  <h2 className="text-xl font-bold text-heading dark:text-white">Nuevo Cliente</h2>
-                  <p className="text-xs text-text-soft">
-                     Crea una cuenta de acceso para un cliente y asigna sus empresas y permisos.
-                  </p>
-               </div>
-            </div>
+      <Modal
+         isOpen={isOpen}
+         onClose={onClose}
+         maxWidth="max-w-4xl"
+         title="Nuevo Cliente"
+      >
+         <form onSubmit={handleSubmit} className="space-y-5">
+            <p className="text-xs text-text-soft -mt-1 pb-3 border-b border-border-subtle">
+               Crea una cuenta de acceso para un cliente y asigna sus empresas y permisos.
+            </p>
 
             <FormError message={formError} />
 

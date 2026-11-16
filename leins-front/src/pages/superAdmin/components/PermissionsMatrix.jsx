@@ -158,50 +158,47 @@ export default function PermissionsMatrix({ permissions, onChange, disabled = fa
                               <div
                                  key={p.key}
                                  onClick={() => handleToggleSingle(modKey, p.key)}
-                                 className={`flex items-center justify-between p-2.5 rounded-xl border transition cursor-pointer select-none ${
+                                 className={`flex items-center justify-between p-2.5 rounded-xl border transition cursor-pointer select-none min-h-[46px] ${
                                     isChecked
-                                       ? 'bg-brand/5 border-brand/30 dark:bg-brand/10 dark:border-brand/40'
-                                       : 'bg-gray-50/50 dark:bg-white/5 border-border-subtle/70 opacity-80 hover:opacity-100 hover:border-border-subtle'
+                                       ? 'bg-brand/5 border-brand/30 dark:bg-brand/10 dark:border-brand/40 shadow-2xs'
+                                       : 'bg-gray-50/60 dark:bg-white/5 border-border-subtle/70 opacity-75 hover:opacity-100 hover:border-border-subtle'
                                  } ${disabled ? 'pointer-events-none opacity-50' : ''}`}
                               >
-                                 <div className="pr-2 min-w-0 flex-1">
-                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                 <div className="pr-2 min-w-0 flex-1 flex items-center gap-1.5 flex-wrap">
+                                    <span
+                                       className={`text-xs leading-snug ${
+                                          isChecked
+                                             ? 'text-heading dark:text-white font-semibold'
+                                             : 'text-text-soft font-normal'
+                                       }`}
+                                    >
+                                       {p.label}
+                                    </span>
+                                    {p.badge && (
                                        <span
-                                          className={`text-xs font-medium leading-snug truncate ${
-                                             isChecked
-                                                ? 'text-heading dark:text-white font-semibold'
-                                                : 'text-text-soft'
+                                          className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider shrink-0 ${
+                                             p.badge === 'Crítico'
+                                                ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300'
+                                                : p.badge === 'Peligro'
+                                                ? 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300'
+                                                : 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/40 dark:text-cyan-300'
                                           }`}
-                                          title={p.label}
                                        >
-                                          {p.label}
+                                          {p.badge}
                                        </span>
-                                       {p.badge && (
-                                          <span
-                                             className={`text-[9px] px-1.5 py-0.2 rounded font-bold uppercase ${
-                                                p.badge === 'Crítico'
-                                                   ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300'
-                                                   : p.badge === 'Peligro'
-                                                   ? 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300'
-                                                   : 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300'
-                                             }`}
-                                          >
-                                             {p.badge}
-                                          </span>
-                                       )}
-                                    </div>
+                                    )}
                                  </div>
 
                                  {/* SWITCH ESTILIZADO */}
-                                 <div className="shrink-0">
+                                 <div className="shrink-0 ml-2">
                                     <div
-                                       className={`w-8 h-4.5 flex items-center rounded-full p-0.5 transition-colors duration-200 ease-in-out ${
+                                       className={`w-9 h-5 flex items-center rounded-full p-0.5 transition-colors duration-200 ease-in-out ${
                                           isChecked ? 'bg-brand' : 'bg-gray-300 dark:bg-neutral-700'
                                        }`}
                                     >
                                        <div
-                                          className={`bg-white w-3.5 h-3.5 rounded-full shadow-md transform transition-transform duration-200 ease-in-out ${
-                                             isChecked ? 'translate-x-3.5' : 'translate-x-0'
+                                          className={`bg-white w-4 h-4 rounded-full shadow-xs transform transition-transform duration-200 ease-in-out ${
+                                             isChecked ? 'translate-x-4' : 'translate-x-0'
                                           }`}
                                        />
                                     </div>
