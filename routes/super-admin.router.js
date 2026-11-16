@@ -20,7 +20,9 @@ const {
    clientUserEntityParamsSchema,
    updateClientUserEntityAccessSchema,
    clientUserParamsSchema,
-   updateClientUserSchema
+   updateClientUserSchema,
+   updateClientPermissionsSchema,
+   assignClientEntitiesSchema
 } = require('../schemas/super-admin.schema');
 
 const router = express.Router();
