@@ -2278,6 +2278,7 @@ class AccountingService {
          require_reference: Boolean(payload.require_reference),
          is_auxiliary: Boolean(payload.is_auxiliary),
          is_title: Boolean(payload.is_title),
+         is_active: payload.is_active !== undefined ? Boolean(payload.is_active) : true,
          cash_flow_classification: payload.cash_flow_classification || "NONE",
       });
    }

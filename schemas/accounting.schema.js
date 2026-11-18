@@ -10,10 +10,13 @@ const createAccountSchema = joi.object({
    type: joi.string().valid("ACTIVO", "PASIVO", "PATRIMONIO", "INGRESOS", "COSTOS", "GASTOS").required(),
    nature: joi.string().valid("DEUDORA", "ACREEDORA").optional(),
    cost_center_requirement: joi.string().valid("NONE", "OPTIONAL", "REQUIRED").optional(),
+   default_cost_center: joi.string().max(100).allow(null, "").optional(),
    require_rut: joi.boolean().optional(),
    require_reference: joi.boolean().optional(),
    is_auxiliary: joi.boolean().optional(),
    is_title: joi.boolean().optional(),
+   is_active: joi.boolean().optional(),
+   cash_flow_classification: joi.string().valid("OPERACIONAL", "INVERSION", "FINANCIAMIENTO", "NONE").optional(),
 });
 
 const updateAccountSchema = joi.object({
@@ -22,6 +25,7 @@ const updateAccountSchema = joi.object({
    type: joi.string().valid("ACTIVO", "PASIVO", "PATRIMONIO", "INGRESOS", "COSTOS", "GASTOS").optional(),
    nature: joi.string().valid("DEUDORA", "ACREEDORA").optional(),
    cost_center_requirement: joi.string().valid("NONE", "OPTIONAL", "REQUIRED").optional(),
+   default_cost_center: joi.string().max(100).allow(null, "").optional(),
    require_rut: joi.boolean().optional(),
    require_reference: joi.boolean().optional(),
    is_auxiliary: joi.boolean().optional(),
