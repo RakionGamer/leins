@@ -52,7 +52,8 @@ export default function Header({ toggleSidebar }) {
                      ref={searchInputRef}
                      type="text"
                      placeholder="Busca un folio, RUT o monto"
-                     className="w-full bg-transparent pl-3 pr-2 py-1 text-[13px] font-normal text-[#0A1A3F] placeholder-[#8D97AE] focus:outline-none font-sans"
+                     className="w-full bg-transparent border-0 border-none focus:ring-0 focus:outline-none pl-3 pr-2 py-0 text-[13px] font-normal text-[#0A1A3F] placeholder-[#8D97AE] shadow-none font-sans"
+                     style={{ border: 'none', outline: 'none', boxShadow: 'none', backgroundColor: 'transparent' }}
                   />
                   <div className="flex items-center pointer-events-none shrink-0">
                      <kbd className="h-[21px] px-1.5 flex items-center justify-center gap-1 bg-white border border-[#DCE6FF] rounded-[6px] text-[11px] font-medium text-[#55607A] leading-none select-none">
