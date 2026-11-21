@@ -55,9 +55,8 @@ export default function DashboardLayout() {
 
    return (
       <div
-         // cambiamos min-h por h exacto y agregamos overflow-hidden para forzar el scroll interno
-         className="h-[100dvh] w-full flex overflow-hidden relative text-[var(--text-main)]"
-         style={{ '--sb-collapsed': sidebarCollapsed ? '70px' : '220px' }}
+         className="h-[100dvh] w-full flex overflow-hidden relative text-[var(--text-main)] bg-[#F5F8FF]"
+         style={{ '--sb-collapsed': sidebarCollapsed ? '70px' : '240px' }}
       >
          {/* sidebar fijo */}
          <div className={`fixed z-30 inset-y-0 left-0 transition-transform duration-300 will-change-transform motion-reduce:transition-none
@@ -92,16 +91,8 @@ export default function DashboardLayout() {
             />
 
             {/* aseguramos que esta etiqueta controle el scroll vertical */}
-            <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-2">
-               <div
-                  className="
-                     main-panel
-                     mx-5 max-w-none
-                     rounded-2xl shadow-lg
-                     bg-[var(--bg-content)]
-                     p-2 sm:p-2 lg:p-4
-                  "
-               >
+            <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain bg-[#F5F8FF]">
+               <div className="w-full max-w-[1600px] mx-auto p-4 sm:p-6 lg:p-8">
                   <Outlet />
                </div>
             </main>

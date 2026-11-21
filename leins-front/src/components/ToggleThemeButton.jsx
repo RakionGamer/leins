@@ -27,37 +27,18 @@ export default function ToggleThemeButton() {
 
    return (
       <Tooltip content={isDark ? 'Tema oscuro' : 'Tema claro'} position="bottom">
-      <button
-         type="button"
-         onClick={toggle}
-         aria-label={`Cambiar a tema ${isDark ? 'claro' : 'oscuro'}`}
-         className="
-        group relative inline-flex h-10 w-10 items-center justify-center
-        rounded-full shadow-sm backdrop-blur transition
-        text-text-main
-        ring-1 ring-border-subtle/40 hover:ring-border-strong/40
-        bg-bg-content/40 hover:bg-bg-content/60
-        focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/60
-        focus-visible:ring-offset-2 focus-visible:ring-offset-bg-shell
-      "
-      >
-         {/* halo sutil */}
-         <span className="absolute inset-0 rounded-full bg-gradient-to-br from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition" />
-
-         {/* íconos apilados, con crossfade/scale */}
-         <SunIcon
-            className={`
-          absolute h-5 w-5 transition
-          ${isDark ? 'opacity-0 scale-75 rotate-6' : 'opacity-100 scale-100 rotate-0'}
-        `}
-         />
-         <MoonIcon
-            className={`
-          absolute h-5 w-5 transition
-          ${isDark ? 'opacity-100 scale-100 rotate-0' : 'opacity-0 scale-75 -rotate-6'}
-        `}
-         />
-      </button>
+         <button
+            type="button"
+            onClick={toggle}
+            aria-label={`Cambiar a tema ${isDark ? 'claro' : 'oscuro'}`}
+            className="p-2 text-[#55607A] hover:text-[#0A1A3F] hover:bg-[#EFF3FF] rounded-full transition-colors focus:outline-none"
+         >
+            {isDark ? (
+               <SunIcon className="h-5 w-5 transition-transform" />
+            ) : (
+               <MoonIcon className="h-5 w-5 transition-transform" />
+            )}
+         </button>
       </Tooltip>
    );
 }

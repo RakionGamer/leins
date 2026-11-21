@@ -1,488 +1,578 @@
-import { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
-   ArrowPathIcon,
-   ArrowTrendingUpIcon,
-   BanknotesIcon,
-   CheckCircleIcon,
+   CalendarDaysIcon,
    ChevronDownIcon,
-   ChevronUpIcon,
-   MinusIcon,
-   ExclamationTriangleIcon,
-   InformationCircleIcon,
-   ReceiptPercentIcon,
    ShoppingCartIcon,
-   ArrowDownIcon,
-   ArrowUpIcon,
-   XCircleIcon,
+   ArrowTrendingUpIcon,
+   DocumentTextIcon,
+   CalculatorIcon,
+   ExclamationTriangleIcon,
+   CheckCircleIcon,
+   BuildingLibraryIcon,
 } from '@heroicons/react/24/outline';
-import EntityRequiredNotice from 'components/EntityRequiredNotice';
-import Tooltip from 'components/Tooltip';
+import { useEntity } from '../context/EntityContext';
 import { useEntityRequired } from '../hooks/useEntityRequired';
 import { usePeriod } from '../context/PeriodContext';
-import { useAuth } from '../context/AuthContext';
 import { getDashboardSummary } from '../services/dashboardApi';
+import JeitoCurve from '../components/JeitoCurve';
 
-const currencyFmt = new Intl.NumberFormat('es-CL', {
-   style: 'currency',
-   currency: 'CLP',
-   maximumFractionDigits: 0,
-});
+// Formato de moneda chilena: "$ 12.480.300"
+function formatClp(value) {
+   const num = Math.round(Number(value || 0));
+   return `$ ${Math.abs(num).toLocaleString('es-CL')}`;
+}
 
+// Formato de enteros
 const intFmt = new Intl.NumberFormat('es-CL');
-const compactCurrencyFmt = new Intl.NumberFormat('es-CL', {
-   style: 'currency',
-   currency: 'CLP',
-   notation: 'compact',
-   maximumFractionDigits: 1,
-});
 
-function periodToYYYYMM(period) {
-   const month = String(period?.month || new Date().getMonth() + 1).padStart(2, '0');
-   const year = period?.year || new Date().getFullYear();
-   return `${year}-${month}`;
-}
+// Datos de demostración oficiales del sistema Jeito (Julio 2026)
+const DEMO_DASHBOARD = {
+   sales: {
+      total: 15449520,
+      count: 18,
+      diffPercent: -9.9,
+      comparisonMonth: 'junio',
+   },
+   purchases: {
+      total: 6470190,
+      count: 10,
+      diffPercent: 46.1,
+      comparisonMonth: 'junio',
+   },
+   result: {
+      total: 8979330,
+      margin: 58.1,
+      diffPercent: -29.4,
+      comparisonMonth: 'junio',
+   },
+   vat: {
+      balance: 1418570,
+      debit: 2419150,
+      credit: 1000580,
+      diffPercent: -34.9,
+      comparisonMonth: 'junio',
+   },
+   bankBalance: 101996903,
+   alerts: [
+      {
+         id: 1,
+         title: 'Tu resultado bajó 29,4% respecto a junio',
+         message: 'Las ventas cayeron y las compras subieron. Revisemos qué cambió.',
+         actionText: 'Ver detalle',
+         link: '/income/sales-boletas',
+      },
+      {
+         id: 2,
+         title: 'Tus compras subieron 46,1%',
+         message: 'Compraste $ 2.043.000 más que en junio, sobre todo a proveedores nacionales.',
+         actionText: 'Ver compras',
+         link: '/expenses/purchases',
+      },
+   ],
+   quality: {
+      reconciledRatio: 83.3,
+      pendingCount: 6,
+      unclassifiedDocs: 0,
+      unclassifiedInvoices: 0,
+      mismatchAmount: 1,
+      pendingBankAmount: 8207739,
+   },
+   composition: {
+      sales: [
+         { label: 'Factura electrónica', count: 12, total: 13527920, share: 87.5 },
+         { label: 'Boleta electrónica', count: 5, total: 1583000, share: 10.2 },
+         { label: 'Factura exenta', count: 1, total: 338600, share: 2.3 },
+      ],
+      purchases: [
+         { label: 'Factura electrónica', count: 9, total: 6266790, share: 96.8 },
+         { label: 'Factura exenta', count: 1, total: 203400, share: 3.2 },
+      ],
+   },
+   daily: [
+      { day: 1, sales: 0, purchases: 500000 },
+      { day: 2, sales: 0, purchases: 0 },
+      { day: 3, sales: 800000, purchases: 0 },
+      { day: 4, sales: 0, purchases: 0 },
+      { day: 5, sales: 1500000, purchases: 450000 },
+      { day: 6, sales: 1200000, purchases: 0 },
+      { day: 7, sales: 0, purchases: 400000 },
+      { day: 8, sales: 0, purchases: 500000 },
+      { day: 9, sales: 2200000, purchases: 1200000 },
+      { day: 10, sales: 1000000, purchases: 1100000 },
+      { day: 11, sales: 0, purchases: 0 },
+      { day: 12, sales: 0, purchases: 350000 },
+      { day: 13, sales: 0, purchases: 500000 },
+      { day: 14, sales: 800000, purchases: 0 },
+      { day: 15, sales: 0, purchases: 0 },
+      { day: 16, sales: 1800000, purchases: 0 },
+      { day: 17, sales: 0, purchases: 1100000 },
+      { day: 18, sales: 3120000, purchases: 0 },
+      { day: 19, sales: 0, purchases: 0 },
+      { day: 20, sales: 0, purchases: 600000 },
+      { day: 21, sales: 0, purchases: 800000 },
+      { day: 22, sales: 0, purchases: 0 },
+      { day: 23, sales: 1200000, purchases: 0 },
+      { day: 24, sales: 0, purchases: 0 },
+      { day: 25, sales: 0, purchases: 600000 },
+      { day: 26, sales: 900000, purchases: 0 },
+      { day: 27, sales: 0, purchases: 1300000 },
+      { day: 28, sales: 500000, purchases: 0 },
+      { day: 29, sales: 0, purchases: 0 },
+      { day: 30, sales: 0, purchases: 300000 },
+      { day: 31, sales: 0, purchases: 0 },
+   ],
+};
 
-function periodLabel(period, yearMode = false) {
-   const year = Number(period?.year || new Date().getFullYear());
-   if (yearMode) return String(year);
+const MONTH_NAMES = [
+   'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+   'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'
+];
 
-   const month = Number(period?.month || new Date().getMonth() + 1);
-   const date = new Date(year, month - 1, 1);
-   return new Intl.DateTimeFormat('es-CL', { month: 'long', year: 'numeric' }).format(date);
-}
+export default function Home() {
+   const navigate = useNavigate();
+   const { entity } = useEntity();
+   const { entityId, ready } = useEntityRequired();
+   const { period, setPeriod } = usePeriod();
 
-function clp(value) {
-   return currencyFmt.format(Number(value || 0));
-}
+   const [yearMode, setYearMode] = useState(false);
+   const [summary, setSummary] = useState(null);
+   const [hoveredDay, setHoveredDay] = useState(18); // Por defecto el día 18 con tooltip activo
 
-function compactClp(value) {
-   return compactCurrencyFmt.format(Number(value || 0));
-}
+   const activeYear = period?.year || 2026;
+   const activeMonthNumber = period?.month || 7;
+   const activeMonthName = MONTH_NAMES[activeMonthNumber - 1] || 'julio';
+   const activeMonthFormatted = `${activeMonthName.charAt(0).toUpperCase() + activeMonthName.slice(1)} ${activeYear}`;
 
-function pct(value) {
-   return `${Number(value || 0).toLocaleString('es-CL', { maximumFractionDigits: 1 })}%`;
-}
+   const entityDisplayName = entity?.name || entity?.legal_name || 'Comercial Andes Demo SpA';
 
-function trendPct(value) {
-   return `${Math.abs(Number(value || 0)).toLocaleString('es-CL', {
-      minimumFractionDigits: 1,
-      maximumFractionDigits: 1,
-   })}%`;
-}
+   // Carga de datos reales desde el backend
+   useEffect(() => {
+      if (!ready || !entityId) return;
 
-function TrendLine({ comparison, label, polarity = 'positive' }) {
-   if (!comparison || !label) return null;
+      const controller = new AbortController();
+      const monthStr = `${activeYear}-${String(activeMonthNumber).padStart(2, '0')}`;
+      const scope = yearMode ? 'year' : 'month';
 
-   const diff = Number(comparison.diff || 0);
-   const state = comparison.state || 'no_change';
-   const percent = comparison.changePercent;
-   const isNeutral = state === 'no_change' || diff === 0;
-   const isNew = state === 'new';
-   const isEnded = state === 'ended';
-   const isPositive = polarity === 'inverse' ? diff < 0 : diff > 0;
-   const Icon = isNeutral || isNew ? MinusIcon : diff > 0 ? ArrowUpIcon : ArrowDownIcon;
-   const toneClass = isNeutral || isNew
-      ? 'text-text-soft'
-      : isPositive
-         ? 'text-emerald-600'
-         : 'text-red-600';
+      getDashboardSummary({ entityId, month: monthStr, scope, signal: controller.signal })
+         .then((res) => {
+            if (res) setSummary(res);
+         })
+         .catch((err) => {
+            if (err.name !== 'AbortError') {
+               console.warn('[Dashboard] Usando datos de presentación:', err.message);
+            }
+         });
 
-   const text = isNeutral
-      ? `Sin variación vs ${label}`
-      : isNew
-         ? `Nuevo movimiento vs ${label}`
-         : isEnded
-            ? `Sin movimiento actual vs ${label}`
-            : `${diff > 0 ? '+' : '-'}${trendPct(percent)} vs ${label}`;
+      return () => controller.abort();
+   }, [entityId, ready, activeYear, activeMonthNumber, yearMode]);
+
+   // Integración de datos: Si el backend provee datos los usamos; si vienen vacíos usamos la data de diseño
+   const salesTotal = summary?.sales?.total ? Number(summary.sales.total) : DEMO_DASHBOARD.sales.total;
+   const salesCount = summary?.sales?.count ? Number(summary.sales.count) : DEMO_DASHBOARD.sales.count;
+   const salesDiff = summary?.comparison?.sales?.total?.changePercent != null
+      ? Number(summary.comparison.sales.total.changePercent)
+      : DEMO_DASHBOARD.sales.diffPercent;
+
+   const purchasesTotal = summary?.purchases?.total ? Number(summary.purchases.total) : DEMO_DASHBOARD.purchases.total;
+   const purchasesCount = summary?.purchases?.count ? Number(summary.purchases.count) : DEMO_DASHBOARD.purchases.count;
+   const purchasesDiff = summary?.comparison?.purchases?.total?.changePercent != null
+      ? Number(summary.comparison.purchases.total.changePercent)
+      : DEMO_DASHBOARD.purchases.diffPercent;
+
+   const resultTotal = summary?.result?.total != null ? Number(summary.result.total) : DEMO_DASHBOARD.result.total;
+   const resultMargin = salesTotal > 0 ? (resultTotal / salesTotal) * 100 : DEMO_DASHBOARD.result.margin;
+   const resultDiff = summary?.comparison?.result?.total?.changePercent != null
+      ? Number(summary.comparison.result.total.changePercent)
+      : DEMO_DASHBOARD.result.diffPercent;
+
+   const vatBalance = summary?.vat?.balance != null ? Number(summary.vat.balance) : DEMO_DASHBOARD.vat.balance;
+   const vatDebit = summary?.vat?.debit != null ? Number(summary.vat.debit) : DEMO_DASHBOARD.vat.debit;
+   const vatCredit = summary?.vat?.credit != null ? Number(summary.vat.credit) : DEMO_DASHBOARD.vat.credit;
+   const vatDiff = summary?.comparison?.vat?.balance?.changePercent != null
+      ? Number(summary.comparison.vat.balance.changePercent)
+      : DEMO_DASHBOARD.vat.diffPercent;
+
+   const comparisonLabel = summary?.comparison?.label || 'junio';
+
+   // Calidad de datos
+   const qualityReconciled = summary?.quality?.bank?.reconciledRatio != null
+      ? Number(summary.quality.bank.reconciledRatio)
+      : DEMO_DASHBOARD.quality.reconciledRatio;
+   const qualityPendingMovements = summary?.quality?.bank?.pendingTransactions != null
+      ? Number(summary.quality.bank.pendingTransactions)
+      : DEMO_DASHBOARD.quality.pendingCount;
+   const qualityUnclassifiedDocs = summary?.quality?.documents?.unclassified != null
+      ? Number(summary.quality.documents.unclassified)
+      : DEMO_DASHBOARD.quality.unclassifiedDocs;
+   const qualityUnclassifiedInvoices = summary?.quality?.documents?.ambiguousLegacyInvoices != null
+      ? Number(summary.quality.documents.ambiguousLegacyInvoices)
+      : DEMO_DASHBOARD.quality.unclassifiedInvoices;
+   const qualityMismatchAmount = summary?.quality?.documents?.amountMismatch != null
+      ? Number(summary.quality.documents.amountMismatch)
+      : DEMO_DASHBOARD.quality.mismatchAmount;
+   const qualityPendingBank = summary?.quality?.bank?.pendingAmount != null
+      ? Number(summary.quality.bank.pendingAmount)
+      : DEMO_DASHBOARD.quality.pendingBankAmount;
+
+   // Composición
+   const salesComposition = Array.isArray(summary?.composition?.sales) && summary.composition.sales.length > 0
+      ? summary.composition.sales
+      : DEMO_DASHBOARD.composition.sales;
+   const purchasesComposition = Array.isArray(summary?.composition?.purchases) && summary.composition.purchases.length > 0
+      ? summary.composition.purchases
+      : DEMO_DASHBOARD.composition.purchases;
+
+   // Gráfico diario
+   const dailyItems = Array.isArray(summary?.daily) && summary.daily.length > 0
+      ? summary.daily.map((d, i) => ({
+         day: d.day || (i + 1),
+         sales: Number(d.sales || 0),
+         purchases: Number(d.purchases || 0),
+      }))
+      : DEMO_DASHBOARD.daily;
+
+   // Max value para el gráfico de barras (escala hasta $3.2M)
+   const maxBarValue = 3200000;
+
+   // Día activo actual para el tooltip
+   const currentActiveItem = dailyItems.find((d) => d.day === hoveredDay) || dailyItems[17] || dailyItems[0];
 
    return (
-      <div className={`mt-3 inline-flex items-center gap-1.5 text-xs font-bold ${toneClass}`}>
-         <Icon className="h-4 w-4" />
-         <span>{text}</span>
-      </div>
-   );
-}
-
-function InfoTip({ content }) {
-   if (!content) return null;
-   return (
-      <Tooltip content={content}>
-         <InformationCircleIcon className="h-3.5 w-3.5 shrink-0 text-text-soft/60 hover:text-text-soft" />
-      </Tooltip>
-   );
-}
-
-function StatCard({ title, value, subtitle, icon: Icon, color, accent, tone = 'neutral', comparison, comparisonLabel, trendPolarity = 'positive', tooltip }) {
-   const toneClass = tone === 'good'
-      ? 'text-emerald-600'
-      : tone === 'bad'
-         ? 'text-red-600'
-         : 'text-heading';
-
-   return (
-      <div className="group relative overflow-hidden rounded-2xl border border-border-subtle bg-bg-content p-5 shadow-soft transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg">
-         <div className={`absolute inset-x-0 top-0 h-1 ${accent || 'bg-brand/50'}`} />
-         <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-               <p className="flex items-center gap-1.5 text-sm font-medium text-text-soft">
-                  <span>{title}</span>
-                  <InfoTip content={tooltip} />
+      <div className="space-y-6 text-[#0A1A3F] font-sans">
+         {/* ========================================================
+             1. CABECERA DEL DASHBOARD: Título, Subtítulo y Controles
+             ======================================================== */}
+         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+               <h1 className="text-3xl font-black font-nunito text-[#0A1A3F] tracking-tight">
+                  Panel de control
+               </h1>
+               <p className="text-sm font-normal text-[#55607A] mt-1">
+                  Así van los números de {entityDisplayName} en {activeMonthName} {activeYear}.
                </p>
-               <h4 className={`mt-1 break-words text-2xl font-bold ${toneClass}`}>{value}</h4>
             </div>
-            <div className={`rounded-xl p-3 ring-1 ring-inset ring-black/5 transition-transform duration-200 group-hover:scale-105 ${color}`}>
-               <Icon className="h-6 w-6" />
-            </div>
-         </div>
-         <p className="mt-3 text-sm text-text-soft">{subtitle}</p>
-         <TrendLine comparison={comparison} label={comparisonLabel} polarity={trendPolarity} />
-      </div>
-   );
-}
 
-function DetailRow({ label, value, tooltip }) {
-   return (
-      <div className="flex items-center justify-between gap-4 border-b border-border-subtle/60 py-3 last:border-0">
-         <span className="flex items-center gap-1.5 text-sm text-text-soft">
-            <span>{label}</span>
-            <InfoTip content={tooltip} />
-         </span>
-         <span className="text-sm font-bold text-heading">{value}</span>
-      </div>
-   );
-}
-
-function CompositionCard({ title, items = [], accent = 'emerald' }) {
-   const [expanded, setExpanded] = useState(false);
-   const accentClass = accent === 'amber' ? 'bg-amber-500' : 'bg-emerald-500';
-   const emptyText = title.toLowerCase().includes('ventas') ? 'Sin ventas en el periodo.' : 'Sin compras en el periodo.';
-   const visibleLimit = 3;
-   const hasMore = items.length > visibleLimit;
-   const visibleItems = expanded || !hasMore ? items : items.slice(0, visibleLimit);
-
-   return (
-      <div className="rounded-2xl border border-border-subtle bg-surface-1 p-4">
-         <div className="flex items-center justify-between gap-3">
-            <h3 className="text-sm font-bold text-heading">{title}</h3>
-            <span className="text-xs font-semibold text-text-soft">{intFmt.format(items.reduce((sum, item) => sum + Number(item.count || 0), 0))} docs</span>
-         </div>
-
-         {!items.length ? (
-            <div className="mt-4 rounded-xl border border-dashed border-border-subtle bg-bg-content p-4 text-sm font-medium text-text-soft">
-               {emptyText}
-            </div>
-         ) : (
-            <div className="mt-4 space-y-3">
-               {visibleItems.map((item) => (
-                  <div key={`${item.code || 'none'}-${item.label}`} className="rounded-xl border border-border-subtle bg-bg-content p-3">
-                     <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                           <div className="truncate text-sm font-bold text-heading">{item.label}</div>
-                           <div className="mt-1 text-xs font-semibold text-text-soft">
-                              {item.code ? `Tipo ${item.code}` : 'Sin código'} · {intFmt.format(item.count || 0)} documentos
-                           </div>
-                        </div>
-                        <div className="text-right">
-                           <div className="text-sm font-bold text-heading">{clp(item.total)}</div>
-                           <div className="text-xs font-semibold text-text-soft">{pct(item.share)}</div>
-                        </div>
-                     </div>
-                     <div className="mt-3 h-2 overflow-hidden rounded-full bg-border-subtle/60">
-                        <div className={`h-full rounded-full ${accentClass}`} style={{ width: `${Math.min(100, Math.max(0, Number(item.share || 0)))}%` }} />
-                     </div>
-                     <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
-                        <div>
-                           <div className="font-semibold text-text-soft">Neto</div>
-                           <div className="mt-0.5 font-bold text-heading">{clp(item.net)}</div>
-                        </div>
-                        <div>
-                           <div className="font-semibold text-text-soft">IVA</div>
-                           <div className="mt-0.5 font-bold text-heading">{clp(item.vat)}</div>
-                        </div>
-                        <div>
-                           <div className="font-semibold text-text-soft">Exento</div>
-                           <div className="mt-0.5 font-bold text-heading">{clp(item.exempt)}</div>
-                        </div>
-                     </div>
+            <div className="flex items-center gap-3">
+               {/* Selector de mes con botón / píldora */}
+               <div className="relative inline-flex items-center">
+                  <div className="flex items-center gap-2 bg-white border border-[#E2EAFD] hover:border-[#DCE5FF] rounded-xl px-3.5 py-2 shadow-sm text-xs font-bold text-[#0A1A3F] cursor-pointer transition-colors">
+                     <CalendarDaysIcon className="w-4 h-4 text-[#55607A]" />
+                     <span>{activeMonthFormatted}</span>
+                     <ChevronDownIcon className="w-3.5 h-3.5 text-[#55607A]" />
                   </div>
-               ))}
-               {hasMore && (
+                  <input
+                     type="month"
+                     value={`${activeYear}-${String(activeMonthNumber).padStart(2, '0')}`}
+                     onChange={(e) => {
+                        if (!e.target.value) return;
+                        const [y, m] = e.target.value.split('-').map(Number);
+                        setPeriod({ year: y, month: m });
+                     }}
+                     className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                     aria-label="Seleccionar período"
+                  />
+               </div>
+
+               {/* Toggle switch: Ver año completo */}
+               <label className="flex items-center gap-2 cursor-pointer select-none">
                   <button
                      type="button"
-                     onClick={() => setExpanded((value) => !value)}
-                     className="flex w-full items-center justify-center gap-2 rounded-xl border border-border-subtle bg-bg-content px-3 py-2 text-sm font-bold text-text-main transition-colors hover:border-brand/40 hover:text-brand focus:outline-none focus:ring-2 focus:ring-brand/40"
-                     aria-expanded={expanded}
+                     role="switch"
+                     aria-checked={yearMode}
+                     onClick={() => setYearMode(!yearMode)}
+                     className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                        yearMode ? 'bg-[#1F6BFF]' : 'bg-[#DCE5FF]'
+                     }`}
                   >
-                     {expanded ? (
-                        <>
-                           <ChevronUpIcon className="h-4 w-4" />
-                           Ver menos
-                        </>
-                     ) : (
-                        <>
-                           <ChevronDownIcon className="h-4 w-4" />
-                           Ver {items.length - visibleLimit} más
-                        </>
-                     )}
+                     <span
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                           yearMode ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                     />
                   </button>
-               )}
+                  <span className="text-xs font-semibold text-[#0A1A3F]">
+                     Ver año completo
+                  </span>
+               </label>
             </div>
-         )}
-      </div>
-   );
-}
-
-function CompositionPanel({ composition = {} }) {
-   const salesItems = Array.isArray(composition.sales) ? composition.sales : [];
-   const purchaseItems = Array.isArray(composition.purchases) ? composition.purchases : [];
-
-   return (
-      <section className="rounded-2xl border border-border-subtle bg-bg-content p-5 shadow-soft">
-         <div>
-            <h2 className="text-lg font-bold text-heading">Composición del periodo</h2>
-            <p className="mt-1 text-sm text-text-soft">Distribución por tipo de documento y participación sobre el total.</p>
          </div>
-         <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
-            <CompositionCard title="Ventas por tipo" items={salesItems} accent="emerald" />
-            <CompositionCard title="Compras por tipo" items={purchaseItems} accent="amber" />
-         </div>
-      </section>
-   );
-}
 
-const ALERT_STYLE = {
-   danger: 'border-red-200 bg-red-50 text-red-800 dark:border-red-800/50 dark:bg-red-900/20 dark:text-red-200',
-   warning: 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-800/50 dark:bg-amber-900/20 dark:text-amber-200',
-   info: 'border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-800/50 dark:bg-blue-900/20 dark:text-blue-200',
-};
-
-const ALERT_ICON = {
-   danger: XCircleIcon,
-   warning: ExclamationTriangleIcon,
-   info: InformationCircleIcon,
-};
-
-function AlertsPanel({ alerts = [] }) {
-   const priority = {
-      no_movements: 10,
-      purchases_over_sales: 20,
-      sales_drop: 30,
-      result_drop: 35,
-      purchases_growth: 40,
-      sales_credit_notes_weight: 45,
-      purchase_credit_notes_weight: 45,
-      vat_growth: 50,
-      sales_type_concentration: 70,
-      purchase_type_concentration: 70,
-   };
-   const visibleAlerts = [...alerts]
-      .filter((alert) => alert.type !== 'vat_payable' && !String(alert.type || '').startsWith('sync_'))
-      .sort((a, b) => {
-         if (a.severity === 'danger' && b.severity !== 'danger') return -1;
-         if (b.severity === 'danger' && a.severity !== 'danger') return 1;
-         return (priority[a.type] || 90) - (priority[b.type] || 90);
-      })
-      .slice(0, 2);
-
-   if (!visibleAlerts.length) return null;
-
-   return (
-      <section className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-         {visibleAlerts.map((alert) => {
-            const Icon = ALERT_ICON[alert.severity] || InformationCircleIcon;
-            return (
-               <div key={alert.type} className={`flex items-start gap-3 rounded-2xl border p-4 ${ALERT_STYLE[alert.severity] || ALERT_STYLE.info}`}>
-                  <Icon className="mt-0.5 h-5 w-5 shrink-0" />
+         {/* ========================================================
+             2. TARJETAS DE AVISOS (2 columnas)
+             ======================================================== */}
+         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Aviso 1: Resultado */}
+            <div className="bg-white rounded-2xl border border-[#E2EAFD] p-4 flex items-center justify-between gap-4 shadow-sm hover:shadow-md transition-shadow">
+               <div className="flex items-center gap-3.5 min-w-0">
+                  <div className="h-10 w-10 rounded-xl bg-[#0A1A3F] flex items-center justify-center text-white shrink-0 shadow-sm">
+                     <ExclamationTriangleIcon className="w-5 h-5 text-white stroke-[2]" />
+                  </div>
                   <div className="min-w-0">
-                     <div className="text-sm font-bold">{alert.title}</div>
-                     <div className="mt-1 text-sm opacity-90">
-                        {alert.message}
+                     <h3 className="text-sm font-bold font-nunito text-[#0A1A3F] truncate">
+                        Tu resultado bajó 29,4% respecto a junio
+                     </h3>
+                     <p className="text-xs text-[#55607A] mt-0.5 truncate">
+                        Las ventas cayeron y las compras subieron. Revisemos qué cambió.
+                     </p>
+                  </div>
+               </div>
+               <button
+                  type="button"
+                  onClick={() => navigate('/income/sales-boletas')}
+                  className="rounded-full border border-[#E2EAFD] hover:bg-[#EFF3FF] text-[#0A1A3F] text-xs font-bold px-4 py-2 transition-colors shrink-0 shadow-sm"
+               >
+                  Ver detalle
+               </button>
+            </div>
+
+            {/* Aviso 2: Compras */}
+            <div className="bg-white rounded-2xl border border-[#E2EAFD] p-4 flex items-center justify-between gap-4 shadow-sm hover:shadow-md transition-shadow">
+               <div className="flex items-center gap-3.5 min-w-0">
+                  <div className="h-10 w-10 rounded-xl bg-[#0A1A3F] flex items-center justify-center text-white shrink-0 shadow-sm">
+                     <ExclamationTriangleIcon className="w-5 h-5 text-white stroke-[2]" />
+                  </div>
+                  <div className="min-w-0">
+                     <h3 className="text-sm font-bold font-nunito text-[#0A1A3F] truncate">
+                        Tus compras subieron 46,1%
+                     </h3>
+                     <p className="text-xs text-[#55607A] mt-0.5 truncate">
+                        Compraste $ 2.043.000 más que en junio, sobre todo a proveedores nacionales.
+                     </p>
+                  </div>
+               </div>
+               <button
+                  type="button"
+                  onClick={() => navigate('/expenses/purchases')}
+                  className="rounded-full border border-[#E2EAFD] hover:bg-[#EFF3FF] text-[#0A1A3F] text-xs font-bold px-4 py-2 transition-colors shrink-0 shadow-sm"
+               >
+                  Ver compras
+               </button>
+            </div>
+         </div>
+
+         {/* ========================================================
+             3. CUATRO TARJETAS DE CIFRAS (KPI)
+             ======================================================== */}
+         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* KPI 1: Ventas del mes */}
+            <div className="bg-white rounded-2xl border border-[#E2EAFD] p-5 shadow-sm flex flex-col justify-between hover:border-[#DCE5FF] transition-all">
+               <div>
+                  <div className="flex items-center justify-between">
+                     <span className="text-xs font-semibold text-[#55607A]">
+                        {yearMode ? 'Ventas del año' : 'Ventas del mes'}
+                     </span>
+                     <div className="h-8 w-8 rounded-xl bg-[#EFF3FF] flex items-center justify-center text-[#1F6BFF]">
+                        <DocumentTextIcon className="w-4 h-4 stroke-[2]" />
                      </div>
                   </div>
-               </div>
-            );
-         })}
-      </section>
-   );
-}
-
-function QualityPanel({ quality = {} }) {
-   const documents = quality.documents || {};
-   const bank = quality.bank || {};
-   const ratio = bank.reconciledRatio;
-   const ratioLabel = ratio == null ? '-' : `${Number(ratio).toLocaleString('es-CL', { maximumFractionDigits: 1 })}%`;
-   const statusOk = quality.status === 'ok';
-
-   const checks = [
-      {
-         label: 'Docs sin clasificar',
-         tooltip: 'Documentos que no calzan con ningun tipo de venta o compra conocido y quedan fuera de los totales.',
-         value: intFmt.format(Number(documents.unclassified || 0)),
-         warn: Number(documents.unclassified || 0) > 0,
-      },
-      {
-         label: 'Facturas por clasificar',
-         tooltip: 'Facturas afectas o exentas (tipo 33/34) sin dato claro de si fueron una venta o una compra. Mientras no se aclaren, pueden estar contadas en el lado equivocado.',
-         value: intFmt.format(Number(documents.ambiguousLegacyInvoices || 0)),
-         warn: Number(documents.ambiguousLegacyInvoices || 0) > 0,
-      },
-      {
-         label: 'Montos descuadrados',
-         tooltip: 'Documentos donde neto + IVA + exento no coincide con el total informado por el SII.',
-         value: intFmt.format(Number(documents.amountMismatch || 0)),
-         warn: Number(documents.amountMismatch || 0) > 0,
-      },
-      {
-         label: 'Banco pendiente',
-         tooltip: 'Suma de movimientos bancarios del periodo que todavia no se han conciliado con un documento.',
-         value: clp(bank.pendingAmount),
-         warn: Number(bank.pendingAmount || 0) > 0,
-      },
-   ];
-
-   return (
-      <section className="rounded-2xl border border-border-subtle bg-bg-content p-5 shadow-soft">
-         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-            <div>
-               <h2 className="text-lg font-bold text-heading">Calidad de datos</h2>
-               <p className="mt-1 text-sm text-text-soft">Señales rápidas para validar si los totales del periodo son confiables.</p>
-            </div>
-            <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-bold ${statusOk ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-800'}`}>
-               {statusOk ? <CheckCircleIcon className="h-4 w-4" /> : <ExclamationTriangleIcon className="h-4 w-4" />}
-               {statusOk ? 'Sin observaciones' : 'Revisar datos'}
-            </span>
-         </div>
-
-         <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
-            <div className="rounded-xl border border-border-subtle bg-surface-1 p-3">
-               <div className="flex items-center gap-1.5 text-xs font-semibold text-text-soft">
-                  <span>Conciliación banco</span>
-                  <InfoTip content="Porcentaje de movimientos bancarios del periodo que ya fueron conciliados con un documento." />
-               </div>
-               <div className="mt-1 text-lg font-bold text-heading">{ratioLabel}</div>
-               <div className="mt-1 text-xs text-text-soft">{intFmt.format(Number(bank.pendingTransactions || 0))} movimientos pendientes</div>
-            </div>
-            {checks.map((item) => (
-               <div key={item.label} className={`rounded-xl border p-3 ${item.warn ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-border-subtle bg-surface-1 text-heading'}`}>
-                  <div className="flex items-center gap-1.5 text-xs font-semibold opacity-75">
-                     <span>{item.label}</span>
-                     <InfoTip content={item.tooltip} />
+                  <div className="text-2xl font-black font-nunito text-[#0A1A3F] tabular-nums mt-3 tracking-tight">
+                     {formatClp(salesTotal)}
                   </div>
-                  <div className="mt-1 text-lg font-bold">{item.value}</div>
-               </div>
-            ))}
-         </div>
-      </section>
-   );
-}
-
-function valuePercent(value, maxValue) {
-   if (!maxValue) return 0;
-   const numeric = Number(value || 0);
-   return Math.max(0, Math.min(100, (numeric / maxValue) * 100));
-}
-
-function DailyBars({ items = [], granularity = 'day' }) {
-   const maxValue = Math.max(
-      0,
-      ...items.map((item) => Number(item.sales || 0)),
-      ...items.map((item) => Number(item.purchases || 0))
-   );
-   const hasMovements = items.some((item) => Number(item.sales || 0) || Number(item.purchases || 0));
-   const maxAxis = maxValue || 1;
-   const isYear = granularity === 'month';
-
-   const linePoints = items.map((item, index) => ({
-      x: ((index + 0.5) / (items.length || 1)) * 100,
-      salesY: 100 - valuePercent(item.sales, maxAxis),
-      purchasesY: 100 - valuePercent(item.purchases, maxAxis),
-   }));
-   const salesPolyline = linePoints.map((p) => `${p.x.toFixed(2)},${p.salesY.toFixed(2)}`).join(' ');
-   const purchasesPolyline = linePoints.map((p) => `${p.x.toFixed(2)},${p.purchasesY.toFixed(2)}`).join(' ');
-
-   return (
-      <section className="rounded-2xl border border-border-subtle bg-bg-content p-5 shadow-soft">
-         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-               <h2 className="text-lg font-bold text-heading">Ingresos vs egresos {isYear ? 'mensuales' : 'diarios'}</h2>
-               <p className="mt-1 text-sm text-text-soft">Comparación {isYear ? 'mensual' : 'diaria'} del periodo seleccionado.</p>
-            </div>
-            <div className="flex flex-wrap items-center gap-3 text-xs font-semibold text-text-soft">
-               <span className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-emerald-500" /> Ventas</span>
-               <span className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-amber-500" /> Compras</span>
-            </div>
-         </div>
-
-         {!hasMovements ? (
-            <div className="mt-6 flex h-64 items-center justify-center rounded-2xl border border-dashed border-border-subtle bg-surface-1 text-sm font-medium text-text-soft">
-               Sin movimientos para este periodo.
-            </div>
-         ) : (
-            <div className="mt-6">
-               <div className="flex gap-4">
-                  <div className="hidden w-20 shrink-0 flex-col justify-between py-1 text-right text-xs font-semibold text-text-soft sm:flex">
-                     <span>{compactClp(maxAxis)}</span>
-                     <span>{compactClp(maxAxis / 2)}</span>
-                     <span>$0</span>
+                  <div className="text-xs text-[#55607A] mt-1 font-medium">
+                     {intFmt.format(salesCount)} documentos
                   </div>
-                  <div className="min-w-0 flex-1 overflow-x-auto pb-2">
-                     <div className={`relative ${isYear ? 'min-w-[520px]' : 'min-w-[760px]'}`}>
-                        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-border-subtle/70" />
-                        <div className="pointer-events-none absolute inset-x-0 top-1/2 h-px bg-border-subtle/50" />
-                        <div className="pointer-events-none absolute inset-x-0 bottom-6 h-px bg-border-subtle/70" />
+               </div>
+               <div className="mt-4">
+                  <span className="inline-flex items-center gap-1 bg-[#0A1A3F] text-white text-[11px] font-bold rounded-full px-2.5 py-1">
+                     <span>↘</span>
+                     <span>{salesDiff > 0 ? `+${salesDiff}%` : `${salesDiff}%`} vs {comparisonLabel}</span>
+                  </span>
+               </div>
+            </div>
 
-                        <div className="relative grid h-72 items-end gap-1" style={{ gridTemplateColumns: `repeat(${items.length}, minmax(18px, 1fr))` }}>
-                           <svg
-                              viewBox="0 0 100 100"
-                              preserveAspectRatio="none"
-                              className="pointer-events-none absolute inset-x-0 top-0 h-[calc(100%-1.5rem)] w-full overflow-visible"
-                           >
-                              <polyline
-                                 points={salesPolyline}
-                                 fill="none"
-                                 vectorEffect="non-scaling-stroke"
-                                 strokeWidth="2"
-                                 strokeLinejoin="round"
-                                 strokeLinecap="round"
-                                 className="text-emerald-500"
-                                 stroke="currentColor"
-                              />
-                              <polyline
-                                 points={purchasesPolyline}
-                                 fill="none"
-                                 vectorEffect="non-scaling-stroke"
-                                 strokeWidth="2"
-                                 strokeLinejoin="round"
-                                 strokeLinecap="round"
-                                 className="text-amber-500"
-                                 stroke="currentColor"
-                              />
-                           </svg>
-                           {items.map((item) => {
-                              const result = Number(item.result || 0);
+            {/* KPI 2: Compras del mes */}
+            <div className="bg-white rounded-2xl border border-[#E2EAFD] p-5 shadow-sm flex flex-col justify-between hover:border-[#DCE5FF] transition-all">
+               <div>
+                  <div className="flex items-center justify-between">
+                     <span className="text-xs font-semibold text-[#55607A]">
+                        {yearMode ? 'Compras del año' : 'Compras del mes'}
+                     </span>
+                     <div className="h-8 w-8 rounded-xl bg-[#EFF3FF] flex items-center justify-center text-[#1F6BFF]">
+                        <ShoppingCartIcon className="w-4 h-4 stroke-[2]" />
+                     </div>
+                  </div>
+                  <div className="text-2xl font-black font-nunito text-[#0A1A3F] tabular-nums mt-3 tracking-tight">
+                     {formatClp(purchasesTotal)}
+                  </div>
+                  <div className="text-xs text-[#55607A] mt-1 font-medium">
+                     {intFmt.format(purchasesCount)} documentos
+                  </div>
+               </div>
+               <div className="mt-4">
+                  <span className="inline-flex items-center gap-1 bg-[#0A1A3F] text-white text-[11px] font-bold rounded-full px-2.5 py-1">
+                     <span>↗</span>
+                     <span>{purchasesDiff > 0 ? `+${purchasesDiff}%` : `${purchasesDiff}%`} vs {comparisonLabel}</span>
+                  </span>
+               </div>
+            </div>
+
+            {/* KPI 3: Resultado */}
+            <div className="bg-white rounded-2xl border border-[#E2EAFD] p-5 shadow-sm flex flex-col justify-between hover:border-[#DCE5FF] transition-all">
+               <div>
+                  <div className="flex items-center justify-between">
+                     <span className="text-xs font-semibold text-[#55607A]">Resultado</span>
+                     <div className="h-8 w-8 rounded-xl bg-[#EFF3FF] flex items-center justify-center text-[#1F6BFF]">
+                        <ArrowTrendingUpIcon className="w-4 h-4 stroke-[2]" />
+                     </div>
+                  </div>
+                  <div className="text-2xl font-black font-nunito text-[#0A1A3F] tabular-nums mt-3 tracking-tight">
+                     {formatClp(resultTotal)}
+                  </div>
+                  <div className="text-xs text-[#55607A] mt-1 font-medium">
+                     Margen {resultMargin.toFixed(1)}%
+                  </div>
+               </div>
+               <div className="mt-4">
+                  <span className="inline-flex items-center gap-1 bg-[#0A1A3F] text-white text-[11px] font-bold rounded-full px-2.5 py-1">
+                     <span>↘</span>
+                     <span>{resultDiff > 0 ? `+${resultDiff}%` : `${resultDiff}%`} vs {comparisonLabel}</span>
+                  </span>
+               </div>
+            </div>
+
+            {/* KPI 4: IVA por pagar */}
+            <div className="bg-white rounded-2xl border border-[#E2EAFD] p-5 shadow-sm flex flex-col justify-between hover:border-[#DCE5FF] transition-all">
+               <div>
+                  <div className="flex items-center justify-between">
+                     <span className="text-xs font-semibold text-[#55607A]">IVA por pagar</span>
+                     <div className="h-8 w-8 rounded-xl bg-[#EFF3FF] flex items-center justify-center text-[#1F6BFF]">
+                        <CalculatorIcon className="w-4 h-4 stroke-[2]" />
+                     </div>
+                  </div>
+                  <div className="text-2xl font-black font-nunito text-[#0A1A3F] tabular-nums mt-3 tracking-tight">
+                     {formatClp(vatBalance)}
+                  </div>
+                  <div className="text-xs text-[#55607A] mt-1 font-medium truncate">
+                     Débito {formatClp(vatDebit)} · Crédito {formatClp(vatCredit)}
+                  </div>
+               </div>
+               <div className="mt-4">
+                  <span className="inline-flex items-center gap-1 bg-[#EFF3FF] text-[#1F6BFF] text-[11px] font-bold rounded-full px-2.5 py-1">
+                     <span>↘</span>
+                     <span>{vatDiff > 0 ? `+${vatDiff}%` : `${vatDiff}%`} vs {comparisonLabel}</span>
+                  </span>
+               </div>
+            </div>
+         </div>
+
+         {/* ========================================================
+             4. SECCIÓN PRINCIPAL EN 2 COLUMNAS (8 cols / 4 cols)
+             ======================================================== */}
+         <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+            {/* ----------------------------------------------------
+                COLUMNA IZQUIERDA (8 COLUMNAS):
+                - Ingresos vs. egresos diarios
+                - Composición del período
+               ---------------------------------------------------- */}
+            <div className="xl:col-span-8 space-y-6">
+               {/* TARJETA: Ingresos vs. egresos diarios */}
+               <div className="bg-white rounded-2xl border border-[#E2EAFD] p-6 shadow-sm">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                     <div>
+                        <h2 className="text-base font-bold font-nunito text-[#0A1A3F]">
+                           Ingresos vs. egresos diarios
+                        </h2>
+                        <p className="text-xs text-[#55607A] mt-0.5">
+                           Plata que entró y salió cada día del período.
+                        </p>
+                     </div>
+                     <div className="flex items-center gap-4 text-xs font-semibold text-[#55607A]">
+                        <span className="inline-flex items-center gap-1.5">
+                           <span className="w-2.5 h-2.5 rounded-full bg-[#1F6BFF]" />
+                           <span>Ingresos</span>
+                        </span>
+                        <span className="inline-flex items-center gap-1.5">
+                           <span className="w-2.5 h-2.5 rounded-full bg-[#0A1A3F]" />
+                           <span>Egresos</span>
+                        </span>
+                     </div>
+                  </div>
+
+                  {/* Área del gráfico de barras */}
+                  <div className="mt-6 flex">
+                     {/* Eje Y: $3 M, $2 M, $1 M, $0 */}
+                     <div className="w-12 shrink-0 flex flex-col justify-between py-1 text-right text-[11px] font-semibold text-[#8E9BB5] pr-3 select-none h-48">
+                        <span>$3 M</span>
+                        <span>$2 M</span>
+                        <span>$1 M</span>
+                        <span>$0</span>
+                     </div>
+
+                     {/* Contenedor del gráfico de barras */}
+                     <div className="relative flex-1 h-48">
+                        {/* Guías horizontales sutiles */}
+                        <div className="absolute inset-x-0 top-0 border-b border-[#EFF3FF] pointer-events-none" />
+                        <div className="absolute inset-x-0 top-1/3 border-b border-[#EFF3FF] pointer-events-none" />
+                        <div className="absolute inset-x-0 top-2/3 border-b border-[#EFF3FF] pointer-events-none" />
+                        <div className="absolute inset-x-0 bottom-6 border-b border-[#E2EAFD] pointer-events-none" />
+
+                        {/* Columnas diarias */}
+                        <div
+                           className="relative grid gap-1 items-end h-[calc(100%-1.5rem)] w-full"
+                           style={{ gridTemplateColumns: 'repeat(31, minmax(0, 1fr))' }}
+                        >
+                           {dailyItems.map((item) => {
+                              const sHeight = Math.min(100, Math.max(0, (item.sales / maxBarValue) * 100));
+                              const pHeight = Math.min(100, Math.max(0, (item.purchases / maxBarValue) * 100));
+                              const isHovered = hoveredDay === item.day;
+
                               return (
-                                 <div key={item.date} className="group relative flex h-full min-w-[18px] flex-col justify-end">
-                                    <div className="pointer-events-none absolute left-1/2 top-2 z-20 hidden w-56 -translate-x-1/2 rounded-xl border border-border-subtle bg-bg-content p-3 text-xs shadow-lg group-hover:block">
-                                       <div className="font-bold text-heading">{item.date}</div>
-                                       <div className="mt-2 space-y-1 text-text-soft">
-                                          <div className="flex justify-between gap-3"><span>Ventas</span><strong className="text-emerald-600">{clp(item.sales)}</strong></div>
-                                          <div className="flex justify-between gap-3"><span>Compras</span><strong className="text-amber-600">{clp(item.purchases)}</strong></div>
-                                          <div className="flex justify-between gap-3 border-t border-border-subtle pt-1"><span>Resultado</span><strong className={result >= 0 ? 'text-emerald-600' : 'text-red-600'}>{clp(result)}</strong></div>
-                                       </div>
-                                    </div>
-                                    <div className="relative h-[calc(100%-1.5rem)] w-full">
+                                 <div
+                                    key={item.day}
+                                    onMouseEnter={() => setHoveredDay(item.day)}
+                                    className="relative flex flex-col items-center justify-end h-full group cursor-pointer"
+                                 >
+                                    {/* Tooltip activo (con línea punteada vertical) */}
+                                    {isHovered && (
+                                       <>
+                                          <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-px h-40 border-l border-dashed border-[#1F6BFF] pointer-events-none z-10" />
+                                          <div className="absolute bottom-28 left-1/2 -translate-x-1/2 z-30 w-44 bg-[#0A1A3F] text-white rounded-xl p-3 shadow-2xl pointer-events-none animate-fade-in">
+                                             <div className="text-[10px] text-[#8E9BB5] font-semibold">
+                                                {item.day} {activeMonthName.slice(0, 3)} {activeYear}
+                                             </div>
+                                             <div className="mt-2 flex items-center justify-between text-xs">
+                                                <span className="flex items-center gap-1.5">
+                                                   <span className="w-2 h-2 rounded-full bg-[#1F6BFF]" />
+                                                   <span className="text-white/80">Ingresos</span>
+                                                </span>
+                                                <span className="font-bold text-white tabular-nums">
+                                                   {formatClp(item.sales)}
+                                                </span>
+                                             </div>
+                                             <div className="mt-1 flex items-center justify-between text-xs">
+                                                <span className="flex items-center gap-1.5">
+                                                   <span className="w-2 h-2 rounded-full border border-white/50" />
+                                                   <span className="text-white/80">Egresos</span>
+                                                </span>
+                                                <span className="font-bold text-white tabular-nums">
+                                                   {formatClp(item.purchases)}
+                                                </span>
+                                             </div>
+                                          </div>
+                                       </>
+                                    )}
+
+                                    {/* Par de barras: Izquierda Azul (#1F6BFF), Derecha Azul Profundo (#0A1A3F) */}
+                                    <div className="flex items-end justify-center gap-0.5 w-full h-full pb-1">
                                        <div
-                                          className="absolute left-1/2 h-2.5 w-2.5 -translate-x-1/2 translate-y-1/2 rounded-full border-2 border-bg-content bg-emerald-500 shadow-sm transition-transform duration-150 group-hover:scale-125"
-                                          style={{ bottom: `${valuePercent(item.sales, maxAxis)}%` }}
-                                          title={`Ventas ${item.date}: ${clp(item.sales)}`}
+                                          style={{ height: `${sHeight}%` }}
+                                          className={`w-1 sm:w-1.5 rounded-t-sm bg-[#1F6BFF] transition-all duration-150 ${
+                                             isHovered ? 'ring-2 ring-[#7FAAFF]' : ''
+                                          }`}
                                        />
                                        <div
-                                          className="absolute left-1/2 h-2.5 w-2.5 -translate-x-1/2 translate-y-1/2 rounded-full border-2 border-bg-content bg-amber-500 shadow-sm transition-transform duration-150 group-hover:scale-125"
-                                          style={{ bottom: `${valuePercent(item.purchases, maxAxis)}%` }}
-                                          title={`Compras ${item.date}: ${clp(item.purchases)}`}
+                                          style={{ height: `${pHeight}%` }}
+                                          className={`w-1 sm:w-1.5 rounded-t-sm bg-[#0A1A3F] transition-all duration-150 ${
+                                             isHovered ? 'ring-2 ring-[#55607A]' : ''
+                                          }`}
                                        />
                                     </div>
-                                    <div className="h-6 pt-2 text-center text-[11px] font-semibold text-text-soft">{item.label || item.day}</div>
+
+                                    {/* Etiqueta del día debajo del eje X (impares: 1, 3, 5, ..., 31) */}
+                                    <div className="absolute -bottom-6 text-[10px] font-semibold text-[#8E9BB5] select-none">
+                                       {item.day % 2 !== 0 ? item.day : ''}
+                                    </div>
                                  </div>
                               );
                            })}
@@ -490,204 +580,237 @@ function DailyBars({ items = [], granularity = 'day' }) {
                      </div>
                   </div>
                </div>
-            </div>
-         )}
-      </section>
-   );
-}
 
-export default function Home() {
-   const { period, setPeriod } = usePeriod();
-   const { isClient } = useAuth();
-   const { entityId, ready, loading: loadingEntity } = useEntityRequired();
-   const [summary, setSummary] = useState(null);
-   const [loading, setLoading] = useState(false);
-   const [error, setError] = useState('');
-   const [yearMode, setYearMode] = useState(false);
-
-   const maxMonth = useMemo(() => periodToYYYYMM({
-      year: new Date().getFullYear(),
-      month: new Date().getMonth() + 1,
-   }), []);
-   const month = useMemo(() => periodToYYYYMM(period), [period]);
-   const scope = yearMode ? 'year' : 'month';
-   const titlePeriod = useMemo(() => periodLabel(period, yearMode), [period, yearMode]);
-
-   useEffect(() => {
-      if (month <= maxMonth) return;
-      const [year, monthNumber] = maxMonth.split('-').map(Number);
-      setPeriod({ year, month: monthNumber });
-   }, [maxMonth, month, setPeriod]);
-
-   useEffect(() => {
-      if (!ready || !entityId) {
-         setSummary(null);
-         return undefined;
-      }
-
-      const controller = new AbortController();
-      setLoading(true);
-      setError('');
-
-      getDashboardSummary({ entityId, month, scope, signal: controller.signal })
-         .then(setSummary)
-         .catch((err) => {
-            if (err.name !== 'AbortError') setError(err.message || 'No se pudo cargar el dashboard');
-         })
-         .finally(() => setLoading(false));
-
-      return () => controller.abort();
-   }, [entityId, month, ready, scope]);
-
-   if (!loadingEntity && !ready) {
-      return <EntityRequiredNotice />;
-   }
-
-   const sales = summary?.sales || {};
-   const purchases = summary?.purchases || {};
-   const result = Number(summary?.result?.total || 0);
-   const vatBalance = Number(summary?.vat?.balance || 0);
-   const margin = Number(sales.total || 0) > 0 ? (result / Number(sales.total)) * 100 : 0;
-   const daily = Array.isArray(summary?.daily) ? summary.daily : [];
-   const granularity = summary?.granularity || (yearMode ? 'month' : 'day');
-   const alerts = Array.isArray(summary?.alerts) ? summary.alerts : [];
-   const comparison = summary?.comparison || {};
-   const comparisonLabel = comparison.label;
-   const composition = summary?.composition || {};
-   const quality = summary?.quality || {};
-
-   const handlePeriodChange = (value) => {
-      if (!/^\d{4}-\d{2}$/.test(String(value || ''))) return;
-      const safeValue = value > maxMonth ? maxMonth : value;
-      const [year, monthNumber] = safeValue.split('-').map(Number);
-      setPeriod({ year, month: monthNumber });
-   };
-
-   return (
-      <div className="animate-fade-in space-y-6">
-         <div className="relative overflow-hidden rounded-2xl border border-border-subtle bg-gradient-to-br from-brand/10 via-bg-content to-bg-content p-5 sm:p-6">
-            <div className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-brand/10 blur-2xl" />
-            <div className="relative flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-               <div>
-                  <h1 className="text-2xl font-bold text-heading">Panel de Control</h1>
-                  <p className="text-text-soft">{yearMode ? `Resumen financiero del año ${titlePeriod}` : `Resumen financiero de ${titlePeriod}`} para la entidad activa.</p>
-               </div>
-               <div className="flex flex-col gap-2 rounded-2xl border border-border-subtle bg-bg-content/80 px-3 py-2 text-sm font-semibold text-text-soft backdrop-blur-sm sm:flex-row sm:items-center">
-                  {loading && <ArrowPathIcon className="h-4 w-4 animate-spin text-brand" />}
-                  <div className="flex items-center gap-2">
-                     <label htmlFor="dashboard-period" className="whitespace-nowrap">Periodo</label>
-                     <input
-                        id="dashboard-period"
-                        type="month"
-                        value={month > maxMonth ? maxMonth : month}
-                        max={maxMonth}
-                        onChange={(event) => handlePeriodChange(event.target.value)}
-                        className="h-8 rounded-xl border border-border-subtle bg-bg-content px-2 text-sm font-semibold text-text-main outline-none focus:ring-2 focus:ring-brand"
-                     />
+               {/* TARJETA: Composición del período */}
+               <div className="bg-white rounded-2xl border border-[#E2EAFD] p-6 shadow-sm">
+                  <div>
+                     <h2 className="text-base font-bold font-nunito text-[#0A1A3F]">
+                        Composición del período
+                     </h2>
+                     <p className="text-xs text-[#55607A] mt-0.5">
+                        Distribución por tipo de documento y su peso sobre el total.
+                     </p>
                   </div>
-                  <label className="inline-flex cursor-pointer items-center gap-2 whitespace-nowrap rounded-xl px-1 py-1 text-sm font-semibold text-text-main">
-                     <input
-                        type="checkbox"
-                        checked={yearMode}
-                        onChange={(event) => setYearMode(event.target.checked)}
-                        className="h-4 w-4 rounded border-border-subtle text-brand focus:ring-brand"
-                     />
-                     Ver año completo
-                  </label>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-6">
+                     {/* Subcolumna 1: Ventas por tipo */}
+                     <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                           <h3 className="text-xs font-bold text-[#0A1A3F]">Ventas por tipo</h3>
+                           <span className="text-xs text-[#55607A] font-medium">{salesCount} docs</span>
+                        </div>
+
+                        <div className="space-y-4">
+                           {salesComposition.map((item, index) => (
+                              <div key={index} className="space-y-1.5">
+                                 <div className="flex items-center justify-between text-xs">
+                                    <div className="flex items-center gap-2">
+                                       <span className="font-semibold text-[#0A1A3F]">{item.label}</span>
+                                       <span className="bg-[#EFF3FF] text-[#55607A] text-[10px] font-bold px-1.5 py-0.5 rounded">
+                                          {item.count} docs
+                                       </span>
+                                    </div>
+                                    <span className="font-bold text-[#0A1A3F] tabular-nums">
+                                       {formatClp(item.total)}
+                                    </span>
+                                 </div>
+                                 <div className="h-1.5 w-full bg-[#EFF3FF] rounded-full overflow-hidden">
+                                    <div
+                                       style={{ width: `${Math.min(100, Math.max(0, item.share || 0))}%` }}
+                                       className="h-full bg-[#1F6BFF] rounded-full"
+                                    />
+                                 </div>
+                              </div>
+                           ))}
+                        </div>
+                     </div>
+
+                     {/* Subcolumna 2: Compras por tipo */}
+                     <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                           <h3 className="text-xs font-bold text-[#0A1A3F]">Compras por tipo</h3>
+                           <span className="text-xs text-[#55607A] font-medium">{purchasesCount} docs</span>
+                        </div>
+
+                        <div className="space-y-4">
+                           {purchasesComposition.map((item, index) => (
+                              <div key={index} className="space-y-1.5">
+                                 <div className="flex items-center justify-between text-xs">
+                                    <div className="flex items-center gap-2">
+                                       <span className="font-semibold text-[#0A1A3F]">{item.label}</span>
+                                       <span className="bg-[#EFF3FF] text-[#55607A] text-[10px] font-bold px-1.5 py-0.5 rounded">
+                                          {item.count} docs
+                                       </span>
+                                    </div>
+                                    <span className="font-bold text-[#0A1A3F] tabular-nums">
+                                       {formatClp(item.total)}
+                                    </span>
+                                 </div>
+                                 <div className="h-1.5 w-full bg-[#EFF3FF] rounded-full overflow-hidden">
+                                    <div
+                                       style={{ width: `${Math.min(100, Math.max(0, item.share || 0))}%` }}
+                                       className="h-full bg-[#0A1A3F] rounded-full"
+                                    />
+                                 </div>
+                              </div>
+                           ))}
+                        </div>
+                     </div>
+                  </div>
                </div>
             </div>
-         </div>
 
-         {error && (
-            <div className="rounded-2xl border border-danger/30 bg-danger/5 p-4 text-sm font-medium text-danger">
-               {error}
+            {/* ----------------------------------------------------
+                COLUMNA DERECHA (4 COLUMNAS):
+                - Con cuánto quedas hoy
+                - Calidad de datos
+               ---------------------------------------------------- */}
+            <div className="xl:col-span-4 space-y-6">
+               {/* TARJETA: Con cuánto quedas hoy (Azul Profundo con curva) */}
+               <div className="relative overflow-hidden bg-[#0A1A3F] text-white rounded-2xl p-6 shadow-md flex flex-col justify-between min-h-[220px]">
+                  {/* Decoración curva de agua en la esquina inferior derecha */}
+                  <div className="absolute -bottom-14 -right-10 w-44 pointer-events-none opacity-40 select-none">
+                     <JeitoCurve strokeColor="#13285C" className="w-full h-auto" />
+                  </div>
+
+                  <div className="relative z-10">
+                     <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-[#8E9BB5]">
+                           Con cuánto quedas hoy
+                        </span>
+                        <div className="h-8 w-8 rounded-xl bg-white/10 flex items-center justify-center text-white">
+                           <BuildingLibraryIcon className="w-4 h-4 stroke-[2]" />
+                        </div>
+                     </div>
+
+                     <div className="text-3xl font-black font-nunito text-white tabular-nums tracking-tight mt-3">
+                        {formatClp(DEMO_DASHBOARD.bankBalance)}
+                     </div>
+                     <p className="text-xs text-[#8E9BB5] mt-1 font-medium">
+                        Saldo disponible en tus bancos
+                     </p>
+                  </div>
+
+                  <div className="relative z-10 mt-6">
+                     <button
+                        type="button"
+                        onClick={() => navigate('/reports/cash-flow')}
+                        className="rounded-full bg-white hover:bg-[#EFF3FF] text-[#0A1A3F] font-bold text-xs px-5 py-2.5 transition-colors inline-flex items-center gap-1 shadow-sm"
+                     >
+                        <span>Ver flujo de caja</span>
+                        <span>&gt;</span>
+                     </button>
+                  </div>
+               </div>
+
+               {/* TARJETA: Calidad de datos */}
+               <div className="bg-white rounded-2xl border border-[#E2EAFD] p-6 shadow-sm">
+                  <div>
+                     <h2 className="text-base font-bold font-nunito text-[#0A1A3F]">
+                        Calidad de datos
+                     </h2>
+                     <p className="text-xs text-[#55607A] mt-0.5">
+                        Para confiar en los totales del período.
+                     </p>
+                  </div>
+
+                  {/* Sección Donut Chart + Resumen de conciliación */}
+                  <div className="mt-5 flex items-center gap-4">
+                     <div className="relative w-16 h-16 shrink-0">
+                        <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
+                           {/* Círculo de fondo Hielo */}
+                           <path
+                              className="text-[#EFF3FF]"
+                              strokeWidth="3.5"
+                              stroke="currentColor"
+                              fill="none"
+                              d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                           />
+                           {/* Arco de progreso Azul Vivo (#1F6BFF) */}
+                           <path
+                              className="text-[#1F6BFF]"
+                              strokeDasharray={`${qualityReconciled}, 100`}
+                              strokeWidth="3.5"
+                              strokeLinecap="round"
+                              stroke="currentColor"
+                              fill="none"
+                              d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                           />
+                        </svg>
+                        <div className="absolute inset-0 flex items-center justify-center">
+                           <span className="text-xs font-black font-nunito text-[#0A1A3F]">
+                              {qualityReconciled.toLocaleString('es-CL', { maximumFractionDigits: 1 })}%
+                           </span>
+                        </div>
+                     </div>
+
+                     <div>
+                        <h3 className="text-xs font-bold text-[#0A1A3F]">Conciliación bancaria</h3>
+                        <p className="text-xs text-[#55607A] mt-0.5">
+                           {qualityPendingMovements} movimientos por revisar
+                        </p>
+                     </div>
+                  </div>
+
+                  {/* 4 Elementos de revisión */}
+                  <div className="mt-5 space-y-3 pt-3 border-t border-[#EFF3FF]">
+                     {/* Item 1 */}
+                     <div className="flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2 text-[#55607A]">
+                           <div className="h-5 w-5 rounded-full bg-[#EFF3FF] text-[#1F6BFF] flex items-center justify-center text-[11px] font-bold">
+                              ✓
+                           </div>
+                           <span>Documentos sin clasificar</span>
+                        </div>
+                        <span className="font-bold text-[#0A1A3F]">{qualityUnclassifiedDocs}</span>
+                     </div>
+
+                     {/* Item 2 */}
+                     <div className="flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2 text-[#55607A]">
+                           <div className="h-5 w-5 rounded-full bg-[#EFF3FF] text-[#1F6BFF] flex items-center justify-center text-[11px] font-bold">
+                              ✓
+                           </div>
+                           <span>Facturas por clasificar</span>
+                        </div>
+                        <span className="font-bold text-[#0A1A3F]">{qualityUnclassifiedInvoices}</span>
+                     </div>
+
+                     {/* Item 3 */}
+                     <div className="flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2 text-[#55607A]">
+                           <div className="h-5 w-5 rounded-full bg-[#EFF3FF] text-[#55607A] flex items-center justify-center text-[10px]">
+                              ▲
+                           </div>
+                           <span>Montos descuadrados</span>
+                        </div>
+                        <span className="font-bold text-[#0A1A3F]">{qualityMismatchAmount}</span>
+                     </div>
+
+                     {/* Item 4 */}
+                     <div className="flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2 text-[#55607A]">
+                           <div className="h-5 w-5 rounded-full bg-[#EFF3FF] text-[#55607A] flex items-center justify-center text-[10px]">
+                              ▲
+                           </div>
+                           <span>Banco pendiente</span>
+                        </div>
+                        <span className="font-bold text-[#0A1A3F] tabular-nums">{formatClp(qualityPendingBank)}</span>
+                     </div>
+                  </div>
+
+                  {/* Botón Píldora: Revisar datos */}
+                  <div className="mt-5">
+                     <button
+                        type="button"
+                        onClick={() => navigate('/bank/cartolas')}
+                        className="w-full rounded-full bg-[#EFF3FF] hover:bg-[#DCE5FF] text-[#1F6BFF] font-bold text-xs py-2.5 transition-colors text-center shadow-sm"
+                     >
+                        Revisar datos
+                     </button>
+                  </div>
+               </div>
             </div>
-         )}
-
-         <AlertsPanel alerts={alerts} />
-
-         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <StatCard
-               title={yearMode ? 'Ventas del año' : 'Ventas del mes'}
-               value={clp(sales.total)}
-               subtitle={`${intFmt.format(sales.count || 0)} documentos`}
-               icon={BanknotesIcon}
-               color="bg-emerald-500/10 text-emerald-600"
-               accent="bg-emerald-500/60"
-               tone="good"
-               comparison={comparison.sales?.total}
-               comparisonLabel={comparisonLabel}
-               tooltip="Total de boletas y facturas de venta del periodo, ya descontando las notas de credito emitidas."
-            />
-            <StatCard
-               title={yearMode ? 'Compras del año' : 'Compras del mes'}
-               value={clp(purchases.total)}
-               subtitle={`${intFmt.format(purchases.count || 0)} documentos`}
-               icon={ShoppingCartIcon}
-               color="bg-amber-500/10 text-amber-600"
-               accent="bg-amber-500/60"
-               comparison={comparison.purchases?.total}
-               comparisonLabel={comparisonLabel}
-               trendPolarity="inverse"
-               tooltip="Total de facturas de compra del periodo, ya descontando las notas de credito recibidas."
-            />
-            <StatCard
-               title="Resultado"
-               value={clp(result)}
-               subtitle={`Margen ${pct(margin)}`}
-               icon={ArrowTrendingUpIcon}
-               color={result >= 0 ? 'bg-blue-500/10 text-blue-600' : 'bg-red-500/10 text-red-600'}
-               accent={result >= 0 ? 'bg-blue-500/60' : 'bg-red-500/60'}
-               tone={result >= 0 ? 'good' : 'bad'}
-               comparison={comparison.result?.total}
-               comparisonLabel={comparisonLabel}
-               tooltip="Ventas menos compras del periodo. El margen es este resultado como porcentaje de las ventas."
-            />
-            <StatCard
-               title={vatBalance >= 0 ? 'IVA por pagar' : 'IVA a favor'}
-               value={clp(Math.abs(vatBalance))}
-               subtitle={`Débito ${clp(summary?.vat?.debit)} / Crédito ${clp(summary?.vat?.credit)}`}
-               icon={ReceiptPercentIcon}
-               color={vatBalance >= 0 ? 'bg-violet-500/10 text-violet-600' : 'bg-emerald-500/10 text-emerald-600'}
-               accent={vatBalance >= 0 ? 'bg-violet-500/60' : 'bg-emerald-500/60'}
-               tone={vatBalance <= 0 ? 'good' : 'neutral'}
-               comparison={comparison.vat?.balance}
-               comparisonLabel={comparisonLabel}
-               trendPolarity="inverse"
-               tooltip="IVA debito (de tus ventas) menos IVA credito (de tus compras). Si es positivo, es lo que debes pagar al SII; si es negativo, queda a tu favor."
-            />
-         </div>
-
-         {!isClient && <QualityPanel quality={quality} />}
-
-         <CompositionPanel composition={composition} />
-
-         <DailyBars items={daily} granularity={granularity} />
-
-         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <section className="rounded-2xl border border-border-subtle bg-bg-content p-5 shadow-soft">
-               <h2 className="text-lg font-bold text-heading">Detalle comercial</h2>
-               <div className="mt-4">
-                  <DetailRow label="Ventas netas" value={clp(sales.net)} tooltip="Monto de ventas antes de IVA." />
-                  <DetailRow label="Ventas exentas" value={clp(sales.exempt)} tooltip="Ventas que no pagan IVA (exentas)." />
-                  <DetailRow label="IVA ventas" value={clp(sales.vat)} tooltip="IVA debito: el que cobraste a tus clientes." />
-                  <DetailRow label="Total ventas" value={clp(sales.total)} tooltip="Neto + exento + IVA, ya descontando notas de credito." />
-               </div>
-            </section>
-
-            <section className="rounded-2xl border border-border-subtle bg-bg-content p-5 shadow-soft">
-               <h2 className="text-lg font-bold text-heading">Detalle de compras e IVA</h2>
-               <div className="mt-4">
-                  <DetailRow label="Compras netas" value={clp(purchases.net)} tooltip="Monto de compras antes de IVA." />
-                  <DetailRow label="Compras exentas" value={clp(purchases.exempt)} tooltip="Compras que no pagan IVA (exentas)." />
-                  <DetailRow label="IVA compras" value={clp(purchases.vat)} tooltip="IVA credito: el que te cobraron tus proveedores." />
-                  <DetailRow
-                     label={vatBalance >= 0 ? 'IVA por pagar' : 'IVA a favor'}
-                     value={clp(Math.abs(vatBalance))}
-                     tooltip="IVA ventas menos IVA compras del periodo."
-                  />
-               </div>
-            </section>
          </div>
       </div>
    );

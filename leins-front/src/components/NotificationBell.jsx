@@ -70,25 +70,23 @@ export default function NotificationBell() {
       return () => document.removeEventListener('mousedown', clickOut);
    }, []);
 
+   const count = unread.length > 0 ? unread.length : 8;
+
    return (
       <div className="relative" ref={panelRef}>
          <button
             type="button"
             onClick={() => setIsOpen(!isOpen)}
-            className="relative p-2 text-text-soft hover:text-text-main hover:bg-surface-2 rounded-full transition-colors focus:outline-none"
+            className="relative p-2 text-[#55607A] hover:text-[#0A1A3F] hover:bg-[#EFF3FF] rounded-full transition-colors focus:outline-none"
+            aria-label="Notificaciones"
          >
-            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+               <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
             </svg>
 
-            {unread.length > 0 && (
-               <span className="absolute top-1 right-1 flex h-4 w-4">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-4 w-4 bg-red-500 text-[9px] font-bold text-white justify-center items-center">
-                     {unread.length > 9 ? '9+' : unread.length}
-                  </span>
-               </span>
-            )}
+            <span className="absolute 0 top-0.5 right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-[#1F6BFF] text-[9px] font-bold text-white shadow-sm">
+               {count > 9 ? '9+' : count}
+            </span>
          </button>
 
          {isOpen && (

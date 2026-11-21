@@ -76,13 +76,30 @@ export default function SelectEntity({ className = '' }) {
       return null;
    }
 
+   const selectedItem = items.find((item) => Number(item.id) === Number(entityId)) || items[0] || { name: 'Comercial Andes Demo SpA', rut: '76.999.555-2' };
+
    return (
-      <div className={`flex items-center gap-2 ${className}`}>
-         <span className="hidden sm:inline text-xs font-bold uppercase tracking-widest text-text-soft">
-            Entidades
-         </span>
+      <div className={`relative flex items-center gap-2.5 bg-white border border-[#E2EAFD] hover:border-[#DCE5FF] rounded-xl px-3 py-1.5 shadow-sm transition-all cursor-pointer group ${className}`}>
+         <div className="bg-[#EFF3FF] p-1.5 rounded-lg text-[#1F6BFF] shrink-0">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+               <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+            </svg>
+         </div>
+         <div className="flex flex-col text-left leading-tight min-w-0 pr-1">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-[#55607A]">
+               ENTIDAD
+            </span>
+            <div className="flex items-center gap-1.5 mt-0.5">
+               <span className="text-xs font-bold text-[#0A1A3F] truncate max-w-[140px] sm:max-w-[200px] md:max-w-[240px]">
+                  {selectedItem.name || selectedItem.legal_name || 'Comercial Andes Demo SpA'}{selectedItem.rut ? ` · ${selectedItem.rut}` : ''}
+               </span>
+               <svg className="w-3.5 h-3.5 text-[#55607A] shrink-0 transition-transform group-hover:translate-y-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+               </svg>
+            </div>
+         </div>
          <select
-            className="border rounded px-2 py-1 text-sm min-w-[10rem] sm:min-w-[14rem] bg-[var(--surface-1)]"
+            className="absolute inset-0 opacity-0 cursor-pointer w-full h-full text-sm"
             value={entityId ?? items[0]?.id ?? ''}
             onChange={(e) => selectId(e.target.value)}
             aria-label="Seleccionar entidad"

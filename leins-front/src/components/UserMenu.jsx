@@ -24,14 +24,14 @@ export default function UserMenu() {
    };
 
    return (
-      <Menu as="div" className="relative ml-3">
+      <Menu as="div" className="relative">
          {/* boton del menu (avatar) */}
          <div>
-            <Menu.Button className="flex items-center gap-2 max-w-xs rounded-full bg-white dark:bg-bg-content text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 dark:focus:ring-offset-gray-900 transition-shadow p-1 pr-3 border border-border-subtle hover:bg-gray-50 dark:hover:bg-white/5">
+            <Menu.Button className="flex items-center gap-2.5 rounded-full p-1 pr-2 hover:bg-[#EFF3FF] focus:outline-none transition-colors group">
                <span className="sr-only">Abrir menú de usuario</span>
 
-               {/* avatar circular con logica de imagen */}
-               <div className="h-8 w-8 rounded-full bg-brand/10 flex items-center justify-center text-brand-strong font-bold text-xs border border-brand/20 overflow-hidden">
+               {/* avatar circular azul con iniciales en blanco */}
+               <div className="h-9 w-9 rounded-full bg-[#1F6BFF] text-white flex items-center justify-center font-bold text-xs shadow-sm overflow-hidden shrink-0">
                   {user?.avatar_url ? (
                      <img
                         src={user.avatar_url}
@@ -39,16 +39,23 @@ export default function UserMenu() {
                         className="w-full h-full object-cover"
                      />
                   ) : (
-                     getInitials()
+                     getInitials() !== 'U' ? getInitials() : 'AC'
                   )}
                </div>
 
-               {/* nombre (visible en desktop) */}
-               <div className="hidden md:flex flex-col items-start text-xs">
-                  <span className="font-semibold text-heading dark:text-gray-200 truncate max-w-[100px]">
-                     {user?.name}
+               {/* nombre y cargo (visible en desktop) */}
+               <div className="hidden md:flex flex-col text-left leading-tight">
+                  <span className="font-bold text-xs text-[#0A1A3F] truncate max-w-[120px]">
+                     {user?.name || 'Leins'}
+                  </span>
+                  <span className="text-[11px] text-[#55607A] font-medium">
+                     {user?.role_label || user?.role || 'Administrador'}
                   </span>
                </div>
+
+               <svg className="w-3.5 h-3.5 text-[#55607A] shrink-0 transition-transform group-hover:translate-y-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+               </svg>
             </Menu.Button>
          </div>
 

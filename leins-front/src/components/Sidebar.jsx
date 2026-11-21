@@ -1,3 +1,5 @@
+import React, { useMemo, useState, useEffect, useRef } from 'react';
+import { NavLink, useLocation } from 'react-router-dom';
 import {
    HomeIcon,
    BuildingOffice2Icon,
@@ -6,28 +8,29 @@ import {
    BanknotesIcon,
    BookOpenIcon,
    XMarkIcon,
-   UserIcon,
    UserGroupIcon,
-   LockClosedIcon, // importamos icono de candado cerrado para fijar
-   LockOpenIcon,   // importamos icono de candado abierto para desfijar
+   Bars3Icon,
+   ChevronRightIcon,
+   ClipboardDocumentListIcon,
+   ArrowRightOnRectangleIcon,
+   DocumentChartBarIcon,
+   ArrowsRightLeftIcon,
 } from '@heroicons/react/24/outline';
-import { NavLink, useLocation } from 'react-router-dom';
+import JeitoLogo from './JeitoLogo';
+import JeitoSmile from './JeitoSmile';
 import { useEntityRequired } from '../hooks/useEntityRequired';
 import { withEntityId } from '../utils/withEntityId';
 import { entityScopedPaths } from '../app/routes.config';
 import { useAuth } from '../context/AuthContext';
 import { usePermissions } from '../hooks/usePermissions';
-import { useMemo, useState, useEffect, useRef } from 'react';
 
 export default function Sidebar({ onLogout, onClose, collapsed, setCollapsed }) {
-
    const { pathname } = useLocation();
    const { entityId, ready: hasActiveEntity } = useEntityRequired();
    const { isClient } = useAuth();
    const { can } = usePermissions();
    const hoverTimer = useRef(null);
 
-   // estado para controlar si la barra esta fijada
    const [isPinned, setIsPinned] = useState(() => {
       try {
          return localStorage.getItem('sidebar_pinned') === 'true';
@@ -36,12 +39,11 @@ export default function Sidebar({ onLogout, onClose, collapsed, setCollapsed }) 
       }
    });
 
-   // efecto para guardar la preferencia y forzar la apertura si esta fijado
    useEffect(() => {
       try {
          localStorage.setItem('sidebar_pinned', isPinned);
       } catch (e) {}
-      
+
       if (isPinned) {
          setCollapsed?.(false);
       }
@@ -53,14 +55,12 @@ export default function Sidebar({ onLogout, onClose, collapsed, setCollapsed }) 
    }, []);
 
    const handleMouseEnter = () => {
-      // si esta fijado ignoramos la accion
       if (!canHover || isPinned) return;
       clearTimeout(hoverTimer.current);
       hoverTimer.current = setTimeout(() => setCollapsed?.(false), 80);
    };
 
    const handleMouseLeave = () => {
-      // si esta fijado impedimos que se cierre al quitar el mouse
       if (!canHover || isPinned) return;
       clearTimeout(hoverTimer.current);
       hoverTimer.current = setTimeout(() => setCollapsed?.(true), 260);
@@ -70,239 +70,284 @@ export default function Sidebar({ onLogout, onClose, collapsed, setCollapsed }) 
       return () => clearTimeout(hoverTimer.current);
    }, []);
 
-   const menu = useMemo(
-      () => {
-         const baseMenu = [
-            { label: 'Dashboard', to: '/dashboard', icon: HomeIcon },
-            // clientes solo autogestionan su(s) entidad(es) asignada(s), no la administracion global
-            ...(isClient ? [] : [
-               { label: 'Usuarios', to: '/super-admin', icon: UserGroupIcon },
-               { label: 'Entidades', to: '/entities', icon: BuildingOffice2Icon },
-            ]),
-         ];
+   // Grupos de menú con la estructura exacta del diseño de referencia
+   const sections = useMemo(() => {
+      const generalItems = [
+         { label: 'Panel de control', to: '/dashboard', icon: HomeIcon, end: true },
+         ...(isClient ? [] : [
+            { label: 'Entidades', to: '/entities', icon: BuildingOffice2Icon },
+            { label: 'Super administradores', to: '/super-admin', icon: UserGroupIcon },
+         ]),
+      ];
 
-         if (!hasActiveEntity) return baseMenu;
+      const operacionItems = [
+         ...(can('income_sales', 'view') || can('income_receivables', 'view') ? [{
+            label: 'Ingresos',
+            icon: ArrowTrendingUpIcon,
+            to: '/income/sales-boletas',
+            hasSubmenu: true,
+            children: [
+               { label: 'Ventas (Boletas y Facturas)', to: '/income/sales-boletas' },
+               { label: 'Cuentas por cobrar', to: '/income/receivables' },
+            ],
+         }] : []),
+         ...(can('expenses_purchases', 'view') || can('expenses_payables', 'view') ? [{
+            label: 'Egresos',
+            icon: ArrowTrendingDownIcon,
+            to: '/expenses/purchases',
+            hasSubmenu: true,
+            children: [
+               { label: 'Compras', to: '/expenses/purchases' },
+               { label: 'Boletas de honorarios', to: '/expenses/honorarium-receipts' },
+               { label: 'Cuentas por pagar', to: '/expenses/payables' },
+            ],
+         }] : []),
+         ...(can('bank_movements', 'view') || can('bank_accounts', 'view') ? [{
+            label: 'Banco',
+            icon: BanknotesIcon,
+            to: '/bank/cartolas',
+            hasSubmenu: true,
+            children: [
+               { label: 'Movimientos bancarios', to: '/bank/cartolas' },
+               { label: 'Cuentas bancarias', to: '/bank/accounts' },
+            ],
+         }] : []),
+      ];
 
-         // Construir grupos filtrando según permisos granulares
-         const incomeChildren = [
-            ...(can('income_sales', 'view') ? [{ label: 'Ventas (Boletas y Facturas)', to: '/income/sales-boletas' }] : []),
-            ...(can('income_receivables', 'view') ? [{ label: 'Cuentas por cobrar', to: '/income/receivables' }] : []),
-         ];
+      const reportesItems = [
+         ...(can('accounting', 'reports_view') ? [
+            { label: 'Flujo de caja', icon: ArrowsRightLeftIcon, to: '/accounting/cash-flow' },
+            { label: 'Estado de resultados', icon: DocumentChartBarIcon, to: '/accounting/income-statement' },
+         ] : []),
+         ...(can('accounting', 'entries_view') || can('accounting', 'accounts_view') ? [{
+            label: 'Contabilidad',
+            icon: BookOpenIcon,
+            to: '/accounting/entries',
+            hasSubmenu: true,
+            children: [
+               { label: 'Asientos contables', to: '/accounting/entries' },
+               { label: 'Plan de cuentas', to: '/accounting/accounts' },
+               { label: 'Asociación proveedores', to: '/accounting/rules' },
+               { label: 'Saldos por RUT', to: '/accounting/balances' },
+            ],
+         }] : []),
+      ];
 
-         const expensesChildren = [
-            ...(can('expenses_purchases', 'view') ? [{ label: 'Compras', to: '/expenses/purchases' }] : []),
-            ...(can('expenses_honorarium', 'view') ? [{ label: 'Boletas de honorarios', to: '/expenses/honorarium-receipts' }] : []),
-            ...(can('expenses_payables', 'view') ? [{ label: 'Cuentas por pagar', to: '/expenses/payables' }] : []),
-         ];
+      const equipoItems = [
+         {
+            label: 'Tareas y controles',
+            icon: ClipboardDocumentListIcon,
+            to: '#',
+            badge: 'Pronto',
+            disabled: true,
+         },
+      ];
 
-         const bankChildren = [
-            ...(can('bank_movements', 'view') ? [{ label: 'Movimientos bancarios', to: '/bank/cartolas' }] : []),
-            ...(can('bank_accounts', 'view') ? [{ label: 'Cuentas bancarias', to: '/bank/accounts' }] : []),
-         ];
+      return [
+         { title: 'GENERAL', items: generalItems },
+         ...(hasActiveEntity && operacionItems.length ? [{ title: 'OPERACIÓN', items: operacionItems }] : []),
+         ...(hasActiveEntity && reportesItems.length ? [{ title: 'REPORTES', items: reportesItems }] : []),
+         { title: 'EQUIPO', items: equipoItems },
+      ];
+   }, [hasActiveEntity, isClient, can]);
 
-         const accountingChildren = [
-            ...(can('accounting', 'entries_view') ? [{ label: 'Asientos contables', to: '/accounting/entries' }] : []),
-            ...(can('accounting', 'accounts_view') ? [{ label: 'Plan de cuentas', to: '/accounting/accounts' }] : []),
-            ...(can('accounting', 'rules_view') ? [{ label: 'Asociación proveedores', to: '/accounting/rules' }] : []),
-            ...(can('accounting', 'reports_view') ? [{ label: 'Saldos por RUT', to: '/accounting/balances' }] : []),
-            ...(can('accounting', 'reports_view') ? [{ label: 'Estado de Resultados', to: '/accounting/income-statement' }] : []),
-            ...(can('accounting', 'reports_view') ? [{ label: 'Flujo de Caja', to: '/accounting/cash-flow' }] : []),
-         ];
-
-         return [
-            ...baseMenu,
-            ...(incomeChildren.length ? [{
-               label: 'Ingresos',
-               icon: ArrowTrendingUpIcon,
-               children: incomeChildren,
-            }] : []),
-            ...(expensesChildren.length ? [{
-               label: 'Egresos',
-               icon: ArrowTrendingDownIcon,
-               children: expensesChildren,
-            }] : []),
-            ...(bankChildren.length ? [{
-               label: 'Banco',
-               icon: BanknotesIcon,
-               children: bankChildren,
-            }] : []),
-            ...(accountingChildren.length ? [{
-               label: 'Contabilidad',
-               icon: BookOpenIcon,
-               children: accountingChildren,
-            }] : []),
-         ];
-      },
-      [hasActiveEntity, isClient, can]
-   );
-
-   const initialOpen = useMemo(() => {
-      const openKeys = new Set();
-      const hasActive = (items) => {
-         for (const it of items) {
-            if (it.to && pathname.startsWith(it.to)) return true;
-            if (it.children && hasActive(it.children)) return true;
-         }
-         return false;
-      };
-      const visit = (items, prefix = '') => {
-         for (const item of items) {
-            const key = `${prefix}/${item.label}`;
-            if (item.children) {
-               if (hasActive(item.children)) openKeys.add(key);
-               visit(item.children, key);
-            }
-         }
-      };
-      visit(menu);
-      return Object.fromEntries([...openKeys].map((k) => [k, true]));
-   }, [menu, pathname]);
-
-   const [open, setOpen] = useState(initialOpen);
-   useEffect(() => {
-      setOpen(initialOpen);
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-   }, [pathname]);
-
-   const toggle = (key) => setOpen((s) => ({ ...s, [key]: !s[key] }));
-
-   const ItemRow = ({ icon: Icon, label, right, children, onClick, isGroup = false, to, showIcon = true, end = false, ...rest }) => {
-      const base = 'flex items-center gap-3 px-2 py-2 rounded transition outline-none focus-visible:ring-2 focus-visible:ring-white/80';
-      const hover = 'hover:bg-white/10';
-      const content = (
-         <div
-            {...rest}
-            className={`${base} ${hover}`}
-            onClick={onClick}
-            role={isGroup ? 'button' : undefined}
-            aria-haspopup={isGroup ? 'true' : undefined}
-            tabIndex={0}
-            onKeyDown={(e) => isGroup && (e.key === 'Enter' || e.key === ' ') && onClick?.(e)}
-            title={collapsed ? label : undefined}
-            aria-label={label}
-         >
-            {showIcon && (Icon ? <Icon className="h-5 w-5 text-white shrink-0" /> : <UserIcon className="h-5 w-5 text-white" />)}
-            {!collapsed && <span className="truncate">{label}</span>}
-            {!collapsed && right}
-         </div>
-      );
-
-      const needsEntity = to ? entityScopedPaths.has(to) : false;
-      const targetTo = to ? (needsEntity ? withEntityId(to, entityId) : to) : null;
-      const targetPath = targetTo ? new URL(targetTo, window.location.origin).pathname : null;
-      const isActiveExact = targetPath ? (end ? pathname === targetPath : pathname.startsWith(targetPath)) : false;
-
-      if (to) {
-         return (
-            <NavLink to={targetTo} end={end} className={`${isActiveExact ? 'bg-white/15' : ''} block rounded`}>
-               {content}
-            </NavLink>
-         );
-      }
-      return content;
-   };
-
-   const Group = ({ item, prefix = '', depth = 0 }) => {
-      const key = `${prefix}/${item.label}`;
-      const isOpen = !!open[key];
-      const panelId = `panel-${key.replace(/\W+/g, '-')}`;
-
-      return (
-         <li>
-            <ItemRow
-               icon={item.icon}
-               label={item.label}
-               isGroup
-               onClick={() => toggle(key)}
-               showIcon={depth === 0}
-               aria-expanded={isOpen && !collapsed}
-               aria-controls={panelId}
-               right={
-                  <svg className={`h-4 w-4 ml-auto transition-transform ${isOpen ? 'rotate-90' : ''}`} viewBox="0 0 20 20" fill="none">
-                     <path d="M7 5l6 5-6 5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-               }
-            />
-            <div id={panelId} className={`pl-3 overflow-hidden transition-[max-height,opacity] duration-300 ${isOpen && !collapsed ? 'max-h-[1000px] opacity-100' : 'max-h-0 opacity-0'}`}>
-               <ul className="mt-2 space-y-1">
-                  {item.children?.map((child) =>
-                     child.children ? (
-                        <Group key={`${key}/${child.label}`} item={child} prefix={key} depth={depth + 1} />
-                     ) : child.action === 'logout' ? (
-                        <li key={`${key}/${child.label}`}>
-                           <button onClick={onLogout} className="w-full text-left hover:bg-danger/90 block rounded" title={collapsed ? child.label : undefined} aria-label={child.label}>
-                              <ItemRow icon={child.icon} label={child.label} showIcon={false} />
-                           </button>
-                        </li>
-                     ) : (
-                        <li key={`${key}/${child.label}`}>
-                           <ItemRow icon={child.icon} label={child.label} to={child.to} showIcon={false} end={!!child.end} />
-                        </li>
-                     )
-                  )}
-               </ul>
-            </div>
-         </li>
-      );
+   // Control de submenús abiertos
+   const [openSubmenus, setOpenSubmenus] = useState({});
+   const toggleSubmenu = (label) => {
+      setOpenSubmenus((prev) => ({ ...prev, [label]: !prev[label] }));
    };
 
    return (
-      <div
+      <aside
          role="navigation"
-         data-collapsed={collapsed}
+         aria-label="Menú principal"
          onMouseEnter={handleMouseEnter}
          onMouseLeave={handleMouseLeave}
-         onFocusCapture={() => setCollapsed?.(false)}
-         onBlurCapture={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setCollapsed?.(true); }}
-         className={`h-full bg-brand text-white p-4 relative flex flex-col transition-all duration-300 ${collapsed ? 'w-[70px]' : 'w-[220px]'}`}
+         className={`h-full bg-[#0A1A3F] text-white p-4 flex flex-col justify-between transition-all duration-300 select-none ${
+            collapsed ? 'w-[70px]' : 'w-[240px]'
+         }`}
       >
-         {/* boton de cerrar para movil */}
-         <button onClick={onClose} className="md:hidden absolute top-4 right-4 bg-white/20 hover:bg-white/30 p-[0.3rem] rounded-full shadow transition duration-300" aria-label="Cerrar menú">
-            <XMarkIcon className="h-5 w-5 text-white" />
-         </button>
-         
-         {/* seccion de cabecera que incluye titulo y el boton de fijar */}
-         <div className="flex items-center justify-between mb-4 h-8">
-            <h2 aria-hidden={collapsed} className={`text-2xl text-white font-medium whitespace-nowrap transition-opacity duration-300 ${collapsed ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
-               Leins Ad.
-            </h2>
-            
-            {/* mostramos el candado solo en escritorio y cuando no esta colapsado */}
-            {!collapsed && (
+         {/* CABECERA: Logo Jeito + Toggle Menú */}
+         <div>
+            <div className="flex items-center justify-between mb-6 h-9 px-1">
+               <NavLink to="/dashboard" className="flex items-center">
+                  <JeitoLogo
+                     className={`${collapsed ? 'w-8' : 'w-24'} h-auto text-white transition-all`}
+                     dotColor="#1F6BFF"
+                     textColor="#FFFFFF"
+                  />
+               </NavLink>
+
+               {/* Botón toggle / collapse */}
+               {!collapsed && (
+                  <button
+                     type="button"
+                     onClick={() => setCollapsed?.(!collapsed)}
+                     className="hidden md:flex items-center justify-center p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors"
+                     aria-label="Colapsar menú"
+                     title="Colapsar menú"
+                  >
+                     <Bars3Icon className="w-5 h-5" />
+                  </button>
+               )}
+
+               {/* Botón cerrar para móviles */}
                <button
-                  onClick={() => setIsPinned(!isPinned)}
-                  className="hidden md:flex items-center justify-center p-1.5 rounded hover:bg-white/20 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-white/80"
-                  title={isPinned ? 'Desfijar menú' : 'Fijar menú'}
-                  aria-label={isPinned ? 'Desfijar menú' : 'Fijar menú'}
+                  type="button"
+                  onClick={onClose}
+                  className="md:hidden p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10"
+                  aria-label="Cerrar menú"
                >
-                  {isPinned ? (
-                     <LockClosedIcon className="w-5 h-5 text-white" />
-                  ) : (
-                     <LockOpenIcon className="w-5 h-5 text-white/70" />
-                  )}
+                  <XMarkIcon className="w-5 h-5" />
                </button>
-            )}
+            </div>
+
+            {/* SECCIONES DE NAVEGACIÓN */}
+            <nav className="space-y-6 overflow-y-auto max-h-[calc(100vh-230px)] pr-1 custom-scrollbar">
+               {sections.map((section) => (
+                  <div key={section.title} className="space-y-1">
+                     {!collapsed && (
+                        <h3 className="px-3 text-[10px] font-sans font-bold tracking-wider text-[#55607A] uppercase mb-2">
+                           {section.title}
+                        </h3>
+                     )}
+                     <ul className="space-y-1">
+                        {section.items.map((item) => {
+                           const Icon = item.icon;
+                           const targetTo = item.to
+                              ? entityScopedPaths.has(item.to)
+                                 ? withEntityId(item.to, entityId)
+                                 : item.to
+                              : null;
+                           const isActive =
+                              targetTo && targetTo !== '#'
+                                 ? item.end
+                                    ? pathname === targetTo || pathname === '/dashboard' && targetTo === '/dashboard'
+                                    : pathname.startsWith(targetTo)
+                                 : false;
+
+                           const isSubOpen = !!openSubmenus[item.label];
+
+                           if (item.disabled) {
+                              return (
+                                 <li key={item.label}>
+                                    <div
+                                       className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium text-[#8E9BB5] opacity-60 cursor-not-allowed ${
+                                          collapsed ? 'justify-center px-2' : ''
+                                       }`}
+                                       title={item.label}
+                                    >
+                                       <div className="flex items-center gap-3">
+                                          <Icon className="w-4 h-4 shrink-0 text-[#8E9BB5]" />
+                                          {!collapsed && <span className="truncate">{item.label}</span>}
+                                       </div>
+                                       {!collapsed && item.badge && (
+                                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#13285C] text-[#7FAAFF]">
+                                             {item.badge}
+                                          </span>
+                                       )}
+                                    </div>
+                                 </li>
+                              );
+                           }
+
+                           if (item.hasSubmenu && !collapsed) {
+                              return (
+                                 <li key={item.label}>
+                                    <button
+                                       type="button"
+                                       onClick={() => toggleSubmenu(item.label)}
+                                       className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition-colors ${
+                                          isActive
+                                             ? 'bg-[#13285C] text-white font-semibold'
+                                             : 'text-[#8E9BB5] hover:text-white hover:bg-white/5'
+                                       }`}
+                                    >
+                                       <div className="flex items-center gap-3">
+                                          <Icon className="w-4 h-4 shrink-0" />
+                                          <span className="truncate">{item.label}</span>
+                                       </div>
+                                       <ChevronRightIcon
+                                          className={`w-3.5 h-3.5 text-[#55607A] transition-transform duration-200 ${
+                                             isSubOpen ? 'rotate-90 text-white' : ''
+                                          }`}
+                                       />
+                                    </button>
+
+                                    {/* Submenú desplegable */}
+                                    {isSubOpen && (
+                                       <ul className="mt-1 ml-7 space-y-1 pl-2 border-l border-[#13285C]">
+                                          {item.children.map((sub) => {
+                                             const subTo = withEntityId(sub.to, entityId);
+                                             const isSubActive = pathname === subTo || pathname.startsWith(subTo);
+                                             return (
+                                                <li key={sub.label}>
+                                                   <NavLink
+                                                      to={subTo}
+                                                      className={`block px-2.5 py-1.5 rounded-lg text-xs font-normal transition-colors ${
+                                                         isSubActive
+                                                            ? 'text-[#1F6BFF] font-semibold'
+                                                            : 'text-[#8E9BB5] hover:text-white'
+                                                      }`}
+                                                   >
+                                                      {sub.label}
+                                                   </NavLink>
+                                                </li>
+                                             );
+                                          })}
+                                       </ul>
+                                    )}
+                                 </li>
+                              );
+                           }
+
+                           return (
+                              <li key={item.label}>
+                                 <NavLink
+                                    to={targetTo || '#'}
+                                    end={item.end}
+                                    title={collapsed ? item.label : undefined}
+                                    className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition-colors ${
+                                       isActive
+                                          ? 'bg-[#13285C] text-white font-semibold shadow-sm'
+                                          : 'text-[#8E9BB5] hover:text-white hover:bg-white/5'
+                                    } ${collapsed ? 'justify-center px-2' : ''}`}
+                                 >
+                                    <div className="flex items-center gap-3">
+                                       <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-[#8E9BB5]'}`} />
+                                       {!collapsed && <span className="truncate">{item.label}</span>}
+                                    </div>
+                                 </NavLink>
+                              </li>
+                           );
+                        })}
+                     </ul>
+                  </div>
+               ))}
+            </nav>
          </div>
 
-         <nav className="flex-1 custom-scrollbar overflow-y-auto">
-            <ul className="space-y-2">
-               {menu.map((item) =>
-                  item.children ? (
-                     <Group key={item.label} item={item} />
-                  ) : item.action === 'logout' ? (
-                     <li key={item.label}>
-                        <button onClick={onLogout} className="w-full text-left hover:bg-danger/90 block rounded" title={collapsed ? item.label : undefined} aria-label={item.label}>
-                           <ItemRow icon={item.icon} label={item.label} />
-                        </button>
-                     </li>
-                  ) : (
-                     <li key={item.label}>
-                        <ItemRow icon={item.icon} label={item.label} to={item.to} end={!!item.end} />
-                     </li>
-                  )
-               )}
-            </ul>
-         </nav>
-      </div>
+         {/* PIE DEL SIDEBAR: "¿Te ayudamos? Escríbenos a hola@jeito.cl" */}
+         <div className="pt-4 border-t border-[#13285C]">
+            {!collapsed ? (
+               <div className="flex items-center gap-3 p-2 rounded-xl bg-[#07122B]/50">
+                  <JeitoSmile className="w-7 h-7 shrink-0" mouthColor="#FFFFFF" eyeColor="#1F6BFF" />
+                  <div className="min-w-0">
+                     <p className="text-xs font-bold text-white leading-tight">¿Te ayudamos?</p>
+                     <a
+                        href="mailto:hola@jeito.cl"
+                        className="text-[11px] text-[#8E9BB5] hover:text-[#7FAAFF] transition-colors truncate block"
+                     >
+                        Escríbenos a hola@jeito.cl
+                     </a>
+                  </div>
+               </div>
+            ) : (
+               <div className="flex justify-center" title="hola@jeito.cl">
+                  <JeitoSmile className="w-6 h-6" mouthColor="#FFFFFF" eyeColor="#1F6BFF" />
+               </div>
+            )}
+         </div>
+      </aside>
    );
 }
