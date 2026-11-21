@@ -16,15 +16,84 @@
 /* Typography / Smoothing */
 body {
    margin: 0;
-   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto",
-      "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans",
-      "Helvetica Neue", sans-serif;
+   font-family: "Nunito Sans", Arial, -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", sans-serif;
+   font-size: 16px;
+   line-height: 24px;
+   color: #0A1A3F;
    -webkit-font-smoothing: antialiased;
    -moz-osx-font-smoothing: grayscale;
 }
 code {
    font-family: source-code-pro, Menlo, Monaco, Consolas, "Courier New",
       monospace;
+}
+
+/* Tipografía e Identidad Jeito */
+h1, .font-h1 {
+   font-family: "Nunito", Arial, sans-serif;
+   font-weight: 900;
+   font-size: 40px;
+   line-height: 48px;
+}
+h2, .font-h2 {
+   font-family: "Nunito", Arial, sans-serif;
+   font-weight: 800;
+   font-size: 28px;
+   line-height: 36px;
+}
+h3, .font-h3 {
+   font-family: "Nunito Sans", Arial, sans-serif;
+   font-weight: 700;
+   font-size: 20px;
+   line-height: 28px;
+}
+.font-body {
+   font-family: "Nunito Sans", Arial, sans-serif;
+   font-weight: 400;
+   font-size: 16px;
+   line-height: 24px;
+}
+.font-legend, .legend {
+   font-family: "Nunito Sans", Arial, sans-serif;
+   font-weight: 600;
+   font-size: 13px;
+   line-height: 18px;
+   color: #55607A;
+}
+.font-amount, .tabular-num {
+   font-family: "Nunito Sans", Arial, sans-serif;
+   font-weight: 600;
+   font-variant-numeric: tabular-nums;
+}
+
+/* Píldoras y Botones Redondeados */
+.btn-pill-primary {
+   display: inline-flex;
+   align-items: center;
+   justify-content: center;
+   border-radius: 9999px;
+   background-color: #1F6BFF;
+   color: #FFFFFF;
+   font-family: "Nunito", Arial, sans-serif;
+   font-weight: 900;
+   transition: background-color 0.2s;
+}
+.btn-pill-primary:hover {
+   background-color: #1558D6;
+}
+.btn-pill-secondary {
+   display: inline-flex;
+   align-items: center;
+   justify-content: center;
+   border-radius: 9999px;
+   background-color: #FFFFFF;
+   color: #0A1A3F;
+   font-family: "Nunito", Arial, sans-serif;
+   font-weight: 900;
+   transition: background-color 0.2s;
+}
+.btn-pill-secondary:hover {
+   background-color: #EEF3FF;
 }
 
 /* Hints modo */
@@ -35,86 +104,101 @@ code {
    color-scheme: dark;
 }
 
-/* ===== Paleta Light ===== */
+/* ===== Paleta Light - Identidad Jeito ===== */
 :root {
-   --brand: #2c9cb3;
-   --brand-rgb: 44 156 179;
-   --brand-strong: #0e7490;
-   --brand-strong-rgb: 14 116 144;
-   --brand-tint: #d8eff4;
-   --brand-tint-rgb: 216 239 244;
+   /* Colores Base Jeito */
+   --jeito-navy: #0A1A3F;
+   --jeito-navy-rgb: 10 26 63;
+   --jeito-blue: #1F6BFF;
+   --jeito-blue-rgb: 31 107 255;
+   --jeito-ice: #EEF3FF;
+   --jeito-ice-rgb: 238 243 255;
+   --jeito-slate: #55607A;
+   --jeito-slate-rgb: 85 96 122;
+   --jeito-curve: #13285C;
+   --jeito-curve-rgb: 19 40 92;
 
-   --bg-shell: #f4f8fa;
-   --bg-shell-rgb: 244 248 250;
+   /* Tokens Semánticos */
+   --brand: #1F6BFF;
+   --brand-rgb: 31 107 255;
+   --brand-strong: #0A1A3F;
+   --brand-strong-rgb: 10 26 63;
+   --brand-tint: #EEF3FF;
+   --brand-tint-rgb: 238 243 255;
+   --logo-dot: #1F6BFF;
+
+   --bg-shell: #EEF3FF; /* Hielo */
+   --bg-shell-rgb: 238 243 255;
    --bg-content: #ffffff;
    --bg-content-rgb: 255 255 255;
-   --surface-1: #fafcfd;
-   --surface-1-rgb: 250 252 253;
-   --surface-2: #eef4f6;
-   --surface-2-rgb: 238 244 246;
+   --surface-1: #EEF3FF;
+   --surface-1-rgb: 238 243 255;
+   --surface-2: #E3ECFC;
+   --surface-2-rgb: 227 236 252;
 
-   --text-main: #613f51;
-   --text-main-rgb: 97 63 81;
-   --text-soft: #7a5a6f;
-   --text-soft-rgb: 122 90 111;
-   --heading: #4a3342;
-   --heading-rgb: 74 51 66;
+   --text-main: #0A1A3F; /* Azul Profundo */
+   --text-main-rgb: 10 26 63;
+   --text-soft: #55607A; /* Pizarra */
+   --text-soft-rgb: 85 96 122;
+   --heading: #0A1A3F;
+   --heading-rgb: 10 26 63;
 
-   --border-subtle: #d8e7ee;
-   --border-subtle-rgb: 216 231 238;
-   --border-strong: #afc8d2;
-   --border-strong-rgb: 175 200 210;
+   --border-subtle: #D8E2F5;
+   --border-subtle-rgb: 216 226 245;
+   --border-strong: #B0C4EA;
+   --border-strong-rgb: 176 196 234;
 
-   --info: #0ea5e9;
-   --info-rgb: 14 165 233;
-   --info-bg: #e0f2fe;
-   --info-bg-rgb: 224 242 254;
-   --success: #16a34a;
-   --success-rgb: 22 163 74;
-   --success-bg: #dcfce7;
-   --success-bg-rgb: 220 252 231;
-   --warning: #f59e0b;
-   --warning-rgb: 245 158 11;
-   --warning-bg: #fef3c7;
-   --warning-bg-rgb: 254 243 199;
-   --danger: #dc2626;
-   --danger-rgb: 220 38 38;
-   --danger-bg: #fee2e2;
-   --danger-bg-rgb: 254 226 226;
+   /* Estados de Interfaz */
+   --info: #1F6BFF;
+   --info-rgb: 31 107 255;
+   --info-bg: #EEF3FF;
+   --info-bg-rgb: 238 243 255;
+   --success: #1FA971; /* Conciliado */
+   --success-rgb: 31 169 113;
+   --success-bg: #EAF8F1;
+   --success-bg-rgb: 234 248 241;
+   --warning: #F2A93B; /* Pendiente */
+   --warning-rgb: 242 169 59;
+   --warning-bg: #FEF6EB;
+   --warning-bg-rgb: 254 246 235;
+   --danger: #E5484D; /* Con diferencias */
+   --danger-rgb: 229 72 77;
+   --danger-bg: #FDF0F0;
+   --danger-bg-rgb: 253 240 240;
 
    --bg-sidebar: var(--brand-strong);
    --bg-sidebar-rgb: var(--brand-strong-rgb);
 }
 
 .dark {
-   --brand: #0e7490;
-   --brand-rgb: 14 116 144;
-   --brand-strong: #094e60;
-   --brand-strong-rgb: 9 78 96;
+   --brand: #1F6BFF;
+   --brand-rgb: 31 107 255;
+   --brand-strong: #0A1A3F;
+   --brand-strong-rgb: 10 26 63;
 
-   --bg-shell: #1e2024; /* gris piedra */
-   --bg-shell-rgb: 30 32 36;
-   --bg-content: #23262b;
-   --bg-content-rgb: 35 38 43;
-   --surface-1: #2a2e34;
-   --surface-1-rgb: 42 46 52;
-   --surface-2: #32373f;
-   --surface-2-rgb: 50 55 63;
+   --bg-shell: #07122B;
+   --bg-shell-rgb: 7 18 43;
+   --bg-content: #0A1A3F;
+   --bg-content-rgb: 10 26 63;
+   --surface-1: #102352;
+   --surface-1-rgb: 16 35 82;
+   --surface-2: #13285C;
+   --surface-2-rgb: 19 40 92;
 
-   --text-main: #f2f4f7;
-   --text-main-rgb: 242 244 247;
-   --text-soft: #b3bac3;
-   --text-soft-rgb: 179 186 195;
-   --heading: #ffffff;
+   --text-main: #FFFFFF;
+   --text-main-rgb: 255 255 255;
+   --text-soft: #8E9BB5;
+   --text-soft-rgb: 142 155 181;
+   --heading: #FFFFFF;
    --heading-rgb: 255 255 255;
 
-   --border-subtle: #3a4048;
-   --border-subtle-rgb: 58 64 72;
-   --border-strong: #474f59;
-   --border-strong-rgb: 71 79 89;
+   --border-subtle: #19316C;
+   --border-subtle-rgb: 25 49 108;
+   --border-strong: #234594;
+   --border-strong-rgb: 35 69 148;
 
-   --bg-sidebar: var(--brand-strong);
-   --bg-sidebar-rgb: var(--brand-strong-rgb);
+   --bg-sidebar: #0A1A3F;
+   --bg-sidebar-rgb: 10 26 63;
 }
 
 /* Global base */

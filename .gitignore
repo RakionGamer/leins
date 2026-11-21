@@ -13,3 +13,11 @@ scripts/downloads/
 *.md
 
 lacosa.txt
+
+# Manuales y documentación generada
+docs/manual_*
+docs/assets/
+docs/*.pdf
+docs/*.html
+scripts/generate-*-pdf.js
+tmp/

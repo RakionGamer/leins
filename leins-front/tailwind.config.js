@@ -14,7 +14,30 @@ module.exports = {
    ],
    theme: {
       extend: {
+         fontFamily: {
+            sans: ['"Nunito Sans"', 'Arial', 'sans-serif'],
+            title: ['Nunito', 'Arial', 'sans-serif'],
+            nunito: ['Nunito', 'Arial', 'sans-serif'],
+            'nunito-sans': ['"Nunito Sans"', 'Arial', 'sans-serif'],
+         },
+         fontSize: {
+            h1: ['40px', { lineHeight: '48px' }],
+            h2: ['28px', { lineHeight: '36px' }],
+            h3: ['20px', { lineHeight: '28px' }],
+            body: ['16px', { lineHeight: '24px' }],
+            legend: ['13px', { lineHeight: '18px' }],
+         },
          colors: {
+            // Identidad Visual Jeito
+            'jeito-navy': '#0A1A3F',
+            'jeito-blue': '#1F6BFF',
+            'jeito-ice': '#EEF3FF',
+            'jeito-slate': '#55607A',
+            'jeito-curve': '#13285C',
+            'status-conciliado': '#1FA971',
+            'status-pendiente': '#F2A93B',
+            'status-diferencias': '#E5484D',
+
             // brand
             brand: withOpacity('--brand-rgb'),
             'brand-strong': withOpacity('--brand-strong-rgb'),

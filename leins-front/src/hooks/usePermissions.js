@@ -6,7 +6,8 @@ import { getDefaultPermissions } from '../constants/permissions';
 
 export function usePermissions() {
    const { user, isClient, role } = useAuth();
-   const { entity } = useEntity();
+   const entityContext = useEntity();
+   const entity = entityContext?.entity;
 
    const isSuperAdmin = !isClient && (role === 'super_admin' || !role);
 
