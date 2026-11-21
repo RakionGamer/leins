@@ -2,8 +2,8 @@ import React from 'react';
 
 export default function JeitoCurve({
    className = 'curve',
-   strokeColor = '#13285C',
-   strokeWidth = 70,
+   strokeColor = '#11244E',
+   strokeWidth = 175,
    ...props
 }) {
    return (

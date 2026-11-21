@@ -30,15 +30,15 @@ export default function Login() {
          <div className="relative w-full lg:w-[54%] bg-[#0A1A3F] min-h-[460px] lg:min-h-screen p-8 sm:p-12 lg:p-16 flex flex-col justify-between overflow-hidden select-none">
             {/* Curva de agua decorativa de fondo (#13285C) */}
             <div
-               className="curve absolute -bottom-48 -left-20 w-[950px] lg:w-[1200px] pointer-events-none opacity-85 select-none"
-               style={{ transform: 'rotate(175deg)' }}
-            >
-               <JeitoCurve
-                  className="w-full h-auto"
-                  strokeColor="#13285C"
-                  strokeWidth={60}
-               />
-            </div>
+   className="curve absolute -bottom-24 sm:-bottom-28 lg:-bottom-32 -right-28 sm:-right-32 lg:-right-36 w-[520px] sm:w-[640px] lg:w-[760px] xl:w-[840px] pointer-events-none select-none"
+   style={{ transform: 'rotate(-26deg)' }}
+>
+   <JeitoCurve
+      className="w-full h-auto"
+      strokeColor="#11244E"
+      strokeWidth={175}
+   />
+</div>
 
             {/* Cabecera superior izquierda: Logo Jeito */}
             <div className="relative z-10">
