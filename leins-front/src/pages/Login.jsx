@@ -52,11 +52,14 @@ export default function Login() {
             {/* Zona central: Titular, subtítulo, píldoras y Sonrisa */}
             <div className="relative z-10 my-auto py-8 lg:py-0 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8">
                <div className="max-w-[340px] sm:max-w-[380px] lg:max-w-[400px]">
-                  {/* H1 Principal con peso Black 900 en 3 líneas exactas como la referencia */}
-                  <h1 className="font-nunito font-black text-white text-3xl sm:text-4xl lg:text-[42px] xl:text-[46px] leading-[1.12] tracking-tight">
-                     Tus finanzas<br />
-                     <span className="text-[#1F6BFF]">al día,</span> sin<br />
-                     planillas.
+                  {/* H1 Principal con peso Black 900 en 3 líneas con separación clara y color #7FAAFF */}
+                  <h1 className="font-nunito font-black text-white text-3xl sm:text-4xl lg:text-[42px] xl:text-[46px] leading-[1.25] tracking-tight">
+                     <div>Tus finanzas</div>
+                     <div className="mt-1 sm:mt-1.5 flex items-center flex-wrap">
+                        <span className="text-[#7FAAFF] mr-2 sm:mr-2.5">al día,</span>
+                        <span>sin</span>
+                     </div>
+                     <div className="mt-1 sm:mt-1.5">planillas.</div>
                   </h1>
 
                   {/* Subtítulo Nunito Sans */}
