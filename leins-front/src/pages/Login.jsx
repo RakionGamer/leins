@@ -29,17 +29,16 @@ export default function Login() {
              ========================================= */}
          <div className="relative w-full lg:w-[54%] bg-[#0A1A3F] min-h-[460px] lg:min-h-screen p-8 sm:p-12 lg:p-16 flex flex-col justify-between overflow-hidden select-none">
             {/* Curva de agua decorativa de fondo (#13285C) */}
-            {/* Curva de agua decorativa de fondo */}
-            {/* Curva de agua decorativa de fondo (misma sonrisa de Jeito sin ojos) */}
-            <div
-               className="curve absolute -bottom-10 sm:-bottom-12 lg:-bottom-14 -right-14 sm:-right-16 lg:-right-20 w-[380px] sm:w-[480px] lg:w-[600px] xl:w-[680px] pointer-events-none select-none"
-               style={{ transform: 'rotate(22deg)' }}
-            >
-               <JeitoCurve
-                  className="w-full h-auto block"
-                  strokeColor="#11244E"
-               />
-            </div>
+
+<div
+   className="curve absolute -bottom-[18%] sm:-bottom-[20%] lg:-bottom-[21%] left-[15%] sm:left-[16%] w-[86%] sm:w-[84%] pointer-events-none select-none"
+   style={{ transform: 'rotate(15deg)' }}
+>
+   <JeitoCurve
+      className="w-full h-auto block"
+      strokeColor="#11244E"
+   />
+</div>
 
             {/* Cabecera superior izquierda: Logo Jeito */}
             <div className="relative z-10">
