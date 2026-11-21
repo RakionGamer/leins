@@ -39,17 +39,17 @@ export default function UserMenu() {
                         className="w-full h-full object-cover"
                      />
                   ) : (
-                     getInitials() !== 'U' ? getInitials() : 'AC'
+                     getInitials()
                   )}
                </div>
 
-               {/* nombre y cargo (visible en desktop) */}
+               {/* nombre y cargo real del usuario */}
                <div className="hidden md:flex flex-col text-left leading-tight">
                   <span className="font-bold text-xs text-[#0A1A3F] truncate max-w-[120px]">
-                     {user?.name || 'Leins'}
+                     {user?.name || user?.email?.split('@')[0] || 'Usuario'}
                   </span>
                   <span className="text-[11px] text-[#55607A] font-medium">
-                     {user?.role_label || user?.role || 'Administrador'}
+                     {user?.role_label || (user?.role === 'super_admin' ? 'Super Administrador' : user?.role === 'admin' ? 'Administrador' : user?.role || 'Usuario')}
                   </span>
                </div>
 

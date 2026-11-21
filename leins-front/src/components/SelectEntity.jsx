@@ -76,28 +76,38 @@ export default function SelectEntity({ className = '' }) {
       return null;
    }
 
-   const selectedItem = items.find((item) => Number(item.id) === Number(entityId)) || items[0] || { name: 'Comercial Andes Demo SpA', rut: '76.999.555-2' };
+   const selectedItem = items.find((item) => Number(item.id) === Number(entityId)) || items[0] || null;
 
    return (
-      <div className={`relative flex items-center gap-2.5 bg-white border border-[#E2EAFD] hover:border-[#DCE5FF] rounded-xl px-3 py-1.5 shadow-sm transition-all cursor-pointer group ${className}`}>
-         <div className="bg-[#EFF3FF] p-1.5 rounded-lg text-[#1F6BFF] shrink-0">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
-               <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+      <div className={`relative flex items-center gap-2.5 bg-[#EEF3FF] hover:bg-[#E2EAFD] rounded-full pl-1.5 pr-4 h-11 transition-all cursor-pointer group shadow-xs ${className}`}>
+         {/* Círculo blanco con ícono de edificio oficial */}
+         <div className="bg-white rounded-full w-8 h-8 flex items-center justify-center shadow-xs shrink-0">
+            <svg className="w-4 h-4 text-[#0A1A3F]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+               <path d="M3 21h18" />
+               <path d="M5 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16" />
+               <path d="M15 10h4a2 2 0 0 1 2 2v9" />
+               <path d="M9 7h1" />
+               <path d="M9 11h1" />
+               <path d="M9 15h1" />
             </svg>
          </div>
+
+         {/* Textos: ENTIDAD / Nombre · RUT */}
          <div className="flex flex-col text-left leading-tight min-w-0 pr-1">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-[#55607A]">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-[#55607A] font-nunito">
                ENTIDAD
             </span>
             <div className="flex items-center gap-1.5 mt-0.5">
-               <span className="text-xs font-bold text-[#0A1A3F] truncate max-w-[140px] sm:max-w-[200px] md:max-w-[240px]">
-                  {selectedItem.name || selectedItem.legal_name || 'Comercial Andes Demo SpA'}{selectedItem.rut ? ` · ${selectedItem.rut}` : ''}
+               <span className="text-xs font-bold text-[#0A1A3F] font-nunito truncate max-w-[140px] sm:max-w-[200px] md:max-w-[260px]">
+                  {selectedItem ? (selectedItem.name || selectedItem.legal_name || `Entidad ${selectedItem.id}`) : 'Seleccionar entidad'}{selectedItem?.rut ? ` · ${selectedItem.rut}` : ''}
                </span>
-               <svg className="w-3.5 h-3.5 text-[#55607A] shrink-0 transition-transform group-hover:translate-y-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+               <svg className="w-3.5 h-3.5 text-[#0A1A3F] shrink-0 transition-transform group-hover:translate-y-0.5 stroke-[2.5]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                </svg>
             </div>
          </div>
+
+         {/* Select nativo accesible superpuesto transparente */}
          <select
             className="absolute inset-0 opacity-0 cursor-pointer w-full h-full text-sm"
             value={entityId ?? items[0]?.id ?? ''}
