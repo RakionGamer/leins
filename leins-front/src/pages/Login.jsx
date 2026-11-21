@@ -28,17 +28,15 @@ export default function Login() {
              PANEL IZQUIERDO: Marca, Mensaje y Sonrisa
              ========================================= */}
          <div className="relative w-full lg:w-[54%] bg-[#0A1A3F] min-h-[460px] lg:min-h-screen p-8 sm:p-12 lg:p-16 flex flex-col justify-between overflow-hidden select-none">
-            {/* Curva de agua decorativa de fondo (#13285C) */}
-
-<div
-   className="curve absolute -bottom-[18%] sm:-bottom-[20%] lg:-bottom-[21%] left-[15%] sm:left-[16%] w-[86%] sm:w-[84%] pointer-events-none select-none"
-   style={{ transform: 'rotate(15deg)' }}
->
-   <JeitoCurve
-      className="w-full h-auto block"
-      strokeColor="#11244E"
-   />
-</div>
+            {/* Curva de agua decorativa de fondo (#13285C / #11244E) */}
+            <div
+               className="curve absolute -bottom-[26%] sm:-bottom-[28%] lg:-bottom-[30%] left-[22%] sm:left-[24%] lg:left-[26%] w-[86%] sm:w-[84%] pointer-events-none select-none"
+            >
+               <JeitoCurve
+                  className="w-full h-auto block"
+                  strokeColor="#11244E"
+               />
+            </div>
 
             {/* Cabecera superior izquierda: Logo Jeito */}
             <div className="relative z-10">
@@ -97,7 +95,7 @@ export default function Login() {
 
             {/* Pie inferior izquierdo: Slogan */}
             <div className="relative z-10 pt-4">
-               <p className="italic text-xs sm:text-[13px] text-[#55607A] font-sans font-normal">
+               <p className="italic text-xs sm:text-[13px] text-[#8E9FCA] font-sans font-normal">
                   Sempre tem um jeito.
                </p>
             </div>
