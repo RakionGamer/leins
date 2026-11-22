@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef } from 'react';
 import { useEntity } from '../context/EntityContext';
 import { useEntities } from '../hooks/useEntities';
+import { EntidadesIcon, AbajoIcon } from './icons/SidebarIcons';
 
 export default function SelectEntity({ className = '' }) {
    const { entity, entityId, setEntity } = useEntity();
@@ -80,16 +81,9 @@ export default function SelectEntity({ className = '' }) {
 
    return (
       <div className={`relative flex items-center gap-2.5 bg-[#EEF3FF] hover:bg-[#E2EAFD] rounded-full pl-1.5 pr-4 h-11 transition-all cursor-pointer group shadow-xs ${className}`}>
-         {/* Círculo blanco con ícono de edificio oficial */}
+         {/* Círculo blanco con ícono de entidad oficial */}
          <div className="bg-white rounded-full w-8 h-8 flex items-center justify-center shadow-xs shrink-0">
-            <svg className="w-4 h-4 text-[#0A1A3F]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-               <path d="M3 21h18" />
-               <path d="M5 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16" />
-               <path d="M15 10h4a2 2 0 0 1 2 2v9" />
-               <path d="M9 7h1" />
-               <path d="M9 11h1" />
-               <path d="M9 15h1" />
-            </svg>
+            <EntidadesIcon className="w-4 h-4 text-[#0A1A3F]" />
          </div>
 
          {/* Textos: ENTIDAD / Nombre · RUT */}
@@ -101,9 +95,7 @@ export default function SelectEntity({ className = '' }) {
                <span className="text-xs font-bold text-[#0A1A3F] font-nunito truncate max-w-[140px] sm:max-w-[200px] md:max-w-[260px]">
                   {selectedItem ? (selectedItem.name || selectedItem.legal_name || `Entidad ${selectedItem.id}`) : 'Seleccionar entidad'}{selectedItem?.rut ? ` · ${selectedItem.rut}` : ''}
                </span>
-               <svg className="w-3.5 h-3.5 text-[#0A1A3F] shrink-0 transition-transform group-hover:translate-y-0.5 stroke-[2.5]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-               </svg>
+               <AbajoIcon className="w-3.5 h-3.5 text-[#0A1A3F] shrink-0 transition-transform group-hover:translate-y-0.5" />
             </div>
          </div>
 

@@ -2,10 +2,7 @@ import { Fragment } from 'react';
 import { Menu, Transition } from '@headlessui/react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import {
-   UserCircleIcon,
-   ArrowRightOnRectangleIcon
-} from '@heroicons/react/24/outline';
+import { AbajoIcon, UsuarioIcon, SalirIcon } from './icons/SidebarIcons';
 
 export default function UserMenu() {
    const { user, logout } = useAuth();
@@ -53,9 +50,7 @@ export default function UserMenu() {
                   </span>
                </div>
 
-               <svg className="w-3.5 h-3.5 text-[#55607A] shrink-0 transition-transform group-hover:translate-y-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-               </svg>
+               <AbajoIcon className="w-3.5 h-3.5 text-[#55607A] shrink-0 transition-transform group-hover:translate-y-0.5" />
             </Menu.Button>
          </div>
 
@@ -86,7 +81,7 @@ export default function UserMenu() {
                            className={`${active ? 'bg-brand/5 text-brand-strong' : 'text-gray-700 dark:text-gray-300'
                               } group flex w-full items-center rounded-lg px-2 py-2 text-sm transition-colors`}
                         >
-                           <UserCircleIcon className="mr-2 h-5 w-5 opacity-70" aria-hidden="true" />
+                           <UsuarioIcon className="mr-2 h-5 w-5 text-[#55607A]" aria-hidden="true" />
                            Mi Perfil
                         </button>
                      )}
@@ -104,7 +99,7 @@ export default function UserMenu() {
                            className={`${active ? 'bg-red-50 text-red-600' : 'text-gray-700 dark:text-gray-300'
                               } group flex w-full items-center rounded-lg px-2 py-2 text-sm transition-colors`}
                         >
-                           <ArrowRightOnRectangleIcon className="mr-2 h-5 w-5 opacity-70" aria-hidden="true" />
+                           <SalirIcon className="mr-2 h-5 w-5 text-red-500" aria-hidden="true" />
                            Cerrar Sesión
                         </button>
                      )}

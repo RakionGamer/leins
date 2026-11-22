@@ -1,16 +1,16 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-   CalendarDaysIcon,
-   ChevronDownIcon,
-   ShoppingCartIcon,
-   ArrowTrendingUpIcon,
-   DocumentTextIcon,
-   CalculatorIcon,
-   ExclamationTriangleIcon,
-   BuildingLibraryIcon,
-   ArrowPathIcon,
-} from '@heroicons/react/24/outline';
+   CalendarioIcon,
+   AbajoIcon,
+   ComprasIcon,
+   IngresosIcon,
+   DocumentoIcon,
+   ReciboIcon,
+   AlertaIcon,
+   BancoIcon,
+   SincronizarIcon,
+} from '../components/icons/SidebarIcons';
 import EntityRequiredNotice from 'components/EntityRequiredNotice';
 import { useEntity } from '../context/EntityContext';
 import { useEntityRequired } from '../hooks/useEntityRequired';
@@ -225,7 +225,7 @@ export default function Home() {
                   <h1 className="text-3xl font-black font-nunito text-[#0A1A3F] tracking-tight">
                      Panel de control
                   </h1>
-                  {loading && <ArrowPathIcon className="w-5 h-5 text-[#1F6BFF] animate-spin shrink-0" />}
+                  {loading && <SincronizarIcon className="w-5 h-5 text-[#1F6BFF] animate-spin shrink-0" />}
                </div>
                <p className="text-sm font-normal text-[#55607A] mt-1">
                   Así van los números de {entityDisplayName} en {yearMode ? `el año ${activeYear}` : `${activeMonthName} ${activeYear}`}.
@@ -236,9 +236,9 @@ export default function Home() {
                {/* Selector de mes con botón / píldora */}
                <div className="relative inline-flex items-center">
                   <div className="flex items-center gap-2 bg-white border border-[#E2EAFD] hover:border-[#DCE5FF] rounded-xl px-3.5 py-2 shadow-sm text-xs font-bold text-[#0A1A3F] cursor-pointer transition-colors">
-                     <CalendarDaysIcon className="w-4 h-4 text-[#55607A]" />
+                     <CalendarioIcon className="w-4 h-4 text-[#55607A]" />
                      <span>{activeMonthFormatted}</span>
-                     <ChevronDownIcon className="w-3.5 h-3.5 text-[#55607A]" />
+                     <AbajoIcon className="w-3.5 h-3.5 text-[#55607A]" />
                   </div>
                   <input
                      type="month"
@@ -294,7 +294,7 @@ export default function Home() {
                      >
                         <div className="flex items-center gap-3.5 min-w-0">
                            <div className="h-10 w-10 rounded-xl bg-[#0A1A3F] flex items-center justify-center text-white shrink-0 shadow-sm">
-                              <ExclamationTriangleIcon className="w-5 h-5 text-white stroke-[2]" />
+                              <AlertaIcon className="w-5 h-5 text-white" />
                            </div>
                            <div className="min-w-0">
                               <h3 className="text-sm font-bold font-nunito text-[#0A1A3F] truncate">
@@ -329,8 +329,8 @@ export default function Home() {
                      <span className="text-xs font-semibold text-[#55607A]">
                         {yearMode ? 'Ventas del año' : 'Ventas del mes'}
                      </span>
-                     <div className="h-8 w-8 rounded-xl bg-[#EFF3FF] flex items-center justify-center text-[#1F6BFF]">
-                        <DocumentTextIcon className="w-4 h-4 stroke-[2]" />
+                     <div className="h-8 w-8 rounded-xl bg-[#EFF3FF] flex items-center justify-center text-[#0A1A3F]">
+                        <DocumentoIcon className="w-4 h-4 text-[#0A1A3F]" />
                      </div>
                   </div>
                   <div className="text-2xl font-black font-nunito text-[#0A1A3F] tabular-nums mt-3 tracking-tight">
@@ -359,8 +359,8 @@ export default function Home() {
                      <span className="text-xs font-semibold text-[#55607A]">
                         {yearMode ? 'Compras del año' : 'Compras del mes'}
                      </span>
-                     <div className="h-8 w-8 rounded-xl bg-[#EFF3FF] flex items-center justify-center text-[#1F6BFF]">
-                        <ShoppingCartIcon className="w-4 h-4 stroke-[2]" />
+                     <div className="h-8 w-8 rounded-xl bg-[#EFF3FF] flex items-center justify-center text-[#0A1A3F]">
+                        <ComprasIcon className="w-4 h-4 text-[#0A1A3F]" />
                      </div>
                   </div>
                   <div className="text-2xl font-black font-nunito text-[#0A1A3F] tabular-nums mt-3 tracking-tight">
@@ -387,8 +387,8 @@ export default function Home() {
                <div>
                   <div className="flex items-center justify-between">
                      <span className="text-xs font-semibold text-[#55607A]">Resultado</span>
-                     <div className="h-8 w-8 rounded-xl bg-[#EFF3FF] flex items-center justify-center text-[#1F6BFF]">
-                        <ArrowTrendingUpIcon className="w-4 h-4 stroke-[2]" />
+                     <div className="h-8 w-8 rounded-xl bg-[#EFF3FF] flex items-center justify-center text-[#0A1A3F]">
+                        <IngresosIcon className="w-4 h-4 text-[#0A1A3F]" />
                      </div>
                   </div>
                   <div className="text-2xl font-black font-nunito text-[#0A1A3F] tabular-nums mt-3 tracking-tight">
@@ -417,8 +417,8 @@ export default function Home() {
                      <span className="text-xs font-semibold text-[#55607A]">
                         {vatBalance >= 0 ? 'IVA por pagar' : 'IVA a favor'}
                      </span>
-                     <div className="h-8 w-8 rounded-xl bg-[#EFF3FF] flex items-center justify-center text-[#1F6BFF]">
-                        <CalculatorIcon className="w-4 h-4 stroke-[2]" />
+                     <div className="h-8 w-8 rounded-xl bg-[#EFF3FF] flex items-center justify-center text-[#0A1A3F]">
+                        <ReciboIcon className="w-4 h-4 text-[#0A1A3F]" />
                      </div>
                   </div>
                   <div className="text-2xl font-black font-nunito text-[#0A1A3F] tabular-nums mt-3 tracking-tight">
@@ -682,7 +682,7 @@ export default function Home() {
                            Con cuánto quedas hoy
                         </span>
                         <div className="h-8 w-8 rounded-xl bg-white/10 flex items-center justify-center text-white">
-                           <BuildingLibraryIcon className="w-4 h-4 stroke-[2]" />
+                           <BancoIcon className="w-4 h-4 text-white" />
                         </div>
                      </div>
 

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Bars3Icon } from '@heroicons/react/24/outline';
+import { MenuIcon } from './icons/SidebarIcons';
 import ToggleThemeButton from './ToggleThemeButton';
 import UserMenu from './UserMenu';
 import SelectEntity from './SelectEntity';
@@ -29,7 +29,7 @@ export default function Header({ toggleSidebar }) {
                onClick={toggleSidebar}
             >
                <span className="sr-only">Abrir menú lateral</span>
-               <Bars3Icon className="h-6 w-6" aria-hidden="true" />
+               <MenuIcon className="h-6 w-6" aria-hidden="true" />
             </button>
 
             {/* Selector de Entidad (Píldora cápsula Hielo con ícono en círculo blanco) */}

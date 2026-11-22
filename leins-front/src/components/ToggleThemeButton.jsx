@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { SunIcon, MoonIcon } from '@heroicons/react/24/solid';
+import { SolIcon, LunaIcon } from './icons/SidebarIcons';
 import { useTheme } from '../hooks/useTheme';
 import Tooltip from './Tooltip';
 
@@ -34,9 +34,9 @@ export default function ToggleThemeButton() {
             className="p-2 text-[#55607A] hover:text-[#0A1A3F] hover:bg-[#EFF3FF] rounded-full transition-colors focus:outline-none"
          >
             {isDark ? (
-               <SunIcon className="h-5 w-5 transition-transform" />
+               <SolIcon className="h-5 w-5 transition-transform" />
             ) : (
-               <MoonIcon className="h-5 w-5 transition-transform" />
+               <LunaIcon className="h-5 w-5 transition-transform" />
             )}
          </button>
       </Tooltip>
