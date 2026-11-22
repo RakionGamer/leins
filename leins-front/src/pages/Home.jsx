@@ -670,41 +670,51 @@ export default function Home() {
                ---------------------------------------------------- */}
             <div className="xl:col-span-4 space-y-6">
                {/* TARJETA: Con cuánto quedas hoy (Azul Profundo con curva decorativa) */}
-               <div className="relative overflow-hidden bg-[#0A1A3F] text-white rounded-2xl p-6 shadow-md flex flex-col justify-between min-h-[220px]">
-                  {/* Decoración curva de agua en la esquina inferior derecha */}
-                  <div className="absolute -bottom-14 -right-10 w-44 pointer-events-none opacity-40 select-none">
-                     <JeitoCurve strokeColor="#13285C" className="w-full h-auto" />
-                  </div>
+              <div className="relative overflow-hidden bg-[#0A1A3F] text-white rounded-[28px] px-7 pt-6 pb-7 shadow-md flex flex-col justify-between min-h-[238px]">
+   {/* Decoración curva de agua en la esquina inferior derecha */}
+   <div className="absolute -bottom-6 -right-5 w-[215px] pointer-events-none select-none">
+      <JeitoCurve strokeColor="#142A60" className="w-full h-auto" />
+   </div>
 
-                  <div className="relative z-10">
-                     <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold text-[#8E9BB5]">
-                           Con cuánto quedas hoy
-                        </span>
-                        <div className="h-8 w-8 rounded-xl bg-white/10 flex items-center justify-center text-white">
-                           <BancoIcon className="w-4 h-4 text-white" />
-                        </div>
-                     </div>
+   <div className="relative z-10">
+      <div className="flex items-center justify-between">
+         <span className="text-[15px] font-semibold text-[#A3B1CC] tracking-[-0.01em]">
+            Con cuánto quedas hoy
+         </span>
+         <div className="h-11 w-11 rounded-[14px] bg-[#142859] flex items-center justify-center text-white shrink-0">
+            <BancoIcon className="w-5 h-5 text-white" />
+         </div>
+      </div>
 
-                     <div className="text-3xl font-black font-nunito text-white tabular-nums tracking-tight mt-3">
-                        {formatClp(bankBalance)}
-                     </div>
-                     <p className="text-xs text-[#8E9BB5] mt-1 font-medium">
-                        {hasBankAccounts ? 'Saldo disponible en tus bancos' : 'Sin cuentas bancarias registradas'}
-                     </p>
-                  </div>
+      <div className="text-[36px] sm:text-[38px] leading-[1.1] font-black font-nunito text-white tabular-nums tracking-tight mt-1.5">
+         {formatClp(bankBalance)}
+      </div>
+      <p className="text-[13.5px] text-[#9BA9C4] mt-2.5 font-medium">
+         {hasBankAccounts ? 'Saldo disponible en tus bancos' : 'Sin cuentas bancarias registradas'}
+      </p>
+   </div>
 
-                  <div className="relative z-10 mt-6">
-                     <button
-                        type="button"
-                        onClick={() => navigate('/reports/cash-flow')}
-                        className="rounded-full bg-white hover:bg-[#EFF3FF] text-[#0A1A3F] font-bold text-xs px-5 py-2.5 transition-colors inline-flex items-center gap-1 shadow-sm"
-                     >
-                        <span>Ver flujo de caja</span>
-                        <span>&gt;</span>
-                     </button>
-                  </div>
-               </div>
+   <div className="relative z-10 mt-6">
+      <button
+         type="button"
+         onClick={() => navigate('/reports/cash-flow')}
+         className="rounded-full bg-white hover:bg-[#EFF3FF] text-[#0A1A3F] font-bold text-[13.5px] px-6 py-3 transition-colors inline-flex items-center gap-2.5 shadow-sm"
+      >
+         <span>Ver flujo de caja</span>
+         <svg
+            className="w-3.5 h-3.5 text-[#0A1A3F]"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.75"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+         >
+            <path d="M9 18l6-6-6-6" />
+         </svg>
+      </button>
+   </div>
+</div>
 
                {/* TARJETA: Calidad de datos real */}
                <div className="bg-white rounded-2xl border border-[#E2EAFD] p-6 shadow-sm">
