@@ -1,23 +1,22 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import {
-   HomeIcon,
-   BuildingOffice2Icon,
-   ArrowTrendingDownIcon,
-   ArrowTrendingUpIcon,
-   BanknotesIcon,
-   BookOpenIcon,
-   XMarkIcon,
-   UserGroupIcon,
-   Bars3Icon,
-   ChevronRightIcon,
-   ClipboardDocumentListIcon,
-   ArrowRightOnRectangleIcon,
-   DocumentChartBarIcon,
-   ArrowsRightLeftIcon,
-} from '@heroicons/react/24/outline';
 import JeitoLogo from './JeitoLogo';
 import JeitoSmile from './JeitoSmile';
+import {
+   InicioIcon,
+   EntidadesIcon,
+   AdministradoresIcon,
+   IngresosIcon,
+   EgresosIcon,
+   BancoIcon,
+   FlujoIcon,
+   GraficoIcon,
+   ContabilidadIcon,
+   TareasIcon,
+   MenuIcon,
+   ChevronRightIcon,
+   CerrarIcon,
+} from './icons/SidebarIcons';
 import { useEntityRequired } from '../hooks/useEntityRequired';
 import { withEntityId } from '../utils/withEntityId';
 import { entityScopedPaths } from '../app/routes.config';
@@ -73,17 +72,17 @@ export default function Sidebar({ onLogout, onClose, collapsed, setCollapsed }) 
    // Grupos de menú con la estructura exacta del diseño de referencia
    const sections = useMemo(() => {
       const generalItems = [
-         { label: 'Panel de control', to: '/dashboard', icon: HomeIcon, end: true },
+         { label: 'Panel de control', to: '/dashboard', icon: InicioIcon, end: true },
          ...(isClient ? [] : [
-            { label: 'Entidades', to: '/entities', icon: BuildingOffice2Icon },
-            { label: 'Super administradores', to: '/super-admin', icon: UserGroupIcon },
+            { label: 'Entidades', to: '/entities', icon: EntidadesIcon },
+            { label: 'Super administradores', to: '/super-admin', icon: AdministradoresIcon },
          ]),
       ];
 
       const operacionItems = [
          ...(can('income_sales', 'view') || can('income_receivables', 'view') ? [{
             label: 'Ingresos',
-            icon: ArrowTrendingUpIcon,
+            icon: IngresosIcon,
             to: '/income/sales-boletas',
             hasSubmenu: true,
             children: [
@@ -93,7 +92,7 @@ export default function Sidebar({ onLogout, onClose, collapsed, setCollapsed }) 
          }] : []),
          ...(can('expenses_purchases', 'view') || can('expenses_payables', 'view') ? [{
             label: 'Egresos',
-            icon: ArrowTrendingDownIcon,
+            icon: EgresosIcon,
             to: '/expenses/purchases',
             hasSubmenu: true,
             children: [
@@ -104,7 +103,7 @@ export default function Sidebar({ onLogout, onClose, collapsed, setCollapsed }) 
          }] : []),
          ...(can('bank_movements', 'view') || can('bank_accounts', 'view') ? [{
             label: 'Banco',
-            icon: BanknotesIcon,
+            icon: BancoIcon,
             to: '/bank/cartolas',
             hasSubmenu: true,
             children: [
@@ -116,12 +115,12 @@ export default function Sidebar({ onLogout, onClose, collapsed, setCollapsed }) 
 
       const reportesItems = [
          ...(can('accounting', 'reports_view') ? [
-            { label: 'Flujo de caja', icon: ArrowsRightLeftIcon, to: '/accounting/cash-flow' },
-            { label: 'Estado de resultados', icon: DocumentChartBarIcon, to: '/accounting/income-statement' },
+            { label: 'Flujo de caja', icon: FlujoIcon, to: '/accounting/cash-flow' },
+            { label: 'Estado de resultados', icon: GraficoIcon, to: '/accounting/income-statement' },
          ] : []),
          ...(can('accounting', 'entries_view') || can('accounting', 'accounts_view') ? [{
             label: 'Contabilidad',
-            icon: BookOpenIcon,
+            icon: ContabilidadIcon,
             to: '/accounting/entries',
             hasSubmenu: true,
             children: [
@@ -136,7 +135,7 @@ export default function Sidebar({ onLogout, onClose, collapsed, setCollapsed }) 
       const equipoItems = [
          {
             label: 'Tareas y controles',
-            icon: ClipboardDocumentListIcon,
+            icon: TareasIcon,
             to: '#',
             badge: 'Pronto',
             disabled: true,
@@ -168,8 +167,8 @@ export default function Sidebar({ onLogout, onClose, collapsed, setCollapsed }) 
          }`}
       >
          {/* CABECERA: Logo Jeito + Toggle Menú */}
-         <div>
-            <div className="flex items-center justify-between mb-6 h-9 px-1">
+         <div className="flex-1 flex flex-col min-h-0">
+            <div className="flex items-center justify-between mb-6 h-9 px-1 shrink-0">
                <NavLink to="/dashboard" className="flex items-center">
                   <JeitoLogo
                      className={`${collapsed ? 'w-8' : 'w-24'} h-auto text-white transition-all`}
@@ -183,11 +182,11 @@ export default function Sidebar({ onLogout, onClose, collapsed, setCollapsed }) 
                   <button
                      type="button"
                      onClick={() => setCollapsed?.(!collapsed)}
-                     className="hidden md:flex items-center justify-center p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors"
+                     className="hidden md:flex items-center justify-center p-1.5 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors"
                      aria-label="Colapsar menú"
                      title="Colapsar menú"
                   >
-                     <Bars3Icon className="w-5 h-5" />
+                     <MenuIcon className="w-5 h-5" />
                   </button>
                )}
 
@@ -195,19 +194,19 @@ export default function Sidebar({ onLogout, onClose, collapsed, setCollapsed }) 
                <button
                   type="button"
                   onClick={onClose}
-                  className="md:hidden p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10"
+                  className="md:hidden p-1.5 rounded-lg text-white/80 hover:text-white hover:bg-white/10"
                   aria-label="Cerrar menú"
                >
-                  <XMarkIcon className="w-5 h-5" />
+                  <CerrarIcon className="w-5 h-5" />
                </button>
             </div>
 
             {/* SECCIONES DE NAVEGACIÓN */}
-            <nav className="space-y-6 overflow-y-auto max-h-[calc(100vh-230px)] pr-1 custom-scrollbar">
+            <nav className="space-y-6 overflow-y-auto flex-1 pr-1 sidebar-scrollbar">
                {sections.map((section) => (
                   <div key={section.title} className="space-y-1">
                      {!collapsed && (
-                        <h3 className="px-3 text-[10px] font-sans font-bold tracking-wider text-[#55607A] uppercase mb-2">
+                        <h3 className="px-3 text-[11px] font-sans font-bold tracking-wider text-[#7081AA] uppercase mb-2">
                            {section.title}
                         </h3>
                      )}
@@ -222,7 +221,7 @@ export default function Sidebar({ onLogout, onClose, collapsed, setCollapsed }) 
                            const isActive =
                               targetTo && targetTo !== '#'
                                  ? item.end
-                                    ? pathname === targetTo || pathname === '/dashboard' && targetTo === '/dashboard'
+                                    ? pathname === targetTo || (pathname === '/dashboard' && targetTo === '/dashboard')
                                     : pathname.startsWith(targetTo)
                                  : false;
 
@@ -232,17 +231,17 @@ export default function Sidebar({ onLogout, onClose, collapsed, setCollapsed }) 
                               return (
                                  <li key={item.label}>
                                     <div
-                                       className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium text-[#8E9BB5] opacity-60 cursor-not-allowed ${
+                                       className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-[13.5px] font-medium text-[#B9C6E4] ${
                                           collapsed ? 'justify-center px-2' : ''
                                        }`}
                                        title={item.label}
                                     >
-                                       <div className="flex items-center gap-3">
-                                          <Icon className="w-4 h-4 shrink-0 text-[#8E9BB5]" />
+                                       <div className="flex items-center gap-3.5">
+                                          <Icon className="w-5 h-5 shrink-0 text-[#B9C6E4]" />
                                           {!collapsed && <span className="truncate">{item.label}</span>}
                                        </div>
                                        {!collapsed && item.badge && (
-                                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#13285C] text-[#7FAAFF]">
+                                          <span className="text-[11px] font-semibold italic px-2.5 py-0.5 rounded-full bg-[#13285C] text-[#B9C6E4]">
                                              {item.badge}
                                           </span>
                                        )}
@@ -257,18 +256,18 @@ export default function Sidebar({ onLogout, onClose, collapsed, setCollapsed }) 
                                     <button
                                        type="button"
                                        onClick={() => toggleSubmenu(item.label)}
-                                       className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition-colors ${
+                                       className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-[13.5px] font-medium transition-colors ${
                                           isActive
-                                             ? 'bg-[#13285C] text-white font-semibold'
-                                             : 'text-[#8E9BB5] hover:text-white hover:bg-white/5'
+                                             ? 'bg-[#13285C] text-white font-medium'
+                                             : 'text-[#B9C6E4] hover:text-white hover:bg-white/5'
                                        }`}
                                     >
-                                       <div className="flex items-center gap-3">
-                                          <Icon className="w-4 h-4 shrink-0" />
+                                       <div className="flex items-center gap-3.5">
+                                          <Icon className={`w-5 h-5 shrink-0 ${isActive ? 'text-white' : 'text-[#B9C6E4]'}`} />
                                           <span className="truncate">{item.label}</span>
                                        </div>
                                        <ChevronRightIcon
-                                          className={`w-3.5 h-3.5 text-[#55607A] transition-transform duration-200 ${
+                                          className={`w-4 h-4 text-[#7081AA] transition-transform duration-200 ${
                                              isSubOpen ? 'rotate-90 text-white' : ''
                                           }`}
                                        />
@@ -287,7 +286,7 @@ export default function Sidebar({ onLogout, onClose, collapsed, setCollapsed }) 
                                                       className={`block px-2.5 py-1.5 rounded-lg text-xs font-normal transition-colors ${
                                                          isSubActive
                                                             ? 'text-[#1F6BFF] font-semibold'
-                                                            : 'text-[#8E9BB5] hover:text-white'
+                                                            : 'text-[#B9C6E4] hover:text-white'
                                                       }`}
                                                    >
                                                       {sub.label}
@@ -307,14 +306,14 @@ export default function Sidebar({ onLogout, onClose, collapsed, setCollapsed }) 
                                     to={targetTo || '#'}
                                     end={item.end}
                                     title={collapsed ? item.label : undefined}
-                                    className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition-colors ${
+                                    className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-[13.5px] font-medium transition-colors ${
                                        isActive
-                                          ? 'bg-[#13285C] text-white font-semibold shadow-sm'
-                                          : 'text-[#8E9BB5] hover:text-white hover:bg-white/5'
+                                          ? 'bg-[#13285C] text-white font-medium'
+                                          : 'text-[#B9C6E4] hover:text-white hover:bg-white/5'
                                     } ${collapsed ? 'justify-center px-2' : ''}`}
                                  >
-                                    <div className="flex items-center gap-3">
-                                       <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-[#8E9BB5]'}`} />
+                                    <div className="flex items-center gap-3.5">
+                                       <Icon className={`w-5 h-5 shrink-0 ${isActive ? 'text-white' : 'text-[#B9C6E4]'}`} />
                                        {!collapsed && <span className="truncate">{item.label}</span>}
                                     </div>
                                  </NavLink>
