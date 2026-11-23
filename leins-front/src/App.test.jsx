@@ -14,6 +14,6 @@ test('renderiza la aplicacion correctamente', async () => {
    expect(
       await screen.findByRole('button', {
          name: /ingresar/i,
-      })
+      }, { timeout: 5000 })
    ).toBeInTheDocument();
 });

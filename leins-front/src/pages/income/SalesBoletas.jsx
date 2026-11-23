@@ -17,83 +17,31 @@ import { SII_DOCUMENT_FILTERS, getSiiDocumentTypeLabel } from '../../utils/siiCo
 import { toast } from 'components/Toaster';
 import {
    DocumentDuplicateIcon,
-   BanknotesIcon,
+   DocumentTextIcon,
    ChartBarIcon,
-   CurrencyDollarIcon,
    PencilSquareIcon,
    CalendarDaysIcon,
-   HashtagIcon,
-   TagIcon,
-   IdentificationIcon,
    PlusIcon,
    FunnelIcon,
    ArrowPathIcon,
    TrashIcon,
    LinkIcon,
-   ReceiptRefundIcon
+   ReceiptRefundIcon,
+   CheckIcon,
+   ArrowDownTrayIcon,
+   MagnifyingGlassIcon,
+   ChevronLeftIcon,
+   ChevronRightIcon,
 } from '@heroicons/react/24/outline';
 
-function ResumenPagina({ items }) {
-   const fmt = new Intl.NumberFormat('es-CL');
-   let exentoBruto = 0, afectoIvaBruto = 0, notasCredito = 0, total = 0;
-
-   for (const r of items ?? []) {
-      const isNc = r.doc_type_code === 61;
-      const exento = Number(r.exempt_amount ?? r.exento ?? 0);
-      const afecto = Number(r.net_amount ?? r.afecto ?? 0);
-      const iva = Number(r.vat_amount ?? r.iva ?? 0);
-      const t = Number(r.total_amount ?? r.total ?? 0);
-
-      if (isNc) {
-         notasCredito += t;
-         total -= t;
-      } else {
-         exentoBruto += exento;
-         afectoIvaBruto += (afecto + iva);
-         total += t;
-      }
-   }
-
-   return (
-      <div className="mb-5 grid grid-cols-2 gap-4 xl:grid-cols-5">
-         <div className="rounded-2xl border border-border-subtle bg-surface-1 p-4 shadow-sm flex items-center gap-4">
-            <div className="p-3 bg-brand/10 text-brand rounded-xl"><DocumentDuplicateIcon className="w-6 h-6" /></div>
-            <div>
-               <div className="text-xs font-semibold text-text-soft uppercase tracking-wide">Documentos</div>
-               <div className="text-xl font-bold text-heading">{items?.length ?? 0}</div>
-            </div>
-         </div>
-         <div className="rounded-2xl border border-border-subtle bg-surface-1 p-4 shadow-sm flex items-center gap-4">
-            <div className="p-3 bg-green-500/10 text-green-600 rounded-xl"><BanknotesIcon className="w-6 h-6" /></div>
-            <div>
-               <div className="text-[10px] sm:text-xs font-semibold text-text-soft uppercase tracking-wide">Exento Total</div>
-               <div className="text-lg sm:text-xl font-bold text-heading">$ {fmt.format(exentoBruto)}</div>
-            </div>
-         </div>
-         <div className="rounded-2xl border border-border-subtle bg-surface-1 p-4 shadow-sm flex items-center gap-4">
-            <div className="p-3 bg-blue-500/10 text-blue-600 rounded-xl"><ChartBarIcon className="w-6 h-6" /></div>
-            <div>
-               <div className="text-[10px] sm:text-xs font-semibold text-text-soft uppercase tracking-wide">Afecto+IVA Total</div>
-               <div className="text-lg sm:text-xl font-bold text-heading">$ {fmt.format(afectoIvaBruto)}</div>
-            </div>
-         </div>
-         <div className="rounded-2xl border border-border-subtle bg-surface-1 p-4 shadow-sm flex items-center gap-4">
-            <div className="p-3 bg-rose-500/10 text-rose-600 rounded-xl"><ReceiptRefundIcon className="w-6 h-6" /></div>
-            <div>
-               <div className="text-[10px] sm:text-xs font-semibold text-text-soft uppercase tracking-wide">Notas de Crédito</div>
-               <div className="text-lg sm:text-xl font-bold text-rose-600">-$ {fmt.format(notasCredito)}</div>
-            </div>
-         </div>
-         <div className="col-span-2 xl:col-span-1 rounded-2xl border border-brand/30 bg-brand/5 p-4 shadow-sm flex items-center gap-4 ring-1 ring-brand/10">
-            <div className="p-3 bg-brand text-white rounded-xl"><CurrencyDollarIcon className="w-6 h-6" /></div>
-            <div>
-               <div className="text-xs font-semibold text-brand uppercase tracking-wide">Total Final</div>
-               <div className="text-xl font-bold text-brand">$ {fmt.format(total)}</div>
-            </div>
-         </div>
-      </div>
-   );
+// Formato de moneda chilena con espacio: "$ 12.480.300"
+function formatClp(value) {
+   const num = Math.round(Number(value || 0));
+   const formatted = Math.abs(num).toLocaleString('es-CL');
+   return num < 0 ? `-$ ${formatted}` : `$ ${formatted}`;
 }
+
+const intFmt = new Intl.NumberFormat('es-CL');
 
 function periodToYYYYMM({ month, year }) {
    const m = String(month).padStart(2, '0');
@@ -106,70 +54,79 @@ function todayYYYYMM() {
    return `${d.getFullYear()}-${m}`;
 }
 
-const currencyFmt = new Intl.NumberFormat('es-CL', {
-   style: 'currency', currency: 'CLP', maximumFractionDigits: 0
-});
-const clp = (n) => currencyFmt.format(Number(n ?? 0));
+// Badge doble oficial Jeito (ej: [FAC | 33], [EXE | 34], [BTE | 39], [NC | 61])
+function DocTypeBadge({ code, name }) {
+   const c = Number(code);
+   let label = 'DOC';
+   let bgLeft = 'bg-[#0A1A3F]';
 
-const ctrl = 'w-full h-11 px-3 text-sm rounded-2xl border border-border-subtle bg-bg-content text-text-main placeholder-text-soft/70 focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition shadow-sm';
-const selectCtrl = ctrl + ' appearance-none cursor-pointer';
-const btnCtrl = 'h-11 flex items-center justify-center gap-2 px-4 rounded-2xl border border-border-subtle bg-bg-content text-text-main text-sm font-medium transition shadow-sm hover:bg-surface-2 hover:text-brand focus:outline-none focus:ring-2 focus:ring-brand';
+   if (c === 33) {
+      label = 'FAC';
+      bgLeft = 'bg-[#0A1A3F]';
+   } else if (c === 34) {
+      label = 'EXE';
+      bgLeft = 'bg-[#1F6BFF]';
+   } else if (c === 39) {
+      label = 'BTE';
+      bgLeft = 'bg-[#1F6BFF]';
+   } else if (c === 41) {
+      label = 'BEE';
+      bgLeft = 'bg-[#1F6BFF]';
+   } else if (c === 61) {
+      label = 'NC';
+      bgLeft = 'bg-[#E5484D]';
+   } else if (c === 56) {
+      label = 'ND';
+      bgLeft = 'bg-[#13285C]';
+   } else {
+      label = name ? name.slice(0, 3).toUpperCase() : 'DOC';
+      bgLeft = 'bg-[#0A1A3F]';
+   }
 
-function Pill({ children, colorClass = "bg-brand/10 text-brand ring-brand/20" }) {
-   return <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ring-1 ${colorClass}`}>{children}</span>;
-}
-
-function ViewModeToggle({ mode, onChange }) {
-   const btn = (key, label) => (
-      <button
-         type="button"
-         onClick={() => onChange(key)}
-         className={`h-9 px-4 text-sm font-medium rounded-xl transition ${mode === key ? 'bg-bg-content shadow ring-1 ring-border-subtle text-heading' : 'text-text-soft hover:text-heading'}`}
-      >
-         {label}
-      </button>
-   );
    return (
-      <div className="inline-flex p-1 bg-surface-2 rounded-2xl ring-1 ring-border-subtle/40 items-center">
-         {btn('month', 'Por mes')}
-         {btn('range', 'Por rango')}
+      <div className="inline-flex items-center rounded-md overflow-hidden text-[10px] font-bold shadow-2xs">
+         <span className={`${bgLeft} text-white px-2 py-0.5 tracking-wider font-nunito`}>{label}</span>
+         <span className="bg-[#EEF3FF] text-[#0A1A3F] px-1.5 py-0.5 font-nunito font-extrabold">{c || ''}</span>
       </div>
    );
 }
 
-function MonthField({ value, contextValue, onChange, disabled = false }) {
-   return (
-      <div className="space-y-1.5 w-full">
-         <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider">Mes de Operación</label>
-         <div className="flex items-center gap-2">
-            <input disabled={disabled} type="month" className={ctrl} value={value || ''} onChange={(e) => onChange(e.target.value)} />
-         </div>
-      </div>
-   );
+// Formato de fecha chilena con guiones: DD-MM-YYYY
+function fmtDateChilean(s) {
+   if (!s) return '—';
+   try {
+      const cleanStr = String(s).slice(0, 10);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(cleanStr)) {
+         const [y, m, d] = cleanStr.split('-');
+         return `${d}-${m}-${y}`;
+      }
+      const parsed = new Date(s);
+      if (Number.isNaN(parsed.getTime())) return '—';
+      const d = String(parsed.getDate()).padStart(2, '0');
+      const m = String(parsed.getMonth() + 1).padStart(2, '0');
+      const y = parsed.getFullYear();
+      return `${d}-${m}-${y}`;
+   } catch {
+      return '—';
+   }
 }
 
-function DateRangeField({ from, to, onFrom, onTo, disabled = false }) {
-   const invalid = from && to && new Date(to) < new Date(from);
-   return (
-      <div className="space-y-1.5 w-full">
-         <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider">Rango de Fechas</label>
-         <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-            <DateInput disabled={disabled} className={ctrl} value={from || ''} onChange={onFrom} />
-            <span className="hidden sm:inline text-text-soft font-medium shrink-0">-</span>
-            <DateInput disabled={disabled} className={`${ctrl} ${invalid ? 'ring-2 ring-danger border-danger' : ''}`} value={to || ''} onChange={onTo} min={from || undefined} />
-         </div>
-      </div>
-   );
-}
+const MONTH_NAMES = [
+   'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+   'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'
+];
 
 function useDebounced(value, delay = 300) {
    const [d, setD] = useState(value);
-   useEffect(() => { const t = setTimeout(() => setD(value), delay); return () => clearTimeout(t) }, [value, delay]);
+   useEffect(() => {
+      const t = setTimeout(() => setD(value), delay);
+      return () => clearTimeout(t);
+   }, [value, delay]);
    return d;
 }
 
 export default function SalesBoletas() {
-   const [mainTab, setMainTab] = useState('documents');
+   const [mainTab, setMainTab] = useState('documents'); // 'documents' | 'queue'
    const { period } = usePeriod();
    const { entityId: activeEntityId, ready } = useEntityRequired();
    const [sp, setSp] = useSearchParams();
@@ -187,6 +144,7 @@ export default function SalesBoletas() {
       setDocumentToReconcile(doc);
       setReconcileModalOpen(true);
    };
+
    const [centralizationFilter, setCentralizationFilter] = useState(() => sp.get('centralization') || 'all');
 
    const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
@@ -198,60 +156,17 @@ export default function SalesBoletas() {
    const [loading, setLoading] = useState(true);
    const [err, setErr] = useState(null);
 
-   const dateFmt = useMemo(() => new Intl.DateTimeFormat('es-CL'), []);
-   const fmtDate = (s) => {
-      if (!s) return '—';
-      try {
-         const cleanStr = String(s).slice(0, 10);
-         if (/^\d{4}-\d{2}-\d{2}$/.test(cleanStr)) {
-            const [y, m, d] = cleanStr.split('-');
-            return `${d}/${m}/${y}`;
-         }
-         const parsed = new Date(s);
-         return Number.isNaN(parsed.getTime()) ? '—' : dateFmt.format(parsed);
-      } catch {
-         return '—';
-      }
+   const parsePosInt = (v, def) => {
+      const n = Number(v);
+      return Number.isFinite(n) && n > 0 ? Math.trunc(n) : def;
    };
-
-   const formatSourceLabel = (src) => {
-      const s = String(src || 'SII').toUpperCase();
-      if (s === 'BOLETA_WORKER' || s === 'BOT_SII' || s === 'EMISION_AUTOMATICA') return 'Emisión Automática';
-      if (s === 'MANUAL') return 'Manual';
-      return 'SII';
-   };
-
-   const getSourceBadge = (src) => {
-      const label = formatSourceLabel(src);
-      const s = String(src || 'SII').toUpperCase();
-      if (s === 'BOLETA_WORKER' || s === 'BOT_SII' || s === 'EMISION_AUTOMATICA') {
-         return {
-            label,
-            className: 'inline-flex rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-600 ring-1 ring-emerald-500/20 dark:bg-emerald-500/20 dark:text-emerald-400',
-            title: 'Emitida automáticamente a través de la integración SII',
-         };
-      }
-      if (s === 'MANUAL') {
-         return {
-            label,
-            className: 'inline-flex rounded-full bg-purple-100 px-2.5 py-1 text-xs font-semibold text-purple-700 ring-1 ring-purple-200 dark:bg-purple-900/30 dark:text-purple-400',
-            title: 'Ingresado manualmente en Leins',
-         };
-      }
-      return {
-         label,
-         className: 'inline-flex rounded-full bg-brand/10 px-2.5 py-1 text-xs font-semibold text-brand ring-1 ring-brand/20',
-         title: 'Sincronizado desde el SII',
-      };
-   };
-
-   const orderArrow = (o) => (o === 'asc' ? '↑' : '↓');
-   const intFmt = useMemo(() => new Intl.NumberFormat('es-CL'), []);
-   const parsePosInt = (v, def) => { const n = Number(v); return Number.isFinite(n) && n > 0 ? Math.trunc(n) : def; };
 
    const [page, setPage] = useState(() => parsePosInt(sp.get('page'), 1));
    const allowedPageSizes = [20, 50, 100, 200];
-   const [pageSize, setPageSize] = useState(() => { const n = Number(sp.get('limit')); return allowedPageSizes.includes(n) ? n : 50; });
+   const [pageSize, setPageSize] = useState(() => {
+      const n = Number(sp.get('limit'));
+      return allowedPageSizes.includes(n) ? n : 50;
+   });
 
    const [docType, setDocType] = useState(() => sp.get('type') || '');
    const [sourceFilter, setSourceFilter] = useState(() => sp.get('source') || '');
@@ -264,9 +179,8 @@ export default function SalesBoletas() {
    const [entityId, setEntityId] = useState(() => sp.get('entityId') || sp.get('entity_id') || (activeEntityId ? String(activeEntityId) : ''));
 
    const ALLOWED_SORT = new Set(['issue_date', 'folio', 'total_amount', 'created_at', 'updated_at']);
-   const ALLOWED_ORDER = new Set(['asc', 'desc']);
    const [sort, setSort] = useState(() => ALLOWED_SORT.has(sp.get('sort')) ? sp.get('sort') : 'issue_date');
-   const [order, setOrder] = useState(() => ALLOWED_ORDER.has(sp.get('order')) ? sp.get('order') : 'desc');
+   const [order, setOrder] = useState(() => (sp.get('order') === 'asc' ? 'asc' : 'desc'));
 
    const [total, setTotal] = useState(0);
    const [totalPages, setTotalPages] = useState(1);
@@ -274,15 +188,38 @@ export default function SalesBoletas() {
    const [hasNext, setHasNext] = useState(false);
    const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-   const pageTotals = useMemo(() => rows.reduce((acc, r) => {
-      const mult = r.doc_type_code === 61 ? -1 : 1;
+   // Totales calculados para las 5 tarjetas superiores
+   const summaryTotals = useMemo(() => {
+      let exentoBruto = 0;
+      let afectoIvaBruto = 0;
+      let notasCredito = 0;
+      let totalFinal = 0;
+
+      for (const r of rows) {
+         const isNc = Number(r.doc_type_code) === 61;
+         const ex = Number(r.exento || 0);
+         const af = Number(r.afecto || 0);
+         const iv = Number(r.iva || 0);
+         const tot = Number(r.total || (ex + af + iv));
+
+         if (isNc) {
+            notasCredito += tot;
+            totalFinal -= tot;
+         } else {
+            exentoBruto += ex;
+            afectoIvaBruto += (af + iv);
+            totalFinal += tot;
+         }
+      }
+
       return {
-         exento: acc.exento + (Number(r.exento) || 0) * mult,
-         afecto: acc.afecto + (Number(r.afecto) || 0) * mult,
-         iva: acc.iva + (Number(r.iva) || 0) * mult,
-         total: acc.total + (Number(r.total) || 0) * mult,
+         documentos: rows.length,
+         exentoBruto,
+         afectoIvaBruto,
+         notasCredito,
+         totalFinal,
       };
-   }, { exento: 0, afecto: 0, iva: 0, total: 0 }), [rows]);
+   }, [rows]);
 
    const effectiveMonth = useMemo(() => filterMonth || (period ? periodToYYYYMM(period) : todayYYYYMM()), [filterMonth, period]);
    const debEntityId = useDebounced(entityId, 300);
@@ -323,7 +260,7 @@ export default function SalesBoletas() {
 
    const rangeInvalid = mode === 'range' && fromDate && toDate && new Date(toDate) < new Date(fromDate);
 
-   const reloadData = () => setRefreshTrigger(prev => prev + 1);
+   const reloadData = () => setRefreshTrigger((prev) => prev + 1);
    const resetToFirstPage = () => setPage(1);
 
    const handleQuickClassify = (doc) => {
@@ -337,15 +274,15 @@ export default function SalesBoletas() {
    };
 
    const handleDelete = async (id) => {
-      const isConfirmed = window.confirm("¿Está seguro que desea eliminar este registro manual? Esta acción no se puede deshacer.");
+      const isConfirmed = window.confirm('¿Está seguro que desea eliminar este registro manual? Esta acción no se puede deshacer.');
       if (!isConfirmed) return;
 
       try {
          await deleteManualIncome(id);
-         toast.success('registro eliminado con exito');
+         toast.success('Registro eliminado con éxito');
          reloadData();
       } catch (error) {
-         toast.error(error.message || "ocurrio un error al intentar eliminar el registro.");
+         toast.error(error.message || 'Ocurrió un error al intentar eliminar el registro.');
       }
    };
 
@@ -369,19 +306,39 @@ export default function SalesBoletas() {
          setIsLinkModalOpen(false);
          reloadData();
       } catch (error) {
-         toast.error(error.message || "ocurrio un error al intentar vincular el documento.");
+         toast.error(error.message || 'Ocurrió un error al intentar vincular el documento.');
       } finally {
          setIsLinking(false);
       }
    };
 
-   const switchToMonth = () => { setMode('month'); setFromDate(''); setToDate(''); if (!filterMonth) setFilterMonth(todayYYYYMM()); resetToFirstPage(); };
-   const switchToRange = () => { setMode('range'); setFilterMonth(''); resetToFirstPage(); };
+   const switchToMonth = () => {
+      setMode('month');
+      setFromDate('');
+      setToDate('');
+      if (!filterMonth) setFilterMonth(todayYYYYMM());
+      resetToFirstPage();
+   };
+
+   const switchToRange = () => {
+      setMode('range');
+      setFilterMonth('');
+      resetToFirstPage();
+   };
 
    const handleClearFilters = () => {
       setEntityId(activeEntityId ? String(activeEntityId) : '');
-      setDocType(''); setSourceFilter(''); setFolioFilter(''); setClientFilter(''); setMode('month'); setFilterMonth(todayYYYYMM());
-      setFromDate(''); setToDate(''); setCentralizationFilter('all'); setPageSize(50); resetToFirstPage();
+      setDocType('');
+      setSourceFilter('');
+      setFolioFilter('');
+      setClientFilter('');
+      setMode('month');
+      setFilterMonth(todayYYYYMM());
+      setFromDate('');
+      setToDate('');
+      setCentralizationFilter('all');
+      setPageSize(50);
+      resetToFirstPage();
    };
 
    useEffect(() => {
@@ -404,13 +361,24 @@ export default function SalesBoletas() {
          setLoading(false);
          return;
       }
-      if (rangeInvalid) { setRows([]); setTotal(0); setHasPrev(false); setHasNext(false); setErr(null); setLoading(false); return; }
+      if (rangeInvalid) {
+         setRows([]);
+         setTotal(0);
+         setHasPrev(false);
+         setHasNext(false);
+         setErr(null);
+         setLoading(false);
+         return;
+      }
+
       const ctrl = new AbortController();
-      setLoading(true); setErr(null);
+      setLoading(true);
+      setErr(null);
+
       (async () => {
          try {
             const payload = await listSiiDocuments(buildListParams({ signal: ctrl.signal }));
-            const items = payload.rows;
+            const items = payload.rows || [];
             const mapped = items.map((it) => {
                const exento = Number(it.exempt_amount ?? it.amount_exempt ?? 0);
                const afecto = Number(it.net_amount ?? it.amount_net ?? 0);
@@ -426,7 +394,10 @@ export default function SalesBoletas() {
                   client_name: it.counterparty_name || it.counterparty_rut || '',
                   counterparty_rut: it.counterparty_rut,
                   counterparty_name: it.counterparty_name,
-                  exento, afecto, iva, total,
+                  exento,
+                  afecto,
+                  iva,
+                  total,
                   credit_notes_applied: Number(it.credit_notes_applied || 0),
                   source: it.source,
                   nce_nde_reference: it.nce_nde_reference,
@@ -439,7 +410,7 @@ export default function SalesBoletas() {
                   classification_status: it.classification_status,
                   accounting_account: it.accounting_account,
                   is_centralized: it.is_centralized,
-                  centralization_status: it.centralization_status
+                  centralization_status: it.centralization_status,
                };
             });
 
@@ -449,11 +420,12 @@ export default function SalesBoletas() {
             setHasPrev(page > 1);
             setHasNext(page < Number(payload.totalPages ?? Math.max(1, Math.ceil((payload.total ?? mapped.length) / pageSize))));
          } catch (e) {
-            if (e.name !== 'AbortError') setErr(e.message || 'error');
+            if (e.name !== 'AbortError') setErr(e.message || 'Error al cargar documentos');
          } finally {
             setLoading(false);
          }
       })();
+
       return () => ctrl.abort();
    }, [buildListParams, page, pageSize, rangeInvalid, refreshTrigger, ready, entityId]);
 
@@ -463,12 +435,21 @@ export default function SalesBoletas() {
       if (sourceFilter) p.set('source', sourceFilter);
       if (folioFilter.trim()) p.set('folio', folioFilter.trim());
       if (clientFilter.trim()) p.set('client', clientFilter.trim());
-      if (entityId) { p.set('entityId', String(entityId)); p.set('entity_id', String(entityId)); }
-      p.set('mode', mode); p.set('sort', sort); p.set('order', order);
+      if (entityId) {
+         p.set('entityId', String(entityId));
+         p.set('entity_id', String(entityId));
+      }
+      p.set('mode', mode);
+      p.set('sort', sort);
+      p.set('order', order);
       if (centralizationFilter && centralizationFilter !== 'all') p.set('centralization', centralizationFilter);
       if (mode === 'month') p.set('month', effectiveMonth);
-      else { if (fromDate) p.set('from', fromDate); if (toDate) p.set('to', toDate); }
-      p.set('page', String(page)); p.set('limit', String(pageSize));
+      else {
+         if (fromDate) p.set('from', fromDate);
+         if (toDate) p.set('to', toDate);
+      }
+      p.set('page', String(page));
+      p.set('limit', String(pageSize));
       setSp(p, { replace: true });
    }, [docType, sourceFilter, folioFilter, clientFilter, entityId, mode, sort, order, effectiveMonth, fromDate, toDate, page, pageSize, centralizationFilter, setSp]);
 
@@ -481,29 +462,30 @@ export default function SalesBoletas() {
             return (s.includes(DELIM) || s.includes('"') || s.includes('\n')) ? `"${s.replace(/"/g, '""')}"` : s;
          };
          const header = ['Fecha', 'Folio', 'Tipo', 'Cliente', 'Exento_CLP', 'Afecto_CLP', 'IVA_CLP', 'Total_CLP', 'Origen'];
-
          const perPage = 200;
-
          const allRows = [];
          let currentPage = 1;
          let totalPagesLocal = 1;
 
          do {
             const payload = await listSiiDocuments(buildListParams({ pageOverride: currentPage, limitOverride: perPage }));
-            const items = payload.rows;
+            const items = payload.rows || [];
 
             for (const it of items) {
                const exento = Number(it.exempt_amount ?? it.amount_exempt ?? 0);
                const afecto = Number(it.net_amount ?? it.amount_net ?? 0);
                const iva = Number(it.vat_amount ?? it.amount_vat ?? 0);
-               const total = Number(it.total_amount ?? (exento + afecto + iva));
+               const tot = Number(it.total_amount ?? (exento + afecto + iva));
                allRows.push([
                   it.issue_date || '',
                   it.folio || '',
                   getSiiDocumentTypeLabel(it.doc_type_code),
                   it.counterparty_name || it.counterparty_rut || '',
-                  exento, afecto, iva, total,
-                  formatSourceLabel(it.source)
+                  exento,
+                  afecto,
+                  iva,
+                  tot,
+                  it.source === 'MANUAL' ? 'Manual' : 'SII'
                ]);
             }
             totalPagesLocal = Number(payload.totalPages ?? 1);
@@ -511,17 +493,17 @@ export default function SalesBoletas() {
          } while (currentPage <= totalPagesLocal);
 
          if (!allRows.length) return;
-         const rowsCsv = [header, ...allRows].map(row => row.map(csvEscape).join(DELIM)).join('\r\n');
-
+         const rowsCsv = [header, ...allRows].map((row) => row.map(csvEscape).join(DELIM)).join('\r\n');
          const content = `\uFEFFsep=${DELIM}\r\n${rowsCsv}`;
          const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
          const url = URL.createObjectURL(blob);
-         const a = document.createElement('a'); a.href = url;
+         const a = document.createElement('a');
+         a.href = url;
          a.download = `ventas_sii.csv`;
          a.click();
          URL.revokeObjectURL(url);
       } catch (e) {
-         alert(e.message || 'Error export');
+         toast.error(e.message || 'Error al exportar');
       } finally {
          setExportingCsv(false);
       }
@@ -529,17 +511,20 @@ export default function SalesBoletas() {
 
    const start = total ? (page - 1) * pageSize + 1 : 0;
    const end = total ? Math.min(total, page * pageSize) : 0;
-   const showingLabel = total ? `Mostrando ${intFmt.format(start)}-${intFmt.format(end)} de ${intFmt.format(total)}` : 'Sin resultados';
+
+   // Formato de texto del período para subtítulo
+   const currentMonthNumber = Number(effectiveMonth.split('-')[1] || 1);
+   const currentYearNumber = effectiveMonth.split('-')[0] || '';
+   const periodMonthText = MONTH_NAMES[currentMonthNumber - 1] || 'el período';
 
    if (!ready) {
       return <EntityRequiredNotice />;
    }
 
    return (
-      <div className="space-y-6">
-         {/* modal de creacion */}
+      <div className="space-y-6 text-[#0A1A3F] font-sans">
+         {/* Modales de funcionalidad intacta */}
          <Modal isOpen={isManualModalOpen} onClose={() => setIsManualModalOpen(false)} title="Registrar Ingreso Manual" maxWidth="max-w-3xl">
-            {/* el renderizado condicional destruye el formulario al cerrar, limpiando sus estados */}
             {isManualModalOpen && (
                <ManualIncomeForm
                   entityId={entityId || activeEntityId}
@@ -565,9 +550,7 @@ export default function SalesBoletas() {
             onSuccess={reloadData}
          />
 
-         {/* modal de edicion */}
          <Modal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} title="Editar Registro" maxWidth="max-w-3xl">
-            {/* aqui ya teniamos documentToEdit, le sumamos la validacion del modal */}
             {isEditModalOpen && documentToEdit && (
                <EditIncomeForm
                   document={documentToEdit}
@@ -577,29 +560,36 @@ export default function SalesBoletas() {
             )}
          </Modal>
 
-         {/* modal de vinculacion */}
          <Modal isOpen={isLinkModalOpen} onClose={() => setIsLinkModalOpen(false)} title="Vincular Nota de Crédito" maxWidth="max-w-md">
             {isLinkModalOpen && documentToLink && (
                <form onSubmit={handleLinkSubmit} className="space-y-4">
-                  <p className="text-sm text-text-soft">
-                     Ingresa el <strong className="text-text-main">Folio de la Factura</strong> a la que aplica esta Nota de Crédito (Folio NC: {documentToLink.folio}).
+                  <p className="text-sm text-[#55607A]">
+                     Ingresa el <strong className="text-[#0A1A3F]">Folio de la Factura</strong> a la que aplica esta Nota de Crédito (Folio NC: {documentToLink.folio}).
                   </p>
                   <div>
-                     <label className="block text-sm font-medium text-text-main mb-1">Folio de la Factura</label>
+                     <label className="block text-xs font-bold uppercase tracking-wider text-[#55607A] mb-1">Folio de la Factura</label>
                      <input
                         type="text"
                         required
-                        className={ctrl}
+                        className="w-full h-10 px-3 text-xs rounded-xl border border-[#E2EAFD] bg-white text-[#0A1A3F] focus:outline-none focus:border-[#1F6BFF]"
                         placeholder="Ej: 835"
                         value={linkFolio}
                         onChange={(e) => setLinkFolio(e.target.value)}
                      />
                   </div>
-                  <div className="flex justify-end gap-3 pt-4 border-t border-border-subtle">
-                     <button type="button" onClick={() => setIsLinkModalOpen(false)} className="px-4 py-2 text-text-soft font-medium hover:text-text-main hover:bg-surface-2 rounded-xl transition">
+                  <div className="flex justify-end gap-3 pt-4 border-t border-[#EFF3FF]">
+                     <button
+                        type="button"
+                        onClick={() => setIsLinkModalOpen(false)}
+                        className="px-4 py-2 text-xs font-bold text-[#55607A] hover:bg-[#EEF3FF] rounded-full transition-colors"
+                     >
                         Cancelar
                      </button>
-                     <button type="submit" disabled={isLinking} className="px-5 py-2 bg-brand text-white font-semibold rounded-xl hover:bg-brand-hover shadow-sm transition disabled:opacity-50">
+                     <button
+                        type="submit"
+                        disabled={isLinking}
+                        className="px-5 py-2 bg-[#1F6BFF] text-white text-xs font-bold rounded-full hover:bg-[#1657D7] shadow-sm transition-colors disabled:opacity-50"
+                     >
                         {isLinking ? 'Vinculando...' : 'Vincular Factura'}
                      </button>
                   </div>
@@ -607,114 +597,217 @@ export default function SalesBoletas() {
             )}
          </Modal>
 
-         <div className="bg-bg-content rounded-3xl p-5 border border-border-subtle shadow-sm">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 pb-5 border-b border-border-subtle">
+         {/* ========================================================
+             1. BREADCRUMBS & TITULAR
+             ======================================================== */}
+         <div className="flex flex-col gap-4">
+            <div className="flex items-center gap-1.5 text-xs text-[#8E9BB5] font-medium">
+               <span>Ingresos</span>
+               <span>&gt;</span>
+               <span className="text-[#0A1A3F]">Ventas</span>
+            </div>
+
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                <div>
-                  <h2 className="text-2xl font-bold text-heading tracking-tight">Ventas (Boletas y Facturas)</h2>
-                  <p className="text-sm text-text-soft mt-1">Gestione sus boletas y facturas electrónicas, además de ingresos manuales.</p>
+                  <h1 className="text-3xl font-black font-nunito text-[#0A1A3F] tracking-tight">
+                     Ventas (boletas y facturas)
+                  </h1>
+                  <p className="text-xs text-[#55607A] font-normal mt-1">
+                     Tus boletas y facturas electrónicas, además de los ingresos que registras a mano.
+                  </p>
                </div>
-                  <div className="flex items-center gap-2 mt-3">
+
+               {/* Pestañas superiores y Botones de Sincronización / Añadir */}
+               <div className="flex flex-wrap items-center gap-2.5">
+                  {/* Selector de tipo de ingreso */}
+                  <div className="inline-flex p-1 bg-[#EEF3FF] rounded-full items-center gap-1">
                      <button
                         type="button"
                         onClick={() => setMainTab('documents')}
-                        className={`px-3 py-1.5 text-xs font-semibold rounded-xl border transition ${
+                        className={`px-4 py-1.5 text-xs font-bold rounded-full transition-all cursor-pointer ${
                            mainTab === 'documents'
-                              ? 'bg-brand text-white border-brand shadow-xs'
-                              : 'bg-surface-1 text-text-soft border-border-subtle hover:bg-surface-2'
+                              ? 'bg-white text-[#0A1A3F] shadow-xs'
+                              : 'text-[#55607A] hover:text-[#0A1A3F]'
                         }`}
                      >
-                        Documentos Registrados
+                        Documentos electrónicos
                      </button>
                      <button
                         type="button"
                         onClick={() => setMainTab('queue')}
-                        className={`px-3 py-1.5 text-xs font-semibold rounded-xl border transition ${
+                        className={`px-4 py-1.5 text-xs font-bold rounded-full transition-all cursor-pointer ${
                            mainTab === 'queue'
-                              ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
-                              : 'bg-surface-1 text-text-soft border-border-subtle hover:bg-surface-2'
+                              ? 'bg-white text-[#0A1A3F] shadow-xs'
+                              : 'text-[#55607A] hover:text-[#0A1A3F]'
                         }`}
                      >
-                        ⚡ Cola (Bot SII)
+                        Otros (sin SII)
                      </button>
                   </div>
-               <div className="flex flex-wrap items-center gap-3">
-                  <SiiSyncButton type="boletas" onSyncSuccess={reloadData} />
+
+                  {/* Botón: Sincronizar boletas */}
+                  <SiiSyncButton
+                     type="boletas"
+                     onSyncSuccess={reloadData}
+                     className="rounded-full border border-[#E2EAFD] bg-white hover:bg-[#EEF3FF] text-[#0A1A3F] font-bold text-xs px-4 py-2 transition-colors flex items-center gap-1.5 shadow-xs whitespace-nowrap cursor-pointer"
+                     label={
+                        <>
+                           <ArrowPathIcon className="w-3.5 h-3.5 text-[#0A1A3F]" />
+                           <span>Sincronizar boletas</span>
+                        </>
+                     }
+                  />
+
+                  {/* Botón: Sincronizar facturas */}
                   <SiiSyncButton
                      type="sales-invoices"
                      onSyncSuccess={reloadData}
                      documentTypeOptions={[
                         { value: 33, label: '33 - Factura Afecta' },
                         { value: 34, label: '34 - Factura Exenta' },
-                        { value: 61, label: '61 - Nota de Credito' },
+                        { value: 61, label: '61 - Nota de Crédito' },
                      ]}
+                     className="rounded-full border border-[#E2EAFD] bg-white hover:bg-[#EEF3FF] text-[#0A1A3F] font-bold text-xs px-4 py-2 transition-colors flex items-center gap-1.5 shadow-xs whitespace-nowrap cursor-pointer"
+                     label={
+                        <>
+                           <ArrowPathIcon className="w-3.5 h-3.5 text-[#0A1A3F]" />
+                           <span>Sincronizar facturas</span>
+                        </>
+                     }
                   />
-                  <button onClick={() => setIsManualModalOpen(true)} className={`${btnCtrl} text-brand border-brand/20 bg-brand/5`} title="Añadir un nuevo ingreso manual">
-                     <PlusIcon className="w-5 h-5 stroke-2" /> <span className="hidden sm:inline">Añadir Ingreso</span>
+
+                  {/* Botón Primario: + Añadir ingreso */}
+                  <button
+                     type="button"
+                     onClick={() => setIsManualModalOpen(true)}
+                     className="rounded-full bg-[#1F6BFF] hover:bg-[#1657D7] text-white font-black text-xs px-5 py-2 transition-colors flex items-center gap-1.5 shadow-sm whitespace-nowrap cursor-pointer"
+                  >
+                     <span className="text-sm font-bold leading-none">+</span>
+                     <span>Añadir ingreso</span>
                   </button>
                </div>
             </div>
+         </div>
 
-            {mainTab === 'documents' && (
-               <div className="space-y-4">
-               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div className="flex items-center gap-2 text-sm font-semibold text-text-main">
-                     <FunnelIcon className="w-5 h-5 text-brand" /> Filtros de Búsqueda
-                  </div>
-                  <div className="flex items-center gap-3">
-                     <button onClick={handleClearFilters} disabled={loading} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-text-soft hover:text-danger hover:bg-danger/10 rounded-xl transition-colors disabled:opacity-50">
-                        <ArrowPathIcon className="w-4 h-4" /> Limpiar Filtros
-                     </button>
-                     <ViewModeToggle mode={mode} onChange={(k) => k === 'month' ? switchToMonth() : switchToRange()} />
-                  </div>
-               </div>
+         {mainTab === 'queue' ? (
+            <BoletaQueuePanel entityId={entityId} />
+         ) : (
+            <>
+               {/* ========================================================
+                   2. TARJETA DE FILTROS DE BÚSQUEDA
+                   ======================================================== */}
+               <div className="bg-white rounded-2xl border border-[#E2EAFD] p-5 shadow-xs space-y-4">
+                  {/* Cabecera del filtro */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                     <div className="flex items-center gap-2 text-sm font-bold font-nunito text-[#0A1A3F]">
+                        <FunnelIcon className="w-4 h-4 text-[#0A1A3F] stroke-[2]" />
+                        <span>Filtros de búsqueda</span>
+                     </div>
+                     <div className="flex items-center gap-4">
+                        <button
+                           type="button"
+                           onClick={handleClearFilters}
+                           disabled={loading}
+                           className="text-xs font-semibold text-[#55607A] hover:text-[#1F6BFF] flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+                        >
+                           <ArrowPathIcon className="w-3.5 h-3.5" />
+                           <span>Limpiar filtros</span>
+                        </button>
 
-               <div className="bg-surface-1 p-4 rounded-2xl border border-border-subtle/50 space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
-                     <div className="space-y-1.5 md:col-span-1">
-                        <label htmlFor="entityId" className="block text-xs font-semibold text-text-soft uppercase tracking-wider truncate" title="ID Entidad">ID Ent.</label>
-                        <input id="entityId" disabled className={ctrl} type="text" placeholder="Selecciona entidad arriba" value={entityId} />
+                        {/* Switch Por mes / Por rango */}
+                        <div className="inline-flex p-0.5 bg-[#EEF3FF] rounded-full items-center gap-0.5">
+                           <button
+                              type="button"
+                              onClick={switchToMonth}
+                              className={`px-3 py-1 text-xs font-bold rounded-full transition-all cursor-pointer ${
+                                 mode === 'month'
+                                    ? 'bg-white text-[#0A1A3F] shadow-xs'
+                                    : 'text-[#55607A] hover:text-[#0A1A3F]'
+                              }`}
+                           >
+                              Por mes
+                           </button>
+                           <button
+                              type="button"
+                              onClick={switchToRange}
+                              className={`px-3 py-1 text-xs font-bold rounded-full transition-all cursor-pointer ${
+                                 mode === 'range'
+                                    ? 'bg-white text-[#0A1A3F] shadow-xs'
+                                    : 'text-[#55607A] hover:text-[#0A1A3F]'
+                              }`}
+                           >
+                              Por rango
+                           </button>
+                        </div>
+                     </div>
+                  </div>
+
+                  {/* Campos de filtro */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-12 gap-3 items-end">
+                     {/* ID ENT. */}
+                     <div className="space-y-1 lg:col-span-1">
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-[#55607A]">ID Ent.</label>
+                        <input
+                           disabled
+                           type="text"
+                           value={entityId || ''}
+                           className="w-full h-10 px-3 text-xs font-bold rounded-xl border border-[#E2EAFD] bg-white text-[#0A1A3F]"
+                        />
                      </div>
 
-                     <div className="space-y-1.5 md:col-span-2">
-                        <label htmlFor="folioFilter" className="block text-xs font-semibold text-text-soft uppercase tracking-wider">Folio</label>
+                     {/* FOLIO */}
+                     <div className="space-y-1 lg:col-span-2">
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-[#55607A]">Folio</label>
                         <input
-                           id="folioFilter"
-                           disabled={loading}
-                           className={ctrl}
                            type="text"
                            inputMode="numeric"
-                           placeholder="Ej: 992"
+                           placeholder="Ej: 1605"
                            value={folioFilter}
                            onChange={(e) => { setFolioFilter(e.target.value); resetToFirstPage(); }}
+                           className="w-full h-10 px-3 text-xs rounded-xl border border-[#E2EAFD] bg-white text-[#0A1A3F] placeholder-[#8E9BB5] focus:outline-none focus:border-[#1F6BFF]"
                         />
                      </div>
 
-                     <div className="space-y-1.5 md:col-span-3">
-                        <label htmlFor="clientFilter" className="block text-xs font-semibold text-text-soft uppercase tracking-wider">Cliente</label>
-                        <input
-                           id="clientFilter"
-                           disabled={loading}
-                           className={ctrl}
-                           type="text"
-                           placeholder="RUT o razon social"
-                           value={clientFilter}
-                           onChange={(e) => { setClientFilter(e.target.value); resetToFirstPage(); }}
-                        />
+                     {/* CLIENTE */}
+                     <div className="space-y-1 lg:col-span-3">
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-[#55607A]">Cliente</label>
+                        <div className="relative flex items-center">
+                           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-[#8E9BB5]">
+                              <MagnifyingGlassIcon className="w-4 h-4" />
+                           </div>
+                           <input
+                              type="text"
+                              placeholder="RUT o razón social"
+                              value={clientFilter}
+                              onChange={(e) => { setClientFilter(e.target.value); resetToFirstPage(); }}
+                              className="w-full h-10 pl-9 pr-3 text-xs rounded-xl border border-[#E2EAFD] bg-white text-[#0A1A3F] placeholder-[#8E9BB5] focus:outline-none focus:border-[#1F6BFF]"
+                           />
+                        </div>
                      </div>
 
-                     <div className="space-y-1.5 md:col-span-2">
-                        <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider">Tipo</label>
-                        <select disabled={loading} className={selectCtrl} value={docType} onChange={(e) => { setDocType(e.target.value); resetToFirstPage(); }}>
+                     {/* TIPO */}
+                     <div className="space-y-1 lg:col-span-2">
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-[#55607A]">Tipo</label>
+                        <select
+                           value={docType}
+                           onChange={(e) => { setDocType(e.target.value); resetToFirstPage(); }}
+                           className="w-full h-10 px-3 text-xs rounded-xl border border-[#E2EAFD] bg-white text-[#0A1A3F] focus:outline-none focus:border-[#1F6BFF] cursor-pointer"
+                        >
                            <option value="">Todos los tipos</option>
-                           {SII_DOCUMENT_FILTERS.income.map((option) => (
-                              <option key={option.value} value={option.value}>{option.label}</option>
+                           {SII_DOCUMENT_FILTERS.income.map((opt) => (
+                              <option key={opt.value} value={opt.value}>{opt.label}</option>
                            ))}
                         </select>
                      </div>
 
-                     <div className="space-y-1.5 md:col-span-2">
-                        <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider">Origen</label>
-                        <select disabled={loading} className={selectCtrl} value={sourceFilter} onChange={(e) => { setSourceFilter(e.target.value); resetToFirstPage(); }}>
+                     {/* ORIGEN */}
+                     <div className="space-y-1 lg:col-span-1">
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-[#55607A]">Origen</label>
+                        <select
+                           value={sourceFilter}
+                           onChange={(e) => { setSourceFilter(e.target.value); resetToFirstPage(); }}
+                           className="w-full h-10 px-2 text-xs rounded-xl border border-[#E2EAFD] bg-white text-[#0A1A3F] focus:outline-none focus:border-[#1F6BFF] cursor-pointer"
+                        >
                            <option value="">Todos</option>
                            <option value="SII">SII</option>
                            <option value="BOLETA_WORKER">Emisión Automática</option>
@@ -722,17 +815,44 @@ export default function SalesBoletas() {
                         </select>
                      </div>
 
-                     <div className="md:col-span-4">
+                     {/* MES DE OPERACIÓN / RANGO */}
+                     <div className="space-y-1 lg:col-span-2">
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-[#55607A]">
+                           {mode === 'month' ? 'Mes de operación' : 'Rango de fechas'}
+                        </label>
                         {mode === 'month' ? (
-                           <MonthField value={filterMonth} contextValue={period ? periodToYYYYMM(period) : todayYYYYMM()} onChange={(v) => { setFilterMonth(v); resetToFirstPage(); }} disabled={loading} />
+                           <input
+                              type="month"
+                              value={filterMonth}
+                              onChange={(e) => { setFilterMonth(e.target.value); resetToFirstPage(); }}
+                              className="w-full h-10 px-3 text-xs font-bold rounded-xl border border-[#E2EAFD] bg-white text-[#0A1A3F] focus:outline-none focus:border-[#1F6BFF] cursor-pointer"
+                           />
                         ) : (
-                           <DateRangeField from={fromDate} to={toDate} onFrom={(v) => { setFromDate(v); resetToFirstPage(); }} onTo={(v) => { setToDate(v); resetToFirstPage(); }} disabled={loading} />
+                           <div className="flex items-center gap-1.5">
+                              <DateInput
+                                 value={fromDate}
+                                 onChange={(v) => { setFromDate(v); resetToFirstPage(); }}
+                                 className="w-full h-10 px-2 text-xs rounded-xl border border-[#E2EAFD] bg-white text-[#0A1A3F]"
+                              />
+                              <span className="text-[#8E9BB5]">-</span>
+                              <DateInput
+                                 value={toDate}
+                                 onChange={(v) => { setToDate(v); resetToFirstPage(); }}
+                                 min={fromDate || undefined}
+                                 className="w-full h-10 px-2 text-xs rounded-xl border border-[#E2EAFD] bg-white text-[#0A1A3F]"
+                              />
+                           </div>
                         )}
                      </div>
 
-                     <div className="space-y-1.5 md:col-span-2">
-                        <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider">Por Pág.</label>
-                        <select disabled={loading} className={selectCtrl} value={pageSize} onChange={(e) => { setPageSize(Math.min(200, Number(e.target.value) || 50)); resetToFirstPage(); }}>
+                     {/* POR PÁGINA */}
+                     <div className="space-y-1 lg:col-span-1">
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-[#55607A]">Por página</label>
+                        <select
+                           value={pageSize}
+                           onChange={(e) => { setPageSize(Number(e.target.value) || 50); resetToFirstPage(); }}
+                           className="w-full h-10 px-2 text-xs rounded-xl border border-[#E2EAFD] bg-white text-[#0A1A3F] focus:outline-none focus:border-[#1F6BFF] cursor-pointer"
+                        >
                            <option value={20}>20 filas</option>
                            <option value={50}>50 filas</option>
                            <option value={100}>100 filas</option>
@@ -740,10 +860,12 @@ export default function SalesBoletas() {
                      </div>
                   </div>
 
-                  {/* Filtro de Centralización: abajo del filtrador común, con ellos */}
-                  <div className="pt-3 border-t border-border-subtle/50 flex flex-wrap items-center gap-3">
-                     <span className="text-xs font-semibold text-text-soft uppercase tracking-wider">Centralización:</span>
-                     <div className="inline-flex p-1 bg-surface-2 rounded-2xl ring-1 ring-border-subtle/40 items-center gap-1 text-xs font-medium">
+                  {/* Fila inferior: Centralización */}
+                  <div className="flex items-center gap-3 pt-3 border-t border-[#EFF3FF]">
+                     <span className="text-[10px] font-bold uppercase tracking-wider text-[#55607A]">
+                        Centralización
+                     </span>
+                     <div className="inline-flex p-0.5 bg-[#EEF3FF] rounded-full items-center gap-0.5">
                         {[
                            { key: 'all', label: 'Todos' },
                            { key: 'unreconciled', label: 'Sin conciliar' },
@@ -754,10 +876,10 @@ export default function SalesBoletas() {
                               key={f.key}
                               type="button"
                               onClick={() => { setCentralizationFilter(f.key); resetToFirstPage(); }}
-                              className={`px-3 py-1.5 rounded-xl transition ${
+                              className={`px-3 py-1 text-xs font-bold rounded-full transition-all cursor-pointer ${
                                  centralizationFilter === f.key
-                                    ? 'bg-bg-content shadow ring-1 ring-border-subtle text-brand font-semibold'
-                                    : 'text-text-soft hover:text-heading'
+                                    ? 'bg-white text-[#0A1A3F] shadow-xs'
+                                    : 'text-[#55607A] hover:text-[#0A1A3F]'
                               }`}
                            >
                               {f.label}
@@ -766,197 +888,362 @@ export default function SalesBoletas() {
                      </div>
                   </div>
                </div>
-            </div>
-            )}
-         </div>
 
-         {mainTab === 'queue' ? (
-            <BoletaQueuePanel entityId={entityId} />
-         ) : (
-            <>
-               <ResumenPagina items={rows} />
+               {/* ========================================================
+                   3. CINCO TARJETAS DE CIFRAS (KPI)
+                   ======================================================== */}
+               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                  {/* Card 1: Documentos */}
+                  <div className="bg-white rounded-2xl border border-[#E2EAFD] p-4 flex items-center gap-3.5 shadow-xs">
+                     <div className="h-10 w-10 rounded-xl bg-[#EFF3FF] flex items-center justify-center text-[#1F6BFF] shrink-0">
+                        <DocumentTextIcon className="w-5 h-5 stroke-[2]" />
+                     </div>
+                     <div>
+                        <div className="text-xs text-[#55607A] font-medium">Documentos</div>
+                        <div className="text-2xl font-black font-nunito text-[#0A1A3F] mt-0.5">{intFmt.format(total || rows.length)}</div>
+                     </div>
+                  </div>
 
-         <div className="bg-bg-content rounded-3xl border border-border-subtle shadow-sm overflow-hidden">
-            {loading && <div className="p-10 text-center text-brand font-medium animate-pulse">cargando registros...</div>}
-            {err && <div className="p-10 text-center text-danger font-medium bg-danger/5">Error: {err}</div>}
+                  {/* Card 2: Exento total */}
+                  <div className="bg-white rounded-2xl border border-[#E2EAFD] p-4 flex items-center gap-3.5 shadow-xs">
+                     <div className="h-10 w-10 rounded-xl bg-[#EFF3FF] flex items-center justify-center text-[#1F6BFF] shrink-0">
+                        <DocumentDuplicateIcon className="w-5 h-5 stroke-[2]" />
+                     </div>
+                     <div>
+                        <div className="text-xs text-[#55607A] font-medium">Exento total</div>
+                        <div className="text-xl font-black font-nunito text-[#0A1A3F] tabular-nums mt-0.5">{formatClp(summaryTotals.exentoBruto)}</div>
+                     </div>
+                  </div>
 
-            {!loading && !err && (
-               <div className="overflow-x-auto">
-                  <table className="min-w-full text-sm text-left">
-                     <thead className="bg-surface-2 border-b border-border-subtle text-text-soft">
-                        <tr>
-                           <th className={`p-4 font-semibold ${sort === 'issue_date' ? 'text-brand' : ''}`}>
-                              <button type="button" className="flex items-center gap-1 hover:text-brand transition" onClick={() => { setOrder(s => (sort === 'issue_date' ? (s === 'asc' ? 'desc' : 'asc') : 'asc')); setSort('issue_date'); setPage(1); }}>
-                                 Fecha {sort === 'issue_date' ? orderArrow(order) : ''}
-                              </button>
-                           </th>
-                           <th className={`p-4 font-semibold ${sort === 'folio' ? 'text-brand' : ''}`}>
-                              <button type="button" className="flex items-center gap-1 hover:text-brand transition" onClick={() => { setOrder(s => (sort === 'folio' ? (s === 'asc' ? 'desc' : 'asc') : 'asc')); setSort('folio'); setPage(1); }}>
-                                 Folio {sort === 'folio' ? orderArrow(order) : ''}
-                              </button>
-                           </th>
-                           <th className="p-4 font-semibold text-center">Tipo</th>
-                           <th className="p-4 font-semibold">Receptor</th>
-                           <th className="p-4 font-semibold text-right">Exento</th>
-                           <th className="p-4 font-semibold text-right">Afecto</th>
-                           <th className="p-4 font-semibold text-right">IVA</th>
-                           <th className={`p-4 font-semibold text-right ${sort === 'total_amount' ? 'text-brand' : ''}`}>
-                              <button type="button" className="flex items-center gap-1 justify-end w-full hover:text-brand transition" onClick={() => { setOrder(s => (sort === 'total_amount' ? (s === 'asc' ? 'desc' : 'asc') : 'asc')); setSort('total_amount'); setPage(1); }}>
-                                 Total {sort === 'total_amount' ? orderArrow(order) : ''}
-                              </button>
-                           </th>
-                           <th className="p-4 font-semibold text-center">Estado Cobro</th>
-                           <th className="p-4 font-semibold text-center">Clasificación Contable</th>
-                           <th className="p-4 font-semibold text-center">Origen</th>
-                        </tr>
-                     </thead>
-                     <tbody className="divide-y divide-border-subtle/50">
-                        {rows.length === 0 ? (
-                           <tr><td colSpan={11} className="p-10 text-center text-text-soft italic">no se encontraron registros para los filtros aplicados.</td></tr>
-                        ) : rows.map(r => (
-                           <tr key={r.id} className="hover:bg-brand/5 transition-colors group">
-                              <td className="p-4 whitespace-nowrap">
-                                 <div className="flex items-center gap-3">
-                                    <span className="font-medium text-text-main">{fmtDate(r.date)}</span>
-                                    {r.source === 'MANUAL' && <Pill colorClass="bg-purple-100 text-purple-700 ring-purple-200 dark:bg-purple-900/30 dark:text-purple-400">manual</Pill>}
-                                 </div>
-                              </td>
-                              <td className="p-4 font-mono text-text-soft">{r.folio || '-'}</td>
-                              <td className="p-4 text-center">
-                                 <div className="flex items-center justify-center gap-2">
-                                    {r.credit_notes_applied > 0 && r.doc_type_code !== 61 && (() => {
-                                       const isAnnulled = r.credit_notes_applied >= r.total;
-                                       return (
-                                          <span
-                                             className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ring-1 ${isAnnulled ? 'text-rose-700 bg-rose-100 ring-rose-200 dark:bg-rose-500/20 dark:text-rose-300 dark:ring-rose-500/30' : 'text-blue-700 bg-blue-100 ring-blue-200 dark:bg-blue-500/20 dark:text-blue-300 dark:ring-blue-500/30'}`}
-                                             title={`Se han descontado ${clp(r.credit_notes_applied)} en Notas de Crédito`}
-                                          >
-                                             {isAnnulled ? 'Anulada por NC' : 'Corregida por NC'}
-                                          </span>
-                                       );
-                                    })()}
-                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-surface-2 text-text-main ring-1 ring-border-subtle/70">
-                                       {r.doc_type}
-                                    </span>
-                                 </div>
-                              </td>
-                              <td className="p-4 truncate max-w-[200px] text-text-main font-medium">{r.client_name || '-'}</td>
-                              <td className="p-4 text-right font-mono text-text-soft">{clp(r.exento)}</td>
-                              <td className="p-4 text-right font-mono text-text-soft">{clp(r.afecto)}</td>
-                              <td className="p-4 text-right font-mono text-text-soft">{clp(r.iva)}</td>
-                              <td className="p-4 text-right font-bold text-text-main">{clp(r.total)}</td>
-                              <td className="p-4 text-center whitespace-nowrap">
-                                 {r.is_reconciled ? (
-                                    <button
-                                       type="button"
-                                       onClick={() => handleOpenReconcile(r)}
-                                       className="inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-600 ring-1 ring-emerald-500/20 hover:bg-emerald-500/20 hover:ring-emerald-500/40 transition-all cursor-pointer shadow-none active:scale-95"
-                                       title="Ver movimientos bancarios vinculados o desconciliar"
-                                    >
-                                       <span>Cobrado</span>
-                                    </button>
-                                 ) : (
-                                    <button
-                                       type="button"
-                                       onClick={() => handleOpenReconcile(r)}
-                                       className="inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-600 ring-1 ring-amber-500/20 hover:bg-amber-500/20 hover:ring-amber-500/40 transition-all cursor-pointer shadow-none active:scale-95"
-                                       title={r.remaining_amount ? `Pendiente: ${clp(r.remaining_amount)} • Clic para conciliar con banco` : 'Clic para buscar abono bancario y conciliar'}
-                                    >
-                                       <span>Sin conciliar</span>
-                                    </button>
-                                 )}
-                              </td>
-                              <td className="p-4 text-center whitespace-nowrap">
-                                 {r.is_classified ? (
-                                    <button
-                                       type="button"
-                                       onClick={() => handleQuickClassify(r)}
-                                       className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer shadow-none active:scale-95 ${
-                                          r.is_exception
-                                             ? 'bg-purple-500/10 text-purple-700 ring-1 ring-purple-500/20 hover:bg-purple-500/20 hover:ring-purple-500/40'
-                                             : 'bg-blue-500/10 text-blue-600 ring-1 ring-blue-500/20 hover:bg-blue-500/20 hover:ring-blue-500/40'
-                                       }`}
-                                       title={r.is_exception ? `Excepción asignada a este folio: ${r.accounting_account?.code || ''} ${r.accounting_account?.name || ''}` : (r.accounting_account?.name || 'Editar clasificación')}
-                                    >
-                                       <span>{r.accounting_account?.code || (r.is_exception ? 'Excepción' : 'Clasificado')}</span>
-                                       {r.accounting_account?.name && (
-                                          <span className="text-[11px] font-normal truncate max-w-[120px]">
-                                             {r.accounting_account.name}
-                                          </span>
-                                       )}
-                                    </button>
-                                 ) : (
-                                    <button
-                                       type="button"
-                                       onClick={() => handleQuickClassify(r)}
-                                       className="inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-600 ring-1 ring-amber-500/20 hover:bg-amber-500/20 hover:ring-amber-500/40 transition-all cursor-pointer shadow-none active:scale-95"
-                                       title="Clic para clasificar con una cuenta contable"
-                                    >
-                                       <span>Sin clasificar</span>
-                                    </button>
-                                 )}
-                              </td>
-                              <td className="p-4 text-center">
-                                 <div className="inline-flex items-center gap-1.5 justify-center">
-                                    {(() => {
-                                       const badge = getSourceBadge(r.source);
-                                       return (
-                                          <span className={badge.className} title={badge.title}>
-                                             {badge.label}
-                                          </span>
-                                       );
-                                    })()}
-                                    {r.doc_type_code === 61 && !r.nce_nde_reference && (
-                                       <button onClick={() => openLinkModal(r)} className="p-1 rounded-lg text-brand hover:text-white hover:bg-brand transition cursor-pointer" title="Vincular a Factura">
-                                          <LinkIcon className="w-3.5 h-3.5" />
-                                       </button>
-                                    )}
-                                    {r.source === 'MANUAL' && (
-                                       <div className="flex items-center gap-0.5">
-                                          <button onClick={() => openEditModal(r)} className="p-1 rounded-lg text-text-soft hover:text-brand hover:bg-brand/10 transition cursor-pointer" title="Editar registro manual">
-                                             <PencilSquareIcon className="w-3.5 h-3.5" />
-                                          </button>
-                                          <button onClick={() => handleDelete(r.id)} className="p-1 rounded-lg text-text-soft hover:text-danger hover:bg-danger/10 transition cursor-pointer" title="Eliminar registro manual">
-                                             <TrashIcon className="w-3.5 h-3.5" />
-                                          </button>
-                                       </div>
-                                    )}
-                                 </div>
-                              </td>
-                           </tr>
-                        ))}
-                     </tbody>
-                     <tfoot className="bg-surface-2 border-t-2 border-border-subtle text-text-main font-bold">
-                        <tr>
-                           <td colSpan={4} className="p-4 uppercase tracking-wider text-xs text-text-soft text-right">totales de esta página:</td>
-                           <td className="p-4 text-right">{clp(pageTotals.exento)}</td>
-                           <td className="p-4 text-right">{clp(pageTotals.afecto)}</td>
-                           <td className="p-4 text-right">{clp(pageTotals.iva)}</td>
-                           <td className="p-4 text-right text-brand">{clp(pageTotals.total)}</td>
-                           <td colSpan={3}></td>
-                        </tr>
-                     </tfoot>
-                  </table>
-               </div>
-            )}
-         </div>
+                  {/* Card 3: Afecto + IVA total */}
+                  <div className="bg-white rounded-2xl border border-[#E2EAFD] p-4 flex items-center gap-3.5 shadow-xs">
+                     <div className="h-10 w-10 rounded-xl bg-[#EFF3FF] flex items-center justify-center text-[#1F6BFF] shrink-0">
+                        <ChartBarIcon className="w-5 h-5 stroke-[2]" />
+                     </div>
+                     <div>
+                        <div className="text-xs text-[#55607A] font-medium">Afecto + IVA total</div>
+                        <div className="text-xl font-black font-nunito text-[#0A1A3F] tabular-nums mt-0.5">{formatClp(summaryTotals.afectoIvaBruto)}</div>
+                     </div>
+                  </div>
 
-         {!loading && !err && total > 0 && (
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-sm bg-bg-content p-4 rounded-3xl border border-border-subtle shadow-sm">
-               <div className="text-text-soft font-medium">
-                  {showingLabel} - Página <span className="text-text-main font-bold">{intFmt.format(page)}</span> de {intFmt.format(totalPages)}
-               </div>
-               <div className="flex items-center gap-3">
-                  <button onClick={exportCSV} disabled={exportingCsv || !total} className="px-4 py-2 bg-surface-2 hover:bg-surface-1 text-text-main rounded-xl font-medium transition border border-border-subtle disabled:opacity-50">
-                     {exportingCsv ? 'exportando...' : 'exportar csv'}
-                  </button>
-                  <div className="flex gap-1">
-                     <button className="px-4 py-2 bg-brand/10 text-brand rounded-xl font-bold hover:bg-brand hover:text-white transition disabled:opacity-30 disabled:pointer-events-none" onClick={() => setPage(p => p - 1)} disabled={!hasPrev}>anterior</button>
-                     <button className="px-4 py-2 bg-brand/10 text-brand rounded-xl font-bold hover:bg-brand hover:text-white transition disabled:opacity-30 disabled:pointer-events-none" onClick={() => setPage(p => p + 1)} disabled={!hasNext}>siguiente</button>
+                  {/* Card 4: Notas de crédito */}
+                  <div className="bg-white rounded-2xl border border-[#E2EAFD] p-4 flex items-center gap-3.5 shadow-xs">
+                     <div className="h-10 w-10 rounded-xl bg-[#EFF3FF] flex items-center justify-center text-[#1F6BFF] shrink-0">
+                        <ReceiptRefundIcon className="w-5 h-5 stroke-[2]" />
+                     </div>
+                     <div>
+                        <div className="text-xs text-[#55607A] font-medium">Notas de crédito</div>
+                        <div className="text-xl font-black font-nunito text-[#0A1A3F] tabular-nums mt-0.5">
+                           {summaryTotals.notasCredito > 0 ? `-$ ${intFmt.format(summaryTotals.notasCredito)}` : '-$ 0'}
+                        </div>
+                     </div>
+                  </div>
+
+                  {/* Card 5: Total final (Tarjeta Azul Vivo Oficial) */}
+                  <div className="col-span-2 lg:col-span-1 bg-[#1F6BFF] text-white rounded-2xl p-4 flex items-center gap-3.5 shadow-sm">
+                     <div className="h-10 w-10 rounded-full bg-white/20 flex items-center justify-center text-white shrink-0">
+                        <CheckIcon className="w-5 h-5 stroke-[3]" />
+                     </div>
+                     <div>
+                        <div className="text-xs text-white/80 font-medium">Total final</div>
+                        <div className="text-xl font-black font-nunito text-white tabular-nums mt-0.5">{formatClp(summaryTotals.totalFinal)}</div>
+                     </div>
                   </div>
                </div>
-            </div>
-         )}
+
+               {/* ========================================================
+                   4. TABLA DE DOCUMENTOS
+                   ======================================================== */}
+               <div className="bg-white rounded-2xl border border-[#E2EAFD] p-6 shadow-xs space-y-4">
+                  {/* Encabezado de la tabla */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                     <div>
+                        <h2 className="text-base font-bold font-nunito text-[#0A1A3F]">
+                           Documentos
+                        </h2>
+                        <p className="text-xs text-[#55607A] mt-0.5">
+                           {intFmt.format(total || rows.length)} documentos en {periodMonthText} {currentYearNumber}
+                        </p>
+                     </div>
+                     <button
+                        type="button"
+                        onClick={exportCSV}
+                        disabled={exportingCsv || !total}
+                        className="text-xs font-semibold text-[#55607A] hover:text-[#1F6BFF] flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+                     >
+                        <ArrowDownTrayIcon className="w-4 h-4" />
+                        <span>{exportingCsv ? 'Exportando...' : 'Exportar Excel'}</span>
+                     </button>
+                  </div>
+
+                  {/* Tabla */}
+                  {loading && (
+                     <div className="py-12 text-center text-[#1F6BFF] font-semibold text-xs animate-pulse">
+                        Cargando documentos...
+                     </div>
+                  )}
+
+                  {err && (
+                     <div className="py-8 text-center text-red-600 font-semibold text-xs">
+                        Error al cargar documentos: {err}
+                     </div>
+                  )}
+
+                  {!loading && !err && (
+                     <div className="overflow-x-auto">
+                        <table className="min-w-full text-left">
+                           <thead>
+                              <tr className="border-b border-[#E2EAFD] text-xs font-bold text-[#55607A]">
+                                 <th className="py-3 px-3">
+                                    <button
+                                       type="button"
+                                       className="flex items-center gap-1 hover:text-[#1F6BFF] transition-colors"
+                                       onClick={() => {
+                                          setOrder((s) => (sort === 'issue_date' ? (s === 'asc' ? 'desc' : 'asc') : 'desc'));
+                                          setSort('issue_date');
+                                          setPage(1);
+                                       }}
+                                    >
+                                       <span>Fecha</span>
+                                       <span className="text-[10px]">{sort === 'issue_date' ? (order === 'asc' ? '↑' : '↓') : '⇅'}</span>
+                                    </button>
+                                 </th>
+                                 <th className="py-3 px-3">
+                                    <button
+                                       type="button"
+                                       className="flex items-center gap-1 hover:text-[#1F6BFF] transition-colors"
+                                       onClick={() => {
+                                          setOrder((s) => (sort === 'folio' ? (s === 'asc' ? 'desc' : 'asc') : 'desc'));
+                                          setSort('folio');
+                                          setPage(1);
+                                       }}
+                                    >
+                                       <span>Folio</span>
+                                       <span className="text-[10px]">{sort === 'folio' ? (order === 'asc' ? '↑' : '↓') : '⇅'}</span>
+                                    </button>
+                                 </th>
+                                 <th className="py-3 px-3 text-center">Tipo</th>
+                                 <th className="py-3 px-3">Receptor</th>
+                                 <th className="py-3 px-3 text-right">Exento</th>
+                                 <th className="py-3 px-3 text-right">Afecto</th>
+                                 <th className="py-3 px-3 text-right">IVA</th>
+                                 <th className="py-3 px-3 text-right">
+                                    <button
+                                       type="button"
+                                       className="flex items-center gap-1 justify-end w-full hover:text-[#1F6BFF] transition-colors"
+                                       onClick={() => {
+                                          setOrder((s) => (sort === 'total_amount' ? (s === 'asc' ? 'desc' : 'asc') : 'desc'));
+                                          setSort('total_amount');
+                                          setPage(1);
+                                       }}
+                                    >
+                                       <span>Total</span>
+                                       <span className="text-[10px]">{sort === 'total_amount' ? (order === 'asc' ? '↑' : '↓') : '⇅'}</span>
+                                    </button>
+                                 </th>
+                                 <th className="py-3 px-3 text-center">Cobro</th>
+                                 <th className="py-3 px-3 text-center">Clasificación</th>
+                                 <th className="py-3 px-3 text-center">Origen</th>
+                              </tr>
+                           </thead>
+                           <tbody className="divide-y divide-[#EFF3FF]">
+                              {rows.length === 0 ? (
+                                 <tr>
+                                    <td colSpan={11} className="py-12 text-center text-xs text-[#8E9BB5] italic">
+                                       No se encontraron documentos para los filtros aplicados.
+                                    </td>
+                                 </tr>
+                              ) : (
+                                 rows.map((r) => (
+                                    <tr key={r.id} className="hover:bg-[#F8FAFF] transition-colors group">
+                                       {/* Fecha */}
+                                       <td className="py-3.5 px-3 text-xs font-medium text-[#0A1A3F] tabular-nums whitespace-nowrap">
+                                          {fmtDateChilean(r.date)}
+                                       </td>
+
+                                       {/* Folio */}
+                                       <td className="py-3.5 px-3 text-xs font-bold text-[#0A1A3F] font-nunito whitespace-nowrap">
+                                          {r.folio || '—'}
+                                       </td>
+
+                                       {/* Tipo (Badge oficial dual) */}
+                                       <td className="py-3.5 px-3 text-center whitespace-nowrap">
+                                          <div className="flex items-center justify-center gap-1.5">
+                                             <DocTypeBadge code={r.doc_type_code} name={r.doc_type} />
+                                             {r.credit_notes_applied > 0 && r.doc_type_code !== 61 && (
+                                                <span
+                                                   className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700"
+                                                   title={`Se han descontado ${formatClp(r.credit_notes_applied)} en Notas de Crédito`}
+                                                >
+                                                   {r.credit_notes_applied >= r.total ? 'Anulada' : 'Corregida'}
+                                                </span>
+                                             )}
+                                          </div>
+                                       </td>
+
+                                       {/* Receptor */}
+                                       <td className="py-3.5 px-3 min-w-[180px] max-w-[260px]">
+                                          <div className="text-xs font-bold text-[#0A1A3F] truncate">
+                                             {r.client_name || r.counterparty_name || 'Sin nombre'}
+                                          </div>
+                                          {r.counterparty_rut && (
+                                             <div className="text-[11px] text-[#8E9BB5] font-medium mt-0.5">
+                                                {r.counterparty_rut}
+                                             </div>
+                                          )}
+                                       </td>
+
+                                       {/* Exento */}
+                                       <td className="py-3.5 px-3 text-xs text-[#55607A] tabular-nums text-right whitespace-nowrap">
+                                          {r.exento > 0 ? formatClp(r.exento) : '—'}
+                                       </td>
+
+                                       {/* Afecto */}
+                                       <td className="py-3.5 px-3 text-xs text-[#55607A] tabular-nums text-right whitespace-nowrap">
+                                          {r.afecto > 0 ? formatClp(r.afecto) : '—'}
+                                       </td>
+
+                                       {/* IVA */}
+                                       <td className="py-3.5 px-3 text-xs text-[#55607A] tabular-nums text-right whitespace-nowrap">
+                                          {r.iva > 0 ? formatClp(r.iva) : '—'}
+                                       </td>
+
+                                       {/* Total */}
+                                       <td className="py-3.5 px-3 text-xs font-bold text-[#0A1A3F] tabular-nums text-right whitespace-nowrap">
+                                          {formatClp(r.total)}
+                                       </td>
+
+                                       {/* Cobro */}
+                                       <td className="py-3.5 px-3 text-center whitespace-nowrap">
+                                          {r.is_reconciled ? (
+                                             <button
+                                                type="button"
+                                                onClick={() => handleOpenReconcile(r)}
+                                                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-[#EEF3FF] text-[#1F6BFF] hover:bg-[#DCE5FF] transition-colors cursor-pointer shadow-xs"
+                                                title="Cobrado y conciliado con banco"
+                                             >
+                                                <span className="w-1.5 h-1.5 rounded-full bg-[#1F6BFF]" />
+                                                <span>Cobrado</span>
+                                             </button>
+                                          ) : (
+                                             <button
+                                                type="button"
+                                                onClick={() => handleOpenReconcile(r)}
+                                                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-[#0A1A3F] text-white hover:bg-[#13285C] transition-colors cursor-pointer shadow-xs"
+                                                title={r.remaining_amount ? `Pendiente: ${formatClp(r.remaining_amount)}` : 'Pendiente de cobro'}
+                                             >
+                                                <span className="w-1.5 h-1.5 rounded-full bg-white" />
+                                                <span>Pendiente</span>
+                                             </button>
+                                          )}
+                                       </td>
+
+                                       {/* Clasificación */}
+                                       <td className="py-3.5 px-3 text-center whitespace-nowrap">
+                                          {r.is_classified ? (
+                                             <button
+                                                type="button"
+                                                onClick={() => handleQuickClassify(r)}
+                                                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-[#EEF3FF] text-[#1F6BFF] hover:bg-[#DCE5FF] transition-colors cursor-pointer shadow-xs"
+                                                title={r.accounting_account?.name || 'Clasificado'}
+                                             >
+                                                <span className="w-1.5 h-1.5 rounded-full bg-[#1F6BFF]" />
+                                                <span>Clasificado</span>
+                                             </button>
+                                          ) : (
+                                             <button
+                                                type="button"
+                                                onClick={() => handleQuickClassify(r)}
+                                                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border border-[#E2EAFD] bg-white text-[#0A1A3F] hover:bg-[#EEF3FF] transition-colors cursor-pointer shadow-xs"
+                                                title="Sin clasificar contablemente"
+                                             >
+                                                <span className="w-2 h-2 rounded-full border border-[#55607A]" />
+                                                <span>Sin clasificar</span>
+                                             </button>
+                                          )}
+                                       </td>
+
+                                       {/* Origen */}
+                                       <td className="py-3.5 px-3 text-center whitespace-nowrap">
+                                          <div className="inline-flex items-center gap-1.5 justify-center">
+                                             <span className="bg-[#EEF3FF] text-[#55607A] text-[10px] font-bold px-2 py-0.5 rounded uppercase">
+                                                {r.source === 'MANUAL' ? 'Manual' : 'SII'}
+                                             </span>
+
+                                             {r.doc_type_code === 61 && !r.nce_nde_reference && (
+                                                <button
+                                                   type="button"
+                                                   onClick={() => openLinkModal(r)}
+                                                   className="p-1 rounded-lg text-[#1F6BFF] hover:bg-[#EFF3FF] transition-colors"
+                                                   title="Vincular a Factura"
+                                                >
+                                                   <LinkIcon className="w-3.5 h-3.5" />
+                                                </button>
+                                             )}
+
+                                             {r.source === 'MANUAL' && (
+                                                <div className="flex items-center gap-0.5">
+                                                   <button
+                                                      type="button"
+                                                      onClick={() => openEditModal(r)}
+                                                      className="p-1 rounded-lg text-[#55607A] hover:text-[#1F6BFF] hover:bg-[#EFF3FF] transition-colors"
+                                                      title="Editar registro manual"
+                                                   >
+                                                      <PencilSquareIcon className="w-3.5 h-3.5" />
+                                                   </button>
+                                                   <button
+                                                      type="button"
+                                                      onClick={() => handleDelete(r.id)}
+                                                      className="p-1 rounded-lg text-[#55607A] hover:text-red-600 hover:bg-red-50 transition-colors"
+                                                      title="Eliminar registro manual"
+                                                   >
+                                                      <TrashIcon className="w-3.5 h-3.5" />
+                                                   </button>
+                                                </div>
+                                             )}
+                                          </div>
+                                       </td>
+                                    </tr>
+                                 ))
+                              )}
+                           </tbody>
+                        </table>
+                     </div>
+                  )}
+
+                  {/* Paginación */}
+                  {!loading && !err && total > 0 && (
+                     <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-[#EFF3FF] text-xs font-medium text-[#55607A]">
+                        <div>
+                           Mostrando {intFmt.format(start)}–{intFmt.format(end)} de {intFmt.format(total)}
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                           <button
+                              type="button"
+                              onClick={() => setPage((p) => Math.max(1, p - 1))}
+                              disabled={!hasPrev}
+                              className="p-1.5 rounded-lg border border-[#E2EAFD] hover:bg-[#EEF3FF] disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                           >
+                              <ChevronLeftIcon className="w-4 h-4 text-[#0A1A3F]" />
+                           </button>
+
+                           <div className="w-7 h-7 rounded-full bg-[#1F6BFF] text-white font-bold text-xs flex items-center justify-center shadow-xs">
+                              {intFmt.format(page)}
+                           </div>
+
+                           <button
+                              type="button"
+                              onClick={() => setPage((p) => p + 1)}
+                              disabled={!hasNext}
+                              className="p-1.5 rounded-lg border border-[#E2EAFD] hover:bg-[#EEF3FF] disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                           >
+                              <ChevronRightIcon className="w-4 h-4 text-[#0A1A3F]" />
+                           </button>
+                        </div>
+                     </div>
+                  )}
+               </div>
             </>
          )}
       </div>
