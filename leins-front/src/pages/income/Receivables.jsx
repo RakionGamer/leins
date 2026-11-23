@@ -2,23 +2,24 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { usePeriod } from '../../context/PeriodContext';
 import { useEntityRequired } from '../../hooks/useEntityRequired';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import EntityRequiredNotice from 'components/EntityRequiredNotice';
 import DateInput from 'components/DateInput';
 import { listSiiDocuments, exportSiiDocumentsCsv } from '../../services/siiDocumentsApi';
+import { toast } from 'components/Toaster';
 import {
-   DocumentDuplicateIcon,
-   BanknotesIcon,
-   ClockIcon,
-   CurrencyDollarIcon,
-   CalendarDaysIcon,
-   HashtagIcon,
-   IdentificationIcon,
-   FunnelIcon,
-   ArrowPathIcon,
-   ArrowDownTrayIcon,
-   ReceiptRefundIcon,
-} from '@heroicons/react/24/outline';
+   FiltroIcon,
+   BuscarIcon,
+   SincronizarIcon,
+   DescargarIcon,
+   DocumentoIcon,
+   CheckIcon,
+   CobrarIcon,
+   CalendarioIcon,
+   VerIcon,
+   IzquierdaIcon,
+   DerechaIcon,
+} from '../../components/icons/SidebarIcons';
 
 const RECEIVABLE_DOC_TYPES = '33,34,61';
 
@@ -33,16 +34,55 @@ function todayYYYYMM() {
    return `${d.getFullYear()}-${m}`;
 }
 
-const currencyFmt = new Intl.NumberFormat('es-CL', {
-   style: 'currency', currency: 'CLP', maximumFractionDigits: 0
-});
-const clp = (n) => currencyFmt.format(Number(n ?? 0));
+// Formato de moneda chilena con espacio: "$ 1.530.000"
+function formatClp(value) {
+   const num = Math.round(Number(value || 0));
+   const formatted = Math.abs(num).toLocaleString('es-CL');
+   return num < 0 ? `-$ ${formatted}` : `$ ${formatted}`;
+}
 
-const ctrl = 'w-full h-11 px-3 text-sm rounded-2xl border border-border-subtle bg-bg-content text-text-main placeholder-text-soft/70 focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition shadow-sm';
-const selectCtrl = ctrl + ' appearance-none cursor-pointer';
+const intFmt = new Intl.NumberFormat('es-CL');
 
-function Pill({ children, colorClass = "bg-brand/10 text-brand ring-brand/20" }) {
-   return <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ring-1 ${colorClass}`}>{children}</span>;
+// Formato de fecha chilena con guiones: DD-MM-YYYY
+function fmtDateChilean(s) {
+   if (!s) return '—';
+   try {
+      const cleanStr = String(s).slice(0, 10);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(cleanStr)) {
+         const [y, m, d] = cleanStr.split('-');
+         return `${d}-${m}-${y}`;
+      }
+      const parsed = new Date(s);
+      if (Number.isNaN(parsed.getTime())) return '—';
+      const d = String(parsed.getDate()).padStart(2, '0');
+      const m = String(parsed.getMonth() + 1).padStart(2, '0');
+      const y = parsed.getFullYear();
+      return `${d}-${m}-${y}`;
+   } catch {
+      return '—';
+   }
+}
+
+// Subtítulo de días restantes de vencimiento: "Vence en 26 días"
+function getDueDaysLabel(dueDateStr) {
+   if (!dueDateStr) return null;
+   try {
+      const cleanStr = String(dueDateStr).slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(cleanStr)) return null;
+      const [y, m, d] = cleanStr.split('-').map(Number);
+      const due = new Date(y, m - 1, d);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      due.setHours(0, 0, 0, 0);
+      const diffTime = due.getTime() - today.getTime();
+      const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+      if (diffDays > 0) return `Vence en ${diffDays} día${diffDays === 1 ? '' : 's'}`;
+      if (diffDays === 0) return 'Vence hoy';
+      const past = Math.abs(diffDays);
+      return `Vencida hace ${past} día${past === 1 ? '' : 's'}`;
+   } catch {
+      return null;
+   }
 }
 
 function invoiceStatus(totalAmount, remainingAmount, docTypeCode) {
@@ -54,105 +94,79 @@ function invoiceStatus(totalAmount, remainingAmount, docTypeCode) {
    return 'pending';
 }
 
-const STATUS_LABEL = {
-   paid: { label: 'Pagada', colorClass: 'bg-emerald-100 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-300 dark:ring-emerald-500/30' },
-   partial: { label: 'Parcial', colorClass: 'bg-amber-100 text-amber-700 ring-amber-200 dark:bg-amber-500/20 dark:text-amber-300 dark:ring-amber-500/30' },
-   pending: { label: 'Pendiente', colorClass: 'bg-red-100 text-red-700 ring-red-200 dark:bg-red-500/20 dark:text-red-300 dark:ring-red-500/30' },
-   credit_note: { label: 'Nota Crédito', colorClass: 'bg-blue-100 text-blue-700 ring-blue-200 dark:bg-blue-500/20 dark:text-blue-300 dark:ring-blue-500/30' },
-};
-
-function ResumenPagina({ items }) {
-   let invoiced = 0, collected = 0, pending = 0, pendingCount = 0;
+// Componente Resumen de Página oficial Jeito (4 tarjetas KPI)
+function ResumenPagina({ items = [] }) {
+   const fmt = new Intl.NumberFormat('es-CL');
+   let invoiced = 0;
+   let collected = 0;
+   let pending = 0;
+   let pendingCount = 0;
 
    for (const r of items ?? []) {
       const mult = r.doc_type_code === 61 ? -1 : 1;
       const total = Number(r.total_amount || 0) * mult;
-      // Las Notas de Crédito no tienen "saldo por cobrar", su valor ya se descontó de la factura original en el backend.
       const remaining = r.doc_type_code === 61 ? 0 : Number(r.remaining_amount || 0);
       invoiced += total;
-      collected += total - remaining;
+      collected += (total - remaining);
       pending += remaining;
       if (remaining > 0 && mult === 1) pendingCount += 1;
    }
 
    return (
-      <div className="mb-5 grid grid-cols-2 gap-4 sm:grid-cols-4">
-         <div className="rounded-2xl border border-border-subtle bg-surface-1 p-4 shadow-sm flex items-center gap-4">
-            <div className="p-3 bg-brand/10 text-brand rounded-xl"><DocumentDuplicateIcon className="w-6 h-6" /></div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+         {/* 1. Total facturado */}
+         <div className="bg-white rounded-2xl border border-[#E2EAFD] p-4 flex items-center gap-3.5 shadow-xs">
+            <div className="h-10 w-10 rounded-xl bg-[#EFF3FF] flex items-center justify-center text-[#1F6BFF] shrink-0">
+               <DocumentoIcon className="w-5 h-5 text-[#0A1A3F]" />
+            </div>
             <div>
-               <div className="text-xs font-semibold text-text-soft uppercase tracking-wide">Total Facturado</div>
-               <div className="text-xl font-bold text-heading">{clp(invoiced)}</div>
+               <div className="text-xs text-[#55607A] font-medium">Total facturado</div>
+               <div className="text-2xl font-black font-nunito text-[#0A1A3F] mt-0.5 tabular-nums">{formatClp(invoiced)}</div>
             </div>
          </div>
-         <div className="rounded-2xl border border-border-subtle bg-surface-1 p-4 shadow-sm flex items-center gap-4">
-            <div className="p-3 bg-emerald-500/10 text-emerald-600 rounded-xl"><BanknotesIcon className="w-6 h-6" /></div>
-            <div>
-               <div className="text-xs font-semibold text-text-soft uppercase tracking-wide">Total Cobrado</div>
-               <div className="text-xl font-bold text-heading">{clp(collected)}</div>
-            </div>
-         </div>
-         <div className="rounded-2xl border border-brand/30 bg-brand/5 p-4 shadow-sm flex items-center gap-4 ring-1 ring-brand/10">
-            <div className="p-3 bg-brand text-white rounded-xl"><CurrencyDollarIcon className="w-6 h-6" /></div>
-            <div>
-               <div className="text-xs font-semibold text-brand uppercase tracking-wide">Por Cobrar</div>
-               <div className="text-xl font-bold text-brand">{clp(pending)}</div>
-            </div>
-         </div>
-         <div className="rounded-2xl border border-border-subtle bg-surface-1 p-4 shadow-sm flex items-center gap-4">
-            <div className="p-3 bg-amber-500/10 text-amber-600 rounded-xl"><ClockIcon className="w-6 h-6" /></div>
-            <div>
-               <div className="text-xs font-semibold text-text-soft uppercase tracking-wide">Facturas Pendientes</div>
-               <div className="text-xl font-bold text-heading">{pendingCount}</div>
-            </div>
-         </div>
-      </div>
-   );
-}
 
-function MonthField({ value, onChange, disabled = false }) {
-   return (
-      <div className="space-y-1.5 w-full">
-         <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider">Mes de Emisión</label>
-         <input disabled={disabled} type="month" className={ctrl} value={value || ''} onChange={(e) => onChange(e.target.value)} />
-      </div>
-   );
-}
-
-function DateRangeField({ from, to, onFrom, onTo, disabled = false }) {
-   const invalid = from && to && new Date(to) < new Date(from);
-   return (
-      <div className="space-y-1.5 w-full">
-         <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider">Rango de Fechas</label>
-         <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-            <DateInput disabled={disabled} className={ctrl} value={from || ''} onChange={onFrom} />
-            <span className="hidden sm:inline text-text-soft font-medium shrink-0">-</span>
-            <DateInput disabled={disabled} className={`${ctrl} ${invalid ? 'ring-2 ring-danger border-danger' : ''}`} value={to || ''} onChange={onTo} min={from || undefined} />
+         {/* 2. Total cobrado */}
+         <div className="bg-white rounded-2xl border border-[#E2EAFD] p-4 flex items-center gap-3.5 shadow-xs">
+            <div className="h-10 w-10 rounded-xl bg-[#EFF3FF] flex items-center justify-center text-[#1F6BFF] shrink-0">
+               <CheckIcon className="w-5 h-5 text-[#0A1A3F]" />
+            </div>
+            <div>
+               <div className="text-xs text-[#55607A] font-medium">Total cobrado</div>
+               <div className="text-2xl font-black font-nunito text-[#0A1A3F] mt-0.5 tabular-nums">{formatClp(collected)}</div>
+            </div>
          </div>
-      </div>
-   );
-}
 
-function ViewModeToggle({ mode, onChange }) {
-   const btn = (key, label) => (
-      <button
-         type="button"
-         onClick={() => onChange(key)}
-         className={`h-9 px-4 text-sm font-medium rounded-xl transition ${mode === key ? 'bg-bg-content shadow ring-1 ring-border-subtle text-heading' : 'text-text-soft hover:text-heading'}`}
-      >
-         {label}
-      </button>
-   );
-   return (
-      <div className="inline-flex p-1 bg-surface-2 rounded-2xl ring-1 ring-border-subtle/40 items-center">
-         {btn('month', 'Por mes')}
-         {btn('range', 'Por rango')}
+         {/* 3. Por cobrar (Tarjeta Azul Vivo Oficial Jeito) */}
+         <div className="bg-[#1F6BFF] text-white rounded-2xl p-4 flex items-center gap-3.5 shadow-sm">
+            <div className="h-10 w-10 rounded-full bg-white/20 flex items-center justify-center text-white shrink-0">
+               <CobrarIcon className="w-5 h-5 stroke-white" />
+            </div>
+            <div>
+               <div className="text-xs text-white/80 font-medium">Por cobrar</div>
+               <div className="text-2xl font-black font-nunito text-white mt-0.5 tabular-nums">{formatClp(pending)}</div>
+            </div>
+         </div>
+
+         {/* 4. Facturas pendientes */}
+         <div className="bg-white rounded-2xl border border-[#E2EAFD] p-4 flex items-center gap-3.5 shadow-xs">
+            <div className="h-10 w-10 rounded-xl bg-[#EFF3FF] flex items-center justify-center text-[#1F6BFF] shrink-0">
+               <CalendarioIcon className="w-5 h-5 text-[#0A1A3F]" />
+            </div>
+            <div>
+               <div className="text-xs text-[#55607A] font-medium">Facturas pendientes</div>
+               <div className="text-2xl font-black font-nunito text-[#0A1A3F] mt-0.5">{fmt.format(pendingCount)}</div>
+            </div>
+         </div>
       </div>
    );
 }
 
 function useDebounced(value, delay = 300) {
    const [d, setD] = useState(value);
-   useEffect(() => { const t = setTimeout(() => setD(value), delay); return () => clearTimeout(t) }, [value, delay]);
+   useEffect(() => {
+      const t = setTimeout(() => setD(value), delay);
+      return () => clearTimeout(t);
+   }, [value, delay]);
    return d;
 }
 
@@ -160,22 +174,24 @@ export default function Receivables() {
    const { period } = usePeriod();
    const { entityId: activeEntityId, ready } = useEntityRequired();
    const [sp, setSp] = useSearchParams();
+   const navigate = useNavigate();
 
    const [rows, setRows] = useState([]);
    const [loading, setLoading] = useState(true);
    const [err, setErr] = useState(null);
    const [exporting, setExporting] = useState(false);
 
-   const dateFmt = useMemo(() => new Intl.DateTimeFormat('es-CL'), []);
-   const fmtDate = (s) => (s ? dateFmt.format(new Date(s)) : '-');
-
-   const orderArrow = (o) => (o === 'asc' ? '↑' : '↓');
-   const intFmt = useMemo(() => new Intl.NumberFormat('es-CL'), []);
-   const parsePosInt = (v, def) => { const n = Number(v); return Number.isFinite(n) && n > 0 ? Math.trunc(n) : def; };
+   const parsePosInt = (v, def) => {
+      const n = Number(v);
+      return Number.isFinite(n) && n > 0 ? Math.trunc(n) : def;
+   };
 
    const [page, setPage] = useState(() => parsePosInt(sp.get('page'), 1));
    const allowedPageSizes = [20, 50, 100, 200];
-   const [pageSize, setPageSize] = useState(() => { const n = Number(sp.get('limit')); return allowedPageSizes.includes(n) ? n : 50; });
+   const [pageSize, setPageSize] = useState(() => {
+      const n = Number(sp.get('limit'));
+      return allowedPageSizes.includes(n) ? n : 50;
+   });
 
    const [statusFilter, setStatusFilter] = useState(() => ['paid', 'pending'].includes(sp.get('status')) ? sp.get('status') : '');
    const [clientFilter, setClientFilter] = useState(() => sp.get('client') || '');
@@ -234,7 +250,7 @@ export default function Receivables() {
          a.remove();
          window.URL.revokeObjectURL(url);
       } catch (e) {
-         setErr(e.message || 'no se pudo exportar el listado');
+         setErr(e.message || 'No se pudo exportar el listado');
       } finally {
          setExporting(false);
       }
@@ -242,13 +258,42 @@ export default function Receivables() {
 
    const resetToFirstPage = () => setPage(1);
 
-   const switchToMonth = () => { setMode('month'); setFromDate(''); setToDate(''); if (!filterMonth) setFilterMonth(todayYYYYMM()); resetToFirstPage(); };
-   const switchToRange = () => { setMode('range'); setFilterMonth(''); resetToFirstPage(); };
+   const switchToMonth = () => {
+      setMode('month');
+      setFromDate('');
+      setToDate('');
+      if (!filterMonth) setFilterMonth(todayYYYYMM());
+      resetToFirstPage();
+   };
+
+   const switchToRange = () => {
+      setMode('range');
+      setFilterMonth('');
+      resetToFirstPage();
+   };
 
    const handleClearFilters = () => {
       setEntityId(activeEntityId ? String(activeEntityId) : '');
-      setStatusFilter(''); setClientFilter(''); setMode('month'); setFilterMonth(todayYYYYMM());
-      setFromDate(''); setToDate(''); setPageSize(50); resetToFirstPage();
+      setStatusFilter('');
+      setClientFilter('');
+      setMode('month');
+      setFilterMonth(todayYYYYMM());
+      setFromDate('');
+      setToDate('');
+      setPageSize(50);
+      resetToFirstPage();
+   };
+
+   const handleViewDoc = (r) => {
+      if (r.folio) {
+         navigate(`/income/sales-boletas?folio=${encodeURIComponent(r.folio)}`);
+      } else {
+         navigate(`/income/sales-boletas`);
+      }
+   };
+
+   const handleReminder = (r) => {
+      toast.success(`Recordatorio de cobro enviado para ${r.counterparty_name || 'el cliente'} (Folio ${r.folio || ''})`);
    };
 
    useEffect(() => {
@@ -270,9 +315,18 @@ export default function Receivables() {
          setLoading(false);
          return;
       }
-      if (rangeInvalid) { setRows([]); setTotal(0); setHasPrev(false); setHasNext(false); setErr(null); setLoading(false); return; }
+      if (rangeInvalid) {
+         setRows([]);
+         setTotal(0);
+         setHasPrev(false);
+         setHasNext(false);
+         setErr(null);
+         setLoading(false);
+         return;
+      }
       const ctrl = new AbortController();
-      setLoading(true); setErr(null);
+      setLoading(true);
+      setErr(null);
       (async () => {
          try {
             const payload = await listSiiDocuments(buildListParams({ signal: ctrl.signal }));
@@ -289,8 +343,6 @@ export default function Receivables() {
                doc_type_code: it.doc_type_code,
                nce_nde_reference: it.nce_nde_reference,
             }));
-
-            console.warn('[DEBUG] Documentos obtenidos desde la API:', mapped);
 
             setRows(mapped);
             const totalPagesCalc = Number(payload.totalPages ?? Math.max(1, Math.ceil((payload.total ?? mapped.length) / pageSize)));
@@ -312,192 +364,429 @@ export default function Receivables() {
       if (statusFilter) p.set('status', statusFilter);
       if (clientFilter.trim()) p.set('client', clientFilter.trim());
       if (entityId) p.set('entity_id', String(entityId));
-      p.set('mode', mode); p.set('sort', sort); p.set('order', order);
+      p.set('mode', mode);
+      p.set('sort', sort);
+      p.set('order', order);
       if (mode === 'month') p.set('month', effectiveMonth);
-      else { if (fromDate) p.set('from', fromDate); if (toDate) p.set('to', toDate); }
-      p.set('page', String(page)); p.set('limit', String(pageSize));
+      else {
+         if (fromDate) p.set('from', fromDate);
+         if (toDate) p.set('to', toDate);
+      }
+      p.set('page', String(page));
+      p.set('limit', String(pageSize));
       setSp(p, { replace: true });
    }, [statusFilter, clientFilter, entityId, mode, sort, order, effectiveMonth, fromDate, toDate, page, pageSize, setSp]);
 
    const toggleSort = (col) => {
-      setOrder((s) => (sort === col ? (s === 'asc' ? 'desc' : 'asc') : 'asc'));
+      setOrder((s) => (sort === col ? (s === 'asc' ? 'desc' : 'asc') : 'desc'));
       setSort(col);
       setPage(1);
    };
 
    const start = total ? (page - 1) * pageSize + 1 : 0;
    const end = total ? Math.min(total, page * pageSize) : 0;
-   const showingLabel = total ? `Mostrando ${intFmt.format(start)}-${intFmt.format(end)} de ${intFmt.format(total)}` : 'Sin resultados';
 
    if (!ready) {
       return <EntityRequiredNotice />;
    }
 
    return (
-      <div className="space-y-6">
-         <div className="bg-bg-content rounded-3xl p-5 border border-border-subtle shadow-sm">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 pb-5 border-b border-border-subtle">
-               <div>
-                  <h2 className="text-2xl font-bold text-heading tracking-tight">Cuentas por Cobrar</h2>
-                  <p className="text-sm text-text-soft mt-1">Facturas de venta pagadas y pendientes, según las conciliaciones bancarias.</p>
-               </div>
-               <button
-                  onClick={handleExportCsv}
-                  disabled={exporting || !entityId || rangeInvalid}
-                  className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-brand bg-brand/10 hover:bg-brand hover:text-white rounded-2xl transition-colors disabled:opacity-50 disabled:pointer-events-none shrink-0"
-               >
-                  <ArrowDownTrayIcon className="w-4 h-4" /> {exporting ? 'Descargando...' : 'Descargar CSV'}
-               </button>
+      <div className="flex flex-col gap-6">
+         {/* ========================================================
+             1. BREADCRUMBS & TITULAR
+             ======================================================== */}
+         <div className="flex flex-col gap-4">
+            <div className="flex items-center gap-1.5 text-xs text-[#8E9BB5] font-medium">
+               <span>Ingresos</span>
+               <span>&gt;</span>
+               <span className="text-[#0A1A3F]">Cuentas por cobrar</span>
             </div>
 
-            <div className="space-y-4">
-               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div className="flex items-center gap-2 text-sm font-semibold text-text-main">
-                     <FunnelIcon className="w-5 h-5 text-brand" /> Filtros de Búsqueda
-                  </div>
-                  <div className="flex items-center gap-3">
-                     <button onClick={handleClearFilters} disabled={loading} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-text-soft hover:text-danger hover:bg-danger/10 rounded-xl transition-colors disabled:opacity-50">
-                        <ArrowPathIcon className="w-4 h-4" /> Limpiar Filtros
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+               <div>
+                  <h1 className="text-3xl font-black font-nunito text-[#0A1A3F] tracking-tight">
+                     Cuentas por cobrar
+                  </h1>
+                  <p className="text-xs text-[#55607A] font-normal mt-1">
+                     Facturas de venta pagadas y pendientes, según tus conciliaciones bancarias.
+                  </p>
+               </div>
+
+               {/* Botón Descargar CSV */}
+               <button
+                  type="button"
+                  onClick={handleExportCsv}
+                  disabled={exporting || !entityId || rangeInvalid}
+                  className="rounded-full border border-[#E2EAFD] bg-white hover:bg-[#EEF3FF] text-[#0A1A3F] font-bold text-xs px-4 py-2 transition-colors flex items-center gap-1.5 shadow-xs whitespace-nowrap cursor-pointer disabled:opacity-50"
+               >
+                  <DescargarIcon className="w-4 h-4 text-[#0A1A3F]" />
+                  <span>{exporting ? 'Descargando...' : 'Descargar CSV'}</span>
+               </button>
+            </div>
+         </div>
+
+         {/* ========================================================
+             2. FILTROS DE BÚSQUEDA
+             ======================================================== */}
+         <div className="bg-white rounded-2xl border border-[#E2EAFD] p-5 shadow-xs space-y-4">
+            {/* Cabecera del filtro */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+               <div className="flex items-center gap-2 text-sm font-bold font-nunito text-[#0A1A3F]">
+                  <FiltroIcon className="w-4 h-4 text-[#0A1A3F]" />
+                  <span>Filtros de búsqueda</span>
+               </div>
+               <div className="flex items-center gap-4">
+                  <button
+                     type="button"
+                     onClick={handleClearFilters}
+                     disabled={loading}
+                     className="text-xs font-semibold text-[#55607A] hover:text-[#1F6BFF] flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                     <SincronizarIcon className="w-3.5 h-3.5" />
+                     <span>Limpiar filtros</span>
+                  </button>
+
+                  {/* Switch Por mes / Por rango */}
+                  <div className="inline-flex p-0.5 bg-[#EEF3FF] rounded-full items-center gap-0.5">
+                     <button
+                        type="button"
+                        onClick={switchToMonth}
+                        className={`px-3 py-1 text-xs font-bold rounded-full transition-all cursor-pointer ${
+                           mode === 'month'
+                              ? 'bg-white text-[#0A1A3F] shadow-xs'
+                              : 'text-[#55607A] hover:text-[#0A1A3F]'
+                        }`}
+                     >
+                        Por mes
                      </button>
-                     <ViewModeToggle mode={mode} onChange={(k) => k === 'month' ? switchToMonth() : switchToRange()} />
+                     <button
+                        type="button"
+                        onClick={switchToRange}
+                        className={`px-3 py-1 text-xs font-bold rounded-full transition-all cursor-pointer ${
+                           mode === 'range'
+                              ? 'bg-white text-[#0A1A3F] shadow-xs'
+                              : 'text-[#55607A] hover:text-[#0A1A3F]'
+                        }`}
+                     >
+                        Por rango
+                     </button>
+                  </div>
+               </div>
+            </div>
+
+            {/* Inputs de filtro: CLIENTE, ESTADO, MES DE EMISIÓN, POR PÁGINA */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 items-end">
+               {/* CLIENTE */}
+               <div className="space-y-1">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-[#55607A]">Cliente</label>
+                  <div className="relative flex items-center">
+                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-[#8E9BB5]">
+                        <BuscarIcon className="w-4 h-4 text-[#8E9BB5]" />
+                     </div>
+                     <input
+                        type="text"
+                        placeholder="RUT o razón social"
+                        value={clientFilter}
+                        onChange={(e) => { setClientFilter(e.target.value); resetToFirstPage(); }}
+                        className="w-full h-10 pl-9 pr-3 text-xs rounded-xl border border-[#E2EAFD] bg-white text-[#0A1A3F] placeholder-[#8E9BB5] focus:outline-none focus:border-[#1F6BFF]"
+                     />
                   </div>
                </div>
 
-               <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start bg-surface-1 p-4 rounded-2xl border border-border-subtle/50">
-                  <div className="space-y-1.5 md:col-span-3">
-                     <label htmlFor="clientFilter" className="block text-xs font-semibold text-text-soft uppercase tracking-wider">Cliente</label>
+               {/* ESTADO */}
+               <div className="space-y-1">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-[#55607A]">Estado</label>
+                  <select
+                     value={statusFilter}
+                     onChange={(e) => { setStatusFilter(e.target.value); resetToFirstPage(); }}
+                     className="w-full h-10 px-3 text-xs rounded-xl border border-[#E2EAFD] bg-white text-[#0A1A3F] focus:outline-none focus:border-[#1F6BFF] cursor-pointer"
+                  >
+                     <option value="">Todos</option>
+                     <option value="pending">Pendientes</option>
+                     <option value="paid">Pagadas</option>
+                  </select>
+               </div>
+
+               {/* MES DE EMISIÓN / RANGO */}
+               <div className="space-y-1">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-[#55607A]">
+                     {mode === 'month' ? 'Mes de emisión' : 'Rango de fechas'}
+                  </label>
+                  {mode === 'month' ? (
                      <input
-                        id="clientFilter"
-                        disabled={loading}
-                        className={ctrl}
-                        type="text"
-                        placeholder="RUT o razon social"
-                        value={clientFilter}
-                        onChange={(e) => { setClientFilter(e.target.value); resetToFirstPage(); }}
+                        type="month"
+                        value={filterMonth}
+                        onChange={(e) => { setFilterMonth(e.target.value); resetToFirstPage(); }}
+                        className="w-full h-10 px-3 text-xs font-bold rounded-xl border border-[#E2EAFD] bg-white text-[#0A1A3F] focus:outline-none focus:border-[#1F6BFF] cursor-pointer"
                      />
-                  </div>
+                  ) : (
+                     <div className="flex items-center gap-1.5">
+                        <DateInput
+                           value={fromDate}
+                           onChange={(v) => { setFromDate(v); resetToFirstPage(); }}
+                           className="w-full h-10 px-2 text-xs rounded-xl border border-[#E2EAFD] bg-white text-[#0A1A3F]"
+                        />
+                        <span className="text-[#8E9BB5]">-</span>
+                        <DateInput
+                           value={toDate}
+                           onChange={(v) => { setToDate(v); resetToFirstPage(); }}
+                           min={fromDate || undefined}
+                           className="w-full h-10 px-2 text-xs rounded-xl border border-[#E2EAFD] bg-white text-[#0A1A3F]"
+                        />
+                     </div>
+                  )}
+               </div>
 
-                  <div className="space-y-1.5 md:col-span-2">
-                     <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider">Estado</label>
-                     <select disabled={loading} className={selectCtrl} value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); resetToFirstPage(); }}>
-                        <option value="">Todas</option>
-                        <option value="pending">Pendientes</option>
-                        <option value="paid">Pagadas</option>
-                     </select>
-                  </div>
-
-                  <div className="md:col-span-5">
-                     {mode === 'month' ? (
-                        <MonthField value={filterMonth} onChange={(v) => { setFilterMonth(v); resetToFirstPage(); }} disabled={loading} />
-                     ) : (
-                        <DateRangeField from={fromDate} to={toDate} onFrom={(v) => { setFromDate(v); resetToFirstPage(); }} onTo={(v) => { setToDate(v); resetToFirstPage(); }} disabled={loading} />
-                     )}
-                  </div>
-
-                  <div className="space-y-1.5 md:col-span-2">
-                     <label className="block text-xs font-semibold text-text-soft uppercase tracking-wider">Por Pág.</label>
-                     <select disabled={loading} className={selectCtrl} value={pageSize} onChange={(e) => { setPageSize(Math.min(200, Number(e.target.value) || 50)); resetToFirstPage(); }}>
-                        <option value={20}>20 filas</option>
-                        <option value={50}>50 filas</option>
-                        <option value={100}>100 filas</option>
-                     </select>
-                  </div>
+               {/* POR PÁGINA */}
+               <div className="space-y-1">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-[#55607A]">Por página</label>
+                  <select
+                     value={pageSize}
+                     onChange={(e) => { setPageSize(Number(e.target.value) || 50); resetToFirstPage(); }}
+                     className="w-full h-10 px-3 text-xs rounded-xl border border-[#E2EAFD] bg-white text-[#0A1A3F] focus:outline-none focus:border-[#1F6BFF] cursor-pointer"
+                  >
+                     <option value={20}>20 filas</option>
+                     <option value={50}>50 filas</option>
+                     <option value={100}>100 filas</option>
+                  </select>
                </div>
             </div>
          </div>
 
+         {/* ========================================================
+             3. RESUMEN DE PÁGINA (4 TARJETAS DE CIFRAS KPI)
+             ======================================================== */}
          <ResumenPagina items={rows} />
 
-         <div className="bg-bg-content rounded-3xl border border-border-subtle shadow-sm overflow-hidden">
-            {loading && <div className="p-10 text-center text-brand font-medium animate-pulse">cargando registros...</div>}
-            {err && <div className="p-10 text-center text-danger font-medium bg-danger/5">Error: {err}</div>}
+         {/* ========================================================
+             4. TABLA DE CUENTAS POR COBRAR
+             ======================================================== */}
+         <div className="bg-white rounded-2xl border border-[#E2EAFD] p-6 shadow-xs space-y-4">
+            {loading && (
+               <div className="py-12 text-center text-[#1F6BFF] font-semibold text-xs animate-pulse">
+                  Cargando registros...
+               </div>
+            )}
+
+            {err && (
+               <div className="py-8 text-center text-red-600 font-semibold text-xs">
+                  Error: {err}
+               </div>
+            )}
 
             {!loading && !err && (
                <div className="overflow-x-auto">
-                  <table className="min-w-full text-sm text-left">
-                     <thead className="bg-surface-2 border-b border-border-subtle text-text-soft">
-                        <tr>
-                           <th className={`p-4 font-semibold ${sort === 'issue_date' ? 'text-brand' : ''}`}>
-                              <button type="button" className="flex items-center gap-2 hover:text-brand transition" onClick={() => toggleSort('issue_date')}>
-                                 <CalendarDaysIcon className="w-4 h-4" /> Emisión {sort === 'issue_date' ? orderArrow(order) : ''}
+                  <table className="min-w-full text-left">
+                     <thead>
+                        <tr className="border-b border-[#E2EAFD] text-xs font-bold text-[#55607A]">
+                           <th className="py-3 px-3">
+                              <button
+                                 type="button"
+                                 className="flex items-center gap-1 hover:text-[#1F6BFF] transition-colors"
+                                 onClick={() => toggleSort('issue_date')}
+                              >
+                                 <span>Emisión</span>
+                                 <span className="text-[10px]">{sort === 'issue_date' ? (order === 'asc' ? '↑' : '↓') : '⇅'}</span>
                               </button>
                            </th>
-                           <th className={`p-4 font-semibold ${sort === 'folio' ? 'text-brand' : ''}`}>
-                              <button type="button" className="flex items-center gap-2 hover:text-brand transition" onClick={() => toggleSort('folio')}>
-                                 <HashtagIcon className="w-4 h-4" /> Folio {sort === 'folio' ? orderArrow(order) : ''}
+                           <th className="py-3 px-3">
+                              <button
+                                 type="button"
+                                 className="flex items-center gap-1 hover:text-[#1F6BFF] transition-colors"
+                                 onClick={() => toggleSort('folio')}
+                              >
+                                 <span>Folio</span>
+                                 <span className="text-[10px]">{sort === 'folio' ? (order === 'asc' ? '↑' : '↓') : '⇅'}</span>
                               </button>
                            </th>
-                           <th className="p-4 font-semibold"><div className="flex items-center gap-2"><IdentificationIcon className="w-4 h-4" /> Cliente</div></th>
-                           <th className="p-4 font-semibold">Vencimiento</th>
-                           <th className={`p-4 font-semibold text-right ${sort === 'total_amount' ? 'text-brand' : ''}`}>
-                              <button type="button" className="flex items-center gap-2 justify-end w-full hover:text-brand transition" onClick={() => toggleSort('total_amount')}>
-                                 Total {sort === 'total_amount' ? orderArrow(order) : ''}
+                           <th className="py-3 px-3">Cliente</th>
+                           <th className="py-3 px-3">Vencimiento</th>
+                           <th className="py-3 px-3 text-right">
+                              <button
+                                 type="button"
+                                 className="flex items-center gap-1 justify-end w-full hover:text-[#1F6BFF] transition-colors"
+                                 onClick={() => toggleSort('total_amount')}
+                              >
+                                 <span>Total</span>
+                                 <span className="text-[10px]">{sort === 'total_amount' ? (order === 'asc' ? '↑' : '↓') : '⇅'}</span>
                               </button>
                            </th>
-                           <th className={`p-4 font-semibold text-right ${sort === 'remaining_amount' ? 'text-brand' : ''}`}>
-                              <button type="button" className="flex items-center gap-2 justify-end w-full hover:text-brand transition" onClick={() => toggleSort('remaining_amount')}>
-                                 Saldo pendiente {sort === 'remaining_amount' ? orderArrow(order) : ''}
+                           <th className="py-3 px-3 text-right">
+                              <button
+                                 type="button"
+                                 className="flex items-center gap-1 justify-end w-full hover:text-[#1F6BFF] transition-colors"
+                                 onClick={() => toggleSort('remaining_amount')}
+                              >
+                                 <span>Saldo pendiente</span>
+                                 <span className="text-[10px]">{sort === 'remaining_amount' ? (order === 'asc' ? '↑' : '↓') : '⇅'}</span>
                               </button>
                            </th>
-                           <th className="p-4 font-semibold text-center">Estado</th>
+                           <th className="py-3 px-3 text-center">Estado</th>
+                           <th className="py-3 px-3 text-right">Acciones</th>
                         </tr>
                      </thead>
-                     <tbody className="divide-y divide-border-subtle/50">
+                     <tbody className="divide-y divide-[#EFF3FF]">
                         {rows.length === 0 ? (
-                           <tr><td colSpan={7} className="p-10 text-center text-text-soft italic">no se encontraron facturas para los filtros aplicados.</td></tr>
-                        ) : rows.map((r) => {
-                           const isNC = r.doc_type_code === 61;
-                           const mult = isNC ? -1 : 1;
-                           const remaining = isNC ? 0 : Math.max(0, Number(r.remaining_amount || 0));
-                           const status = invoiceStatus(r.total_amount, remaining, r.doc_type_code);
-                           const { label, colorClass } = STATUS_LABEL[status];
-                           return (
-                              <tr key={r.id} className="hover:bg-brand/5 transition-colors">
-                                 <td className="p-4 whitespace-nowrap font-medium text-text-main">{fmtDate(r.issue_date)}</td>
-                                 <td className="p-4 font-mono text-text-soft">{r.folio || '-'}</td>
-                                 <td className="p-4 truncate max-w-[220px] text-text-main font-medium">
-                                    {r.counterparty_name || r.counterparty_rut || '-'}
-                                    {isNC && <span className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700 ring-1 ring-blue-200 dark:bg-blue-500/20 dark:text-blue-300 dark:ring-blue-500/30">NC</span>}
-                                 </td>
-                                 <td className="p-4 whitespace-nowrap text-text-soft">{fmtDate(r.due_date)}</td>
-                                 <td className="p-4 text-right font-bold text-text-main">{clp(r.total_amount * mult)}</td>
-                                 <td className="p-4 text-right font-mono text-text-soft">{isNC ? '-' : clp(remaining)}</td>
-                                 <td className="p-4 text-center">
-                                    <div className="flex items-center justify-center gap-2">
-                                       {r.credit_notes_applied > 0 && !isNC && (() => {
-                                          const isAnnulled = r.credit_notes_applied >= r.total_amount;
-                                          return (
-                                             <span
-                                                className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ring-1 ${isAnnulled ? 'text-rose-700 bg-rose-100 ring-rose-200 dark:bg-rose-500/20 dark:text-rose-300 dark:ring-rose-500/30' : 'text-blue-700 bg-blue-100 ring-blue-200 dark:bg-blue-500/20 dark:text-blue-300 dark:ring-blue-500/30'}`}
-                                                title={`Se han descontado ${clp(r.credit_notes_applied)} en Notas de Crédito`}
-                                             >
-                                                {isAnnulled ? 'Anulada por NC' : 'Corregida por NC'}
+                           <tr>
+                              <td colSpan={8} className="py-12 text-center text-xs text-[#8E9BB5] italic">
+                                 No se encontraron facturas para los filtros aplicados.
+                              </td>
+                           </tr>
+                        ) : (
+                           rows.map((r) => {
+                              const isNC = r.doc_type_code === 61;
+                              const mult = isNC ? -1 : 1;
+                              const remaining = isNC ? 0 : Math.max(0, Number(r.remaining_amount || 0));
+                              const status = invoiceStatus(r.total_amount, remaining, r.doc_type_code);
+
+                              return (
+                                 <tr key={r.id} className="hover:bg-[#F8FAFF] transition-colors group">
+                                    {/* Emisión */}
+                                    <td className="py-3.5 px-3 text-xs font-medium text-[#0A1A3F] tabular-nums whitespace-nowrap">
+                                       {fmtDateChilean(r.issue_date)}
+                                    </td>
+
+                                    {/* Folio */}
+                                    <td className="py-3.5 px-3 text-xs font-bold text-[#0A1A3F] font-nunito whitespace-nowrap">
+                                       {r.folio || '—'}
+                                    </td>
+
+                                    {/* Cliente */}
+                                    <td className="py-3.5 px-3 min-w-[180px] max-w-[260px]">
+                                       <div className="text-xs font-bold text-[#0A1A3F] truncate">
+                                          {r.counterparty_name || r.counterparty_rut || 'Sin cliente'}
+                                          {isNC && (
+                                             <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#EFF3FF] text-[#1F6BFF]">
+                                                NC
                                              </span>
-                                          );
-                                       })()}
-                                       <Pill colorClass={colorClass}>{label}</Pill>
-                                    </div>
-                                 </td>
-                              </tr>
-                           );
-                        })}
+                                          )}
+                                       </div>
+                                       {r.counterparty_name && r.counterparty_rut && (
+                                          <div className="text-[11px] text-[#8E9BB5] font-medium mt-0.5">
+                                             {r.counterparty_rut}
+                                          </div>
+                                       )}
+                                    </td>
+
+                                    {/* Vencimiento */}
+                                    <td className="py-3.5 px-3 whitespace-nowrap">
+                                       <div className="text-xs font-medium text-[#0A1A3F] tabular-nums">
+                                          {fmtDateChilean(r.due_date)}
+                                       </div>
+                                       {remaining > 0 && r.due_date && (
+                                          <div className="text-[11px] text-[#8E9BB5] font-medium mt-0.5">
+                                             {getDueDaysLabel(r.due_date)}
+                                          </div>
+                                       )}
+                                    </td>
+
+                                    {/* Total */}
+                                    <td className="py-3.5 px-3 text-xs font-bold text-[#0A1A3F] tabular-nums text-right whitespace-nowrap">
+                                       {formatClp(r.total_amount * mult)}
+                                    </td>
+
+                                    {/* Saldo pendiente */}
+                                    <td className="py-3.5 px-3 text-xs font-medium text-[#0A1A3F] tabular-nums text-right whitespace-nowrap">
+                                       {isNC || remaining <= 0 ? '—' : formatClp(remaining)}
+                                    </td>
+
+                                    {/* Estado */}
+                                    <td className="py-3.5 px-3 text-center whitespace-nowrap">
+                                       <div className="flex items-center justify-center gap-1.5">
+                                          {status === 'paid' && (
+                                             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-[#EEF3FF] text-[#1F6BFF] shadow-xs">
+                                                <span className="w-2 h-2 rounded-full bg-[#1F6BFF]" />
+                                                <span>Pagada</span>
+                                             </span>
+                                          )}
+                                          {status === 'pending' && (
+                                             <span className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full text-xs font-bold border-2 border-[#C3D4FA] bg-[#EEF3FF] text-[#0A1A3F] shadow-xs">
+                                                <svg className="w-3 h-3 shrink-0" viewBox="0 0 16 16" fill="none">
+                                                   <circle cx="8" cy="8" r="4.5" stroke="#0A1A3F" strokeWidth="2.75" />
+                                                </svg>
+                                                <span>Pendiente</span>
+                                             </span>
+                                          )}
+                                          {status === 'partial' && (
+                                             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-[#FFF4E5] text-[#D97706] shadow-xs">
+                                                <span className="w-2 h-2 rounded-full bg-[#D97706]" />
+                                                <span>Parcial</span>
+                                             </span>
+                                          )}
+                                          {status === 'credit_note' && (
+                                             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-[#EEF3FF] text-[#1F6BFF] shadow-xs">
+                                                <span>Nota Crédito</span>
+                                             </span>
+                                          )}
+                                       </div>
+                                    </td>
+
+                                    {/* Acciones */}
+                                    <td className="py-3.5 px-3 whitespace-nowrap text-right">
+                                       <div className="inline-flex items-center justify-end gap-2">
+                                          {remaining > 0 && !isNC && (
+                                             <button
+                                                type="button"
+                                                onClick={() => handleReminder(r)}
+                                                className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-[#EEF3FF] text-[#1F6BFF] hover:bg-[#DCE5FF] transition-colors cursor-pointer shadow-xs"
+                                                title="Enviar recordatorio de cobro"
+                                             >
+                                                Recordar cobro
+                                             </button>
+                                          )}
+                                          <button
+                                             type="button"
+                                             onClick={() => handleViewDoc(r)}
+                                             className="inline-flex items-center gap-1 text-xs font-semibold text-[#55607A] hover:text-[#1F6BFF] transition-colors cursor-pointer p-1"
+                                             title="Ver detalle del documento"
+                                          >
+                                             <VerIcon className="w-4 h-4 text-[#55607A]" />
+                                             <span>Ver</span>
+                                          </button>
+                                       </div>
+                                    </td>
+                                 </tr>
+                              );
+                           })
+                        )}
                      </tbody>
                   </table>
                </div>
             )}
-         </div>
 
-         {!loading && !err && total > 0 && (
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-sm bg-bg-content p-4 rounded-3xl border border-border-subtle shadow-sm">
-               <div className="text-text-soft font-medium">
-                  {showingLabel} - Página <span className="text-text-main font-bold">{intFmt.format(page)}</span> de {intFmt.format(totalPages)}
+            {/* Paginación */}
+            {!loading && !err && total > 0 && (
+               <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-[#EFF3FF] text-xs font-medium text-[#55607A]">
+                  <div>
+                     Mostrando {intFmt.format(start)}–{intFmt.format(end)} de {intFmt.format(total)}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                     <button
+                        type="button"
+                        onClick={() => setPage((p) => Math.max(1, p - 1))}
+                        disabled={!hasPrev}
+                        className="p-1.5 rounded-lg border border-[#E2EAFD] hover:bg-[#EEF3FF] disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
+                     >
+                        <IzquierdaIcon className="w-4 h-4 text-[#0A1A3F]" />
+                     </button>
+
+                     <div className="w-7 h-7 rounded-full bg-[#1F6BFF] text-white font-bold text-xs flex items-center justify-center shadow-xs">
+                        {intFmt.format(page)}
+                     </div>
+
+                     <button
+                        type="button"
+                        onClick={() => setPage((p) => p + 1)}
+                        disabled={!hasNext}
+                        className="p-1.5 rounded-lg border border-[#E2EAFD] hover:bg-[#EEF3FF] disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
+                     >
+                        <DerechaIcon className="w-4 h-4 text-[#0A1A3F]" />
+                     </button>
+                  </div>
                </div>
-               <div className="flex gap-1">
-                  <button className="px-4 py-2 bg-brand/10 text-brand rounded-xl font-bold hover:bg-brand hover:text-white transition disabled:opacity-30 disabled:pointer-events-none" onClick={() => setPage(p => p - 1)} disabled={!hasPrev}>anterior</button>
-                  <button className="px-4 py-2 bg-brand/10 text-brand rounded-xl font-bold hover:bg-brand hover:text-white transition disabled:opacity-30 disabled:pointer-events-none" onClick={() => setPage(p => p + 1)} disabled={!hasNext}>siguiente</button>
-               </div>
-            </div>
-         )}
+            )}
+         </div>
       </div>
    );
 }

@@ -435,3 +435,12 @@ export function MasOpcionesIcon({ className = 'w-5 h-5', ...props }) {
       </svg>
    );
 }
+
+export function VerIcon({ className = 'w-5 h-5', ...props }) {
+   return (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" {...props}>
+         <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" />
+         <circle cx="12" cy="12" r="2.5" fill="#1F6BFF" stroke="none" />
+      </svg>
+   );
+}
