@@ -15,6 +15,21 @@ import PrimaryButton from 'components/PrimaryButton';
 import { getRutFromRow } from '../../utils/validators';
 import { normalizeAmount, fmtCLP, hexToRgba, toYmd } from '../../utils/formatters';
 import { SII_DOCUMENT_TYPES, docTag, getSiiDocumentTypeLabel } from '../../utils/siiConstants';
+import {
+   ExcelIcon,
+   DocumentoIcon,
+   MasIcon,
+   CheckIcon,
+   FiltroIcon,
+   BuscarIcon,
+   VerIcon,
+   MasOpcionesIcon,
+   IzquierdaIcon,
+   DerechaIcon,
+   ConciliarIcon,
+   EliminarIcon,
+} from '../../components/icons/SidebarIcons';
+import { getDashboardSummary } from '../../services/dashboardApi';
 import { listDailySalesGroups, listSiiDocuments } from '../../services/siiDocumentsApi';
 import BankCartolaDuplicatesAlert from '../../components/bank/BankCartolaDuplicatesAlert';
 import EmissoSyncPeriodModal from '../../components/bank/EmissoSyncPeriodModal';
@@ -372,11 +387,12 @@ function getBankTransactionDate(row) {
 const TabButton = React.memo(function TabButton({ active, onClick, children, rightBadge }) {
    return (
       <button
+         type="button"
          onClick={onClick}
-         className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg flex items-center gap-2 transition cursor-pointer select-none ${
+         className={`px-3.5 py-1 text-xs rounded-full flex items-center gap-1.5 transition-all cursor-pointer select-none ${
             active
-               ? "bg-[var(--bg-content)] text-[var(--heading)] shadow-xs"
-               : "text-[var(--text-soft)] hover:text-[var(--heading)] hover:bg-[var(--surface-2)]"
+               ? "bg-white text-[#0A1A3F] font-bold shadow-xs"
+               : "text-[#55607A] hover:text-[#0A1A3F] font-semibold"
          }`}
          role="tab"
          aria-selected={active}
@@ -488,6 +504,26 @@ export default function BankCartolasPage() {
    const [deletingTxId, setDeletingTxId] = useState(null);
    const [selectedBoleteoIds, setSelectedBoleteoIds] = useState(new Set());
    const [batchBoletearModalOpen, setBatchBoletearModalOpen] = useState(false);
+   const [openActionMenuId, setOpenActionMenuId] = useState(null);
+   const [quickSearch, setQuickSearch] = useState('');
+
+   useEffect(() => {
+      const handleClickOutside = () => setOpenActionMenuId(null);
+      if (openActionMenuId) {
+         window.addEventListener('click', handleClickOutside);
+         return () => window.removeEventListener('click', handleClickOutside);
+      }
+   }, [openActionMenuId]);
+
+   const handleQuickSearchChange = (e) => {
+      const val = e.target.value;
+      setQuickSearch(val);
+      setDescripcion(val);
+      setApplied((prev) => ({ ...prev, descripcion: val }));
+      setPage(0);
+   };
+
+
 
    // filtros aplicados (los que disparan la busqueda)
    const [applied, setApplied] = useState(DEFAULT_FILTERS);
@@ -522,6 +558,73 @@ export default function BankCartolasPage() {
       soloPendientes: soloPorConciliar,
       filters: effectiveFilters
    });
+
+   const currentMonth = useMemo(() => {
+      const now = new Date();
+      const y = now.getFullYear();
+      const m = String(now.getMonth() + 1).padStart(2, '0');
+      return `${y}-${m}`;
+   }, []);
+
+   const { data: dashboardSummary } = useQuery({
+      queryKey: ['dashboardSummary', entityId, currentMonth, 'month'],
+      queryFn: () => getDashboardSummary({ entityId, month: currentMonth, scope: 'month' }),
+      enabled: Boolean(entityId),
+      staleTime: 60000,
+   });
+
+   const qualityBank = dashboardSummary?.quality?.bank || {};
+
+   const rowStats = useMemo(() => {
+      let abonosSum = 0;
+      let cargosSum = 0;
+      let reconciledCount = 0;
+      let pendingCount = 0;
+      for (const r of bankRows) {
+         if (r.monto > 0) abonosSum += r.monto;
+         else if (r.monto < 0) cargosSum += Math.abs(r.monto);
+         const remaining = Math.max(0, Number(r.raw?.remaining_amount ?? Math.abs(r.monto)));
+         if (remaining === 0) reconciledCount++;
+         else pendingCount++;
+      }
+      return { abonosSum, cargosSum, reconciledCount, pendingCount };
+   }, [bankRows]);
+
+   const reconciledPercent = qualityBank.reconciledRatio != null
+      ? Number(qualityBank.reconciledRatio)
+      : (rowStats.reconciledCount + rowStats.pendingCount > 0
+         ? (rowStats.reconciledCount / (rowStats.reconciledCount + rowStats.pendingCount)) * 100
+         : 100);
+
+   const pendingMovements = qualityBank.pendingTransactions != null
+      ? Number(qualityBank.pendingTransactions)
+      : rowStats.pendingCount;
+
+   const abonosSum = rowStats.abonosSum;
+   const cargosSum = rowStats.cargosSum;
+
+   const totalPages = Math.max(1, Math.ceil(total / pageSize));
+   const startItem = total === 0 ? 0 : page * pageSize + 1;
+   const endItem = Math.min(total, (page + 1) * pageSize);
+
+   const renderPageNumbers = () => {
+      const pages = [];
+      const maxButtons = 5;
+      if (totalPages <= maxButtons) {
+         for (let i = 0; i < totalPages; i++) pages.push(i);
+      } else {
+         pages.push(0);
+         if (page > 2) pages.push('ellipsis-start');
+         const startP = Math.max(1, page - 1);
+         const endP = Math.min(totalPages - 2, page + 1);
+         for (let i = startP; i <= endP; i++) {
+            if (!pages.includes(i)) pages.push(i);
+         }
+         if (page < totalPages - 3) pages.push('ellipsis-end');
+         if (!pages.includes(totalPages - 1)) pages.push(totalPages - 1);
+      }
+      return pages;
+   };
 
    // 2. totales para los badges
    const currentTxIds = useMemo(() => {
@@ -1794,8 +1897,308 @@ export default function BankCartolasPage() {
    }
 
    return (
-      <div className="animate-fade-in">
-         {/* PANEL: Buscar movimientos */}
+      <div className="animate-fade-in space-y-6">
+         {/* 1. Header con Breadcrumb, Título y Acciones */}
+         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+               <div className="flex items-center gap-1.5 text-xs text-[#8E9BB5] mb-1">
+                  <span>Banco</span>
+                  <span>&gt;</span>
+                  <span className="text-[#0A1A3F] font-medium">Movimientos bancarios</span>
+               </div>
+               <h1 className="text-3xl font-black font-nunito text-[#0A1A3F] tracking-tight">
+                  Movimientos bancarios
+               </h1>
+               <p className="text-xs text-[#55607A] mt-1">
+                  Tus cartolas en un solo lugar. Concilia cada movimiento con su boleta o factura.
+               </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2.5">
+               {/* Botón XLSX */}
+               <button
+                  type="button"
+                  onClick={exportXLSX}
+                  disabled={loading}
+                  className="rounded-full border border-[#E2EAFD] bg-white text-[#0A1A3F] text-xs font-bold px-4 py-2 flex items-center gap-2 shadow-xs hover:bg-[#F8FAFC] transition cursor-pointer disabled:opacity-50"
+                  title="Exportar movimientos a Excel (XLSX)"
+               >
+                  <ExcelIcon className="w-4 h-4" />
+                  <span>XLSX</span>
+               </button>
+
+               {/* Botón Generar boletas */}
+               {canBoletear && (
+                  <button
+                     type="button"
+                     disabled={selectedBoleteoIds.size === 0}
+                     onClick={() => setBatchBoletearModalOpen(true)}
+                     className={`rounded-full border border-[#E2EAFD] bg-white text-[#0A1A3F] text-xs font-bold px-4 py-2 flex items-center gap-2 shadow-xs hover:bg-[#F8FAFC] transition ${
+                        selectedBoleteoIds.size > 0 ? 'cursor-pointer active:scale-95' : 'opacity-60 cursor-not-allowed'
+                     }`}
+                     title={
+                        selectedBoleteoIds.size > 0
+                           ? `Generar ${selectedBoleteoIds.size} boleta(s) exenta(s) en lote`
+                           : 'Selecciona abonos con las casillas para generar boletas'
+                     }
+                  >
+                     <DocumentoIcon className="w-4 h-4 text-[#0A1A3F]" />
+                     <span>Generar boletas ({selectedBoleteoIds.size})</span>
+                  </button>
+               )}
+
+               {/* Botón Agregar movimiento */}
+               {canUploadCartola && (
+                  <button
+                     type="button"
+                     onClick={openUploadModal}
+                     className="rounded-full bg-[#1F6BFF] hover:bg-[#1657D7] text-white text-xs font-bold px-5 py-2.5 flex items-center gap-2 shadow-sm transition-colors cursor-pointer"
+                  >
+                     <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="currentColor">
+                        <path d="M8 2a.75.75 0 0 1 .75.75v4.5h4.5a.75.75 0 0 1 0 1.5h-4.5v4.5a.75.75 0 0 1-1.5 0v-4.5h-4.5a.75.75 0 0 1 0-1.5h4.5v-4.5A.75.75 0 0 1 8 2z" />
+                     </svg>
+                     <span>Agregar movimiento</span>
+                  </button>
+               )}
+
+               {/* Sincronización automática/manual con banco (Emisso) */}
+               {currentSelectedAccount?.emisso_connection_id && canSyncBank && (
+                  <div className="inline-flex items-center rounded-full border border-[#E2EAFD] bg-white shadow-xs overflow-hidden h-9">
+                     <button
+                        type="button"
+                        onClick={handleManualEmissoSync}
+                        disabled={isManualSyncing || currentSelectedAccount?.sync_status === 'syncing' || emissoLimitReached}
+                        className="inline-flex items-center gap-1.5 px-3.5 h-full text-xs font-bold text-[#0A1A3F] hover:bg-[#F8FAFC] transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                        title={
+                           emissoLimitReached
+                              ? `Límite mensual alcanzado (${emissoSyncUsed}/${emissoSyncLimit} sincronizaciones manuales este mes). La sincronización automática cada 4 horas sigue activa.`
+                              : `Actualizar movimientos manualmente con el banco (${emissoSyncUsed} de ${emissoSyncLimit} usos este mes)`
+                        }
+                     >
+                        <svg className={`w-3.5 h-3.5 text-[#1F6BFF] shrink-0 ${isManualSyncing ? 'animate-spin' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                           <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
+                        </svg>
+                        <span>{isManualSyncing ? 'Sincronizando...' : 'Actualizar movimientos'}</span>
+                        <span
+                           data-testid="emisso-sync-counter"
+                           className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold leading-none ${
+                              emissoLimitReached
+                                 ? 'bg-red-50 text-red-600 border border-red-200'
+                                 : emissoSyncUsed >= Math.floor(emissoSyncLimit * 0.85)
+                                    ? 'bg-amber-50 text-amber-600 border border-amber-200'
+                                    : 'bg-[#EEF3FF] text-[#1F6BFF]'
+                           }`}
+                        >
+                           {hasEmissoQuotaLoaded ? `${emissoSyncUsed}/${emissoSyncLimit}` : `—/${emissoSyncLimit}`}
+                        </span>
+                     </button>
+
+                     <button
+                        type="button"
+                        onClick={() => setShowSyncPeriodModal(true)}
+                        disabled={isManualSyncing || currentSelectedAccount?.sync_status === 'syncing' || emissoLimitReached}
+                        className="px-3 h-full text-xs font-semibold text-[#8E9BB5] hover:text-[#0A1A3F] hover:bg-[#F8FAFC] border-l border-[#E2EAFD] transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                        title={
+                           emissoLimitReached
+                              ? `Límite mensual alcanzado (${emissoSyncUsed}/${emissoSyncLimit}). Espera al próximo mes o utiliza la sincronización automática.`
+                              : 'Sincronizar mes específico o rango histórico'
+                        }
+                     >
+                        <span>Histórico</span>
+                     </button>
+                  </div>
+               )}
+            </div>
+         </div>
+
+         {/* 2. Cuatro Tarjetas KPI */}
+         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Tarjeta 1: Conciliación general */}
+            <div className="bg-white rounded-2xl border border-[#E2EAFD] p-4 flex flex-col justify-between shadow-xs">
+               <div className="flex items-center justify-between">
+                  <span className="font-nunito font-bold text-sm text-[#0A1A3F]">
+                     {reconciledPercent.toLocaleString('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}% conciliado
+                  </span>
+                  <span className="text-xs text-[#8E9BB5] font-medium">
+                     {pendingMovements} movimientos por revisar
+                  </span>
+               </div>
+               <div className="w-full bg-[#EEF3FF] h-2.5 rounded-full overflow-hidden mt-3">
+                  <div
+                     className="bg-[#1F6BFF] h-full rounded-full transition-all duration-500"
+                     style={{ width: `${Math.min(100, Math.max(0, reconciledPercent))}%` }}
+                  />
+               </div>
+            </div>
+
+            {/* Tarjeta 2: Sugerencias de conciliación */}
+            <div className="bg-white rounded-2xl border border-[#E2EAFD] p-4 flex items-center gap-3.5 shadow-xs">
+               <div className="w-11 h-11 rounded-xl bg-[#EFF3FF] flex items-center justify-center text-[#1F6BFF] shrink-0">
+                  <CheckIcon className="w-5 h-5 text-[#1F6BFF]" />
+               </div>
+               <div>
+                  <div className="text-xs text-[#55607A] font-medium">Sugerencias de conciliación</div>
+                  <div className="font-nunito font-black text-2xl text-[#0A1A3F] leading-tight mt-0.5">
+                     {sugBadgeLoading ? '…' : sugerenciasCount}
+                  </div>
+               </div>
+            </div>
+
+            {/* Tarjeta 3: Abonos del mes */}
+            <div className="bg-white rounded-2xl border border-[#E2EAFD] p-4 flex items-center gap-3.5 shadow-xs">
+               <div className="w-11 h-11 rounded-xl bg-[#EFF3FF] flex items-center justify-center text-[#1F6BFF] shrink-0">
+                  <svg className="w-5 h-5 text-[#1F6BFF]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                     <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
+                     <polyline points="17 6 23 6 23 12" />
+                  </svg>
+               </div>
+               <div>
+                  <div className="text-xs text-[#55607A] font-medium">Abonos del mes</div>
+                  <div className="font-nunito font-black text-xl text-[#0A1A3F] leading-tight mt-0.5 tabular-nums">
+                     $ {Math.abs(abonosSum).toLocaleString('es-CL')}
+                  </div>
+               </div>
+            </div>
+
+            {/* Tarjeta 4: Cargos del mes */}
+            <div className="bg-white rounded-2xl border border-[#E2EAFD] p-4 flex items-center gap-3.5 shadow-xs">
+               <div className="w-11 h-11 rounded-xl bg-[#EFF3FF] flex items-center justify-center text-[#1F6BFF] shrink-0">
+                  <svg className="w-5 h-5 text-[#1F6BFF]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                     <polyline points="23 18 13.5 8.5 8.5 13.5 1 6" />
+                     <polyline points="17 18 23 18 23 12" />
+                  </svg>
+               </div>
+               <div>
+                  <div className="text-xs text-[#55607A] font-medium">Cargos del mes</div>
+                  <div className="font-nunito font-black text-xl text-[#0A1A3F] leading-tight mt-0.5 tabular-nums">
+                     $ {Math.abs(cargosSum).toLocaleString('es-CL')}
+                  </div>
+               </div>
+            </div>
+         </div>
+
+         {/* 3. Toolbar: Pestañas de estado, Por conciliar, Selector de cuentas, Búsqueda y Filtros */}
+         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+            {/* Grupo izquierdo: Pestañas en cápsula + Por conciliar */}
+            <div className="flex flex-wrap items-center gap-3">
+               <div className="inline-flex p-1 bg-[#EEF3FF] rounded-full items-center gap-1">
+                  <TabButton active={tab === "todos"} onClick={resetAll}>Todos</TabButton>
+                  <TabButton
+                     active={tab === "sugerencias"}
+                     onClick={handleOpenSuggestions}
+                     rightBadge={
+                        sugBadgeLoading ? (
+                           <span className="inline-block w-3 h-3 border-2 border-[#1F6BFF] border-t-transparent rounded-full animate-spin"></span>
+                        ) : (
+                           <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-[#1F6BFF] text-white min-w-[2ch] text-center font-bold leading-none">
+                              {sugerenciasBadgeText}
+                           </span>
+                        )
+                     }
+                  >
+                     Sugerencias
+                  </TabButton>
+                  <TabButton
+                     active={tab === "abonos"}
+                     onClick={() => switchTabWithReset("abonos")}
+                     rightBadge={
+                        abonosLoading ? (
+                           <span className="inline-block w-3 h-3 border-2 border-[#1F6BFF] border-t-transparent rounded-full animate-spin"></span>
+                        ) : (
+                           <span className="text-xs font-bold text-[#55607A] ml-1">{abonosTotal}</span>
+                        )
+                     }
+                  >
+                     Abonos
+                  </TabButton>
+                  <TabButton
+                     active={tab === "cargos"}
+                     onClick={() => switchTabWithReset("cargos")}
+                     rightBadge={
+                        cargosLoading ? (
+                           <span className="inline-block w-3 h-3 border-2 border-[#1F6BFF] border-t-transparent rounded-full animate-spin"></span>
+                        ) : (
+                           <span className="text-xs font-bold text-[#55607A] ml-1">{cargosTotal}</span>
+                        )
+                     }
+                  >
+                     Cargos
+                  </TabButton>
+               </div>
+
+               {tab !== "sugerencias" && (
+                  <label className="inline-flex items-center gap-2 text-xs font-semibold text-[#0A1A3F] ml-1 cursor-pointer select-none">
+                     <input
+                        type="checkbox"
+                        className="w-4 h-4 rounded border-[#C3D4FA] text-[#1F6BFF] focus:ring-0 accent-[#1F6BFF] cursor-pointer"
+                        checked={soloPorConciliar}
+                        onChange={(e) => {
+                           setSoloPorConciliar(e.target.checked);
+                           setPage(0);
+                        }}
+                     />
+                     <span>Por conciliar</span>
+                  </label>
+               )}
+            </div>
+
+            {/* Grupo derecho: Selector cuenta, Búsqueda rápida y Filtros */}
+            <div className="flex flex-wrap items-center gap-2.5">
+               {/* Selector de cuenta */}
+               <div className="relative">
+                  <select
+                     value={ctaCorriente}
+                     onChange={(e) => {
+                        setCtaCorriente(e.target.value);
+                        setApplied(prev => ({ ...prev, ctaCorriente: e.target.value }));
+                        setPage(0);
+                     }}
+                     className="rounded-full border border-[#E2EAFD] bg-white text-xs font-semibold px-4 py-2 pr-8 text-[#0A1A3F] appearance-none cursor-pointer focus:outline-none focus:border-[#1F6BFF] shadow-xs"
+                  >
+                     <option value="">Todas las cuentas</option>
+                     {cuentasDisponibles.map((c) => (
+                        <option key={c.id} value={c.id}>{c.label}</option>
+                     ))}
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-[#55607A]">
+                     <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                     </svg>
+                  </div>
+               </div>
+
+               {/* Búsqueda rápida */}
+               <div className="relative">
+                  <BuscarIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#8E9BB5]" />
+                  <input
+                     type="text"
+                     placeholder="Monto, glosa o N° doc."
+                     value={quickSearch}
+                     onChange={handleQuickSearchChange}
+                     className="rounded-full border border-[#E2EAFD] bg-white pl-9 pr-4 py-2 text-xs text-[#0A1A3F] placeholder-[#8E9BB5] focus:outline-none focus:border-[#1F6BFF] shadow-xs w-48 sm:w-56"
+                  />
+               </div>
+
+               {/* Botón Filtros */}
+               <button
+                  type="button"
+                  onClick={() => setMostrarFiltros((v) => !v)}
+                  aria-expanded={mostrarFiltros}
+                  aria-controls={FILTER_PANEL_ID}
+                  className={`rounded-full border border-[#E2EAFD] px-4 py-2 text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer ${
+                     mostrarFiltros
+                        ? 'bg-[#EEF3FF] text-[#1F6BFF]'
+                        : 'bg-white text-[#0A1A3F] hover:bg-[#F8FAFC]'
+                  }`}
+                  title={mostrarFiltros ? "Ocultar filtros" : "Mostrar filtros"}
+               >
+                  <FiltroIcon className="w-3.5 h-3.5" />
+                  <span>Filtros</span>
+               </button>
+            </div>
+         </div>
+
+         {/* 4. Panel desplegable de filtros */}
          <div
             id={FILTER_PANEL_ID}
             role="region"
@@ -1808,20 +2211,18 @@ export default function BankCartolasPage() {
                   : "z-0 opacity-0 max-h-0 mb-0 p-0 pointer-events-none scale-[.98] overflow-hidden",
             ].join(" ")}
          >
-            <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-1)] p-4 md:p-5 shadow-xs space-y-4">
+            <div className="rounded-2xl border border-[#E2EAFD] bg-white p-5 shadow-xs space-y-4">
                {/* Header del panel */}
-               <div className="flex items-center justify-between pb-3 border-b border-[var(--border-subtle)]/70">
+               <div className="flex items-center justify-between pb-3 border-b border-[#E2EAFD]">
                   <div className="flex items-center gap-2.5">
-                     <div className="w-8 h-8 rounded-xl bg-[var(--brand)]/10 text-[var(--brand)] flex items-center justify-center shrink-0">
-                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                           <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
-                        </svg>
+                     <div className="w-8 h-8 rounded-xl bg-[#EEF3FF] text-[#1F6BFF] flex items-center justify-center shrink-0">
+                        <FiltroIcon className="w-4 h-4" />
                      </div>
                      <div>
-                        <h2 id={FILTER_HEADING_ID} className="text-sm font-semibold text-[var(--heading)]">
+                        <h2 id={FILTER_HEADING_ID} className="text-sm font-bold text-[#0A1A3F]">
                            Buscar movimientos
                         </h2>
-                        <p className="text-xs text-[var(--text-soft)]">
+                        <p className="text-xs text-[#55607A]">
                            Filtra transacciones bancarias por cuenta, fechas, montos o descripción
                         </p>
                      </div>
@@ -1830,8 +2231,8 @@ export default function BankCartolasPage() {
                   <button
                      type="button"
                      onClick={() => setMostrarFiltros(false)}
-                     className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-[var(--text-soft)] hover:text-[var(--heading)] hover:bg-[var(--surface-2)] transition cursor-pointer"
-                     title="Ocultar filtros (Ctrl/⌘+K)"
+                     className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-[#8E9BB5] hover:text-[#0A1A3F] hover:bg-[#EEF3FF] transition cursor-pointer"
+                     title="Ocultar filtros"
                   >
                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <path d="M18 6 6 18M6 6l12 12" />
@@ -1840,14 +2241,13 @@ export default function BankCartolasPage() {
                   </button>
                </div>
 
-               {/* Cuadrícula simétrica 3x3 (exactamente 9 campos en 3 filas equilibradas) */}
+               {/* Cuadrícula 3x3 */}
                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
-                  {/* Fila 1 / Campo 1: Cuenta corriente */}
                   <div className="flex flex-col gap-1">
-                     <label htmlFor="f-cta" className="text-xs font-medium text-[var(--text-soft)]">Cuenta corriente</label>
+                     <label htmlFor="f-cta" className="text-xs font-semibold text-[#55607A]">Cuenta corriente</label>
                      <select
                         id="f-cta"
-                        className="w-full h-10 px-3 text-xs md:text-sm rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-2)] text-[var(--heading)] focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/20 focus:border-[var(--brand)] transition cursor-pointer"
+                        className="w-full h-10 px-3 text-xs rounded-xl border border-[#E2EAFD] bg-[#F8FAFC] text-[#0A1A3F] focus:outline-none focus:border-[#1F6BFF] transition cursor-pointer"
                         value={ctaCorriente}
                         onChange={(e) => setCtaCorriente(e.target.value)}
                         autoComplete="off"
@@ -1860,14 +2260,13 @@ export default function BankCartolasPage() {
                      </select>
                   </div>
 
-                  {/* Fila 1 / Campo 2: Tipo de movimiento */}
                   <div className="flex flex-col gap-1">
-                     <label htmlFor="f-tipo" className="text-xs font-medium text-[var(--text-soft)]">
+                     <label htmlFor="f-tipo" className="text-xs font-semibold text-[#55607A]">
                         Tipo de movimiento {tab !== 'todos' ? `(fijado en ${tab})` : ''}
                      </label>
                      <select
                         id="f-tipo"
-                        className="w-full h-10 px-3 text-xs md:text-sm rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-2)] text-[var(--heading)] focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/20 focus:border-[var(--brand)] transition cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
+                        className="w-full h-10 px-3 text-xs rounded-xl border border-[#E2EAFD] bg-[#F8FAFC] text-[#0A1A3F] focus:outline-none focus:border-[#1F6BFF] transition cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
                         value={tab === 'abonos' ? 'Abonos' : tab === 'cargos' ? 'Cargos' : tipo}
                         onChange={(e) => setTipo(e.target.value)}
                         disabled={tab === 'abonos' || tab === 'cargos'}
@@ -1880,13 +2279,12 @@ export default function BankCartolasPage() {
                      </select>
                   </div>
 
-                  {/* Fila 1 / Campo 3: Monto */}
                   <div className="flex flex-col gap-1">
-                     <label htmlFor="f-monto" className="text-xs font-medium text-[var(--text-soft)]">Monto exacto</label>
+                     <label htmlFor="f-monto" className="text-xs font-semibold text-[#55607A]">Monto exacto</label>
                      <input
                         id="f-monto"
                         type="text"
-                        className="w-full h-10 px-3 text-xs md:text-sm rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-2)] text-[var(--heading)] placeholder:text-[var(--text-soft)]/50 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/20 focus:border-[var(--brand)] transition"
+                        className="w-full h-10 px-3 text-xs rounded-xl border border-[#E2EAFD] bg-[#F8FAFC] text-[#0A1A3F] placeholder-[#8E9BB5] focus:outline-none focus:border-[#1F6BFF] transition"
                         value={montoFiltro}
                         onChange={(e) => setMontoFiltro(e.target.value)}
                         placeholder="Ej: 120000"
@@ -1895,36 +2293,33 @@ export default function BankCartolasPage() {
                      />
                   </div>
 
-                  {/* Fila 2 / Campo 4: Fecha inicial */}
                   <div className="flex flex-col gap-1">
-                     <label htmlFor="f-fecha-ini" className="text-xs font-medium text-[var(--text-soft)]">Fecha desde</label>
+                     <label htmlFor="f-fecha-ini" className="text-xs font-semibold text-[#55607A]">Fecha desde</label>
                      <DateInput
                         id="f-fecha-ini"
-                        className="w-full h-10 px-3 text-xs md:text-sm rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-2)] text-[var(--heading)] focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/20 focus:border-[var(--brand)] transition"
+                        className="w-full h-10 px-3 text-xs rounded-xl border border-[#E2EAFD] bg-[#F8FAFC] text-[#0A1A3F] focus:outline-none focus:border-[#1F6BFF] transition"
                         value={fechaIni}
                         onChange={setFechaIni}
                      />
                   </div>
 
-                  {/* Fila 2 / Campo 5: Fecha final */}
                   <div className="flex flex-col gap-1">
-                     <label htmlFor="f-fecha-fin" className="text-xs font-medium text-[var(--text-soft)]">Fecha hasta</label>
+                     <label htmlFor="f-fecha-fin" className="text-xs font-semibold text-[#55607A]">Fecha hasta</label>
                      <DateInput
                         id="f-fecha-fin"
-                        className="w-full h-10 px-3 text-xs md:text-sm rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-2)] text-[var(--heading)] focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/20 focus:border-[var(--brand)] transition"
+                        className="w-full h-10 px-3 text-xs rounded-xl border border-[#E2EAFD] bg-[#F8FAFC] text-[#0A1A3F] focus:outline-none focus:border-[#1F6BFF] transition"
                         value={fechaFin}
                         onChange={setFechaFin}
                         min={fechaIni || undefined}
                      />
                   </div>
 
-                  {/* Fila 2 / Campo 6: Descripción */}
                   <div className="flex flex-col gap-1">
-                     <label htmlFor="f-descripcion" className="text-xs font-medium text-[var(--text-soft)]">Descripción o glosa</label>
+                     <label htmlFor="f-descripcion" className="text-xs font-semibold text-[#55607A]">Descripción o glosa</label>
                      <input
                         id="f-descripcion"
                         type="text"
-                        className="w-full h-10 px-3 text-xs md:text-sm rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-2)] text-[var(--heading)] placeholder:text-[var(--text-soft)]/50 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/20 focus:border-[var(--brand)] transition"
+                        className="w-full h-10 px-3 text-xs rounded-xl border border-[#E2EAFD] bg-[#F8FAFC] text-[#0A1A3F] placeholder-[#8E9BB5] focus:outline-none focus:border-[#1F6BFF] transition"
                         value={descripcion}
                         onChange={(e) => setDescripcion(e.target.value)}
                         placeholder="Buscar por descripción..."
@@ -1933,13 +2328,12 @@ export default function BankCartolasPage() {
                      />
                   </div>
 
-                  {/* Fila 3 / Campo 7: Cuenta contraparte */}
                   <div className="flex flex-col gap-1">
-                     <label htmlFor="f-cuenta" className="text-xs font-medium text-[var(--text-soft)]">Cuenta contraparte</label>
+                     <label htmlFor="f-cuenta" className="text-xs font-semibold text-[#55607A]">Cuenta contraparte</label>
                      <input
                         id="f-cuenta"
                         type="text"
-                        className="w-full h-10 px-3 text-xs md:text-sm rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-2)] text-[var(--heading)] placeholder:text-[var(--text-soft)]/50 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/20 focus:border-[var(--brand)] transition"
+                        className="w-full h-10 px-3 text-xs rounded-xl border border-[#E2EAFD] bg-[#F8FAFC] text-[#0A1A3F] placeholder-[#8E9BB5] focus:outline-none focus:border-[#1F6BFF] transition"
                         value={cuenta}
                         onChange={(e) => setCuenta(e.target.value)}
                         placeholder="N° cuenta contraparte..."
@@ -1948,13 +2342,12 @@ export default function BankCartolasPage() {
                      />
                   </div>
 
-                  {/* Fila 3 / Campo 8: Número documento */}
                   <div className="flex flex-col gap-1">
-                     <label htmlFor="f-doc" className="text-xs font-medium text-[var(--text-soft)]">Número documento</label>
+                     <label htmlFor="f-doc" className="text-xs font-semibold text-[#55607A]">Número documento</label>
                      <input
                         id="f-doc"
                         type="text"
-                        className="w-full h-10 px-3 text-xs md:text-sm rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-2)] text-[var(--heading)] placeholder:text-[var(--text-soft)]/50 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/20 focus:border-[var(--brand)] transition"
+                        className="w-full h-10 px-3 text-xs rounded-xl border border-[#E2EAFD] bg-[#F8FAFC] text-[#0A1A3F] placeholder-[#8E9BB5] focus:outline-none focus:border-[#1F6BFF] transition"
                         value={nroDocumento}
                         onChange={(e) => setNroDocumento(e.target.value)}
                         placeholder="Ej: 000001890"
@@ -1963,27 +2356,26 @@ export default function BankCartolasPage() {
                      />
                   </div>
 
-                  {/* Fila 3 / Campo 9: Folio conciliado */}
                   <div className="flex flex-col gap-1">
-                     <label htmlFor="f-folio" className="text-xs font-medium text-[var(--text-soft)]">Folio conciliado</label>
+                     <label htmlFor="f-folio-conciliado" className="text-xs font-semibold text-[#55607A]">Folio documento conciliado</label>
                      <input
-                        id="f-folio"
+                        id="f-folio-conciliado"
                         type="text"
-                        className="w-full h-10 px-3 text-xs md:text-sm rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-2)] text-[var(--heading)] placeholder:text-[var(--text-soft)]/50 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/20 focus:border-[var(--brand)] transition"
+                        className="w-full h-10 px-3 text-xs rounded-xl border border-[#E2EAFD] bg-[#F8FAFC] text-[#0A1A3F] placeholder-[#8E9BB5] focus:outline-none focus:border-[#1F6BFF] transition"
                         value={folioConciliado}
                         onChange={(e) => setFolioConciliado(e.target.value)}
-                        placeholder="Ej: 1018"
+                        placeholder="Ej: 1450"
                         autoComplete="off"
                         onKeyDown={(e) => e.key === "Enter" && applyAndFetch()}
                      />
                   </div>
                </div>
 
-               {/* Barra inferior de acciones del filtro */}
-               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3.5 border-t border-[var(--border-subtle)]/70">
-                  <div className="text-xs text-[var(--text-soft)] flex items-center gap-1.5">
+               {/* Acciones del panel de filtros */}
+               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3.5 border-t border-[#E2EAFD]">
+                  <div className="text-xs text-[#8E9BB5] flex items-center gap-1.5">
                      <span>Presiona</span>
-                     <kbd className="px-1.5 py-0.5 rounded-md border border-[var(--border-subtle)] bg-[var(--surface-2)] text-[11px] font-mono text-[var(--heading)] font-semibold">Enter</kbd>
+                     <kbd className="px-1.5 py-0.5 rounded-md border border-[#E2EAFD] bg-[#F8FAFC] text-[11px] font-mono text-[#0A1A3F] font-semibold">Enter</kbd>
                      <span>para aplicar filtros en cualquier momento</span>
                   </div>
 
@@ -1991,7 +2383,7 @@ export default function BankCartolasPage() {
                      <button
                         type="button"
                         onClick={resetAll}
-                        className="px-4 h-10 text-xs font-semibold text-[var(--text-soft)] hover:text-[var(--heading)] hover:bg-[var(--surface-2)] rounded-xl border border-[var(--border-subtle)] transition cursor-pointer"
+                        className="px-4 py-2 text-xs font-bold text-[#55607A] hover:text-[#0A1A3F] hover:bg-[#F8FAFC] rounded-full border border-[#E2EAFD] transition cursor-pointer"
                      >
                         Limpiar filtros
                      </button>
@@ -2000,12 +2392,9 @@ export default function BankCartolasPage() {
                         type="button"
                         disabled={loading}
                         onClick={applyAndFetch}
-                        className="inline-flex items-center gap-2 px-5 h-10 text-xs font-semibold text-white bg-[var(--brand)] hover:opacity-95 rounded-xl shadow-xs transition disabled:opacity-60 cursor-pointer"
+                        className="inline-flex items-center gap-2 px-5 py-2 text-xs font-bold text-white bg-[#1F6BFF] hover:bg-[#1657D7] rounded-full shadow-xs transition disabled:opacity-60 cursor-pointer"
                      >
-                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                           <circle cx="11" cy="11" r="8" />
-                           <path d="m21 21-4.35-4.35" />
-                        </svg>
+                        <BuscarIcon className="w-3.5 h-3.5" />
                         <span>{loading ? "Buscando..." : "Filtrar"}</span>
                      </button>
                   </div>
@@ -2013,212 +2402,9 @@ export default function BankCartolasPage() {
             </div>
          </div>
 
-         {/* Toolbar: Pestañas de estado y Acciones */}
-         <div className="bg-[var(--bg-content)] py-2 mb-3">
-            <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3">
-               {/* Grupo izquierdo: Pestañas de estado + Por conciliar */}
-               <div className="flex flex-wrap items-center gap-2.5" role="tablist" aria-label="Vistas de cartolas">
-                  <div className="inline-flex items-center p-1 bg-[var(--surface-1)] border border-[var(--border-subtle)] rounded-xl shadow-xs">
-                     <TabButton active={tab === "todos"} onClick={resetAll}>Todos</TabButton>
-                     <TabButton
-                        active={tab === "sugerencias"}
-                        onClick={handleOpenSuggestions}
-                        rightBadge={
-                           sugBadgeLoading
-                              ? <span className="inline-block w-3 h-3 border-2 border-[var(--warning)] border-t-transparent rounded-full animate-spin"></span>
-                              : <span
-                                 title={sugIsError ? 'No se pudo calcular; prueba acotar fechas o cuenta' : undefined}
-                                 className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--warning-bg)] text-[var(--warning)] min-w-[2ch] text-center font-medium"
-                              >
-                                 {sugerenciasBadgeText}
-                              </span>
-                        }
-                     >
-                        Sugerencias conciliación
-                     </TabButton>
-                     <TabButton
-                        active={tab === "abonos"}
-                        onClick={() => switchTabWithReset("abonos")}
-                        rightBadge={
-                           abonosLoading
-                              ? <span className="inline-block w-3 h-3 border-2 border-[var(--brand)] border-t-transparent rounded-full animate-spin"></span>
-                              : <span className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--brand-soft-bg,rgba(0,0,0,.05))] text-[var(--brand)] min-w-[2ch] text-center font-medium">{abonosTotal}</span>
-                        }
-                     >
-                        Abonos
-                     </TabButton>
-                     <TabButton
-                        active={tab === "cargos"}
-                        onClick={() => switchTabWithReset("cargos")}
-                        rightBadge={
-                           cargosLoading
-                              ? <span className="inline-block w-3 h-3 border-2 border-[var(--brand)] border-t-transparent rounded-full animate-spin"></span>
-                              : <span className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--brand-soft-bg,rgba(0,0,0,.05))] text-[var(--brand)] min-w-[2ch] text-center font-medium">{cargosTotal}</span>
-                        }
-                     >
-                        Cargos
-                     </TabButton>
-                  </div>
-
-                  {tab !== "sugerencias" && (
-                     <label className="inline-flex items-center gap-2 px-3.5 h-10 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-1)] text-xs font-medium text-[var(--text-main)] hover:bg-[var(--surface-2)] transition cursor-pointer select-none shadow-xs shrink-0">
-                        <input
-                           type="checkbox"
-                           className="w-4 h-4 rounded accent-[var(--brand)] text-[var(--brand)] cursor-pointer"
-                           checked={soloPorConciliar}
-                           onChange={(e) => {
-                              setSoloPorConciliar(e.target.checked);
-                              setPage(0);
-                           }}
-                        />
-                        <span>Por conciliar</span>
-                     </label>
-                  )}
-               </div>
-
-               {/* Grupo derecho: Acciones y Sincronización */}
-               {tab !== 'sugerencias' && (
-                  <div className="flex flex-wrap items-center gap-2 xl:justify-end">
-                     {currentSelectedAccount?.last_synced_at && (
-                        <div className="inline-flex items-center gap-2 px-3 h-10 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-1)] text-xs text-[var(--text-soft)] shadow-xs shrink-0" title="Última sincronización automática con el banco">
-                           <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                           <span>Última sync: <strong className="text-[var(--heading)] font-medium">{formatLastSync(currentSelectedAccount.last_synced_at)}</strong></span>
-                        </div>
-                     )}
-
-                     {currentSelectedAccount?.emisso_connection_id && canSyncBank && (
-                        <div className="inline-flex items-center h-10 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-1)] shadow-xs overflow-hidden shrink-0">
-                           <button
-                              type="button"
-                              onClick={handleManualEmissoSync}
-                              disabled={isManualSyncing || currentSelectedAccount?.sync_status === 'syncing' || emissoLimitReached}
-                              className="inline-flex items-center gap-2 px-3.5 h-full text-xs font-semibold text-[var(--text-main)] hover:bg-[var(--surface-2)] transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                              title={
-                                 emissoLimitReached
-                                    ? `Límite mensual alcanzado (${emissoSyncUsed}/${emissoSyncLimit} sincronizaciones manuales este mes). La sincronización automática cada 4 horas sigue activa.`
-                                    : `Actualizar movimientos manualmente con el banco (${emissoSyncUsed} de ${emissoSyncLimit} usos este mes)`
-                              }
-                           >
-                              <svg className={`w-3.5 h-3.5 text-[var(--brand)] shrink-0 ${isManualSyncing ? 'animate-spin' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                 <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
-                              </svg>
-                              <span>{isManualSyncing ? 'Sincronizando...' : 'Actualizar movimientos'}</span>
-                              <span
-                                 data-testid="emisso-sync-counter"
-                                 className={`px-1.5 py-0.5 rounded-md text-[11px] font-mono font-semibold border leading-none ${
-                                    emissoLimitReached
-                                       ? 'bg-red-500/15 text-red-600 dark:text-red-300 border-red-500/30'
-                                       : emissoSyncUsed >= Math.floor(emissoSyncLimit * 0.85)
-                                          ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30'
-                                          : 'bg-[var(--surface-2)] text-[var(--text-soft)] border-[var(--border-subtle)]'
-                                 }`}
-                              >
-                                 {hasEmissoQuotaLoaded ? `${emissoSyncUsed}/${emissoSyncLimit}` : `—/${emissoSyncLimit}`}
-                              </span>
-                           </button>
-
-                           <button
-                              type="button"
-                              onClick={() => setShowSyncPeriodModal(true)}
-                              disabled={isManualSyncing || currentSelectedAccount?.sync_status === 'syncing' || emissoLimitReached}
-                              className="px-3 h-full text-xs font-semibold text-[var(--text-soft)] hover:text-[var(--heading)] hover:bg-[var(--surface-2)] border-l border-[var(--border-subtle)] transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                              title={
-                                 emissoLimitReached
-                                    ? `Límite mensual alcanzado (${emissoSyncUsed}/${emissoSyncLimit}). Espera al próximo mes o utiliza la sincronización automática.`
-                                    : 'Sincronizar mes específico o rango histórico'
-                              }
-                           >
-                              <span>Histórico</span>
-                           </button>
-                        </div>
-                     )}
-
-                     {canUploadCartola && (
-                        <button
-                           type="button"
-                           onClick={openUploadModal}
-                           className="inline-flex items-center gap-2 px-4 h-10 bg-[var(--brand)] text-white text-xs font-semibold rounded-xl shadow-xs hover:opacity-95 transition shrink-0 cursor-pointer"
-                        >
-                           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" className="shrink-0">
-                              <path d="M12 3l4 4h-3v6h-2V7H8l4-4zm-7 14h14v2H5v-2z" />
-                           </svg>
-                           <span>Agregar movimiento</span>
-                        </button>
-                     )}
-
-                     {canBoletear && (
-                        <button
-                           type="button"
-                           disabled={selectedBoleteoIds.size === 0}
-                           onClick={() => setBatchBoletearModalOpen(true)}
-                           className={`inline-flex items-center gap-2 px-4 h-10 text-xs font-semibold rounded-xl shadow-xs transition shrink-0 ${
-                              selectedBoleteoIds.size > 0
-                                 ? 'bg-blue-600 hover:bg-blue-700 text-white cursor-pointer active:scale-95'
-                                 : 'bg-[var(--surface-1)] text-[var(--text-soft)] border border-[var(--border-subtle)] opacity-60 cursor-not-allowed'
-                           }`}
-                           title={
-                              selectedBoleteoIds.size > 0
-                                 ? `Generar ${selectedBoleteoIds.size} boleta(s) exenta(s) en lote`
-                                 : 'Selecciona abonos con las casillas para generar boletas'
-                           }
-                        >
-                           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0">
-                              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                              <polyline points="14 2 14 8 20 8" />
-                              <line x1="16" y1="13" x2="8" y2="13" />
-                              <line x1="16" y1="17" x2="8" y2="17" />
-                           </svg>
-                           <span>Generar boletas ({selectedBoleteoIds.size})</span>
-                        </button>
-                     )}
-
-                     {/* Grupo de utilidades: Filtros y XLSX integrados de forma simétrica */}
-                     <div className="inline-flex items-center h-10 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-1)] shadow-xs overflow-hidden shrink-0">
-                        <button
-                           type="button"
-                           onClick={() => setMostrarFiltros((v) => !v)}
-                           aria-expanded={mostrarFiltros}
-                           aria-controls={FILTER_PANEL_ID}
-                           className={`inline-flex items-center gap-1.5 px-3 h-full text-xs font-medium transition cursor-pointer ${
-                              mostrarFiltros
-                                 ? 'bg-[var(--surface-2)] text-[var(--brand)]'
-                                 : 'text-[var(--text-soft)] hover:text-[var(--heading)] hover:bg-[var(--surface-2)]'
-                           }`}
-                           title={mostrarFiltros ? "Ocultar filtros (Ctrl/⌘+K)" : "Mostrar filtros (Ctrl/⌘+K)"}
-                        >
-                           <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                              <circle cx="11" cy="11" r="8" />
-                              <path d="m21 21-4.35-4.35" />
-                           </svg>
-                           <span>Filtros</span>
-                        </button>
-
-                        <div className="w-px h-4 bg-[var(--border-subtle)]" />
-
-                        <button
-                           type="button"
-                           onClick={exportXLSX}
-                           disabled={loading}
-                           className="inline-flex items-center gap-1.5 px-3 h-full text-xs font-medium text-[var(--text-soft)] hover:text-[var(--heading)] hover:bg-[var(--surface-2)] transition disabled:opacity-50 cursor-pointer"
-                           title="Exportar movimientos a Excel (XLSX)"
-                        >
-                           <svg className="w-3.5 h-3.5 text-emerald-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                              <polyline points="14 2 14 8 20 8" />
-                              <line x1="8" y1="13" x2="16" y2="13" />
-                              <line x1="8" y1="17" x2="16" y2="17" />
-                           </svg>
-                           <span>{loading ? "…" : "XLSX"}</span>
-                        </button>
-                     </div>
-                  </div>
-               )}
-            </div>
-         </div>
-
-         {/* panel de sugerencias de conciliacion */}
+         {/* 5. Panel de sugerencias de conciliación (si tab === 'sugerencias') */}
          {tab === 'sugerencias' && (
-            <div className="bg-[var(--bg-content)] shadow-sm p-3 mb-4 rounded-lg">
+            <div className="bg-white rounded-2xl border border-[#E2EAFD] p-6 shadow-xs">
                <ReconcileSuggestionsPanel
                   baseUrl="https://api.leinsadvisor.cl/api/v1"
                   headers={headers}
@@ -2232,202 +2418,320 @@ export default function BankCartolasPage() {
             </div>
          )}
 
-         {/* tabla */}
+         {/* 6. Tabla de movimientos bancarios (si tab !== 'sugerencias') */}
          {tab !== 'sugerencias' && (
-            <div className={`bg-[var(--bg-content)] overflow-auto shadow-sm transition-all animate-fade-in ${loading ? 'opacity-60 pointer-events-none' : ''}`}>
-               <table className="min-w-full text-sm">
-                  <thead className="sticky top-0 bg-[var(--surface-2)] text-[var(--heading)]">
-                     <tr className="text-left">
-                        <th className="px-3 py-2 w-8 text-center">
-                           <input
-                              type="checkbox"
-                              checked={allSelectableChecked}
-                              onChange={handleToggleSelectAllBoleteo}
-                              disabled={selectableBoleteoRows.length === 0}
-                              className="rounded border-[var(--border-subtle)] text-blue-600 focus:ring-0 cursor-pointer w-4 h-4 disabled:opacity-30"
-                              title={allSelectableChecked ? "Deseleccionar todos" : "Seleccionar todos los abonos pendientes"}
-                           />
-                        </th>
-                        <th className="px-3 py-2">Fecha</th>
-                        <th className="px-3 py-2">Cuenta Corriente</th>
-                        <th className="px-3 py-2">Número Documento</th>
-                        <th className="px-3 py-2">Descripción</th>
-                        <th className="px-3 py-2 text-right">Cargo</th>
-                        <th className="px-3 py-2 text-right">Abono</th>
-                        <th className="px-3 py-2 text-right">Saldo</th>
-                        <th className="px-3 py-2">Estado Conciliación</th>
-                        <th className="px-3 py-2 text-right">Acciones</th>
-                     </tr>
-                  </thead>
-                  <tbody>
-                     {bankRows.length === 0 && (
+            <div className={`bg-white rounded-2xl border border-[#E2EAFD] p-6 shadow-xs space-y-4 transition-all animate-fade-in ${loading ? 'opacity-60 pointer-events-none' : ''}`}>
+               <div className="overflow-x-auto -mx-6 px-6">
+                  <table className="min-w-full text-left text-xs">
+                     <thead className="border-b border-[#E2EAFD] text-[#55607A] font-bold">
                         <tr>
-                           <td className="px-3 py-8 text-center text-[var(--text-soft)]" colSpan={10}>
-                              Sin resultados. Ajusta filtros o carga CSV.
-                           </td>
+                           <th className="pb-3 px-3 w-8 text-center">
+                              <input
+                                 type="checkbox"
+                                 checked={allSelectableChecked}
+                                 onChange={handleToggleSelectAllBoleteo}
+                                 disabled={selectableBoleteoRows.length === 0}
+                                 className="w-4 h-4 rounded border-[#C3D4FA] text-[#1F6BFF] focus:ring-0 accent-[#1F6BFF] cursor-pointer disabled:opacity-30"
+                                 title={allSelectableChecked ? "Deseleccionar todos" : "Seleccionar todos los abonos pendientes"}
+                              />
+                           </th>
+                           <th className="pb-3 px-4 font-bold text-[#55607A] whitespace-nowrap">Fecha / cuenta ⇅</th>
+                           <th className="pb-3 px-4 font-bold text-[#55607A] whitespace-nowrap">N° doc.</th>
+                           <th className="pb-3 px-4 font-bold text-[#55607A]">Descripción</th>
+                           <th className="pb-3 px-4 font-bold text-[#55607A] text-right whitespace-nowrap">Cargo</th>
+                           <th className="pb-3 px-4 font-bold text-[#55607A] text-right whitespace-nowrap">Abono</th>
+                           <th className="pb-3 px-4 font-bold text-[#55607A] text-right whitespace-nowrap">Saldo</th>
+                           <th className="pb-3 px-4 font-bold text-[#55607A] text-center whitespace-nowrap">Estado</th>
+                           <th className="pb-3 px-4 font-bold text-[#55607A] text-right whitespace-nowrap">Acciones</th>
                         </tr>
-                     )}
-
-                     {bankRows.map((r) => {
-                        // en la nueva api, los rows traen remaining_amount desde raw
-                        const remaining = Math.max(0, Number(r.raw?.remaining_amount ?? Math.abs(r.monto)));
-                        const cargo = r.monto < 0 ? Math.abs(r.monto) : 0;
-                        const abono = r.monto > 0 ? r.monto : 0;
-                        const bankTxId = r.raw?.id ?? (typeof r._id === 'string' && r._id.startsWith('tx-') ? Number(r._id.replace('tx-', '')) : r._id);
-                        const appliedSum = Number(r.raw?.applied_sum || 0);
-                        const boletaStatus = boletaMap[bankTxId]?.status;
-                        const isSelectableForBoleteo = abono > 0 && remaining > 0 && (!boletaStatus || boletaStatus === 'cancelled' || boletaStatus === 'failed');
-
-                        return (
-                           <tr key={r._id} className="border-t border-[var(--border-subtle)]">
-                              <td className="px-3 py-2 text-center">
-                                 {isSelectableForBoleteo ? (
-                                    <input
-                                       type="checkbox"
-                                       checked={selectedBoleteoIds.has(bankTxId)}
-                                       onChange={() => handleToggleRowBoleteo(bankTxId)}
-                                       className="rounded border-[var(--border-subtle)] text-blue-600 focus:ring-0 cursor-pointer w-4 h-4"
-                                       title="Seleccionar para generar boleta exenta"
-                                    />
-                                 ) : (
-                                    <input
-                                       type="checkbox"
-                                       disabled
-                                       checked={false}
-                                       className="rounded border-[var(--border-subtle)] opacity-20 cursor-not-allowed w-4 h-4"
-                                    />
-                                 )}
-                              </td>
-                              <td className="px-3 py-2 whitespace-nowrap">{r.fecha}</td>
-                              <td className="px-3 py-2">
-                                 {r.source === "bank" ? "Banco" : "SII"}
-                                 <div className="text-[11px] text-[var(--text-soft)]">
-                                    {r.cuenta_corriente || "—"}
-                                 </div>
-                              </td>
-                              <td className="px-3 py-2">{r.documento || "—"}</td>
-                              <td className="px-3 py-2">{r.descripcion}</td>
-                              <td className="px-3 py-2 text-right">{cargo ? fmtCLP(cargo) : "—"}</td>
-                              <td className="px-3 py-2 text-right">{abono ? fmtCLP(abono) : "—"}</td>
-                              <td className="px-3 py-2 text-right">
-                                 {r.raw?.balance != null ? fmtCLP(r.raw.balance) : "—"}
-                              </td>
-                              <td className="px-3 py-2">
-                                 <div className="flex items-center justify-between gap-2">
-                                    <div className={`text-[12px] ${remaining > 0 ? "text-[var(--warning)]" : "text-[var(--success)]"}`}>
-                                       {remaining > 0
-                                          ? `${fmtCLP(remaining)} por conciliar`
-                                          : `${fmtCLP(Math.abs(r.monto))} conciliado`}
-                                    </div>
-                                    {remaining > 0 && canReconcile && (
-                                       <button
-                                          className="px-3 py-1 rounded-lg bg-[var(--brand)] text-white text-xs hover:opacity-90 transition shadow-xs"
-                                          onClick={() => openConciliar(r)}
-                                       >
-                                          Conciliar
-                                       </button>
-                                    )}
-                                    {boletaMap[bankTxId]?.status === 'pending' && (
-                                       <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-600 dark:text-amber-400" title="En cola para ser emitida por el worker de boletas">
-                                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
-                                          Boleteo en cola
-                                       </span>
-                                    )}
-                                    {boletaMap[bankTxId]?.status === 'processing' && (
-                                       <span className="inline-flex items-center gap-1 text-[11px] font-medium text-blue-600 dark:text-blue-400 animate-pulse" title="Worker emitiendo boleta en SII">
-                                          <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
-                                          Emitiendo en SII...
-                                       </span>
-                                    )}
-                                    {boletaMap[bankTxId]?.status === 'posiblemente_emitida' && (
-                                       <span className="inline-flex items-center gap-1 text-[11px] font-medium text-orange-600 dark:text-orange-400" title={boletaMap[bankTxId]?.error_message || 'Verificar en SII'}>
-                                          ⚠️ Verif. SII
-                                       </span>
-                                    )}
-                                    {boletaMap[bankTxId]?.status === 'completed' && (
-                                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400" title={`Boleta emitida con Folio ${boletaMap[bankTxId]?.folio || ''}`}>
-                                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                                           Folio {boletaMap[bankTxId]?.folio || 'Emitida'}
-                                        </span>
-                                     )}
-                                     {boletaMap[bankTxId]?.status === 'failed' && (
-                                        <div className="inline-flex items-center gap-1.5">
-                                           <span className="inline-flex items-center gap-1 text-[11px] font-medium text-red-600 dark:text-red-400" title={boletaMap[bankTxId]?.error_message}>
-                                              ❌ Error boleta
-                                           </span>
-                                           <button
-                                              type="button"
-                                              onClick={async (e) => {
-                                                 e.stopPropagation();
-                                                 try {
-                                                    await retryBoletaRequest(boletaMap[bankTxId].id, entityId);
-                                                    toast.success('Solicitud re-encolada para emisión');
-                                                    queryClient.invalidateQueries({ queryKey: ['activeBoletaMap'] });
-                                                 } catch (err) {
-                                                    toast.error(err.message || 'Error al reintentar');
-                                                 }
-                                              }}
-                                              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-semibold rounded bg-amber-500/10 text-amber-600 border border-amber-500/30 hover:bg-amber-500/20 cursor-pointer active:scale-95 transition"
-                                              title="Reintentar emisión de boleta"
-                                           >
-                                              <ArrowPathIcon className="w-3 h-3" />
-                                              Reintentar
-                                           </button>
-                                        </div>
-                                     )}
-                                 </div>
-                              </td>
-                              <td className="px-3 py-2 text-right">
-                                 <div className="flex items-center justify-end gap-2">
-                                    <button
-                                       type="button"
-                                       disabled={appliedSum <= 0}
-                                       onClick={() => {
-                                          setReconciliationDetailTxId(bankTxId);
-                                          setReconciliationDetailTxAmount(Math.abs(r.monto));
-                                       }}
-                                       className={`px-3 py-1 rounded border border-[var(--border-subtle)] text-xs ${appliedSum > 0
-                                          ? 'hover:bg-[var(--surface-1)] text-[var(--brand)]'
-                                          : 'opacity-50 cursor-not-allowed text-[var(--text-soft)]'
-                                          }`}
-                                    >
-                                       Detalle
-                                    </button>
-                                    {canDeleteMovement && appliedSum <= 0 && (
-                                       <button
-                                          type="button"
-                                          disabled={deletingTxId === bankTxId}
-                                          onClick={() => handleDeleteTransaction(bankTxId)}
-                                          className="px-3 py-1 rounded border border-[var(--danger)] text-[var(--danger)] text-xs hover:bg-[var(--danger)]/10 disabled:opacity-50"
-                                       >
-                                          {deletingTxId === bankTxId ? "..." : "Eliminar"}
-                                       </button>
-                                    )}
-                                 </div>
+                     </thead>
+                     <tbody className="divide-y divide-[#F0F4FE]">
+                        {bankRows.length === 0 && (
+                           <tr>
+                              <td className="py-12 text-center text-[#8E9BB5] font-medium" colSpan={9}>
+                                 Sin movimientos para los filtros seleccionados.
                               </td>
                            </tr>
+                        )}
+
+                        {bankRows.map((r) => {
+                           const remaining = Math.max(0, Number(r.raw?.remaining_amount ?? Math.abs(r.monto)));
+                           const cargo = r.monto < 0 ? Math.abs(r.monto) : 0;
+                           const abono = r.monto > 0 ? r.monto : 0;
+                           const bankTxId = r.raw?.id ?? (typeof r._id === 'string' && r._id.startsWith('tx-') ? Number(r._id.replace('tx-', '')) : r._id);
+                           const appliedSum = Number(r.raw?.applied_sum || 0);
+                           const boletaStatus = boletaMap[bankTxId]?.status;
+                           const isSelectableForBoleteo = abono > 0 && remaining > 0 && (!boletaStatus || boletaStatus === 'cancelled' || boletaStatus === 'failed');
+
+                           return (
+                              <tr key={r._id || bankTxId} className="hover:bg-[#F8FAFF] transition-colors">
+                                 <td className="py-3.5 px-3 text-center">
+                                    {isSelectableForBoleteo ? (
+                                       <input
+                                          type="checkbox"
+                                          checked={selectedBoleteoIds.has(bankTxId)}
+                                          onChange={() => handleToggleRowBoleteo(bankTxId)}
+                                          className="w-4 h-4 rounded border-[#C3D4FA] text-[#1F6BFF] focus:ring-0 accent-[#1F6BFF] cursor-pointer"
+                                          title="Seleccionar para generar boleta exenta"
+                                       />
+                                    ) : (
+                                       <input
+                                          type="checkbox"
+                                          disabled
+                                          checked={false}
+                                          className="w-4 h-4 rounded border-[#E2EAFD] opacity-20 cursor-not-allowed"
+                                       />
+                                    )}
+                                 </td>
+
+                                 <td className="py-3.5 px-4 whitespace-nowrap">
+                                    <div className="text-xs font-semibold text-[#0A1A3F]">{r.fecha}</div>
+                                    <div className="text-[11px] text-[#8E9BB5] mt-0.5">
+                                       {r.cuenta_corriente
+                                          ? (String(r.cuenta_corriente).includes('••••')
+                                                ? r.cuenta_corriente
+                                                : `Cta. cte. ••••${String(r.cuenta_corriente).slice(-4)}`)
+                                          : (r.source === 'bank' ? 'Cta. cte.' : 'SII')}
+                                    </div>
+                                 </td>
+
+                                 <td className="py-3.5 px-4 whitespace-nowrap text-xs text-[#55607A] font-medium">
+                                    {r.documento || '—'}
+                                 </td>
+
+                                 <td className="py-3.5 px-4">
+                                    <div className="text-xs font-bold text-[#0A1A3F] leading-snug">
+                                       {r.descripcion}
+                                    </div>
+                                    {Boolean(r.raw?.suggestion_count || r.has_suggestion) && (
+                                       <div className="text-[11px] text-[#1F6BFF] font-semibold mt-0.5">
+                                          {r.raw?.suggestion_count === 1
+                                             ? '1 sugerencia con calce exacto'
+                                             : `${r.raw?.suggestion_count || 1} sugerencias con calce exacto`}
+                                       </div>
+                                    )}
+                                 </td>
+
+                                 <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                                    {cargo > 0 ? (
+                                       <span className="text-xs font-bold text-[#0A1A3F] tabular-nums">
+                                          -$ {Math.abs(cargo).toLocaleString('es-CL')}
+                                       </span>
+                                    ) : (
+                                       <span className="text-[#8E9BB5]">—</span>
+                                    )}
+                                 </td>
+
+                                 <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                                    {abono > 0 ? (
+                                       <span className="text-xs font-bold text-[#1F6BFF] tabular-nums">
+                                          +$ {Math.abs(abono).toLocaleString('es-CL')}
+                                       </span>
+                                    ) : (
+                                       <span className="text-[#8E9BB5]">—</span>
+                                    )}
+                                 </td>
+
+                                 <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                                    {r.raw?.balance != null ? (
+                                       <span className="text-xs font-medium text-[#55607A] tabular-nums">
+                                          $ {Math.abs(Number(r.raw.balance)).toLocaleString('es-CL')}
+                                       </span>
+                                    ) : (
+                                       <span className="text-[#8E9BB5]">—</span>
+                                    )}
+                                 </td>
+
+                                 <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                                    <div className="flex flex-col items-center justify-center">
+                                       {remaining === 0 ? (
+                                          <>
+                                             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#EEF3FF] text-[#1F6BFF] text-xs font-bold shadow-xs">
+                                                <span className="w-2 h-2 rounded-full bg-[#1F6BFF]" />
+                                                <span>Conciliado</span>
+                                             </span>
+                                             <span className="text-[10px] text-[#8E9BB5] font-medium mt-0.5">
+                                                $ {Math.abs(Number(r.monto)).toLocaleString('es-CL')} conciliado
+                                             </span>
+                                          </>
+                                       ) : (
+                                          <>
+                                             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#EEF3FF] border-2 border-[#C3D4FA] text-[#0A1A3F] text-xs font-bold shadow-xs">
+                                                <svg className="w-2.5 h-2.5 text-[#0A1A3F]" viewBox="0 0 16 16">
+                                                   <circle cx="8" cy="8" r="4.5" stroke="currentColor" strokeWidth="2.75" fill="none" />
+                                                </svg>
+                                                <span>Por conciliar</span>
+                                             </span>
+                                             <span className="text-[10px] text-[#8E9BB5] font-medium mt-0.5">
+                                                $ {Math.abs(remaining).toLocaleString('es-CL')} por asignar
+                                             </span>
+                                          </>
+                                       )}
+
+                                       {/* Estados de boleta electrónica si aplica */}
+                                       {boletaStatus === 'pending' && (
+                                          <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-600 mt-1">
+                                             <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                                             Boleteo en cola
+                                          </span>
+                                       )}
+                                       {boletaStatus === 'processing' && (
+                                          <span className="inline-flex items-center gap-1 text-[11px] font-medium text-blue-600 mt-1 animate-pulse">
+                                             <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                                             Emitiendo en SII...
+                                          </span>
+                                       )}
+                                       {boletaStatus === 'completed' && (
+                                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 mt-1">
+                                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                             Folio {boletaMap[bankTxId]?.folio || 'Emitida'}
+                                          </span>
+                                       )}
+                                       {boletaStatus === 'failed' && (
+                                          <div className="inline-flex items-center gap-1 text-[11px] font-medium text-red-600 mt-1">
+                                             <span>❌ Error boleta</span>
+                                          </div>
+                                       )}
+                                    </div>
+                                 </td>
+
+                                 <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                                    <div className="flex items-center justify-end gap-2">
+                                       {remaining === 0 ? (
+                                          <button
+                                             type="button"
+                                             onClick={() => {
+                                                setReconciliationDetailTxId(bankTxId);
+                                                setReconciliationDetailTxAmount(Math.abs(r.monto));
+                                             }}
+                                             className="inline-flex items-center gap-1.5 text-xs font-bold text-[#55607A] hover:text-[#1F6BFF] transition-colors cursor-pointer"
+                                          >
+                                             <VerIcon className="w-3.5 h-3.5 text-[#55607A]" />
+                                             <span>Detalle</span>
+                                          </button>
+                                       ) : (
+                                          <>
+                                             {canReconcile && (
+                                                <button
+                                                   type="button"
+                                                   onClick={() => openConciliar(r)}
+                                                   className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-[#1F6BFF] hover:bg-[#1657D7] text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
+                                                >
+                                                   <svg className="w-3 h-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                                      <polyline points="3.5 8.5 6.5 11.5 12.5 5.5" />
+                                                   </svg>
+                                                   <span>Conciliar</span>
+                                                </button>
+                                             )}
+
+                                             <div className="relative">
+                                                <button
+                                                   type="button"
+                                                   onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      setOpenActionMenuId(openActionMenuId === bankTxId ? null : bankTxId);
+                                                   }}
+                                                   className="p-1 rounded-full text-[#8E9BB5] hover:text-[#0A1A3F] hover:bg-[#EEF3FF] transition cursor-pointer"
+                                                   title="Más opciones"
+                                                >
+                                                   <MasOpcionesIcon className="w-4 h-4" />
+                                                </button>
+
+                                                {openActionMenuId === bankTxId && (
+                                                   <div
+                                                      className="absolute right-0 top-full mt-1 w-44 bg-white rounded-xl shadow-lg border border-[#E2EAFD] py-1 z-30 animate-fade-in"
+                                                      onClick={(e) => e.stopPropagation()}
+                                                   >
+                                                      {appliedSum > 0 && (
+                                                         <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                               setOpenActionMenuId(null);
+                                                               setReconciliationDetailTxId(bankTxId);
+                                                               setReconciliationDetailTxAmount(Math.abs(r.monto));
+                                                            }}
+                                                            className="w-full text-left px-3.5 py-2 text-xs font-medium text-[#0A1A3F] hover:bg-[#EEF3FF] flex items-center gap-2 cursor-pointer"
+                                                         >
+                                                            <VerIcon className="w-3.5 h-3.5 text-[#55607A]" />
+                                                            <span>Ver detalle</span>
+                                                         </button>
+                                                      )}
+                                                      {canDeleteMovement && appliedSum <= 0 && (
+                                                         <button
+                                                            type="button"
+                                                            disabled={deletingTxId === bankTxId}
+                                                            onClick={() => {
+                                                               setOpenActionMenuId(null);
+                                                               handleDeleteTransaction(bankTxId);
+                                                            }}
+                                                            className="w-full text-left px-3.5 py-2 text-xs font-medium text-red-600 hover:bg-red-50 flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                                                         >
+                                                            <EliminarIcon className="w-3.5 h-3.5 text-red-600" />
+                                                            <span>{deletingTxId === bankTxId ? 'Eliminando...' : 'Eliminar movimiento'}</span>
+                                                         </button>
+                                                      )}
+                                                   </div>
+                                                )}
+                                             </div>
+                                          </>
+                                       )}
+                                    </div>
+                                 </td>
+                              </tr>
+                           );
+                        })}
+                     </tbody>
+                  </table>
+               </div>
+
+               {/* Paginación exacta estilo Jeito */}
+               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-4 border-t border-[#E2EAFD]">
+                  <div className="text-xs text-[#8E9BB5] font-medium">
+                     Mostrando {startItem}–{endItem} de {total}
+                  </div>
+
+                  <div className="flex items-center gap-1.5 self-center sm:self-auto">
+                     <button
+                        type="button"
+                        onClick={() => setPage(p => Math.max(0, p - 1))}
+                        disabled={page === 0}
+                        className="p-1.5 rounded-lg border border-[#E2EAFD] text-[#55607A] hover:bg-[#EEF3FF] disabled:opacity-30 disabled:pointer-events-none transition cursor-pointer"
+                        title="Anterior"
+                     >
+                        <IzquierdaIcon className="w-4 h-4" />
+                     </button>
+
+                     {renderPageNumbers().map((p, idx) => {
+                        if (typeof p === 'string') {
+                           return <span key={`ellipsis-${idx}`} className="text-xs text-[#8E9BB5] px-1 select-none">…</span>;
+                        }
+                        const isActive = p === page;
+                        return (
+                           <button
+                              key={p}
+                              type="button"
+                              onClick={() => setPage(p)}
+                              className={`w-7 h-7 rounded-full text-xs font-bold flex items-center justify-center transition-colors cursor-pointer ${
+                                 isActive
+                                    ? 'bg-[#1F6BFF] text-white shadow-xs'
+                                    : 'text-[#55607A] hover:bg-[#EEF3FF] hover:text-[#0A1A3F]'
+                              }`}
+                           >
+                              {p + 1}
+                           </button>
                         );
                      })}
-                  </tbody>
-               </table>
 
-               {/* paginación */}
-               <div className="flex items-center gap-3 mt-3 p-3 border-t border-[var(--border-subtle)]">
-                  <span>
-                     Página {page + 1} de {Math.max(1, Math.ceil(total / pageSize))}
-                  </span>
-                  <button className="px-3 py-1 rounded border" disabled={page === 0} onClick={() => setPage(p => Math.max(0, p - 1))}>
-                     ◀ Anterior
-                  </button>
-                  <button className="px-3 py-1 rounded border" disabled={(page + 1) * pageSize >= total} onClick={() => setPage(p => p + 1)}>
-                     Siguiente ▶
-                  </button>
-                  <select className="px-2 py-1 border rounded text-[var(--heading)] bg-[var(--surface-1)]" value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setPage(0); }}>
-                     <option value={25}>25</option>
-                     <option value={50}>50</option>
-                     <option value={100}>100</option>
-                     <option value={200}>200</option>
-                  </select>
+                     <button
+                        type="button"
+                        onClick={() => setPage(p => p + 1)}
+                        disabled={(page + 1) * pageSize >= total}
+                        className="p-1.5 rounded-lg border border-[#E2EAFD] text-[#55607A] hover:bg-[#EEF3FF] disabled:opacity-30 disabled:pointer-events-none transition cursor-pointer"
+                        title="Siguiente"
+                     >
+                        <DerechaIcon className="w-4 h-4" />
+                     </button>
+                  </div>
                </div>
             </div>
          )}
