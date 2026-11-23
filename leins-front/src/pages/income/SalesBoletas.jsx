@@ -15,24 +15,24 @@ import BoletaQueuePanel from '../../components/income/BoletaQueuePanel';
 import { deleteManualIncome, listSiiDocuments } from '../../services/siiDocumentsApi';
 import { SII_DOCUMENT_FILTERS, getSiiDocumentTypeLabel } from '../../utils/siiConstants';
 import { toast } from 'components/Toaster';
+import { LinkIcon } from '@heroicons/react/24/outline';
 import {
-   DocumentDuplicateIcon,
-   DocumentTextIcon,
-   ChartBarIcon,
-   PencilSquareIcon,
-   CalendarDaysIcon,
-   PlusIcon,
-   FunnelIcon,
-   ArrowPathIcon,
-   TrashIcon,
-   LinkIcon,
-   ReceiptRefundIcon,
+   FiltroIcon,
+   BuscarIcon,
+   ExcelIcon,
    CheckIcon,
-   ArrowDownTrayIcon,
-   MagnifyingGlassIcon,
-   ChevronLeftIcon,
-   ChevronRightIcon,
-} from '@heroicons/react/24/outline';
+   MasIcon,
+   CobrarIcon,
+   ConciliarIcon,
+   EditarIcon,
+   EliminarIcon,
+   IzquierdaIcon,
+   DerechaIcon,
+   DocumentoIcon,
+   ReciboIcon,
+   GraficoIcon,
+   SincronizarIcon,
+} from '../../components/icons/SidebarIcons';
 
 // Formato de moneda chilena con espacio: "$ 12.480.300"
 function formatClp(value) {
@@ -42,6 +42,93 @@ function formatClp(value) {
 }
 
 const intFmt = new Intl.NumberFormat('es-CL');
+
+// Componente Resumen de Página oficial Jeito (5 tarjetas KPI con cálculo dinámico sobre items)
+function ResumenPagina({ items = [] }) {
+   const fmt = new Intl.NumberFormat('es-CL');
+   let exentoBruto = 0;
+   let afectoIvaBruto = 0;
+   let notasCredito = 0;
+   let total = 0;
+
+   for (const r of items ?? []) {
+      const isNc = Number(r.doc_type_code) === 61;
+      const exento = Number(r.exempt_amount ?? r.exento ?? 0);
+      const afecto = Number(r.net_amount ?? r.afecto ?? 0);
+      const iva = Number(r.vat_amount ?? r.iva ?? 0);
+      const t = Number(r.total_amount ?? r.total ?? (exento + afecto + iva));
+
+      if (isNc) {
+         notasCredito += t;
+         total -= t;
+      } else {
+         exentoBruto += exento;
+         afectoIvaBruto += (afecto + iva);
+         total += t;
+      }
+   }
+
+   return (
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+         {/* 1. Documentos */}
+         <div className="bg-white rounded-2xl border border-[#E2EAFD] p-4 flex items-center gap-3.5 shadow-xs">
+            <div className="h-10 w-10 rounded-xl bg-[#EFF3FF] flex items-center justify-center text-[#1F6BFF] shrink-0">
+               <DocumentoIcon className="w-5 h-5 text-[#0A1A3F]" />
+            </div>
+            <div>
+               <div className="text-xs text-[#55607A] font-medium">Documentos</div>
+               <div className="text-2xl font-black font-nunito text-[#0A1A3F] mt-0.5">{fmt.format(items.length)}</div>
+            </div>
+         </div>
+
+         {/* 2. Exento total */}
+         <div className="bg-white rounded-2xl border border-[#E2EAFD] p-4 flex items-center gap-3.5 shadow-xs">
+            <div className="h-10 w-10 rounded-xl bg-[#EFF3FF] flex items-center justify-center text-[#1F6BFF] shrink-0">
+               <ReciboIcon className="w-5 h-5 text-[#0A1A3F]" />
+            </div>
+            <div>
+               <div className="text-xs text-[#55607A] font-medium">Exento total</div>
+               <div className="text-xl font-black font-nunito text-[#0A1A3F] tabular-nums mt-0.5">{formatClp(exentoBruto)}</div>
+            </div>
+         </div>
+
+         {/* 3. Afecto + IVA total */}
+         <div className="bg-white rounded-2xl border border-[#E2EAFD] p-4 flex items-center gap-3.5 shadow-xs">
+            <div className="h-10 w-10 rounded-xl bg-[#EFF3FF] flex items-center justify-center text-[#1F6BFF] shrink-0">
+               <GraficoIcon className="w-5 h-5 text-[#0A1A3F]" />
+            </div>
+            <div>
+               <div className="text-xs text-[#55607A] font-medium">Afecto + IVA total</div>
+               <div className="text-xl font-black font-nunito text-[#0A1A3F] tabular-nums mt-0.5">{formatClp(afectoIvaBruto)}</div>
+            </div>
+         </div>
+
+         {/* 4. Notas de crédito */}
+         <div className="bg-white rounded-2xl border border-[#E2EAFD] p-4 flex items-center gap-3.5 shadow-xs">
+            <div className="h-10 w-10 rounded-xl bg-[#EFF3FF] flex items-center justify-center text-[#1F6BFF] shrink-0">
+               <CobrarIcon className="w-5 h-5 text-[#0A1A3F]" />
+            </div>
+            <div>
+               <div className="text-xs text-[#55607A] font-medium">Notas de crédito</div>
+               <div className="text-xl font-black font-nunito text-[#0A1A3F] tabular-nums mt-0.5">
+                  {notasCredito > 0 ? `-$ ${fmt.format(notasCredito)}` : '-$ 0'}
+               </div>
+            </div>
+         </div>
+
+         {/* 5. Total final (Azul Vivo Jeito) */}
+         <div className="col-span-2 lg:col-span-1 bg-[#1F6BFF] text-white rounded-2xl p-4 flex items-center gap-3.5 shadow-sm">
+            <div className="h-10 w-10 rounded-full bg-white/20 flex items-center justify-center text-white shrink-0">
+               <CheckIcon className="w-5 h-5 stroke-white" />
+            </div>
+            <div>
+               <div className="text-xs text-white/80 font-medium">Total final</div>
+               <div className="text-xl font-black font-nunito text-white tabular-nums mt-0.5">{formatClp(total)}</div>
+            </div>
+         </div>
+      </div>
+   );
+}
 
 function periodToYYYYMM({ month, year }) {
    const m = String(month).padStart(2, '0');
@@ -187,39 +274,6 @@ export default function SalesBoletas() {
    const [hasPrev, setHasPrev] = useState(false);
    const [hasNext, setHasNext] = useState(false);
    const [refreshTrigger, setRefreshTrigger] = useState(0);
-
-   // Totales calculados para las 5 tarjetas superiores
-   const summaryTotals = useMemo(() => {
-      let exentoBruto = 0;
-      let afectoIvaBruto = 0;
-      let notasCredito = 0;
-      let totalFinal = 0;
-
-      for (const r of rows) {
-         const isNc = Number(r.doc_type_code) === 61;
-         const ex = Number(r.exento || 0);
-         const af = Number(r.afecto || 0);
-         const iv = Number(r.iva || 0);
-         const tot = Number(r.total || (ex + af + iv));
-
-         if (isNc) {
-            notasCredito += tot;
-            totalFinal -= tot;
-         } else {
-            exentoBruto += ex;
-            afectoIvaBruto += (af + iv);
-            totalFinal += tot;
-         }
-      }
-
-      return {
-         documentos: rows.length,
-         exentoBruto,
-         afectoIvaBruto,
-         notasCredito,
-         totalFinal,
-      };
-   }, [rows]);
 
    const effectiveMonth = useMemo(() => filterMonth || (period ? periodToYYYYMM(period) : todayYYYYMM()), [filterMonth, period]);
    const debEntityId = useDebounced(entityId, 300);
@@ -652,7 +706,7 @@ export default function SalesBoletas() {
                      className="rounded-full border border-[#E2EAFD] bg-white hover:bg-[#EEF3FF] text-[#0A1A3F] font-bold text-xs px-4 py-2 transition-colors flex items-center gap-1.5 shadow-xs whitespace-nowrap cursor-pointer"
                      label={
                         <>
-                           <ArrowPathIcon className="w-3.5 h-3.5 text-[#0A1A3F]" />
+                           <SincronizarIcon className="w-3.5 h-3.5 text-[#0A1A3F]" />
                            <span>Sincronizar boletas</span>
                         </>
                      }
@@ -670,7 +724,7 @@ export default function SalesBoletas() {
                      className="rounded-full border border-[#E2EAFD] bg-white hover:bg-[#EEF3FF] text-[#0A1A3F] font-bold text-xs px-4 py-2 transition-colors flex items-center gap-1.5 shadow-xs whitespace-nowrap cursor-pointer"
                      label={
                         <>
-                           <ArrowPathIcon className="w-3.5 h-3.5 text-[#0A1A3F]" />
+                           <SincronizarIcon className="w-3.5 h-3.5 text-[#0A1A3F]" />
                            <span>Sincronizar facturas</span>
                         </>
                      }
@@ -682,7 +736,7 @@ export default function SalesBoletas() {
                      onClick={() => setIsManualModalOpen(true)}
                      className="rounded-full bg-[#1F6BFF] hover:bg-[#1657D7] text-white font-black text-xs px-5 py-2 transition-colors flex items-center gap-1.5 shadow-sm whitespace-nowrap cursor-pointer"
                   >
-                     <span className="text-sm font-bold leading-none">+</span>
+                     <MasIcon className="w-3.5 h-3.5 stroke-white" />
                      <span>Añadir ingreso</span>
                   </button>
                </div>
@@ -700,7 +754,7 @@ export default function SalesBoletas() {
                   {/* Cabecera del filtro */}
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                      <div className="flex items-center gap-2 text-sm font-bold font-nunito text-[#0A1A3F]">
-                        <FunnelIcon className="w-4 h-4 text-[#0A1A3F] stroke-[2]" />
+                        <FiltroIcon className="w-4 h-4 text-[#0A1A3F]" />
                         <span>Filtros de búsqueda</span>
                      </div>
                      <div className="flex items-center gap-4">
@@ -710,7 +764,7 @@ export default function SalesBoletas() {
                            disabled={loading}
                            className="text-xs font-semibold text-[#55607A] hover:text-[#1F6BFF] flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
                         >
-                           <ArrowPathIcon className="w-3.5 h-3.5" />
+                           <SincronizarIcon className="w-3.5 h-3.5" />
                            <span>Limpiar filtros</span>
                         </button>
 
@@ -773,7 +827,7 @@ export default function SalesBoletas() {
                         <label className="block text-[10px] font-bold uppercase tracking-wider text-[#55607A]">Cliente</label>
                         <div className="relative flex items-center">
                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-[#8E9BB5]">
-                              <MagnifyingGlassIcon className="w-4 h-4" />
+                              <BuscarIcon className="w-4 h-4 text-[#8E9BB5]" />
                            </div>
                            <input
                               type="text"
@@ -890,66 +944,9 @@ export default function SalesBoletas() {
                </div>
 
                {/* ========================================================
-                   3. CINCO TARJETAS DE CIFRAS (KPI)
+                   3. RESUMEN DE PÁGINA (5 TARJETAS DE CIFRAS KPI)
                    ======================================================== */}
-               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-                  {/* Card 1: Documentos */}
-                  <div className="bg-white rounded-2xl border border-[#E2EAFD] p-4 flex items-center gap-3.5 shadow-xs">
-                     <div className="h-10 w-10 rounded-xl bg-[#EFF3FF] flex items-center justify-center text-[#1F6BFF] shrink-0">
-                        <DocumentTextIcon className="w-5 h-5 stroke-[2]" />
-                     </div>
-                     <div>
-                        <div className="text-xs text-[#55607A] font-medium">Documentos</div>
-                        <div className="text-2xl font-black font-nunito text-[#0A1A3F] mt-0.5">{intFmt.format(total || rows.length)}</div>
-                     </div>
-                  </div>
-
-                  {/* Card 2: Exento total */}
-                  <div className="bg-white rounded-2xl border border-[#E2EAFD] p-4 flex items-center gap-3.5 shadow-xs">
-                     <div className="h-10 w-10 rounded-xl bg-[#EFF3FF] flex items-center justify-center text-[#1F6BFF] shrink-0">
-                        <DocumentDuplicateIcon className="w-5 h-5 stroke-[2]" />
-                     </div>
-                     <div>
-                        <div className="text-xs text-[#55607A] font-medium">Exento total</div>
-                        <div className="text-xl font-black font-nunito text-[#0A1A3F] tabular-nums mt-0.5">{formatClp(summaryTotals.exentoBruto)}</div>
-                     </div>
-                  </div>
-
-                  {/* Card 3: Afecto + IVA total */}
-                  <div className="bg-white rounded-2xl border border-[#E2EAFD] p-4 flex items-center gap-3.5 shadow-xs">
-                     <div className="h-10 w-10 rounded-xl bg-[#EFF3FF] flex items-center justify-center text-[#1F6BFF] shrink-0">
-                        <ChartBarIcon className="w-5 h-5 stroke-[2]" />
-                     </div>
-                     <div>
-                        <div className="text-xs text-[#55607A] font-medium">Afecto + IVA total</div>
-                        <div className="text-xl font-black font-nunito text-[#0A1A3F] tabular-nums mt-0.5">{formatClp(summaryTotals.afectoIvaBruto)}</div>
-                     </div>
-                  </div>
-
-                  {/* Card 4: Notas de crédito */}
-                  <div className="bg-white rounded-2xl border border-[#E2EAFD] p-4 flex items-center gap-3.5 shadow-xs">
-                     <div className="h-10 w-10 rounded-xl bg-[#EFF3FF] flex items-center justify-center text-[#1F6BFF] shrink-0">
-                        <ReceiptRefundIcon className="w-5 h-5 stroke-[2]" />
-                     </div>
-                     <div>
-                        <div className="text-xs text-[#55607A] font-medium">Notas de crédito</div>
-                        <div className="text-xl font-black font-nunito text-[#0A1A3F] tabular-nums mt-0.5">
-                           {summaryTotals.notasCredito > 0 ? `-$ ${intFmt.format(summaryTotals.notasCredito)}` : '-$ 0'}
-                        </div>
-                     </div>
-                  </div>
-
-                  {/* Card 5: Total final (Tarjeta Azul Vivo Oficial) */}
-                  <div className="col-span-2 lg:col-span-1 bg-[#1F6BFF] text-white rounded-2xl p-4 flex items-center gap-3.5 shadow-sm">
-                     <div className="h-10 w-10 rounded-full bg-white/20 flex items-center justify-center text-white shrink-0">
-                        <CheckIcon className="w-5 h-5 stroke-[3]" />
-                     </div>
-                     <div>
-                        <div className="text-xs text-white/80 font-medium">Total final</div>
-                        <div className="text-xl font-black font-nunito text-white tabular-nums mt-0.5">{formatClp(summaryTotals.totalFinal)}</div>
-                     </div>
-                  </div>
-               </div>
+               <ResumenPagina items={rows} />
 
                {/* ========================================================
                    4. TABLA DE DOCUMENTOS
@@ -971,7 +968,7 @@ export default function SalesBoletas() {
                         disabled={exportingCsv || !total}
                         className="text-xs font-semibold text-[#55607A] hover:text-[#1F6BFF] flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
                      >
-                        <ArrowDownTrayIcon className="w-4 h-4" />
+                        <ExcelIcon className="w-4 h-4 text-[#0A1A3F]" />
                         <span>{exportingCsv ? 'Exportando...' : 'Exportar Excel'}</span>
                      </button>
                   </div>
@@ -1119,20 +1116,20 @@ export default function SalesBoletas() {
                                              <button
                                                 type="button"
                                                 onClick={() => handleOpenReconcile(r)}
-                                                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-[#EEF3FF] text-[#1F6BFF] hover:bg-[#DCE5FF] transition-colors cursor-pointer shadow-xs"
+                                                className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full text-xs font-bold bg-[#EEF3FF] text-[#1F6BFF] hover:bg-[#DCE5FF] transition-colors cursor-pointer shadow-xs"
                                                 title="Cobrado y conciliado con banco"
                                              >
-                                                <span className="w-1.5 h-1.5 rounded-full bg-[#1F6BFF]" />
+                                                <span className="w-2 h-2 rounded-full bg-[#1F6BFF]" />
                                                 <span>Cobrado</span>
                                              </button>
                                           ) : (
                                              <button
                                                 type="button"
                                                 onClick={() => handleOpenReconcile(r)}
-                                                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-[#0A1A3F] text-white hover:bg-[#13285C] transition-colors cursor-pointer shadow-xs"
+                                                className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full text-xs font-bold bg-[#0A1A3F] text-white hover:bg-[#13285C] transition-colors cursor-pointer shadow-xs"
                                                 title={r.remaining_amount ? `Pendiente: ${formatClp(r.remaining_amount)}` : 'Pendiente de cobro'}
                                              >
-                                                <span className="w-1.5 h-1.5 rounded-full bg-white" />
+                                                <span className="w-2 h-2 rounded-full bg-[#1F6BFF]" />
                                                 <span>Pendiente</span>
                                              </button>
                                           )}
@@ -1144,20 +1141,22 @@ export default function SalesBoletas() {
                                              <button
                                                 type="button"
                                                 onClick={() => handleQuickClassify(r)}
-                                                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-[#EEF3FF] text-[#1F6BFF] hover:bg-[#DCE5FF] transition-colors cursor-pointer shadow-xs"
+                                                className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full text-xs font-bold bg-[#EEF3FF] text-[#1F6BFF] hover:bg-[#DCE5FF] transition-colors cursor-pointer shadow-xs"
                                                 title={r.accounting_account?.name || 'Clasificado'}
                                              >
-                                                <span className="w-1.5 h-1.5 rounded-full bg-[#1F6BFF]" />
+                                                <span className="w-2 h-2 rounded-full bg-[#1F6BFF]" />
                                                 <span>Clasificado</span>
                                              </button>
                                           ) : (
                                              <button
                                                 type="button"
                                                 onClick={() => handleQuickClassify(r)}
-                                                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border border-[#E2EAFD] bg-white text-[#0A1A3F] hover:bg-[#EEF3FF] transition-colors cursor-pointer shadow-xs"
+                                                className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full text-xs font-bold border-2 border-[#C3D4FA] bg-[#EEF3FF] text-[#0A1A3F] hover:bg-[#E2ECFF] transition-colors cursor-pointer shadow-xs"
                                                 title="Sin clasificar contablemente"
                                              >
-                                                <span className="w-2 h-2 rounded-full border border-[#55607A]" />
+                                                <svg className="w-3 h-3 shrink-0" viewBox="0 0 16 16" fill="none">
+                                                   <circle cx="8" cy="8" r="4.5" stroke="#0A1A3F" strokeWidth="2.75" />
+                                                </svg>
                                                 <span>Sin clasificar</span>
                                              </button>
                                           )}
@@ -1189,7 +1188,7 @@ export default function SalesBoletas() {
                                                       className="p-1 rounded-lg text-[#55607A] hover:text-[#1F6BFF] hover:bg-[#EFF3FF] transition-colors"
                                                       title="Editar registro manual"
                                                    >
-                                                      <PencilSquareIcon className="w-3.5 h-3.5" />
+                                                      <EditarIcon className="w-3.5 h-3.5" />
                                                    </button>
                                                    <button
                                                       type="button"
@@ -1197,7 +1196,7 @@ export default function SalesBoletas() {
                                                       className="p-1 rounded-lg text-[#55607A] hover:text-red-600 hover:bg-red-50 transition-colors"
                                                       title="Eliminar registro manual"
                                                    >
-                                                      <TrashIcon className="w-3.5 h-3.5" />
+                                                      <EliminarIcon className="w-3.5 h-3.5" />
                                                    </button>
                                                 </div>
                                              )}
@@ -1225,7 +1224,7 @@ export default function SalesBoletas() {
                               disabled={!hasPrev}
                               className="p-1.5 rounded-lg border border-[#E2EAFD] hover:bg-[#EEF3FF] disabled:opacity-30 disabled:pointer-events-none transition-colors"
                            >
-                              <ChevronLeftIcon className="w-4 h-4 text-[#0A1A3F]" />
+                              <IzquierdaIcon className="w-4 h-4 text-[#0A1A3F]" />
                            </button>
 
                            <div className="w-7 h-7 rounded-full bg-[#1F6BFF] text-white font-bold text-xs flex items-center justify-center shadow-xs">
@@ -1238,7 +1237,7 @@ export default function SalesBoletas() {
                               disabled={!hasNext}
                               className="p-1.5 rounded-lg border border-[#E2EAFD] hover:bg-[#EEF3FF] disabled:opacity-30 disabled:pointer-events-none transition-colors"
                            >
-                              <ChevronRightIcon className="w-4 h-4 text-[#0A1A3F]" />
+                              <DerechaIcon className="w-4 h-4 text-[#0A1A3F]" />
                            </button>
                         </div>
                      </div>
