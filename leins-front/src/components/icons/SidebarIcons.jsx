@@ -444,3 +444,13 @@ export function VerIcon({ className = 'w-5 h-5', ...props }) {
       </svg>
    );
 }
+
+export function SubirIcon({ className = 'w-5 h-5', dotColor = '#1F6BFF', ...props }) {
+   return (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" {...props}>
+         <path d="M12 20v-8.5" />
+         <path d="M7.5 15.5 12 11l4.5 4.5" />
+         <circle cx="12" cy="5" r="1.8" fill={dotColor} stroke="none" />
+      </svg>
+   );
+}
