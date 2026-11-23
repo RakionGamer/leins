@@ -33,6 +33,7 @@ import {
    IngresosIcon,
    EgresosIcon,
    SubirIcon,
+   CerrarIcon,
 } from '../../components/icons/SidebarIcons';
 import { getDashboardSummary } from '../../services/dashboardApi';
 import { listDailySalesGroups, listSiiDocuments } from '../../services/siiDocumentsApi';
@@ -457,6 +458,35 @@ function AnimatedAmount({ value, fmt, busy = false, bold = false, danger = false
       </span>
    );
 }
+
+
+const formatYmdToDmy = (ymd) => {
+   if (!ymd || typeof ymd !== 'string') return ymd || '—';
+   const parts = ymd.split('-');
+   if (parts.length === 3 && parts[0].length === 4) {
+      return `${parts[2]}-${parts[1]}-${parts[0]}`;
+   }
+   return ymd;
+};
+
+const renderDocBadge = (docType, folio) => {
+   const tag = docTag(docType);
+   const codeStr = String(docType ?? '');
+   const isFac = codeStr === '33' || codeStr === '34' || codeStr === '46' || tag?.abbr?.startsWith('FAC');
+   const isBte = codeStr === '39' || codeStr === '41' || tag?.abbr?.startsWith('BTE');
+   const abbr = isFac ? 'FAC' : (isBte ? 'BTE' : (tag?.abbr || 'DOC'));
+   const bgColor = isBte ? '#1F6BFF' : (isFac ? '#0A1A3F' : (tag?.color || '#1F6BFF'));
+   return (
+      <span className="inline-flex items-center rounded-md overflow-hidden text-[10px] font-bold border border-[#E2EAFD] shadow-2xs">
+         <span className="px-2 h-5 flex items-center text-white" style={{ backgroundColor: bgColor }}>
+            {abbr}
+         </span>
+         <span className="px-2 h-5 flex items-center bg-white text-[#0A1A3F] font-semibold border-l border-[#E2EAFD]">
+            {folio || '—'}
+         </span>
+      </span>
+   );
+};
 
 export default function BankCartolasPage() {
    const queryClient = useQueryClient();
@@ -1154,6 +1184,7 @@ export default function BankCartolasPage() {
    const [detailAnchor, setDetailAnchor] = React.useState({ x: 0, y: 0 });
 
    const [assignAmount, setAssignAmount] = useState("");
+   const [isEditingAssign, setIsEditingAssign] = useState(false);
    const [isTyping, setIsTyping] = React.useState(false);
    const typingTimer = React.useRef(null);
 
@@ -1260,6 +1291,7 @@ export default function BankCartolasPage() {
       setSelectedDocIds([]);
       setReconcileTx(null);
       setMenuDelay(false);
+      setIsEditingAssign(false);
    }, []);
 
    const closeConciliarSmooth = useCallback((delay = 200) => {
@@ -1297,6 +1329,7 @@ export default function BankCartolasPage() {
       setExpenseRut(cleanRut);
       setExpenseConcept(cleanDesc);
       setIsSubmittingExpense(false);
+      setIsEditingAssign(false);
 
       setMenuDelay(true);
       setTimeout(() => setMenuDelay(false), 600);
@@ -2763,716 +2796,685 @@ export default function BankCartolasPage() {
                </div>
             </div>
          )}
-         {/* ===== Modal Conciliar (intacto) ===== */}
+         {/* ===== Modal Conciliar (Jeito Oficial Pixel-Perfect) ===== */}
          {reconcileTx && (
             <div
-               className="fixed inset-0 z-[200] bg-black/50 flex items-center justify-center"
+               className="fixed inset-0 z-[200] bg-[#0A1A3F]/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5"
                onClick={() => { if (!showPayableDetail) closeConciliarSmooth(); }}
             >
                <div
-                  className={`w-[98vw] max-w-[1400px] min-h-[80vh] max-h-[92vh] overflow-hidden bg-[var(--bg-content)] rounded-2xl shadow-2xl ${modalClosing ? 'animate-[fadeOutDown_.18s_ease-in_forwards]' : 'opacity-0 translate-y-2 animate-[fadeInUp_.24s_ease-out_forwards]'}`}
+                  className={`w-full max-w-5xl max-h-[92vh] flex flex-col bg-white rounded-3xl shadow-2xl border border-[#E2EAFD] overflow-hidden ${
+                     modalClosing ? 'animate-[fadeOutDown_.18s_ease-in_forwards]' : 'opacity-0 translate-y-2 animate-[fadeInUp_.24s_ease-out_forwards]'
+                  }`}
                   onClick={(e) => e.stopPropagation()}
                >
-                  <div className="sticky top-0 z-10 bg-[var(--bg-content)] border-b border-[var(--border-subtle)]">
-                     <div className="px-6 pt-4 pb-2 flex items-center justify-between">
-                        <div className="text-xl font-semibold text-[var(--heading)]">Conciliar</div>
-                        <button className="px-3 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--surface-1)] text-sm" onClick={closeConciliarSmooth}>
-                           Cerrar
-                        </button>
+                  {/* Header */}
+                  <div className="px-6 py-4 sm:py-5 border-b border-[#E2EAFD] flex items-center justify-between bg-white shrink-0">
+                     <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-2xl bg-[#EFF3FF] flex items-center justify-center text-[#1F6BFF] shrink-0">
+                           <CheckIcon className="w-5 h-5 stroke-[2.5]" />
+                        </div>
+                        <div className="min-w-0">
+                           <h2 className="font-nunito font-black text-lg text-[#0A1A3F] leading-tight">
+                              {reconcileDocumentSide === 'income' ? 'Conciliar abono' : 'Conciliar cargo'}
+                           </h2>
+                           <p className="text-xs text-[#55607A] font-medium mt-0.5">
+                              Elige la boleta o factura que corresponde a este movimiento.
+                           </p>
+                        </div>
                      </div>
+                     <button
+                        type="button"
+                        onClick={closeConciliarSmooth}
+                        className="p-2 rounded-full text-[#8E9BB5] hover:text-[#0A1A3F] hover:bg-[#EEF3FF] transition cursor-pointer"
+                        title="Cerrar"
+                     >
+                        <CerrarIcon className="w-5 h-5" />
+                     </button>
                   </div>
 
-                  <div className="px-6 py-2 h-[calc(92vh-64px)] overflow-auto">
-                     {!(selectedTargetKind === 'bank_transaction' && selectedDoc && false) ? (
-                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                           <section className="lg:col-span-6">
-                              <div className="w-full max-w-[420px]">
-                                 <h3 className="text-[var(--heading)] font-medium mb-2">Movimiento Bancario</h3>
-                                 <div className="mb-3 border-t border" />
-                                 <div className="relative w-full rounded-md shadow-lg border bg-[var(--bankcard-surface)] border-[var(--bankcard-border)] p-3 md:p-4 ring-1 ring-transparent hover:ring-[var(--bankcard-ring)] transition-all duration-200" style={bankCardTheme}>
-                                    <div className="absolute inset-x-0 -top-[1px] h-1 rounded-t-md" style={{ background: 'var(--bankcard-gradient)' }} />
-                                    <div className="flex items-start justify-between gap-2">
-                                       <div className="min-w-0">
-                                          <div className="flex items-center gap-2">
-                                             <div className="text-[10px] uppercase tracking-wide text-[var(--bankcard-soft)]">{reconcileTx.fecha || "—"}</div>
-                                             <span className="inline-flex items-center px-1.5 py-[2px] text-[9px] rounded-full font-medium" style={{ background: '#5CB9A5', color: '#FFFFFF' }} title={reconcileTx?.monto >= 0 ? 'Abono' : 'Cargo'}>
-                                                Mov. bancario • CC
-                                             </span>
-                                          </div>
-                                          <div className="mt-0.5 font-semibold leading-[1.25] text-[13px] md:text-[14px] text-[var(--bankcard-text)] truncate">
-                                             {reconcileTx.descripcion || "(sin descripcion)"}
-                                          </div>
-                                       </div>
-                                       <div className="text-right shrink-0">
-                                          <div className="text-base md:text-lg font-extrabold">{fmtCLP?.(Math.abs(reconcileTx.monto))}</div>
-                                       </div>
-                                    </div>
-                                    <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-                                       <div className="text-[11px] text-[var(--bankcard-soft)] truncate">{reconcileTx.cuenta_corriente || "—"}</div>
-                                       <div className="text-[11px]">
-                                          <span className={isFullyAssigned ? "text-[var(--bankcard-success)] mr-1" : "text-[var(--bankcard-link)] mr-1"}>Saldo por asignar</span>
-                                          <b className={isFullyAssigned ? "text-[var(--bankcard-success)]" : "text-[var(--bankcard-link)]"}>{fmtCLP?.(txRemainingAfter)}</b>
-                                          {isFullyAssigned && <span className="ml-1 inline-flex items-center text-[var(--bankcard-success)]" title="Completamente asignado">✓</span>}
-                                       </div>
-                                    </div>
-                                 </div>
+                  {/* Body (scrollable) */}
+                  <div className="px-6 py-5 overflow-y-auto space-y-5 grow">
+                     {/* Top 2 Comparison Cards */}
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Card A: Movimiento bancario */}
+                        <div className="bg-[#F8FAFF] rounded-2xl border border-[#E2EAFD] p-4 flex items-center justify-between shadow-xs">
+                           <div className="min-w-0 pr-2">
+                              <div className="text-xs text-[#8E9BB5] font-medium truncate">
+                                 Movimiento bancario  {formatYmdToDmy(reconcileTx.fecha)} · Cta. cte. {
+                                    reconcileTx.cuenta_corriente
+                                       ? (reconcileTx.cuenta_corriente.includes('•') ? reconcileTx.cuenta_corriente : `••••${reconcileTx.cuenta_corriente.slice(-4)}`)
+                                       : '••••'
+                                 }
                               </div>
-                           </section>
-
-                           <section className="lg:col-span-6 flex justify-end">
-                              <div className="w-full max-w-[420px]">
-                                 <h3 className="text-[var(--heading)] font-medium mb-2">
-                                    {selectedTargetKind === 'direct_expense'
-                                       ? 'Resumen del Egreso'
-                                       : selectedTargetKind === 'bank_transaction'
-                                       ? 'Movimientos de respaldo'
-                                       : 'Documentos de respaldo'}
-                                 </h3>
-                                 <div className="mb-3 border-t border" />
-                                 {selectedTargetKind === 'direct_expense' ? (
-                                    <div className="relative w-full rounded-md shadow-lg border bg-[var(--surface-1)] border-[var(--border-subtle)] p-3 md:p-4">
-                                       <div className="flex items-start justify-between gap-2">
-                                          <div className="min-w-0">
-                                             <div className="flex items-center gap-2">
-                                                <span className="text-[10px] uppercase tracking-wide text-[var(--text-soft)]">{reconcileTx.fecha || "—"}</span>
-                                                <span className="inline-flex items-center px-1.5 py-[2px] text-[9px] rounded-full font-medium bg-amber-500/10 text-amber-600 border border-amber-500/20">
-                                                   {expenseType}
-                                                </span>
-                                             </div>
-                                             <div className="mt-0.5 font-semibold text-[13px] text-[var(--heading)] truncate">
-                                                {expenseCounterparty || '(Beneficiario no indicado)'}
-                                             </div>
-                                          </div>
-                                          <div className="text-right shrink-0">
-                                             <div className="text-base font-extrabold text-[var(--danger)]">
-                                                {fmtCLP?.(expenseAmount || Math.abs(reconcileTx.monto))}
-                                             </div>
-                                          </div>
-                                       </div>
-                                       <div className="mt-2 text-[11px] text-[var(--text-soft)] truncate">
-                                          {expenseConcept || 'Sin glosa descriptiva'}
-                                       </div>
-                                       <div className="mt-2 pt-2 border-t border-[var(--border-subtle)] flex items-center justify-between text-[11px]">
-                                          <span className="text-[var(--text-soft)]">Cuenta contable:</span>
-                                          <span className="font-medium text-[var(--brand)] truncate max-w-[200px]">
-                                             {availableAccounts.find(a => String(a.id) === String(expenseAccountId))?.name || 'Por clasificar...'}
-                                          </span>
-                                       </div>
-                                    </div>
-                                 ) : (
-                                    <div className="border border-dashed border-[var(--border-subtle)] rounded-xl p-6 text-[var(--text-soft)] text-sm flex items-center justify-center">
-                                       {selectedTargetKind === 'bank_transaction' ? 'Selecciona uno o más movimientos bancarios para cruzar.' : 'Selecciona documentos de respaldo para conciliarlos contra este movimiento bancario'}
-                                    </div>
-                                 )}
+                              <div className="font-nunito font-black text-sm text-[#0A1A3F] uppercase tracking-wide mt-1 truncate max-w-xs md:max-w-sm">
+                                 {reconcileTx.descripcion || (reconcileDocumentSide === 'income' ? 'ABONO VENTAS DÉBITO/CRÉDITO' : 'CARGO')}
                               </div>
-                           </section>
+                              <div className="text-xs text-[#55607A] font-medium mt-1">
+                                 N° documento {reconcileTx.documento || reconcileTx.raw?.document_number || '—'} · por asignar $ {txRemaining.toLocaleString('es-CL')}
+                              </div>
+                           </div>
+                           <div className="text-right shrink-0">
+                              {reconcileTx.monto >= 0 ? (
+                                 <div className="font-nunito font-black text-2xl text-[#1F6BFF] tabular-nums whitespace-nowrap">
+                                    +$ {Math.abs(reconcileTx.monto).toLocaleString('es-CL')}
+                                 </div>
+                              ) : (
+                                 <div className="font-nunito font-black text-2xl text-[#0A1A3F] tabular-nums whitespace-nowrap">
+                                    -$ {Math.abs(reconcileTx.monto).toLocaleString('es-CL')}
+                                 </div>
+                              )}
+                           </div>
+                        </div>
 
-                           {selectedTargetKind !== 'direct_expense' && (
-                              <section className="lg:col-span-12">
-                                 <div className="flex justify-center min-h-6">
-                                    {selectedDocuments.length > 0 && !menuLoading && !ctaDelay ? (
-                                       <div className="flex flex-col md:flex-row md:items-center justify-center gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-1)] px-4 py-3">
-                                          <div className="text-sm text-[var(--text-main)]">
-                                             <span className="font-semibold">{selectedDocuments.length}</span> {selectedTargetKind === 'bank_transaction' ? 'movimiento(s)' : 'documento(s)'} seleccionados
-                                             <span className="mx-2 text-[var(--text-soft)]">|</span>
-                                             max: <span className="font-semibold">{fmtCLP?.(maxAssignable)}</span>
-                                          </div>
-                                          <div className="flex items-stretch rounded-md overflow-hidden shadow-sm">
-                                             <span className="inline-flex items-center px-3 bg-[var(--surface-2)] border border-[var(--border-subtle)] text-[var(--text-soft)] select-none">$</span>
-                                             <input
-                                                type="number"
-                                                className="h-9 w-40 border border-l-0 border-[var(--border-subtle)] bg-[var(--bg-content)] text-[var(--heading)] px-3 text-right focus:outline-none focus:ring-2 focus:ring-[var(--bankcard-ring)]"
-                                                value={assignAmount}
-                                                min={0}
-                                                max={maxAssignable}
-                                                onChange={handleAssignChange}
-                                                placeholder="0"
-                                             />
-                                          </div>
-                                          <button
-                                             type="button"
-                                             onClick={handleSave}
-                                             disabled={isSaving || !assigned || assigned <= 0}
-                                             className={`px-5 py-2 rounded-md text-white text-sm font-medium transition ${(!assigned || assigned <= 0) ? 'bg-teal-400/60 cursor-not-allowed' : 'bg-teal-500 hover:bg-teal-600'}`}
-                                          >
-                                             {saveState === 'saving' ? 'Guardando...' : 'Guardar conciliacion'}
-                                          </button>
+                        {/* Card B: Seleccionado y Diferencia */}
+                        <div className="bg-[#F8FAFF] rounded-2xl border border-[#E2EAFD] p-4 flex flex-col justify-between shadow-xs">
+                           <div>
+                              <div className="flex items-center justify-between">
+                                 <span className="text-xs text-[#55607A] font-medium">Seleccionado</span>
+                                 <div className="flex items-center gap-1">
+                                    {isEditingAssign ? (
+                                       <div className="flex items-center border border-[#1F6BFF] rounded-lg px-2 py-0.5 bg-white shadow-2xs">
+                                          <span className="text-xs text-[#8E9BB5] mr-1">$</span>
+                                          <input
+                                             type="number"
+                                             autoFocus
+                                             className="w-24 text-right text-sm font-black text-[#0A1A3F] focus:outline-none tabular-nums"
+                                             value={assignAmount}
+                                             min={0}
+                                             max={maxAssignable}
+                                             onChange={handleAssignChange}
+                                             onBlur={() => setIsEditingAssign(false)}
+                                             onKeyDown={(e) => { if (e.key === 'Enter') setIsEditingAssign(false); }}
+                                          />
                                        </div>
-                                    ) : selectedDocuments.length === 0 && !selectedDocId && !menuLoading && !ctaDelay && (
-                                       <button className="px-6 py-2 rounded bg-emerald-400/60 text-white cursor-not-allowed" disabled>No hay nada que guardar</button>
-                                    )}
-                                 </div>
-                              </section>
-                           )}
-
-                           {reconcileDocumentSide === 'income' && (
-                              <section className="lg:col-span-12">
-                                 <div className="mb-3 flex items-center justify-between gap-3">
-                                    <div>
-                                       <h3 className="text-[var(--heading)] font-medium">Ventas agrupadas por dia</h3>
-                                       <p className="text-xs text-[var(--text-soft)] mt-0.5">
-                                          Suma boletas y facturas emitidas el mismo dia para conciliarlas contra este abono.
-                                       </p>
-                                    </div>
-                                    {loadingDailySales && (
-                                       <span className="text-xs text-[var(--brand)] animate-pulse">agrupando...</span>
-                                    )}
-                                 </div>
-
-                                 <div className="border rounded-xl border-[var(--border-subtle)] bg-[var(--surface-1)] overflow-hidden">
-                                    {dailySalesError ? (
-                                       <div className="px-4 py-3 text-sm text-[var(--danger)]">{dailySalesError}</div>
-                                    ) : loadingDailySales ? (
-                                       <div className="px-4 py-3 text-sm text-[var(--text-soft)]">Buscando ventas cercanas a la fecha del movimiento...</div>
-                                    ) : dailySalesGroups.length === 0 ? (
-                                       <div className="px-4 py-3 text-sm text-[var(--text-soft)]">No hay ventas pendientes agrupables cerca de esta fecha.</div>
                                     ) : (
-                                       <div className="max-h-56 overflow-auto">
-                                          <table className="min-w-full text-sm table-fixed border-collapse">
-                                             <thead className="sticky top-0 text-[var(--heading)] z-[1]">
-                                                <tr className="border-b border-[var(--border-subtle)] bg-[var(--surface-1)]">
-                                                   <th className="px-3 py-2 text-left w-[140px]">Dia</th>
-                                                   <th className="px-3 py-2 text-left">Documentos</th>
-                                                   <th className="px-3 py-2 text-right w-[150px]">Total dia</th>
-                                                   <th className="px-3 py-2 text-right w-[150px]">Diferencia</th>
-                                                   <th className="px-3 py-2 text-right w-[150px]"></th>
-                                                </tr>
-                                             </thead>
-                                             <tbody>
-                                                {dailySalesGroups.slice(0, 8).map((group) => {
-                                                   const exactMatch = Math.abs(group.diff) <= 1;
-                                                   const canApply = txRemaining > 0 && group.docs.length > 0;
-                                                   const isSavingGroup = savingDailyGroupKey === group.key;
-
-                                                   return (
-                                                      <tr key={group.key} className={`border-b border-[var(--border-subtle)] ${exactMatch ? 'bg-emerald-500/10' : ''}`}>
-                                                         <td className="px-3 py-2 whitespace-nowrap">
-                                                            <div className="font-semibold text-[var(--heading)]">{group.date}</div>
-                                                            {exactMatch && <div className="text-[10px] text-[var(--success)]">calce exacto</div>}
-                                                         </td>
-                                                         <td className="px-3 py-2">
-                                                            <div className="flex flex-wrap gap-1.5">
-                                                               {group.docs.slice(0, 5).map((doc) => {
-                                                                  const tag = docTag(doc.doc_type_code);
-                                                                  return (
-                                                                     <span key={doc.id} title={getSiiDocumentTypeLabel(doc.doc_type_code)} className="inline-flex items-center rounded-md overflow-hidden text-[10px] font-semibold">
-                                                                        <span className="px-2 h-5 flex items-center" style={{ background: tag.color, color: '#fff' }}>{tag.abbr}</span>
-                                                                        <span className="px-2 h-5 flex items-center bg-[var(--bg-content)] text-[var(--text-soft)] border border-l-0 border-[var(--border-subtle)]">{doc.folio || doc.id}</span>
-                                                                     </span>
-                                                                  );
-                                                               })}
-                                                               {group.docs.length > 5 && (
-                                                                  <span className="inline-flex items-center h-5 px-2 rounded-md text-[10px] bg-[var(--bg-content)] text-[var(--text-soft)] border border-[var(--border-subtle)]">
-                                                                     +{group.docs.length - 5}
-                                                                  </span>
-                                                               )}
-                                                            </div>
-                                                            <div className="mt-1 text-[11px] text-[var(--text-soft)]">{group.docs.length} documentos pendientes</div>
-                                                         </td>
-                                                         <td className="px-3 py-2 text-right font-semibold">{fmtCLP?.(group.total)}</td>
-                                                         <td className={`px-3 py-2 text-right ${exactMatch ? 'text-[var(--success)]' : 'text-[var(--text-soft)]'}`}>
-                                                            {group.diff === 0 ? '$0' : fmtCLP?.(Math.abs(group.diff))}
-                                                         </td>
-                                                         <td className="px-3 py-2 text-right">
-                                                            <button
-                                                               type="button"
-                                                               disabled={!canApply || Boolean(savingDailyGroupKey)}
-                                                               onClick={() => reconcileDailySalesGroup(group)}
-                                                               className={`inline-flex items-center justify-center px-3 py-1 rounded-lg text-xs font-medium transition ${canApply ? 'bg-[var(--brand)] text-white hover:bg-[var(--brand-strong)]' : 'bg-[var(--surface-2)] text-[var(--text-soft)] cursor-not-allowed'}`}
-                                                               title={!canApply ? 'No hay saldo disponible para aplicar' : 'Aplicar este abono a la venta del dia'}
-                                                            >
-                                                               {isSavingGroup ? 'Aplicando...' : 'Aplicar a dia'}
-                                                            </button>
-                                                         </td>
-                                                      </tr>
-                                                   );
-                                                })}
-                                             </tbody>
-                                          </table>
-                                       </div>
-                                    )}
-                                 </div>
-                              </section>
-                           )}
-
-                           <section className="lg:col-span-12">
-                              {/* Tabs de Selección de Tipo de Conciliación (Estilo Chipax) */}
-                              <div className="flex flex-wrap items-center justify-between gap-3 mb-4 pb-2 border-b border-[var(--border-subtle)]">
-                                 <div className="flex items-center gap-1.5 p-1 bg-[var(--surface-2)] rounded-lg">
-                                    <button
-                                       type="button"
-                                       onClick={() => {
-                                          setSelectedTargetKind('document');
-                                          setSelectedDocId(null);
-                                          setSelectedDocIds([]);
-                                          setModalTipo('');
-                                       }}
-                                       className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
-                                          selectedTargetKind === 'document'
-                                             ? 'bg-[var(--bg-content)] text-[var(--heading)] shadow-sm'
-                                             : 'text-[var(--text-soft)] hover:text-[var(--text-main)]'
-                                       }`}
-                                    >
-                                       Documentos SII
-                                    </button>
-                                    <button
-                                       type="button"
-                                       onClick={() => {
-                                          setSelectedTargetKind('bank_transaction');
-                                          setSelectedDocId(null);
-                                          setSelectedDocIds([]);
-                                          setModalTipo('');
-                                       }}
-                                       className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
-                                          selectedTargetKind === 'bank_transaction'
-                                             ? 'bg-[var(--bg-content)] text-[var(--heading)] shadow-sm'
-                                             : 'text-[var(--text-soft)] hover:text-[var(--text-main)]'
-                                       }`}
-                                    >
-                                       Movimientos bancarios (Traspaso)
-                                    </button>
-                                    {reconcileDocumentSide === 'expense' && (
                                        <button
                                           type="button"
-                                          onClick={() => {
-                                             setSelectedTargetKind('direct_expense');
-                                             setSelectedDocId(null);
-                                             setSelectedDocIds([]);
-                                             setModalTipo('');
-                                          }}
-                                          className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all flex items-center gap-1.5 ${
-                                             selectedTargetKind === 'direct_expense'
-                                                ? 'bg-[var(--brand)] text-white shadow-sm'
-                                                : 'text-[var(--brand)] hover:bg-[var(--surface-3)]'
-                                          }`}
+                                          onClick={() => { if (selectedDocuments.length > 0 || Boolean(selectedDocId)) setIsEditingAssign(true); }}
+                                          className="font-nunito font-black text-sm text-[#0A1A3F] tabular-nums hover:text-[#1F6BFF] transition cursor-pointer"
+                                          title="Haz clic para ajustar el monto asignado"
                                        >
-                                       
-                                          <span>Agregar Egreso (Sin Factura SII)</span>
+                                          $ {assigned.toLocaleString('es-CL')}
                                        </button>
                                     )}
                                  </div>
-
-                                 {selectedTargetKind !== 'direct_expense' && (
-                                    <div className="flex flex-1 items-center gap-2 min-w-0">
-                                       <input
-                                          type="text"
-                                          placeholder={selectedTargetKind === 'bank_transaction' ? 'Buscar por descripcion, banco, referencia o monto' : 'Buscar por folio, RUT, contraparte o monto'}
-                                          value={modalQuery}
-                                          onChange={(e) => setModalQuery(e.target.value)}
-                                          className="flex-1 w-full h-8 text-xs border border-[var(--border-subtle)] bg-[var(--surface-1)] rounded-md px-2.5 focus:outline-none focus:ring-1 focus:ring-[var(--brand)] transition"
-                                       />
-                                       {selectedTargetKind === 'document' && (
-                                          <select value={modalTipo} onChange={(e) => setModalTipo(e.target.value)} className="w-48 sm:w-56 shrink-0 h-8 text-xs border border-[var(--border-subtle)] bg-[var(--surface-1)] rounded-md px-2 focus:outline-none focus:ring-1 focus:ring-[var(--brand)] transition">
-                                             {modalTypeOptions.map((option) => (
-                                                <option key={option.value || 'all'} value={option.value}>{option.label}</option>
-                                             ))}
-                                          </select>
-                                       )}
-                                    </div>
-                                 )}
                               </div>
+                              <div className="flex items-center justify-between mt-1">
+                                 <span className="text-xs text-[#55607A] font-medium">Diferencia</span>
+                                 <span className={`font-nunito font-black text-sm tabular-nums ${
+                                    txRemainingAfter === 0 && assigned > 0 ? 'text-[#1F6BFF]' : 'text-[#0A1A3F]'
+                                 }`}>
+                                    $ {txRemainingAfter.toLocaleString('es-CL')}
+                                 </span>
+                              </div>
+                           </div>
+                           <div className="w-full bg-[#EEF3FF] h-2 rounded-full overflow-hidden mt-3">
+                              <div
+                                 className="h-full bg-[#1F6BFF] rounded-full transition-all duration-300"
+                                 style={{
+                                    width: `${txRemaining > 0 ? Math.min(100, Math.round((assigned / txRemaining) * 100)) : 100}%`
+                                 }}
+                              />
+                           </div>
+                        </div>
+                     </div>
 
-                              {selectedTargetKind === 'direct_expense' ? (
-                                 /* Formulario Chipax de Agregar Egreso sin documento tributario */
-                                 <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-1)] p-5 space-y-5">
-                                    <div>
-                                       <label className="block text-xs font-semibold text-[var(--text-soft)] uppercase tracking-wider mb-2">
-                                          Tipo de Egreso
-                                       </label>
-                                       <div className="flex flex-wrap gap-2">
-                                          {[
-                                             { key: 'GASTO', label: 'Gasto General', sub: 'Arriendos, patentes, gastos comunes' },
-                                             { key: 'IMPUESTO', label: 'Impuesto / Tesorería', sub: 'Patente comercial, contribuciones' },
-                                             { key: 'REMUNERACION', label: 'Remuneración', sub: 'Sueldos líquidos, anticipos' },
-                                             { key: 'PREVIRED', label: 'Previred', sub: 'Cotizaciones previsionales' },
-                                             { key: 'HONORARIO', label: 'Honorario', sub: 'Sin retención / pago directo' },
-                                          ].map((t) => (
-                                             <button
-                                                key={t.key}
-                                                type="button"
-                                                onClick={() => setExpenseType(t.key)}
-                                                className={`flex flex-col items-start px-3.5 py-2 rounded-lg border text-left transition-all ${
-                                                   expenseType === t.key
-                                                      ? 'border-[var(--brand)] bg-[var(--brand)]/10 text-[var(--brand-strong)] font-semibold shadow-sm ring-1 ring-[var(--brand)]'
-                                                      : 'border-[var(--border-subtle)] bg-[var(--surface-2)] text-[var(--text-main)] hover:bg-[var(--surface-3)]'
-                                                }`}
-                                             >
-                                                <span className="text-xs">{t.label}</span>
-                                                <span className="text-[10px] text-[var(--text-soft)]">{t.sub}</span>
-                                             </button>
-                                          ))}
-                                       </div>
-                                    </div>
+                     {/* Ventas agrupadas por día (Sólo para abonos / ingresos) */}
+                     {reconcileDocumentSide === 'income' && (
+                        <div>
+                           <div className="flex flex-wrap items-center gap-2 mb-2">
+                              <h3 className="font-nunito font-bold text-sm text-[#0A1A3F]">Ventas agrupadas por día</h3>
+                              <p className="text-xs text-[#8E9BB5]">
+                                 Suma boletas y facturas del mismo día para conciliarlas contra este abono.
+                              </p>
+                              {loadingDailySales && (
+                                 <span className="text-xs text-[#1F6BFF] animate-pulse font-medium ml-1">agrupando...</span>
+                              )}
+                           </div>
 
-                                    <form onSubmit={handleReconcileDirectExpense} className="space-y-4">
-                                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                          <div>
-                                             <label className="block text-xs font-medium text-[var(--text-soft)] mb-1">
-                                                Monto a Conciliar ($ CLP) *
-                                             </label>
-                                             <div className="relative">
-                                                <span className="absolute left-3 top-2 text-xs text-[var(--text-soft)]">$</span>
-                                                <input
-                                                   type="number"
-                                                   value={expenseAmount}
-                                                   onChange={(e) => setExpenseAmount(e.target.value)}
-                                                   min="1"
-                                                   max={txRemaining || undefined}
-                                                   required
-                                                   className="w-full pl-7 pr-3 py-1.5 text-sm font-semibold rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-content)] text-[var(--heading)] focus:outline-none focus:ring-2 focus:ring-[var(--brand)]"
-                                                   placeholder="0"
-                                                />
-                                             </div>
-                                             <p className="text-[10px] text-[var(--text-soft)] mt-1">
-                                                Saldo disponible del movimiento: <span className="font-semibold">{fmtCLP(txRemaining)}</span>
-                                             </p>
-                                          </div>
-
-                                          <div>
-                                             <label className="block text-xs font-medium text-[var(--text-soft)] mb-1">
-                                                Fecha del Movimiento Bancario
-                                             </label>
-                                             <input
-                                                type="text"
-                                                readOnly
-                                                value={reconcileTx.fecha || '—'}
-                                                className="w-full px-3 py-1.5 text-sm rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-2)] text-[var(--text-soft)] cursor-not-allowed select-none"
-                                             />
-                                             <p className="text-[10px] text-[var(--text-soft)] mt-1">
-                                                Cuenta: <span className="font-semibold">{reconcileTx.cuenta_corriente || '—'}</span>
-                                             </p>
-                                          </div>
-
-                                          <div>
-                                             <label className="block text-xs font-medium text-[var(--text-soft)] mb-1">
-                                                Proveedor / Beneficiario *
-                                             </label>
-                                             <input
-                                                type="text"
-                                                value={expenseCounterparty}
-                                                onChange={(e) => setExpenseCounterparty(e.target.value)}
-                                                required
-                                                placeholder="Ej: Municipalidad de Providencia, Inmobiliaria SpA, Previred..."
-                                                className="w-full px-3 py-1.5 text-sm rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-content)] text-[var(--text-main)] focus:outline-none focus:ring-2 focus:ring-[var(--brand)]"
-                                             />
-                                          </div>
-
-                                          <div>
-                                             <label className="block text-xs font-medium text-[var(--text-soft)] mb-1">
-                                                RUT Beneficiario (Opcional)
-                                             </label>
-                                             <input
-                                                type="text"
-                                                value={expenseRut}
-                                                onChange={(e) => setExpenseRut(e.target.value)}
-                                                placeholder="Ej: 69.070.100-5"
-                                                className="w-full px-3 py-1.5 text-sm rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-content)] text-[var(--text-main)] focus:outline-none focus:ring-2 focus:ring-[var(--brand)]"
-                                             />
-                                          </div>
-
-                                          <div className="md:col-span-2">
-                                             <label className="block text-xs font-medium text-[var(--text-soft)] mb-1">
-                                                Glosa / Concepto del Egreso *
-                                             </label>
-                                             <input
-                                                type="text"
-                                                value={expenseConcept}
-                                                onChange={(e) => setExpenseConcept(e.target.value)}
-                                                required
-                                                placeholder="Ej: Pago arriendo oficina local 101, Patente comercial 2do semestre, Cotizaciones previsionales..."
-                                                className="w-full px-3 py-1.5 text-sm rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-content)] text-[var(--text-main)] focus:outline-none focus:ring-2 focus:ring-[var(--brand)]"
-                                             />
-                                          </div>
-
-                                          <div className="md:col-span-2">
-                                             <div className="flex items-center justify-between mb-1">
-                                                <label className="block text-xs font-semibold text-[var(--heading)] uppercase tracking-wider">
-                                                   Clasificación Contable (Plan de Cuentas) *
-                                                </label>
-                                                <span className="text-[11px] text-[var(--text-soft)]">
-                                                   Cuenta al Debe (Gasto/Costo)
-                                                </span>
-                                             </div>
-                                             <AccountSelect
-                                                accounts={availableAccounts}
-                                                value={expenseAccountId}
-                                                onChange={(val) => setExpenseAccountId(val)}
-                                                placeholder="Buscar y seleccionar cuenta contable (ej: Arriendos, Patentes, Remuneraciones...)"
-                                                allowClear={true}
-                                             />
-                                             <p className="text-[11px] text-[var(--text-soft)] mt-1.5">
-                                                💡 Se generará automáticamente el comprobante contable: <b className="text-[var(--heading)]">Debe: Cuenta de Gasto</b> / <b className="text-[var(--heading)]">Haber: Banco</b>. Aparecerá de inmediato en el Flujo de Caja y en el Estado de Resultados.
-                                             </p>
-                                          </div>
-                                       </div>
-
-                                       <div className="pt-4 border-t border-[var(--border-subtle)] flex items-center justify-end gap-3">
-                                          <button
-                                             type="button"
-                                             onClick={() => setSelectedTargetKind('document')}
-                                             className="px-4 py-2 text-xs font-medium rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--surface-2)] text-[var(--text-main)] transition"
-                                          >
-                                             Cancelar
-                                          </button>
-                                          <button
-                                             type="submit"
-                                             disabled={isSubmittingExpense || !expenseAccountId || !Number(expenseAmount)}
-                                             className={`px-5 py-2 text-xs font-semibold rounded-lg text-white transition flex items-center gap-2 ${
-                                                isSubmittingExpense || !expenseAccountId || !Number(expenseAmount)
-                                                   ? 'bg-[var(--brand)]/50 cursor-not-allowed'
-                                                   : 'bg-[var(--brand)] hover:bg-[var(--brand-strong)] shadow-sm'
-                                             }`}
-                                          >
-                                             {isSubmittingExpense ? (
-                                                <>
-                                                   <span className="inline-block w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                                   <span>Guardando y Conciliando...</span>
-                                                </>
-                                             ) : (
-                                                <>
-                                                   <span>✓</span>
-                                                   <span>Guardar y Conciliar Egreso</span>
-                                                </>
-                                             )}
-                                          </button>
-                                       </div>
-                                    </form>
-                                 </div>
+                           <div className="bg-[#F8FAFF] rounded-2xl border border-[#E2EAFD] overflow-hidden">
+                              {dailySalesError ? (
+                                 <div className="px-4 py-3 text-xs text-red-500 font-medium">{dailySalesError}</div>
+                              ) : loadingDailySales ? (
+                                 <div className="px-4 py-3 text-xs text-[#8E9BB5] font-medium">Buscando ventas cercanas a la fecha del movimiento...</div>
+                              ) : dailySalesGroups.length === 0 ? (
+                                 <div className="px-4 py-3 text-xs text-[#8E9BB5] font-medium">No hay ventas pendientes agrupables cerca de esta fecha.</div>
                               ) : (
-                                 <div className="border rounded-xl border-[var(--border-subtle)] bg-[var(--surface-1)] overflow-hidden">
-                                    <div className="max-h-[48vh] overflow-auto">
-                                       <table className="min-w-full text-sm table-fixed border-collapse">
-                                          <thead className="sticky top-0 text-[var(--heading)] z-[1]">
-                                             <tr className="border-b border-[var(--border-subtle)] bg-[var(--surface-1)]">
-                                                <th className="px-3 py-2 text-left cursor-pointer hover:bg-[var(--surface-2)] select-none transition-colors" onClick={() => setModalSortConfig(s => ({ key: 'remaining_amount', dir: s.key === 'remaining_amount' ? (s.dir === 'none' ? 'desc' : (s.dir === 'desc' ? 'asc' : 'none')) : 'desc' }))} title="Ordenar por saldo">
-                                                   Saldo por Asignar {modalSortConfig.key === 'remaining_amount' ? (modalSortConfig.dir === 'asc' ? '↑' : modalSortConfig.dir === 'desc' ? '↓' : '') : ''}
-                                                </th>
-                                                <th className="px-3 py-2 text-left cursor-pointer hover:bg-[var(--surface-2)] select-none transition-colors" onClick={() => setModalSortConfig(s => ({ key: 'total_amount', dir: s.key === 'total_amount' ? (s.dir === 'none' ? 'desc' : (s.dir === 'desc' ? 'asc' : 'none')) : 'desc' }))} title="Ordenar por monto">
-                                                   Monto {modalSortConfig.key === 'total_amount' ? (modalSortConfig.dir === 'asc' ? '↑' : modalSortConfig.dir === 'desc' ? '↓' : '') : ''}
-                                                </th>
-                                                <th
-                                                   className="pl-3 pr-1 py-2 text-left w-[120px] cursor-pointer hover:bg-[var(--surface-2)] select-none transition-colors"
-                                                   onClick={() => setModalSortConfig(s => ({ key: 'issue_date', dir: s.key === 'issue_date' ? (s.dir === 'none' ? 'desc' : (s.dir === 'desc' ? 'asc' : 'none')) : 'desc' }))}
-                                                   title="Ordenar por fecha"
-                                                >
-                                                   Fecha {modalSortConfig.key === 'issue_date' ? (modalSortConfig.dir === 'asc' ? '↑' : modalSortConfig.dir === 'desc' ? '↓' : '') : ''}
-                                                </th>
-                                                <th className="pl-1 pr-3 py-2 text-left w-[110px] cursor-pointer hover:bg-[var(--surface-2)] select-none transition-colors" onClick={() => setModalSortConfig(s => ({ key: 'type', dir: s.key === 'type' ? (s.dir === 'none' ? 'desc' : (s.dir === 'desc' ? 'asc' : 'none')) : 'desc' }))} title="Ordenar por tipo">
-                                                   Tipo {modalSortConfig.key === 'type' ? (modalSortConfig.dir === 'asc' ? '↑' : modalSortConfig.dir === 'desc' ? '↓' : '') : ''}
-                                                </th>
-                                                <th className="px-3 py-2 text-left cursor-pointer hover:bg-[var(--surface-2)] select-none transition-colors" onClick={() => setModalSortConfig(s => ({ key: 'description', dir: s.key === 'description' ? (s.dir === 'none' ? 'desc' : (s.dir === 'desc' ? 'asc' : 'none')) : 'desc' }))} title="Ordenar por descripción">
-                                                   Descripción {modalSortConfig.key === 'description' ? (modalSortConfig.dir === 'asc' ? '↑' : modalSortConfig.dir === 'desc' ? '↓' : '') : ''}
-                                                </th>
-                                                <th className="px-3 py-2 text-right"></th>
-                                             </tr>
-                                          </thead>
-                                          <tbody>
-                                             {menuLoading ? (
-                                                <tr><td className="px-3 py-4" colSpan={6}>{selectedTargetKind === 'bank_transaction' ? 'Buscando movimientos...' : debouncedQuery.length >= 2 ? 'Buscando documentos...' : 'Buscando sugerencias...'}</td></tr>
-                                             ) : (selectedTargetKind === 'bank_transaction' ? bankSearchError : documentSearchError) ? (
-                                                <tr><td className="px-3 py-6 text-center text-[var(--danger)]" colSpan={6}>{selectedTargetKind === 'bank_transaction' ? bankSearchError : documentSearchError}</td></tr>
-                                             ) : modalFiltered.length === 0 ? (
-                                                <tr><td className="px-3 py-6 text-center text-[var(--text-soft)]" colSpan={6}>{selectedTargetKind === 'bank_transaction' ? 'No se encontraron movimientos pendientes para cruzar.' : debouncedQuery ? 'No se encontraron documentos pendientes para la busqueda.' : 'No hay documentos pendientes sugeridos.'}</td></tr>
-                                             ) : (
-                                                modalFiltered.map((d) => (
-                                                   <tr key={`${d.target_kind || selectedTargetKind}-${d.id}`} className={`border-b border-[var(--border-subtle)] ${isCandidateSelected(d) ? 'bg-[var(--surface-2)]' : ''}`}>
-                                                      <td className="px-3 py-2">
-                                                         {isCandidateSelected(d) ? (
-                                                            <div className="text-right">
-                                                               <div className="text-[var(--danger)] font-semibold">{fmtCLP?.(Math.max(0, Number(d.remaining_amount || 0) - Number(selectedDocumentAllocation.get(Number(d.id)) ?? assigned)))}</div>
-                                                               <div className="text-[10px] text-[var(--text-soft)] -mt-0.5">Saldo por pagar</div>
-                                                            </div>
-                                                         ) : (fmtCLP?.(d.remaining_amount) ?? d.remaining_amount)}
-                                                      </td>
-                                                      <td className="px-3 py-2">{fmtCLP?.(d.total_amount) ?? d.total_amount}</td>
-                                                      <td className="pl-3 pr-1 py-2">{d.issue_date || "—"}</td>
-                                                      <td className="pl-1 pr-3 py-2 whitespace-nowrap">
-                                                         {(d.target_kind || selectedTargetKind) === 'bank_transaction' ? (
-                                                            <span className="inline-flex items-center px-2 h-5 rounded-md text-[10px] font-semibold bg-[var(--brand)] text-white">
-                                                               {d.bank_type === 'expense' ? 'Cargo' : 'Abono'}
+                                 <div className="max-h-56 overflow-auto">
+                                    <table className="w-full text-xs border-collapse">
+                                       <thead>
+                                          <tr className="bg-[#F4F7FE] border-b border-[#E2EAFD] text-[#55607A]">
+                                             <th className="py-2.5 px-4 text-left font-semibold w-[130px]">Día</th>
+                                             <th className="py-2.5 px-4 text-left font-semibold">Documentos</th>
+                                             <th className="py-2.5 px-4 text-right font-semibold w-[130px]">Total día</th>
+                                             <th className="py-2.5 px-4 text-right font-semibold w-[130px]">Diferencia</th>
+                                             <th className="py-2.5 px-4 text-right w-[140px]"></th>
+                                          </tr>
+                                       </thead>
+                                       <tbody className="divide-y divide-[#E2EAFD]">
+                                          {dailySalesGroups.slice(0, 8).map((group) => {
+                                             const exactMatch = Math.abs(group.diff) <= 1;
+                                             const canApply = txRemaining > 0 && group.docs.length > 0;
+                                             const isSavingGroup = savingDailyGroupKey === group.key;
+
+                                             return (
+                                                <tr key={group.key} className="hover:bg-[#EEF3FF]/40 transition-colors">
+                                                   <td className="py-2.5 px-4 whitespace-nowrap">
+                                                      <div className="font-semibold text-[#0A1A3F]">{group.date}</div>
+                                                      {exactMatch && (
+                                                         <div className="text-[11px] text-[#1F6BFF] font-semibold mt-0.5">Calce exacto</div>
+                                                      )}
+                                                   </td>
+                                                   <td className="py-2.5 px-4">
+                                                      <div className="flex items-center gap-2 flex-wrap">
+                                                         {group.docs.slice(0, 3).map((doc) => (
+                                                            <React.Fragment key={doc.id}>
+                                                               {renderDocBadge(doc.doc_type_code, doc.folio || doc.id)}
+                                                            </React.Fragment>
+                                                         ))}
+                                                         {group.docs.length > 3 && (
+                                                            <span className="text-[10px] font-semibold text-[#8E9BB5]">
+                                                               +{group.docs.length - 3}
                                                             </span>
-                                                         ) : (() => {
-                                                            const tag = docTag(d.doc_type_code);
-                                                            const solid = tag.color, light = hexToRgba(tag.color, 0.12), divider = hexToRgba(tag.color, 0.35);
-                                                            if (!d.folio) return <span title={getSiiDocumentTypeLabel(d.doc_type_code)} className="inline-flex items-center px-2 h-5 rounded-md text-[10px] font-semibold" style={{ background: solid, color: '#fff' }}>{tag.abbr}</span>;
-                                                            return (
-                                                               <span title={getSiiDocumentTypeLabel(d.doc_type_code)} className="inline-flex items-stretch rounded-md overflow-hidden text-[10px] font-semibold">
-                                                                  <span className="px-2 h-5 flex items-center" style={{ background: solid, color: '#fff' }}>{tag.abbr}</span>
-                                                                  <span className="px-2 h-5 flex items-center" style={{ background: light, color: solid, borderLeft: `1px solid ${divider}` }}>{d.folio}</span>
-                                                               </span>
-                                                            );
-                                                         })()}
-                                                      </td>
-                                                      <td className="px-3 py-2">
-                                                         <div className="truncate max-w-[320px]">
-                                                            {d.counterparty_rut || d.counterparty_tax_id || d.rut ? `${d.counterparty_rut || d.counterparty_tax_id || d.rut} - ` : ''}{d.counterparty_name || d.description || "—"}
-                                                         </div>
-                                                         {d.account_label && <div className="text-[10px] text-[var(--text-soft)] truncate max-w-[320px]">{d.account_label}</div>}
-                                                      </td>
-                                                      <td className="px-3 py-2 text-right">
-                                                         <button className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium ${isCandidateSelected(d) ? 'bg-emerald-500 hover:bg-emerald-600 text-white' : 'bg-amber-400 hover:bg-amber-500 text-black'}`} onClick={() => toggleCandidateSelection(d)}>
-                                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
-                                                            <span>{isCandidateSelected(d) ? 'Seleccionado' : 'Seleccionar'}</span>
-                                                         </button>
-                                                      </td>
-                                                   </tr>
-                                                ))
-                                             )}
-                                          </tbody>
-                                       </table>
-                                    </div>
-                                    {selectedTargetKind === 'document' && modalTotalPages > 1 && (
-                                       <div className="flex items-center justify-between px-4 py-3 bg-[var(--surface-2)] border-t border-[var(--border-subtle)] text-sm text-[var(--text-soft)]">
-                                          <div>Página {modalPage} de {modalTotalPages}</div>
-                                          <div className="flex gap-2">
-                                             <button 
-                                                className="px-2 py-1 rounded border border-[var(--border-subtle)] hover:bg-[var(--surface-3)] disabled:opacity-50"
-                                                disabled={modalPage <= 1}
-                                                onClick={() => setModalPage(p => Math.max(1, p - 1))}
-                                             >
-                                                Anterior
-                                             </button>
-                                             <button 
-                                                className="px-2 py-1 rounded border border-[var(--border-subtle)] hover:bg-[var(--surface-3)] disabled:opacity-50"
-                                                disabled={modalPage >= modalTotalPages}
-                                                onClick={() => setModalPage(p => Math.min(modalTotalPages, p + 1))}
-                                             >
-                                                Siguiente
-                                             </button>
-                                          </div>
-                                       </div>
-                                    )}
+                                                         )}
+                                                         <span className="text-xs text-[#55607A]">
+                                                            {group.docs.length} documento{group.docs.length > 1 ? 's' : ''} pendiente{group.docs.length > 1 ? 's' : ''}
+                                                         </span>
+                                                      </div>
+                                                   </td>
+                                                   <td className="py-2.5 px-4 text-right font-bold text-[#0A1A3F] tabular-nums whitespace-nowrap">
+                                                      $ {group.total.toLocaleString('es-CL')}
+                                                   </td>
+                                                   <td className="py-2.5 px-4 text-right font-bold tabular-nums whitespace-nowrap">
+                                                      <span className={exactMatch ? 'text-[#1F6BFF]' : 'text-[#55607A]'}>
+                                                         $ {Math.abs(group.diff).toLocaleString('es-CL')}
+                                                      </span>
+                                                   </td>
+                                                   <td className="py-2.5 px-4 text-right whitespace-nowrap">
+                                                      <button
+                                                         type="button"
+                                                         disabled={!canApply || Boolean(savingDailyGroupKey)}
+                                                         onClick={() => reconcileDailySalesGroup(group)}
+                                                         className="bg-[#1F6BFF] hover:bg-[#1657D7] disabled:opacity-40 disabled:pointer-events-none text-white text-xs font-bold px-4 py-1.5 rounded-full shadow-xs transition cursor-pointer"
+                                                         title={!canApply ? 'No hay saldo disponible para aplicar' : 'Aplicar este abono a la venta del día'}
+                                                      >
+                                                         {isSavingGroup ? 'Aplicando...' : 'Aplicar a día'}
+                                                      </button>
+                                                   </td>
+                                                </tr>
+                                             );
+                                          })}
+                                       </tbody>
+                                    </table>
                                  </div>
                               )}
-                           </section>
+                           </div>
+                        </div>
+                     )}
+
+                     {/* Toolbar & Selector de Tipo de Conciliación */}
+                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+                        <div className="inline-flex p-1 bg-[#EEF3FF] rounded-full items-center gap-1 self-start">
+                           <button
+                              type="button"
+                              onClick={() => {
+                                 setSelectedTargetKind('document');
+                                 setSelectedDocId(null);
+                                 setSelectedDocIds([]);
+                                 setModalTipo('');
+                              }}
+                              className={`px-3.5 py-1 text-xs rounded-full transition-all cursor-pointer ${
+                                 selectedTargetKind === 'document'
+                                    ? 'bg-white text-[#0A1A3F] font-bold shadow-xs'
+                                    : 'text-[#55607A] hover:text-[#0A1A3F] font-semibold'
+                              }`}
+                           >
+                              Documentos SII
+                           </button>
+                           <button
+                              type="button"
+                              onClick={() => {
+                                 setSelectedTargetKind('bank_transaction');
+                                 setSelectedDocId(null);
+                                 setSelectedDocIds([]);
+                                 setModalTipo('');
+                              }}
+                              className={`px-3.5 py-1 text-xs rounded-full transition-all cursor-pointer ${
+                                 selectedTargetKind === 'bank_transaction'
+                                    ? 'bg-white text-[#0A1A3F] font-bold shadow-xs'
+                                    : 'text-[#55607A] hover:text-[#0A1A3F] font-semibold'
+                              }`}
+                           >
+                              Movimientos bancarios (traspaso)
+                           </button>
+                           {reconcileDocumentSide === 'expense' && (
+                              <button
+                                 type="button"
+                                 onClick={() => {
+                                    setSelectedTargetKind('direct_expense');
+                                    setSelectedDocId(null);
+                                    setSelectedDocIds([]);
+                                    setModalTipo('');
+                                 }}
+                                 className={`px-3.5 py-1 text-xs rounded-full transition-all cursor-pointer ${
+                                    selectedTargetKind === 'direct_expense'
+                                       ? 'bg-white text-[#0A1A3F] font-bold shadow-xs'
+                                       : 'text-[#55607A] hover:text-[#0A1A3F] font-semibold'
+                                 }`}
+                              >
+                                 Egreso directo (sin factura)
+                              </button>
+                           )}
+                        </div>
+
+                        {selectedTargetKind !== 'direct_expense' && (
+                           <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap">
+                              <div className="relative flex items-center">
+                                 <BuscarIcon className="w-3.5 h-3.5 text-[#8E9BB5] absolute left-3 pointer-events-none" />
+                                 <input
+                                    type="text"
+                                    value={modalQuery}
+                                    onChange={(e) => {
+                                       setModalQuery(e.target.value);
+                                       setModalPage(1);
+                                    }}
+                                    placeholder={
+                                       selectedTargetKind === 'bank_transaction'
+                                          ? 'Buscar por descripción, banco o monto'
+                                          : 'Busca por folio, RUT, contraparte o monto'
+                                    }
+                                    className="bg-white rounded-xl border border-[#E2EAFD] pl-8 pr-3.5 py-1.5 text-xs text-[#0A1A3F] placeholder-[#8E9BB5] w-64 md:w-80 focus:outline-none focus:border-[#1F6BFF]"
+                                 />
+                              </div>
+
+                              {selectedTargetKind === 'document' && (
+                                 <select
+                                    value={modalTipo}
+                                    onChange={(e) => {
+                                       setModalTipo(e.target.value);
+                                       setModalPage(1);
+                                    }}
+                                    className="bg-white rounded-xl border border-[#E2EAFD] px-3.5 py-1.5 text-xs font-semibold text-[#0A1A3F] focus:outline-none focus:border-[#1F6BFF] cursor-pointer"
+                                 >
+                                    {modalTypeOptions.map((opt) => (
+                                       <option key={opt.value} value={opt.value}>
+                                          {opt.label}
+                                       </option>
+                                    ))}
+                                 </select>
+                              )}
+                           </div>
+                        )}
+                     </div>
+
+                     {/* Content based on selectedTargetKind */}
+                     {selectedTargetKind === 'direct_expense' ? (
+                        <div className="bg-[#F8FAFF] rounded-2xl border border-[#E2EAFD] p-5 shadow-xs">
+                           <div className="mb-4">
+                              <h3 className="font-nunito font-bold text-sm text-[#0A1A3F]">
+                                 Egreso Directo (Sin documento tributario SII)
+                              </h3>
+                              <p className="text-xs text-[#8E9BB5] mt-0.5">
+                                 Registra y concilia de inmediato gastos comunes, remuneraciones, arriendos, impuestos o compras menores.
+                              </p>
+                           </div>
+
+                           <div className="flex gap-2 mb-4">
+                              {['GASTO', 'COSTO', 'IMPUESTO'].map((t) => (
+                                 <button
+                                    key={t}
+                                    type="button"
+                                    onClick={() => setExpenseType(t)}
+                                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                                       expenseType === t
+                                          ? 'bg-[#1F6BFF] text-white shadow-xs'
+                                          : 'bg-white border border-[#E2EAFD] text-[#55607A] hover:bg-[#EEF3FF]'
+                                    }`}
+                                 >
+                                    {t}
+                                 </button>
+                              ))}
+                           </div>
+
+                           <form onSubmit={handleReconcileDirectExpense} className="space-y-4">
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                 <div>
+                                    <label className="block text-xs font-semibold text-[#55607A] mb-1">
+                                       Monto a Conciliar ($ CLP) *
+                                    </label>
+                                    <div className="relative">
+                                       <span className="absolute left-3 top-2 text-xs text-[#8E9BB5]">$</span>
+                                       <input
+                                          type="number"
+                                          value={expenseAmount}
+                                          onChange={(e) => setExpenseAmount(e.target.value)}
+                                          min="1"
+                                          max={txRemaining || undefined}
+                                          required
+                                          className="w-full pl-7 pr-3 py-2 text-xs font-semibold rounded-xl border border-[#E2EAFD] bg-white text-[#0A1A3F] focus:outline-none focus:border-[#1F6BFF]"
+                                          placeholder="0"
+                                       />
+                                    </div>
+                                    <p className="text-[11px] text-[#8E9BB5] mt-1">
+                                       Saldo disponible del movimiento: <span className="font-bold text-[#0A1A3F]">$ {txRemaining.toLocaleString('es-CL')}</span>
+                                    </p>
+                                 </div>
+
+                                 <div>
+                                    <label className="block text-xs font-semibold text-[#55607A] mb-1">
+                                       Fecha del Movimiento Bancario
+                                    </label>
+                                    <input
+                                       type="text"
+                                       readOnly
+                                       value={formatYmdToDmy(reconcileTx.fecha)}
+                                       className="w-full px-3 py-2 text-xs rounded-xl border border-[#E2EAFD] bg-[#EEF3FF]/50 text-[#55607A] cursor-not-allowed select-none"
+                                    />
+                                    <p className="text-[11px] text-[#8E9BB5] mt-1">
+                                       Cuenta: <span className="font-semibold text-[#0A1A3F]">{reconcileTx.cuenta_corriente || '—'}</span>
+                                    </p>
+                                 </div>
+
+                                 <div>
+                                    <label className="block text-xs font-semibold text-[#55607A] mb-1">
+                                       Proveedor / Beneficiario *
+                                    </label>
+                                    <input
+                                       type="text"
+                                       value={expenseCounterparty}
+                                       onChange={(e) => setExpenseCounterparty(e.target.value)}
+                                       required
+                                       placeholder="Ej: Municipalidad de Providencia, Inmobiliaria SpA..."
+                                       className="w-full px-3 py-2 text-xs rounded-xl border border-[#E2EAFD] bg-white text-[#0A1A3F] focus:outline-none focus:border-[#1F6BFF]"
+                                    />
+                                 </div>
+
+                                 <div>
+                                    <label className="block text-xs font-semibold text-[#55607A] mb-1">
+                                       RUT Beneficiario (Opcional)
+                                    </label>
+                                    <input
+                                       type="text"
+                                       value={expenseRut}
+                                       onChange={(e) => setExpenseRut(e.target.value)}
+                                       placeholder="Ej: 69.070.100-5"
+                                       className="w-full px-3 py-2 text-xs rounded-xl border border-[#E2EAFD] bg-white text-[#0A1A3F] focus:outline-none focus:border-[#1F6BFF]"
+                                    />
+                                 </div>
+
+                                 <div className="md:col-span-2">
+                                    <label className="block text-xs font-semibold text-[#55607A] mb-1">
+                                       Glosa / Concepto del Egreso *
+                                    </label>
+                                    <input
+                                       type="text"
+                                       value={expenseConcept}
+                                       onChange={(e) => setExpenseConcept(e.target.value)}
+                                       required
+                                       placeholder="Ej: Pago arriendo oficina local 101, Patente comercial..."
+                                       className="w-full px-3 py-2 text-xs rounded-xl border border-[#E2EAFD] bg-white text-[#0A1A3F] focus:outline-none focus:border-[#1F6BFF]"
+                                    />
+                                 </div>
+
+                                 <div className="md:col-span-2">
+                                    <div className="flex items-center justify-between mb-1">
+                                       <label className="block text-xs font-bold text-[#0A1A3F] uppercase tracking-wider">
+                                          Clasificación Contable (Plan de Cuentas) *
+                                       </label>
+                                       <span className="text-[11px] text-[#8E9BB5]">
+                                          Cuenta al Debe (Gasto/Costo)
+                                       </span>
+                                    </div>
+                                    <AccountSelect
+                                       accounts={availableAccounts}
+                                       value={expenseAccountId}
+                                       onChange={(val) => setExpenseAccountId(val)}
+                                       placeholder="Buscar y seleccionar cuenta contable (ej: Arriendos, Remuneraciones...)"
+                                       allowClear={true}
+                                    />
+                                 </div>
+                              </div>
+
+                              <div className="pt-3 border-t border-[#E2EAFD] flex items-center justify-end gap-3">
+                                 <button
+                                    type="button"
+                                    onClick={() => setSelectedTargetKind('document')}
+                                    className="px-4 py-2 text-xs font-bold text-[#55607A] hover:text-[#0A1A3F] hover:bg-[#EEF3FF] rounded-full transition cursor-pointer"
+                                 >
+                                    Cancelar
+                                 </button>
+                                 <button
+                                    type="submit"
+                                    disabled={isSubmittingExpense || !expenseAccountId || !Number(expenseAmount)}
+                                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#1F6BFF] hover:bg-[#1657D7] disabled:opacity-40 disabled:pointer-events-none text-white text-xs font-bold shadow-xs transition cursor-pointer"
+                                 >
+                                    {isSubmittingExpense ? (
+                                       <>
+                                          <span className="inline-block w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                          <span>Guardando y Conciliando...</span>
+                                       </>
+                                    ) : (
+                                       <>
+                                          <CheckIcon className="w-4 h-4 stroke-[2.5]" />
+                                          <span>Guardar y Conciliar Egreso</span>
+                                       </>
+                                    )}
+                                 </button>
+                              </div>
+                           </form>
                         </div>
                      ) : (
-                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
-                           <section className="lg:col-span-5 lg:pr-6">
-                              <h3 className="text-[var(--heading)] font-medium mb-2">Movimiento Bancario</h3>
-                              <div className="mb-3 border-t border" />
-                              <div className="relative w-full rounded-md shadow-lg border bg-[var(--bankcard-surface)] border-[var(--bankcard-border)] p-3 md:p-4 ring-1 ring-transparent hover:ring-[var(--bankcard-ring)] transition-all duration-200" style={bankCardTheme}>
-                                 <div className="absolute inset-x-0 -top-[1px] h-1 rounded-t-md" style={{ background: 'var(--bankcard-gradient)' }} />
-                                 <div className="flex items-start justify-between gap-2">
-                                    <div className="min-w-0">
-                                       <div className="flex items-center gap-2">
-                                          <div className="text-[10px] uppercase tracking-wide text-[var(--bankcard-soft)]">{reconcileTx.fecha || "—"}</div>
-                                          <span className="inline-flex items-center px-1.5 py-[2px] text-[9px] rounded-full font-medium" style={{ background: '#5CB9A5', color: '#FFFFFF' }}>Mov. bancario • CC</span>
-                                       </div>
-                                       <div className="mt-0.5 font-semibold leading-[1.25] text-[13px] md:text-[14px] text-[var(--bankcard-text)] truncate">{reconcileTx.descripcion || "(sin descripcion)"}</div>
-                                    </div>
-                                    <div className="text-right shrink-0">
-                                       <div className="text-base md:text-lg font-extrabold">{fmtCLP?.(Math.abs(reconcileTx.monto))}</div>
-                                    </div>
-                                 </div>
-                                 <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-                                    <div className="text-[11px] text-[var(--bankcard-soft)] truncate">{reconcileTx.cuenta_corriente || "—"}</div>
-                                    <div className="text-[11px]">
-                                       <span className={isFullyAssigned ? "text-[var(--bankcard-success)] mr-1" : "text-[var(--bankcard-link)] mr-1"}>Saldo por asignar</span>
-                                       <span className={isFullyAssigned ? "text-[var(--bankcard-success)]" : "text-[var(--bankcard-link)]"}><AnimatedAmount value={txRemainingAfter} fmt={fmtCLP} busy={isTyping} bold={false} /></span>
-                                       {isFullyAssigned && <span className="ml-1 inline-flex items-center text-[var(--bankcard-success)]">✓</span>}
-                                    </div>
-                                 </div>
-                              </div>
-                           </section>
+                        <div className="bg-white rounded-2xl border border-[#E2EAFD] overflow-hidden shadow-xs">
+                           <div className="overflow-x-auto">
+                              <table className="w-full text-xs border-collapse">
+                                 <thead>
+                                    <tr className="bg-[#F4F7FE] border-b border-[#E2EAFD] text-[#55607A]">
+                                       <th className="py-3 px-4 text-left font-semibold whitespace-nowrap">Saldo por asignar</th>
+                                       <th className="py-3 px-4 text-left font-semibold whitespace-nowrap">Monto</th>
+                                       <th className="py-3 px-4 text-left font-semibold whitespace-nowrap">Fecha</th>
+                                       <th className="py-3 px-4 text-left font-semibold whitespace-nowrap">Tipo</th>
+                                       <th className="py-3 px-4 text-left font-semibold whitespace-nowrap">Descripción</th>
+                                       <th className="py-3 px-4 text-right font-semibold whitespace-nowrap"></th>
+                                    </tr>
+                                 </thead>
+                                 <tbody className="divide-y divide-[#E2EAFD]">
+                                    {menuLoading ? (
+                                       <tr>
+                                          <td colSpan={6} className="py-8 text-center text-xs text-[#1F6BFF] font-medium animate-pulse">
+                                             {selectedTargetKind === 'bank_transaction'
+                                                ? 'Buscando movimientos...'
+                                                : debouncedQuery.length >= 2
+                                                ? 'Buscando documentos...'
+                                                : 'Buscando sugerencias...'}
+                                          </td>
+                                       </tr>
+                                    ) : (selectedTargetKind === 'bank_transaction' ? bankSearchError : documentSearchError) ? (
+                                       <tr>
+                                          <td colSpan={6} className="py-8 text-center text-xs text-red-500 font-medium">
+                                             {selectedTargetKind === 'bank_transaction' ? bankSearchError : documentSearchError}
+                                          </td>
+                                       </tr>
+                                    ) : modalFiltered.length === 0 ? (
+                                       <tr>
+                                          <td colSpan={6} className="py-8 text-center text-xs text-[#8E9BB5] font-medium">
+                                             {selectedTargetKind === 'bank_transaction'
+                                                ? 'No se encontraron movimientos pendientes para cruzar.'
+                                                : debouncedQuery
+                                                ? 'No se encontraron documentos pendientes para la búsqueda.'
+                                                : 'No hay documentos pendientes sugeridos.'}
+                                          </td>
+                                       </tr>
+                                    ) : (
+                                       modalFiltered.map((d) => {
+                                          const selected = isCandidateSelected(d);
+                                          const isBank = (d.target_kind || selectedTargetKind) === 'bank_transaction';
+                                          const pendingAmount = Math.max(0, Number(d.remaining_amount || 0));
+                                          const totalAmount = Number(d.total_amount || d.monto || 0);
+                                          const dateStr = d.issue_date || d.fecha || '—';
+                                          const descStr = isBank
+                                             ? `${d.cuenta_corriente || d.banco || ''} ${d.descripcion || ''}`.trim() || 'Movimiento bancario'
+                                             : `${d.counterparty_name || d.description || '—'}${d.counterparty_rut || d.counterparty_tax_id || d.rut ? ` · ${d.counterparty_rut || d.counterparty_tax_id || d.rut}` : ''}`;
 
-                           <section className="lg:col-span-2 flex flex-col items-center justify-center">
-                              <h4 className="text-[var(--text-soft)] text-sm mb-2">Monto a asignar</h4>
-                              <div className="flex items-stretch rounded-md overflow-hidden shadow-sm">
-                                 <span className="inline-flex items-center px-3 bg-[var(--surface-2)] border border-[var(--border-subtle)] text-[var(--text-soft)] select-none">$</span>
-                                 <input type="number" className="h-10 w-40 md:w-44 border border-l-0 border-[var(--border-subtle)] bg-[var(--bg-content)] text-[var(--heading)] px-3 text-right focus:outline-none focus:ring-2 focus:ring-[var(--bankcard-ring)]" value={assignAmount} min={0} max={maxAssignable} onChange={handleAssignChange} placeholder="0" />
-                              </div>
-                              <div className="mt-3 opacity-60 text-xs">máx: {fmtCLP?.(maxAssignable)}</div>
-                              <div className="hidden lg:block mt-6 text-2xl select-none">➜</div>
-                              {(selectedDocuments.length > 0 || Boolean(selectedDocId)) && (
-                                 <div className="mt-6 w-full flex flex-col items-center">
-                                    <button type="button" onClick={handleSave} disabled={isSaving || !assigned || assigned <= 0} className={`px-5 py-3 rounded-md text-white text-sm font-medium transition ${(!assigned || assigned <= 0) ? 'bg-teal-400/60 cursor-not-allowed' : 'bg-teal-500 hover:bg-teal-600'}`}>
-                                       {saveState === 'saving' && <span className="inline-flex items-center gap-2"><span className="inline-block w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" /> Guardando…</span>}
-                                       {saveState === 'done' && <span className="inline-flex items-center gap-2"><span>✓</span> Guardado</span>}
-                                       {saveState !== 'saving' && saveState !== 'done' && <span className="inline-flex items-center gap-2"><span>✓</span> Guardar conciliación</span>}
+                                          return (
+                                             <tr
+                                                key={`${d.target_kind || selectedTargetKind}-${d.id}`}
+                                                className={`transition-colors ${
+                                                   selected ? 'bg-[#EEF3FF]/70' : 'hover:bg-[#F8FAFF]'
+                                                }`}
+                                             >
+                                                <td className="py-3 px-4 font-bold text-[#0A1A3F] tabular-nums whitespace-nowrap">
+                                                   $ {Math.abs(pendingAmount).toLocaleString('es-CL')}
+                                                </td>
+                                                <td className="py-3 px-4 font-medium text-[#55607A] tabular-nums whitespace-nowrap">
+                                                   $ {Math.abs(totalAmount).toLocaleString('es-CL')}
+                                                </td>
+                                                <td className="py-3 px-4 text-[#55607A] whitespace-nowrap">
+                                                   {dateStr}
+                                                </td>
+                                                <td className="py-3 px-4 whitespace-nowrap">
+                                                   {isBank ? (
+                                                      <span className="inline-flex items-center rounded-md overflow-hidden text-[10px] font-bold border border-[#E2EAFD] shadow-2xs">
+                                                         <span className="px-2 h-5 flex items-center bg-[#5CB9A5] text-white">
+                                                            {d.bank_type === 'expense' ? 'CARGO' : 'ABONO'}
+                                                         </span>
+                                                         <span className="px-2 h-5 flex items-center bg-white text-[#0A1A3F] font-semibold border-l border-[#E2EAFD]">
+                                                            {d.documento || d.id}
+                                                         </span>
+                                                      </span>
+                                                   ) : (
+                                                      renderDocBadge(d.doc_type_code, d.folio || d.id)
+                                                   )}
+                                                </td>
+                                                <td className="py-3 px-4">
+                                                   <div className="truncate max-w-xs md:max-w-md text-xs font-medium text-[#55607A]" title={descStr}>
+                                                      {descStr}
+                                                   </div>
+                                                </td>
+                                                <td className="py-3 px-4 text-right whitespace-nowrap">
+                                                   <button
+                                                      type="button"
+                                                      onClick={() => toggleCandidateSelection(d)}
+                                                      className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-bold shadow-xs transition cursor-pointer ${
+                                                         selected
+                                                            ? 'bg-[#1F6BFF] hover:bg-[#1657D7] text-white'
+                                                            : 'border border-[#C3D4FA] bg-white hover:bg-[#EEF3FF] text-[#0A1A3F]'
+                                                      }`}
+                                                   >
+                                                      {selected ? (
+                                                         <>
+                                                            <CheckIcon className="w-3.5 h-3.5 stroke-[2.5]" />
+                                                            <span>Seleccionado</span>
+                                                         </>
+                                                      ) : (
+                                                         <span>Seleccionar</span>
+                                                      )}
+                                                   </button>
+                                                </td>
+                                             </tr>
+                                          );
+                                       })
+                                    )}
+                                 </tbody>
+                              </table>
+                           </div>
+
+                           {/* Paginación si aplica */}
+                           {selectedTargetKind === 'document' && modalTotalPages > 1 && (
+                              <div className="flex items-center justify-between px-4 py-3 bg-[#F8FAFF] border-t border-[#E2EAFD] text-xs text-[#55607A]">
+                                 <div>Página {modalPage} de {modalTotalPages}</div>
+                                 <div className="flex gap-2">
+                                    <button
+                                       type="button"
+                                       className="px-3 py-1 rounded-lg border border-[#E2EAFD] bg-white hover:bg-[#EEF3FF] disabled:opacity-40 disabled:pointer-events-none transition cursor-pointer"
+                                       disabled={modalPage <= 1}
+                                       onClick={() => setModalPage((p) => Math.max(1, p - 1))}
+                                    >
+                                       Anterior
+                                    </button>
+                                    <button
+                                       type="button"
+                                       className="px-3 py-1 rounded-lg border border-[#E2EAFD] bg-white hover:bg-[#EEF3FF] disabled:opacity-40 disabled:pointer-events-none transition cursor-pointer"
+                                       disabled={modalPage >= modalTotalPages}
+                                       onClick={() => setModalPage((p) => Math.min(modalTotalPages, p + 1))}
+                                    >
+                                       Siguiente
                                     </button>
                                  </div>
-                              )}
-                           </section>
-
-                           <section className="lg:col-span-5">
-                              <div className="flex items-center justify-between mb-3">
-                                 <h3 className="text-[var(--heading)] font-medium">{hasMultipleSelectedDocuments ? (selectedTargetKind === 'bank_transaction' ? 'Movimientos seleccionados' : 'Documentos seleccionados') : (selectedTargetKind === 'bank_transaction' ? 'Movimiento seleccionado' : 'Documento seleccionado')}</h3>
                               </div>
-                              <div className="relative w-full rounded-md shadow-lg border bg-[var(--bankcard-surface)] border-[var(--bankcard-border)] p-3 md:p-4" style={bankCardTheme}>
-                                 <div className="absolute inset-x-0 -top-[1px] h-1 rounded-t-md" style={{ background: 'var(--bankcard-gradient)' }} />
-                                 <div className="flex items-start justify-between gap-2">
-                                    <div className="min-w-0">
-                                       <div className="flex items-center gap-2">
-                                          <div className="text-[12px] text-[var(--bankcard-soft)]">{hasMultipleSelectedDocuments ? `${selectedDocuments.length} ${selectedTargetKind === 'bank_transaction' ? 'movimientos' : 'documentos'}` : selectedDoc?.issue_date || "—"}</div>
-                                          {hasMultipleSelectedDocuments ? (
-                                             <span className="inline-flex items-center px-2 h-5 rounded-full text-[10px] font-semibold bg-[var(--brand)] text-white">Lote</span>
-                                          ) : selectedTargetKind === 'bank_transaction' ? (
-                                             <span className="inline-flex items-center px-2 h-5 rounded-full text-[10px] font-semibold bg-[var(--brand)] text-white">
-                                                {selectedDoc?.bank_type === 'expense' ? 'Cargo' : 'Abono'}
-                                             </span>
-                                          ) : (() => {
-                                             const tag = docTag(selectedDoc?.doc_type_code);
-                                             const solid = tag.color, light = hexToRgba(tag.color, 0.12), divider = hexToRgba(tag.color, 0.35);
-                                             return selectedDoc?.folio ? (
-                                                <span title={getSiiDocumentTypeLabel(selectedDoc?.doc_type_code)} className="inline-flex items-stretch rounded-full overflow-hidden text-[10px] font-semibold leading-none">
-                                                   <span className="px-2 h-5 flex items-center" style={{ background: solid, color: '#fff' }}>{tag.abbr}</span>
-                                                   <span className="px-2 h-5 flex items-center" style={{ background: light, color: solid, borderLeft: `1px solid ${divider}` }}>{selectedDoc.folio}</span>
-                                                </span>
-                                             ) : <span title={getSiiDocumentTypeLabel(selectedDoc?.doc_type_code)} className="inline-flex items-center px-2 h-5 rounded-full text-[10px] font-semibold" style={{ background: solid, color: '#fff' }}>{tag.abbr}</span>;
-                                          })()}
-                                       </div>
-                                       <div className="mt-1 font-semibold text-[13px] md:text-[14px] text-[var(--bankcard-text)] truncate">
-                                          {hasMultipleSelectedDocuments
-                                             ? `${selectedDocuments.length} ${selectedTargetKind === 'bank_transaction' ? 'movimientos' : 'documentos'} seleccionados`
-                                             : `${selectedDoc?.counterparty_rut || selectedDoc?.counterparty_tax_id || selectedDoc?.rut ? `${selectedDoc.counterparty_rut || selectedDoc.counterparty_tax_id || selectedDoc.rut} - ` : ''}${selectedDoc?.counterparty_name || selectedDoc?.description || selectedDoc?.descripcion || "(sin descripcion)"}`}
-                                       </div>
-                                    </div>
-                                    <div className="shrink-0 text-right flex flex-col items-end gap-2">
-                                       <button onClick={() => { setSelectedDocId(null); setSelectedDocIds([]); }} className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-[var(--surface-2)] hover:bg-[var(--surface-1)] border border-[var(--border-subtle)] text-[var(--text-soft)]">×</button>
-                                       <div className="text-base md:text-lg font-extrabold">{fmtCLP?.(hasMultipleSelectedDocuments ? selectedDocumentsPending : selectedDoc?.total_amount || 0)}</div>
-                                    </div>
-                                 </div>
-                                 <div className="mt-2 flex items-center justify-between gap-2">
-                                    <div className="text-[11px] text-[var(--bankcard-soft)] truncate">{hasMultipleSelectedDocuments ? 'Suma de saldos pendientes' : selectedDoc?.account_label || selectedDoc?.counterparty_tax_id || selectedDoc?.counterparty_rut || "—"}</div>
-                                    <div className="flex items-center gap-2 text-[12px] font-medium text-[var(--danger)]">
-                                       <button type="button" className="inline-flex items-center justify-center h-5 w-5 rounded-full border border-[var(--border-subtle)] bg-[var(--surface-1)] text-[var(--text-main)] text-[11px] hover:bg-[var(--surface-2)]" onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setDetailAnchor({ x: r.left, y: r.bottom }); setShowPayableDetail(true); }}>i</button>
-                                       <span className="underline decoration-dotted underline-offset-2">Saldo por pagar</span>
-                                       <AnimatedAmount value={Math.max(0, Number(hasMultipleSelectedDocuments ? selectedDocumentsPending : selectedDoc?.remaining_amount || 0) - Number(assigned || 0))} fmt={fmtCLP} busy={isTyping} danger />
-                                    </div>
-                                 </div>
-                              </div>
-                           </section>
+                           )}
                         </div>
                      )}
                   </div>
+
+                  {/* Footer */}
+                  <div className="px-6 py-4 bg-white border-t border-[#E2EAFD] flex items-center justify-between shrink-0">
+                     <div>
+                        {txRemainingAfter === 0 && assigned > 0 ? (
+                           <div className="flex items-center gap-2 text-xs font-bold text-[#1F6BFF]">
+                              <span className="w-2 h-2 rounded-full bg-[#1F6BFF]" />
+                              <span>Todo cuadra: diferencia $ 0</span>
+                           </div>
+                        ) : assigned > 0 ? (
+                           <div className="flex items-center gap-2 text-xs font-semibold text-[#55607A]">
+                              <span className="w-2 h-2 rounded-full bg-amber-500" />
+                              <span>Falta asignar $ {txRemainingAfter.toLocaleString('es-CL')}</span>
+                           </div>
+                        ) : (
+                           <div className="flex items-center gap-2 text-xs font-medium text-[#8E9BB5]">
+                              <span>Selecciona uno o más documentos para conciliar</span>
+                           </div>
+                        )}
+                     </div>
+
+                     <div className="flex items-center gap-3">
+                        <button
+                           type="button"
+                           onClick={closeConciliarSmooth}
+                           className="px-5 py-2 text-xs font-bold text-[#55607A] hover:text-[#0A1A3F] hover:bg-[#EEF3FF] rounded-full transition cursor-pointer"
+                        >
+                           Cancelar
+                        </button>
+                        <button
+                           type="button"
+                           onClick={handleSave}
+                           disabled={isSaving || !assigned || assigned <= 0}
+                           className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#1F6BFF] hover:bg-[#1657D7] disabled:opacity-40 disabled:pointer-events-none text-white text-xs font-bold shadow-xs transition cursor-pointer"
+                        >
+                           <CheckIcon className="w-4 h-4 stroke-[2.5]" />
+                           <span>{isSaving || saveState === 'saving' ? 'Conciliando...' : 'Confirmar conciliación'}</span>
+                        </button>
+                     </div>
+                  </div>
                </div>
+
+               {/* Detalle flotante (preservado) */}
                {showPayableDetail && (
-                  <div className="fixed inset-0 z-[70]" onClick={(e) => { if (e.target === e.currentTarget) { e.stopPropagation(); setShowPayableDetail(false); } }}>
+                  <div className="fixed inset-0 z-[210]" onClick={(e) => { if (e.target === e.currentTarget) { e.stopPropagation(); setShowPayableDetail(false); } }}>
                      <div className="absolute inset-0 bg-black/5" />
-                     <div className="fixed z-[71] w-[min(680px,92vw)] rounded-xl bg-[var(--bg-content)] text-[var(--text-main)] shadow-2xl border border-[var(--border-subtle)]" style={{ left: Math.max(12, detailAnchor.x - 12), top: detailAnchor.y + 8, transform: 'translateX(-100%)' }}>
-                        <div className="px-5 py-4 border-b border-[var(--border-subtle)] flex items-center justify-between">
-                           <h4 className="text-lg font-semibold text-[var(--heading)]">Detalle</h4>
-                           <button onClick={() => setShowPayableDetail(false)} className="h-8 w-8 rounded-full border hover:bg-[var(--surface-1)] text-[var(--text-soft)]">×</button>
+                     <div className="fixed z-[211] w-[min(680px,92vw)] rounded-2xl bg-white text-[#0A1A3F] shadow-2xl border border-[#E2EAFD]" style={{ left: Math.max(12, detailAnchor.x - 12), top: detailAnchor.y + 8, transform: 'translateX(-100%)' }}>
+                        <div className="px-5 py-4 border-b border-[#E2EAFD] flex items-center justify-between">
+                           <h4 className="text-base font-bold text-[#0A1A3F]">Detalle</h4>
+                           <button type="button" onClick={() => setShowPayableDetail(false)} className="h-7 w-7 rounded-full border border-[#E2EAFD] hover:bg-[#EEF3FF] text-[#55607A] flex items-center justify-center">×</button>
                         </div>
-                        <div className="px-5 pt-4 pb-2 overflow-x-auto">
-                           <table className="w-full min-w-[560px] text-sm">
-                              <thead><tr className="text-[var(--text-soft)] border-b"><th className="text-left py-2">Tipo</th><th className="text-left py-2">Fecha</th><th className="text-left py-2">Descripción</th><th className="text-right py-2">Monto</th></tr></thead>
-                              <tbody>
-                                 <tr className="border-b">
-                                    <td className="py-2">Doc original</td>
-                                    <td className="py-2">{selectedDoc?.issue_date || "—"}</td>
-                                    <td className="py-2">{selectedDoc?.counterparty_name || "—"}</td>
-                                    <td className="py-2 text-right font-medium">{fmtCLP?.(payableBreakdown.total)}</td>
+                        <div className="px-5 pt-4 pb-4 overflow-x-auto">
+                           <table className="w-full min-w-[520px] text-xs">
+                              <thead><tr className="text-[#55607A] border-b border-[#E2EAFD]"><th className="text-left py-2">Tipo</th><th className="text-left py-2">Fecha</th><th className="text-left py-2">Descripción</th><th className="text-right py-2">Monto</th></tr></thead>
+                              <tbody className="divide-y divide-[#E2EAFD]">
+                                 <tr>
+                                    <td className="py-2.5 font-medium">Doc original</td>
+                                    <td className="py-2.5">{selectedDoc?.issue_date || "—"}</td>
+                                    <td className="py-2.5">{selectedDoc?.counterparty_name || "—"}</td>
+                                    <td className="py-2.5 text-right font-bold text-[#0A1A3F] tabular-nums">$ {Math.abs(Number(payableBreakdown.total || 0)).toLocaleString('es-CL')}</td>
                                  </tr>
-                                 <tr className="border-b">
-                                    <td className="py-2"><span className="px-2 h-5 rounded-full text-[11px] font-semibold bg-[#F5D9A7] text-[#7A5E1A]">Asignado</span></td>
-                                    <td className="py-2">{reconcileTx?.fecha || "—"}</td>
-                                    <td className="py-2">Monto asignado ahora</td>
-                                    <td className="py-2 text-right font-medium">-{fmtCLP?.(payableBreakdown.nowAssigned)}</td>
+                                 <tr>
+                                    <td className="py-2.5"><span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#EEF3FF] text-[#1F6BFF]">Asignado</span></td>
+                                    <td className="py-2.5">{formatYmdToDmy(reconcileTx?.fecha)}</td>
+                                    <td className="py-2.5 text-[#55607A]">Monto asignado ahora</td>
+                                    <td className="py-2.5 text-right font-bold text-[#1F6BFF] tabular-nums">-$ {Math.abs(Number(payableBreakdown.nowAssigned || 0)).toLocaleString('es-CL')}</td>
                                  </tr>
                               </tbody>
-                              <tfoot><tr><td className="pt-3 text-[var(--text-soft)]" colSpan={3}>Saldo por pagar</td><td className="pt-3 text-right font-semibold">{fmtCLP?.(payableBreakdown.remaining)}</td></tr></tfoot>
+                              <tfoot><tr><td className="pt-3 text-[#55607A] font-semibold" colSpan={3}>Saldo por pagar</td><td className="pt-3 text-right font-bold text-[#0A1A3F] tabular-nums">$ {Math.abs(Number(payableBreakdown.remaining || 0)).toLocaleString('es-CL')}</td></tr></tfoot>
                            </table>
                         </div>
                      </div>
