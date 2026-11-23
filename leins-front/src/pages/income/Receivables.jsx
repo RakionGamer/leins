@@ -691,29 +691,29 @@ export default function Receivables() {
                                     </td>
 
                                     {/* Estado */}
-                                  
+                                    {/* Estado */}
 <td className="py-3.5 px-3 text-left whitespace-nowrap">
    <div className="flex items-center justify-start gap-1.5">
       {status === 'paid' && (
-         <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-[13px] font-bold bg-[#E5EDFF] text-[#1459F5]">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#1459F5] shrink-0" />
+         <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-[#E5EDFF] text-[#1459F5]">
+            <span className="w-2 h-2 rounded-full bg-[#1459F5] shrink-0" />
             <span>Pagada</span>
          </span>
       )}
       {status === 'pending' && (
-         <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-[13px] font-bold border-[1.5px] border-[#BACBF7] bg-[#F2F6FF] text-[#0A1A3F]">
-            <span className="w-2.5 h-2.5 rounded-full border-[2.2px] border-[#0A1A3F] bg-transparent shrink-0" />
+         <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border-[1.5px] border-[#BACBF7] bg-[#F2F6FF] text-[#0A1A3F]">
+            <span className="w-2 h-2 rounded-full border-2 border-[#0A1A3F] bg-transparent shrink-0" />
             <span>Pendiente</span>
          </span>
       )}
       {status === 'partial' && (
-         <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-[13px] font-bold bg-[#FFF4E5] text-[#D97706]">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#D97706] shrink-0" />
+         <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-[#FFF4E5] text-[#D97706]">
+            <span className="w-2 h-2 rounded-full bg-[#D97706] shrink-0" />
             <span>Parcial</span>
          </span>
       )}
       {status === 'credit_note' && (
-         <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-[13px] font-bold bg-[#E5EDFF] text-[#1459F5]">
+         <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-[#E5EDFF] text-[#1459F5]">
             <span>Nota Crédito</span>
          </span>
       )}
@@ -722,12 +722,12 @@ export default function Receivables() {
 
 {/* Acciones */}
 <td className="py-3.5 px-3 whitespace-nowrap text-right">
-   <div className="inline-flex items-center justify-end gap-6">
+   <div className="inline-flex items-center justify-end gap-3.5">
       {remaining > 0 && !isNC && (
          <button
             type="button"
             onClick={() => handleReminder(r)}
-            className="inline-flex items-center justify-center px-5 py-2 rounded-full text-[13px] font-bold bg-[#E5EDFF] text-[#1459F5] hover:bg-[#D6E3FF] transition-colors cursor-pointer"
+            className="inline-flex items-center justify-center px-3.5 py-1 rounded-full text-xs font-bold bg-[#E5EDFF] text-[#1459F5] hover:bg-[#D6E3FF] transition-colors cursor-pointer"
             title="Enviar recordatorio de cobro"
          >
             Recordar cobro
@@ -736,7 +736,7 @@ export default function Receivables() {
       <button
          type="button"
          onClick={() => handleViewDoc(r)}
-         className="inline-flex items-center gap-1.5 text-[13px] font-bold text-[#4E6185] hover:text-[#1459F5] transition-colors cursor-pointer py-1"
+         className="inline-flex items-center gap-1 text-xs font-bold text-[#4E6185] hover:text-[#1459F5] transition-colors cursor-pointer py-1"
          title="Ver detalle del documento"
       >
          <VerIcon className="w-4 h-4 text-[#4E6185]" />
