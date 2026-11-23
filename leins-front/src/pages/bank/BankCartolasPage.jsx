@@ -3270,11 +3270,41 @@ export default function BankCartolasPage() {
                               <table className="w-full text-xs border-collapse">
                                  <thead>
                                     <tr className="bg-[#F4F7FE] border-b border-[#E2EAFD] text-[#55607A]">
-                                       <th className="py-3 px-4 text-left font-semibold whitespace-nowrap">Saldo por asignar</th>
-                                       <th className="py-3 px-4 text-left font-semibold whitespace-nowrap">Monto</th>
-                                       <th className="py-3 px-4 text-left font-semibold whitespace-nowrap">Fecha</th>
-                                       <th className="py-3 px-4 text-left font-semibold whitespace-nowrap">Tipo</th>
-                                       <th className="py-3 px-4 text-left font-semibold whitespace-nowrap">Descripción</th>
+                                       <th
+                                          className="py-3 px-4 text-left font-semibold whitespace-nowrap cursor-pointer hover:bg-[#EEF3FF] select-none transition-colors"
+                                          onClick={() => setModalSortConfig(s => ({ key: 'remaining_amount', dir: s.key === 'remaining_amount' ? (s.dir === 'none' ? 'desc' : (s.dir === 'desc' ? 'asc' : 'none')) : 'desc' }))}
+                                          title="Ordenar por saldo"
+                                       >
+                                          Saldo por asignar {modalSortConfig.key === 'remaining_amount' ? (modalSortConfig.dir === 'asc' ? '↑' : modalSortConfig.dir === 'desc' ? '↓' : '') : ''}
+                                       </th>
+                                       <th
+                                          className="py-3 px-4 text-left font-semibold whitespace-nowrap cursor-pointer hover:bg-[#EEF3FF] select-none transition-colors"
+                                          onClick={() => setModalSortConfig(s => ({ key: 'total_amount', dir: s.key === 'total_amount' ? (s.dir === 'none' ? 'desc' : (s.dir === 'desc' ? 'asc' : 'none')) : 'desc' }))}
+                                          title="Ordenar por monto"
+                                       >
+                                          Monto {modalSortConfig.key === 'total_amount' ? (modalSortConfig.dir === 'asc' ? '↑' : modalSortConfig.dir === 'desc' ? '↓' : '') : ''}
+                                       </th>
+                                       <th
+                                          className="py-3 px-4 text-left font-semibold whitespace-nowrap cursor-pointer hover:bg-[#EEF3FF] select-none transition-colors"
+                                          onClick={() => setModalSortConfig(s => ({ key: 'issue_date', dir: s.key === 'issue_date' ? (s.dir === 'none' ? 'desc' : (s.dir === 'desc' ? 'asc' : 'none')) : 'desc' }))}
+                                          title="Ordenar por fecha"
+                                       >
+                                          Fecha {modalSortConfig.key === 'issue_date' ? (modalSortConfig.dir === 'asc' ? '↑' : modalSortConfig.dir === 'desc' ? '↓' : '') : ''}
+                                       </th>
+                                       <th
+                                          className="py-3 px-4 text-left font-semibold whitespace-nowrap cursor-pointer hover:bg-[#EEF3FF] select-none transition-colors"
+                                          onClick={() => setModalSortConfig(s => ({ key: 'type', dir: s.key === 'type' ? (s.dir === 'none' ? 'desc' : (s.dir === 'desc' ? 'asc' : 'none')) : 'desc' }))}
+                                          title="Ordenar por tipo"
+                                       >
+                                          Tipo {modalSortConfig.key === 'type' ? (modalSortConfig.dir === 'asc' ? '↑' : modalSortConfig.dir === 'desc' ? '↓' : '') : ''}
+                                       </th>
+                                       <th
+                                          className="py-3 px-4 text-left font-semibold whitespace-nowrap cursor-pointer hover:bg-[#EEF3FF] select-none transition-colors"
+                                          onClick={() => setModalSortConfig(s => ({ key: 'description', dir: s.key === 'description' ? (s.dir === 'none' ? 'desc' : (s.dir === 'desc' ? 'asc' : 'none')) : 'desc' }))}
+                                          title="Ordenar por descripción"
+                                       >
+                                          Descripción {modalSortConfig.key === 'description' ? (modalSortConfig.dir === 'asc' ? '↑' : modalSortConfig.dir === 'desc' ? '↓' : '') : ''}
+                                       </th>
                                        <th className="py-3 px-4 text-right font-semibold whitespace-nowrap"></th>
                                     </tr>
                                  </thead>
