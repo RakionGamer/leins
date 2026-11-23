@@ -691,9 +691,8 @@ export default function Receivables() {
                                     </td>
 
                                     {/* Estado */}
-                                    {/* Estado */}
-<td className="py-3.5 px-3 text-left whitespace-nowrap">
-   <div className="flex items-center justify-start gap-1.5">
+                                    <td className="py-3.5 px-3 text-center whitespace-nowrap">
+                                       <div className="flex items-center justify-center gap-1.5">
       {status === 'paid' && (
          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-[#E5EDFF] text-[#1459F5]">
             <span className="w-2 h-2 rounded-full bg-[#1459F5] shrink-0" />
