@@ -28,6 +28,8 @@ import {
    DerechaIcon,
    ConciliarIcon,
    EliminarIcon,
+   SincronizarIcon,
+   CalendarioIcon,
 } from '../../components/icons/SidebarIcons';
 import { getDashboardSummary } from '../../services/dashboardApi';
 import { listDailySalesGroups, listSiiDocuments } from '../../services/siiDocumentsApi';
@@ -2077,60 +2079,82 @@ export default function BankCartolasPage() {
             </div>
          </div>
 
-         {/* 3. Toolbar: Pestañas de estado, Por conciliar, Selector de cuentas, Búsqueda y Filtros */}
-         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+         {/* 3. Toolbar: Pestañas de estado, Por conciliar, Selector de cuentas, Búsqueda y Filtros en tarjeta blanca Jeito */}
+         <div className="bg-white rounded-2xl border border-[#E2EAFD] p-3 md:p-3.5 shadow-xs flex flex-wrap items-center justify-between gap-4">
             {/* Grupo izquierdo: Pestañas en cápsula + Por conciliar */}
             <div className="flex flex-wrap items-center gap-3">
                <div className="inline-flex p-1 bg-[#EEF3FF] rounded-full items-center gap-1">
-                  <TabButton active={tab === "todos"} onClick={resetAll}>Todos</TabButton>
-                  <TabButton
-                     active={tab === "sugerencias"}
+                  <button
+                     type="button"
+                     onClick={resetAll}
+                     className={`px-4 py-1.5 text-xs rounded-full font-bold transition-all cursor-pointer ${
+                        tab === "todos"
+                           ? "bg-white text-[#0A1A3F] shadow-xs"
+                           : "text-[#55607A] hover:text-[#0A1A3F]"
+                     }`}
+                  >
+                     Todos
+                  </button>
+
+                  <button
+                     type="button"
                      onClick={handleOpenSuggestions}
-                     rightBadge={
-                        sugBadgeLoading ? (
-                           <span className="inline-block w-3 h-3 border-2 border-[#1F6BFF] border-t-transparent rounded-full animate-spin"></span>
-                        ) : (
-                           <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-[#1F6BFF] text-white min-w-[2ch] text-center font-bold leading-none">
-                              {sugerenciasBadgeText}
-                           </span>
-                        )
-                     }
+                     className={`px-3.5 py-1.5 text-xs rounded-full font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                        tab === "sugerencias"
+                           ? "bg-white text-[#0A1A3F] shadow-xs"
+                           : "text-[#55607A] hover:text-[#0A1A3F]"
+                     }`}
                   >
-                     Sugerencias
-                  </TabButton>
-                  <TabButton
-                     active={tab === "abonos"}
+                     <span>Sugerencias</span>
+                     {sugBadgeLoading ? (
+                        <span className="inline-block w-3 h-3 border-2 border-[#1F6BFF] border-t-transparent rounded-full animate-spin"></span>
+                     ) : (
+                        <span className="text-[11px] px-2 py-0.5 rounded-full bg-[#1F6BFF] text-white font-bold leading-none">
+                           {sugerenciasBadgeText}
+                        </span>
+                     )}
+                  </button>
+
+                  <button
+                     type="button"
                      onClick={() => switchTabWithReset("abonos")}
-                     rightBadge={
-                        abonosLoading ? (
-                           <span className="inline-block w-3 h-3 border-2 border-[#1F6BFF] border-t-transparent rounded-full animate-spin"></span>
-                        ) : (
-                           <span className="text-xs font-bold text-[#55607A] ml-1">{abonosTotal}</span>
-                        )
-                     }
+                     className={`px-3.5 py-1.5 text-xs rounded-full font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                        tab === "abonos"
+                           ? "bg-white text-[#0A1A3F] shadow-xs"
+                           : "text-[#55607A] hover:text-[#0A1A3F]"
+                     }`}
                   >
-                     Abonos
-                  </TabButton>
-                  <TabButton
-                     active={tab === "cargos"}
+                     <span>Abonos</span>
+                     {abonosLoading ? (
+                        <span className="inline-block w-3 h-3 border-2 border-[#1F6BFF] border-t-transparent rounded-full animate-spin"></span>
+                     ) : (
+                        <span className="text-xs font-bold text-[#55607A] ml-0.5">{abonosTotal}</span>
+                     )}
+                  </button>
+
+                  <button
+                     type="button"
                      onClick={() => switchTabWithReset("cargos")}
-                     rightBadge={
-                        cargosLoading ? (
-                           <span className="inline-block w-3 h-3 border-2 border-[#1F6BFF] border-t-transparent rounded-full animate-spin"></span>
-                        ) : (
-                           <span className="text-xs font-bold text-[#55607A] ml-1">{cargosTotal}</span>
-                        )
-                     }
+                     className={`px-3.5 py-1.5 text-xs rounded-full font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                        tab === "cargos"
+                           ? "bg-white text-[#0A1A3F] shadow-xs"
+                           : "text-[#55607A] hover:text-[#0A1A3F]"
+                     }`}
                   >
-                     Cargos
-                  </TabButton>
+                     <span>Cargos</span>
+                     {cargosLoading ? (
+                        <span className="inline-block w-3 h-3 border-2 border-[#1F6BFF] border-t-transparent rounded-full animate-spin"></span>
+                     ) : (
+                        <span className="text-xs font-bold text-[#55607A] ml-0.5">{cargosTotal}</span>
+                     )}
+                  </button>
                </div>
 
                {tab !== "sugerencias" && (
-                  <label className="inline-flex items-center gap-2 text-xs font-semibold text-[#0A1A3F] ml-1 cursor-pointer select-none">
+                  <label className="inline-flex items-center gap-2.5 text-xs font-bold text-[#0A1A3F] ml-1 cursor-pointer select-none">
                      <input
                         type="checkbox"
-                        className="w-4 h-4 rounded border-[#C3D4FA] text-[#1F6BFF] focus:ring-0 accent-[#1F6BFF] cursor-pointer"
+                        className="w-5 h-5 rounded-lg border-2 border-[#C3D4FA] text-[#1F6BFF] focus:ring-0 accent-[#1F6BFF] cursor-pointer transition-colors"
                         checked={soloPorConciliar}
                         onChange={(e) => {
                            setSoloPorConciliar(e.target.checked);
@@ -2153,7 +2177,7 @@ export default function BankCartolasPage() {
                         setApplied(prev => ({ ...prev, ctaCorriente: e.target.value }));
                         setPage(0);
                      }}
-                     className="rounded-full border border-[#E2EAFD] bg-white text-xs font-semibold px-4 py-2 pr-8 text-[#0A1A3F] appearance-none cursor-pointer focus:outline-none focus:border-[#1F6BFF] shadow-xs"
+                     className="rounded-full border border-[#E2EAFD] bg-white text-xs font-semibold px-4 py-2 pr-9 text-[#0A1A3F] appearance-none cursor-pointer focus:outline-none focus:border-[#1F6BFF] shadow-xs"
                   >
                      <option value="">Todas las cuentas</option>
                      {cuentasDisponibles.map((c) => (
@@ -2169,13 +2193,13 @@ export default function BankCartolasPage() {
 
                {/* Búsqueda rápida */}
                <div className="relative">
-                  <BuscarIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#8E9BB5]" />
+                  <BuscarIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8E9BB5]" />
                   <input
                      type="text"
                      placeholder="Monto, glosa o N° doc."
                      value={quickSearch}
                      onChange={handleQuickSearchChange}
-                     className="rounded-full border border-[#E2EAFD] bg-white pl-9 pr-4 py-2 text-xs text-[#0A1A3F] placeholder-[#8E9BB5] focus:outline-none focus:border-[#1F6BFF] shadow-xs w-48 sm:w-56"
+                     className="rounded-full border border-[#E2EAFD] bg-white pl-10 pr-4 py-2 text-xs text-[#0A1A3F] placeholder-[#8E9BB5] focus:outline-none focus:border-[#1F6BFF] shadow-xs w-52 sm:w-60"
                   />
                </div>
 
@@ -2185,20 +2209,20 @@ export default function BankCartolasPage() {
                   onClick={() => setMostrarFiltros((v) => !v)}
                   aria-expanded={mostrarFiltros}
                   aria-controls={FILTER_PANEL_ID}
-                  className={`rounded-full border border-[#E2EAFD] px-4 py-2 text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer ${
+                  className={`rounded-full border border-[#E2EAFD] px-4 py-2 text-xs font-bold flex items-center gap-2 shadow-xs transition cursor-pointer ${
                      mostrarFiltros
-                        ? 'bg-[#EEF3FF] text-[#1F6BFF]'
+                        ? 'bg-[#EEF3FF] text-[#1F6BFF] border-[#1F6BFF]'
                         : 'bg-white text-[#0A1A3F] hover:bg-[#F8FAFC]'
                   }`}
                   title={mostrarFiltros ? "Ocultar filtros" : "Mostrar filtros"}
                >
-                  <FiltroIcon className="w-3.5 h-3.5" />
+                  <FiltroIcon className="w-3.5 h-3.5 text-[#0A1A3F]" />
                   <span>Filtros</span>
                </button>
             </div>
          </div>
 
-         {/* 4. Panel desplegable de filtros */}
+         {/* 4. Panel desplegable de filtros estilo Ventas (idéntico a SalesBoletas) */}
          <div
             id={FILTER_PANEL_ID}
             role="region"
@@ -2207,167 +2231,176 @@ export default function BankCartolasPage() {
             className={[
                "relative transition-all duration-300 ease-out origin-top",
                mostrarFiltros
-                  ? "z-[80] opacity-100 max-h-[1200px] mb-4 scale-100 overflow-visible"
+                  ? "z-[80] opacity-100 max-h-[1400px] mb-4 scale-100 overflow-visible"
                   : "z-0 opacity-0 max-h-0 mb-0 p-0 pointer-events-none scale-[.98] overflow-hidden",
             ].join(" ")}
          >
-            <div className="rounded-2xl border border-[#E2EAFD] bg-white p-5 shadow-xs space-y-4">
-               {/* Header del panel */}
-               <div className="flex items-center justify-between pb-3 border-b border-[#E2EAFD]">
-                  <div className="flex items-center gap-2.5">
-                     <div className="w-8 h-8 rounded-xl bg-[#EEF3FF] text-[#1F6BFF] flex items-center justify-center shrink-0">
-                        <FiltroIcon className="w-4 h-4" />
-                     </div>
-                     <div>
-                        <h2 id={FILTER_HEADING_ID} className="text-sm font-bold text-[#0A1A3F]">
-                           Buscar movimientos
-                        </h2>
-                        <p className="text-xs text-[#55607A]">
-                           Filtra transacciones bancarias por cuenta, fechas, montos o descripción
-                        </p>
+            <div className="bg-white rounded-2xl border border-[#E2EAFD] p-6 shadow-xs space-y-4">
+               {/* Header del panel (idéntico a Ventas) */}
+               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 text-sm font-bold font-nunito text-[#0A1A3F]">
+                     <FiltroIcon className="w-4 h-4 text-[#0A1A3F]" />
+                     <span id={FILTER_HEADING_ID}>Filtros de búsqueda</span>
+                  </div>
+                  <div className="flex items-center gap-4">
+                     <button
+                        type="button"
+                        onClick={resetAll}
+                        disabled={loading}
+                        className="text-xs font-semibold text-[#55607A] hover:text-[#1F6BFF] flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+                     >
+                        <SincronizarIcon className="w-3.5 h-3.5" />
+                        <span>Limpiar filtros</span>
+                     </button>
+
+                     <button
+                        type="button"
+                        onClick={() => setMostrarFiltros(false)}
+                        className="text-xs font-semibold text-[#8E9BB5] hover:text-[#0A1A3F] transition-colors cursor-pointer"
+                        title="Ocultar filtros"
+                     >
+                        Ocultar
+                     </button>
+                  </div>
+               </div>
+
+               {/* Campos de filtro estilo Ventas (Fila 1) */}
+               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-12 gap-3 items-end">
+                  {/* ID ENT. */}
+                  <div className="space-y-1 lg:col-span-1">
+                     <label className="block text-[10px] font-bold uppercase tracking-wider text-[#55607A]">ID Ent.</label>
+                     <input
+                        disabled
+                        type="text"
+                        value={entityId || ''}
+                        className="w-full h-10 px-3 text-xs font-bold rounded-xl border border-[#E2EAFD] bg-white text-[#0A1A3F]"
+                     />
+                  </div>
+
+                  {/* NRO DOCUMENTO */}
+                  <div className="space-y-1 lg:col-span-2">
+                     <label className="block text-[10px] font-bold uppercase tracking-wider text-[#55607A]">N° Documento</label>
+                     <input
+                        type="text"
+                        placeholder="Ej: 000001890"
+                        value={nroDocumento}
+                        onChange={(e) => setNroDocumento(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && applyAndFetch()}
+                        className="w-full h-10 px-3 text-xs rounded-xl border border-[#E2EAFD] bg-white text-[#0A1A3F] placeholder-[#8E9BB5] focus:outline-none focus:border-[#1F6BFF]"
+                     />
+                  </div>
+
+                  {/* DESCRIPCIÓN O GLOSA */}
+                  <div className="space-y-1 lg:col-span-4">
+                     <label className="block text-[10px] font-bold uppercase tracking-wider text-[#55607A]">Descripción o glosa</label>
+                     <div className="relative">
+                        <BuscarIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#8E9BB5]" />
+                        <input
+                           type="text"
+                           placeholder="Buscar por descripción..."
+                           value={descripcion}
+                           onChange={(e) => setDescripcion(e.target.value)}
+                           onKeyDown={(e) => e.key === "Enter" && applyAndFetch()}
+                           className="w-full h-10 pl-9 pr-3 text-xs rounded-xl border border-[#E2EAFD] bg-white text-[#0A1A3F] placeholder-[#8E9BB5] focus:outline-none focus:border-[#1F6BFF]"
+                        />
                      </div>
                   </div>
 
-                  <button
-                     type="button"
-                     onClick={() => setMostrarFiltros(false)}
-                     className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-[#8E9BB5] hover:text-[#0A1A3F] hover:bg-[#EEF3FF] transition cursor-pointer"
-                     title="Ocultar filtros"
-                  >
-                     <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M18 6 6 18M6 6l12 12" />
-                     </svg>
-                     <span>Ocultar</span>
-                  </button>
-               </div>
-
-               {/* Cuadrícula 3x3 */}
-               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
-                  <div className="flex flex-col gap-1">
-                     <label htmlFor="f-cta" className="text-xs font-semibold text-[#55607A]">Cuenta corriente</label>
+                  {/* CUENTA CORRIENTE */}
+                  <div className="space-y-1 lg:col-span-3">
+                     <label className="block text-[10px] font-bold uppercase tracking-wider text-[#55607A]">Cuenta corriente</label>
                      <select
-                        id="f-cta"
-                        className="w-full h-10 px-3 text-xs rounded-xl border border-[#E2EAFD] bg-[#F8FAFC] text-[#0A1A3F] focus:outline-none focus:border-[#1F6BFF] transition cursor-pointer"
                         value={ctaCorriente}
                         onChange={(e) => setCtaCorriente(e.target.value)}
-                        autoComplete="off"
-                        onKeyDown={(e) => e.key === "Enter" && applyAndFetch()}
+                        className="w-full h-10 px-3 text-xs rounded-xl border border-[#E2EAFD] bg-white text-[#0A1A3F] focus:outline-none focus:border-[#1F6BFF] cursor-pointer"
                      >
                         <option value="">Todas las cuentas</option>
-                        {loadingAccounts && <option value="" disabled>Cargando cuentas...</option>}
-                        {!loadingAccounts && cuentasDisponibles.length === 0 && <option value="" disabled>Sin cuentas registradas</option>}
-                        {cuentasDisponibles.map((c) => (<option key={c.id} value={c.id}>{c.label}</option>))}
+                        {cuentasDisponibles.map((c) => (
+                           <option key={c.id} value={c.id}>{c.label}</option>
+                        ))}
                      </select>
                   </div>
 
-                  <div className="flex flex-col gap-1">
-                     <label htmlFor="f-tipo" className="text-xs font-semibold text-[#55607A]">
-                        Tipo de movimiento {tab !== 'todos' ? `(fijado en ${tab})` : ''}
-                     </label>
+                  {/* TIPO */}
+                  <div className="space-y-1 lg:col-span-2">
+                     <label className="block text-[10px] font-bold uppercase tracking-wider text-[#55607A]">Tipo</label>
                      <select
-                        id="f-tipo"
-                        className="w-full h-10 px-3 text-xs rounded-xl border border-[#E2EAFD] bg-[#F8FAFC] text-[#0A1A3F] focus:outline-none focus:border-[#1F6BFF] transition cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
                         value={tab === 'abonos' ? 'Abonos' : tab === 'cargos' ? 'Cargos' : tipo}
                         onChange={(e) => setTipo(e.target.value)}
                         disabled={tab === 'abonos' || tab === 'cargos'}
-                        autoComplete="off"
-                        onKeyDown={(e) => e.key === "Enter" && applyAndFetch()}
+                        className="w-full h-10 px-3 text-xs rounded-xl border border-[#E2EAFD] bg-white text-[#0A1A3F] focus:outline-none focus:border-[#1F6BFF] cursor-pointer disabled:opacity-60"
                      >
-                        <option value="Todos">Todos</option>
+                        <option value="Todos">Todos los tipos</option>
                         <option value="Abonos">Abonos</option>
                         <option value="Cargos">Cargos</option>
                      </select>
                   </div>
+               </div>
 
-                  <div className="flex flex-col gap-1">
-                     <label htmlFor="f-monto" className="text-xs font-semibold text-[#55607A]">Monto exacto</label>
+               {/* Campos de filtro (Fila 2) */}
+               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-12 gap-3 items-end pt-1">
+                  {/* MONTO */}
+                  <div className="space-y-1 lg:col-span-2">
+                     <label className="block text-[10px] font-bold uppercase tracking-wider text-[#55607A]">Monto exacto</label>
                      <input
-                        id="f-monto"
                         type="text"
-                        className="w-full h-10 px-3 text-xs rounded-xl border border-[#E2EAFD] bg-[#F8FAFC] text-[#0A1A3F] placeholder-[#8E9BB5] focus:outline-none focus:border-[#1F6BFF] transition"
+                        placeholder="Ej: 120000"
                         value={montoFiltro}
                         onChange={(e) => setMontoFiltro(e.target.value)}
-                        placeholder="Ej: 120000"
-                        autoComplete="off"
                         onKeyDown={(e) => e.key === "Enter" && applyAndFetch()}
+                        className="w-full h-10 px-3 text-xs rounded-xl border border-[#E2EAFD] bg-white text-[#0A1A3F] placeholder-[#8E9BB5] focus:outline-none focus:border-[#1F6BFF]"
                      />
                   </div>
 
-                  <div className="flex flex-col gap-1">
-                     <label htmlFor="f-fecha-ini" className="text-xs font-semibold text-[#55607A]">Fecha desde</label>
+                  {/* FECHA DESDE */}
+                  <div className="space-y-1 lg:col-span-3">
+                     <label className="block text-[10px] font-bold uppercase tracking-wider text-[#55607A]">Fecha desde</label>
                      <DateInput
                         id="f-fecha-ini"
-                        className="w-full h-10 px-3 text-xs rounded-xl border border-[#E2EAFD] bg-[#F8FAFC] text-[#0A1A3F] focus:outline-none focus:border-[#1F6BFF] transition"
+                        className="w-full h-10 px-3 text-xs rounded-xl border border-[#E2EAFD] bg-white text-[#0A1A3F] focus:outline-none focus:border-[#1F6BFF]"
                         value={fechaIni}
                         onChange={setFechaIni}
                      />
                   </div>
 
-                  <div className="flex flex-col gap-1">
-                     <label htmlFor="f-fecha-fin" className="text-xs font-semibold text-[#55607A]">Fecha hasta</label>
+                  {/* FECHA HASTA */}
+                  <div className="space-y-1 lg:col-span-3">
+                     <label className="block text-[10px] font-bold uppercase tracking-wider text-[#55607A]">Fecha hasta</label>
                      <DateInput
                         id="f-fecha-fin"
-                        className="w-full h-10 px-3 text-xs rounded-xl border border-[#E2EAFD] bg-[#F8FAFC] text-[#0A1A3F] focus:outline-none focus:border-[#1F6BFF] transition"
+                        className="w-full h-10 px-3 text-xs rounded-xl border border-[#E2EAFD] bg-white text-[#0A1A3F] focus:outline-none focus:border-[#1F6BFF]"
                         value={fechaFin}
                         onChange={setFechaFin}
                         min={fechaIni || undefined}
                      />
                   </div>
 
-                  <div className="flex flex-col gap-1">
-                     <label htmlFor="f-descripcion" className="text-xs font-semibold text-[#55607A]">Descripción o glosa</label>
+                  {/* CUENTA CONTRAPARTE */}
+                  <div className="space-y-1 lg:col-span-2">
+                     <label className="block text-[10px] font-bold uppercase tracking-wider text-[#55607A]">Cuenta contraparte</label>
                      <input
-                        id="f-descripcion"
                         type="text"
-                        className="w-full h-10 px-3 text-xs rounded-xl border border-[#E2EAFD] bg-[#F8FAFC] text-[#0A1A3F] placeholder-[#8E9BB5] focus:outline-none focus:border-[#1F6BFF] transition"
-                        value={descripcion}
-                        onChange={(e) => setDescripcion(e.target.value)}
-                        placeholder="Buscar por descripción..."
-                        autoComplete="off"
-                        onKeyDown={(e) => e.key === "Enter" && applyAndFetch()}
-                     />
-                  </div>
-
-                  <div className="flex flex-col gap-1">
-                     <label htmlFor="f-cuenta" className="text-xs font-semibold text-[#55607A]">Cuenta contraparte</label>
-                     <input
-                        id="f-cuenta"
-                        type="text"
-                        className="w-full h-10 px-3 text-xs rounded-xl border border-[#E2EAFD] bg-[#F8FAFC] text-[#0A1A3F] placeholder-[#8E9BB5] focus:outline-none focus:border-[#1F6BFF] transition"
+                        placeholder="N° cuenta contraparte..."
                         value={cuenta}
                         onChange={(e) => setCuenta(e.target.value)}
-                        placeholder="N° cuenta contraparte..."
-                        autoComplete="off"
                         onKeyDown={(e) => e.key === "Enter" && applyAndFetch()}
+                        className="w-full h-10 px-3 text-xs rounded-xl border border-[#E2EAFD] bg-white text-[#0A1A3F] placeholder-[#8E9BB5] focus:outline-none focus:border-[#1F6BFF]"
                      />
                   </div>
 
-                  <div className="flex flex-col gap-1">
-                     <label htmlFor="f-doc" className="text-xs font-semibold text-[#55607A]">Número documento</label>
-                     <input
-                        id="f-doc"
-                        type="text"
-                        className="w-full h-10 px-3 text-xs rounded-xl border border-[#E2EAFD] bg-[#F8FAFC] text-[#0A1A3F] placeholder-[#8E9BB5] focus:outline-none focus:border-[#1F6BFF] transition"
-                        value={nroDocumento}
-                        onChange={(e) => setNroDocumento(e.target.value)}
-                        placeholder="Ej: 000001890"
-                        autoComplete="off"
-                        onKeyDown={(e) => e.key === "Enter" && applyAndFetch()}
-                     />
-                  </div>
-
-                  <div className="flex flex-col gap-1">
-                     <label htmlFor="f-folio-conciliado" className="text-xs font-semibold text-[#55607A]">Folio documento conciliado</label>
-                     <input
-                        id="f-folio-conciliado"
-                        type="text"
-                        className="w-full h-10 px-3 text-xs rounded-xl border border-[#E2EAFD] bg-[#F8FAFC] text-[#0A1A3F] placeholder-[#8E9BB5] focus:outline-none focus:border-[#1F6BFF] transition"
-                        value={folioConciliado}
-                        onChange={(e) => setFolioConciliado(e.target.value)}
-                        placeholder="Ej: 1450"
-                        autoComplete="off"
-                        onKeyDown={(e) => e.key === "Enter" && applyAndFetch()}
-                     />
+                  {/* FILAS POR PÁGINA */}
+                  <div className="space-y-1 lg:col-span-2">
+                     <label className="block text-[10px] font-bold uppercase tracking-wider text-[#55607A]">Por página</label>
+                     <select
+                        value={pageSize}
+                        onChange={(e) => { setPageSize(Number(e.target.value)); setPage(0); }}
+                        className="w-full h-10 px-3 text-xs rounded-xl border border-[#E2EAFD] bg-white text-[#0A1A3F] focus:outline-none focus:border-[#1F6BFF] cursor-pointer"
+                     >
+                        <option value={25}>25 filas</option>
+                        <option value={50}>50 filas</option>
+                        <option value={100}>100 filas</option>
+                        <option value={200}>200 filas</option>
+                     </select>
                   </div>
                </div>
 
