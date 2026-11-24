@@ -697,7 +697,7 @@ export default function Home() {
    <div className="relative z-10 mt-6">
       <button
          type="button"
-         onClick={() => navigate('/reports/cash-flow')}
+         onClick={() => navigate('/accounting/cash-flow')}
          className="rounded-full bg-white hover:bg-[#EFF3FF] text-[#0A1A3F] font-bold text-[13.5px] px-6 py-3 transition-colors inline-flex items-center gap-2.5 shadow-sm"
       >
          <span>Ver flujo de caja</span>
