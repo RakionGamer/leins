@@ -208,6 +208,62 @@ export default function AccountingEntries() {
       return issues;
    };
 
+   const handleImportBankTx = async () => {
+      const idStr = window.prompt("Ingrese el ID del movimiento bancario a importar:");
+      if (!idStr) return;
+      const txId = Number(idStr);
+      if (!txId) {
+         toast.error("ID inválido");
+         return;
+      }
+      try {
+         const { autofindCandidates, listReconciliations } = await import('../../services/reconcileApi');
+
+         const [response, recons] = await Promise.all([
+            autofindCandidates({ entityId, bank_transaction_id: txId, limit: 1 }),
+            listReconciliations({ entityId, bank_transaction_id: txId, limit: 1 }).catch(() => null)
+         ]);
+
+         if (!response || !response.bank) {
+            toast.error("No se encontró el movimiento con ese ID.");
+            return;
+         }
+
+         const tx = response.bank;
+         const amount = Number(tx.amount || 0);
+         const type = amount >= 0 ? 'income' : 'expense';
+         const absAmount = Math.abs(amount);
+         const date = tx.issued_at ? tx.issued_at.substring(0, 10) : new Date().toISOString().substring(0, 10);
+
+         let rut = '';
+         let contrapartidaDesc = 'Contrapartida';
+         let conceptText = `Importado: ${tx.description || ''}`;
+
+         if (recons?.rows?.[0]?.document) {
+            const doc = recons.rows[0].document;
+            rut = doc.counterparty_rut;
+            contrapartidaDesc = `Cancelación Fac. N° ${doc.folio} - ${doc.counterparty_name || ''}`;
+            conceptText = `Pago/Cobro de Factura N° ${doc.folio} (${doc.counterparty_name || ''})`;
+         } else if (response.best) {
+            rut = response.best.counterparty_rut;
+            contrapartidaDesc = `Sugerencia Fac. N° ${response.best.folio}`;
+         }
+
+         setFormData({
+            ...formData,
+            entry_date: date,
+            concept: conceptText,
+            items: [
+               { account_id: '', description: tx.description || '', debit: type === 'income' ? absAmount : '', credit: type === 'expense' ? absAmount : '', counterparty_rut: rut, cost_center: '' },
+               { account_id: '', description: contrapartidaDesc, debit: type === 'expense' ? absAmount : '', credit: type === 'income' ? absAmount : '', counterparty_rut: rut, cost_center: '' },
+            ]
+         });
+         toast.success("Datos importados del banco.");
+      } catch (e) {
+         toast.error(e.message || "Error al importar el movimiento bancario");
+      }
+   };
+
    const handleSubmitManual = async (e) => {
       e.preventDefault();
       setModalErr(null);
@@ -999,6 +1055,13 @@ export default function AccountingEntries() {
                </div>
 
                <div className="p-4 border-t border-[#E2EAFD] bg-white flex items-center justify-end gap-3 shrink-0">
+                  <button
+                     type="button"
+                     onClick={handleImportBankTx}
+                     className="px-4 py-2.5 rounded-full border border-[#E2EAFD] bg-[#EFF3FF] hover:bg-[#DDE8FF] text-[#1F6BFF] text-xs font-bold transition cursor-pointer mr-auto"
+                  >
+                     Importar Movimiento Bancario
+                  </button>
                   <button
                      type="button"
                      onClick={() => setModalOpen(false)}
