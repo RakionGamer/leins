@@ -185,9 +185,9 @@ export default function Login() {
                                     backgroundColor: '#FFFFFF',
                                     color: '#0A1A3F',
                                  }}
-                                 className={`w-full h-11 sm:h-12 pl-10 pr-4 rounded-xl border-2 ${errors.username
+                                 className={`w-full h-11 sm:h-12 pl-10 pr-4 rounded-xl border ${errors.username
                                     ? 'border-[#E5484D] focus:ring-[#E5484D]/20'
-                                    : 'border-[#1F6BFF] focus:ring-[#1F6BFF]/20'
+                                    : 'border-[#D9E2EC] focus:border-[#1F6BFF] focus:ring-[#1F6BFF]/20'
                                     } !bg-white !text-[#0A1A3F] placeholder-[#55607A]/50 font-sans text-sm focus:outline-none focus:ring-2 transition-all`}
                                  {...register('username')}
                               />

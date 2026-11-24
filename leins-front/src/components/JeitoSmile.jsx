@@ -90,6 +90,20 @@ export default function JeitoSmile({
       let blinkTimeout = null;
       let busy = false;
 
+      function updateEyes(e = ease(tState)) {
+         const rx = JDOT[0] * (1 - e) + ER[0] * e + look[0] * e;
+         const ry = JDOT[1] * (1 - e) + ER[1] * e + look[1] * e;
+         eR.setAttribute('cx', rx.toFixed(1));
+         eR.setAttribute('cy', ry.toFixed(1));
+
+         const a = Math.max(0, Math.min(1, (e - 0.45) / 0.4));
+         eL.setAttribute('cx', (EL[0] + look[0] * e).toFixed(1));
+         eL.setAttribute('cy', (EL[1] + look[1] * e).toFixed(1));
+         eL.setAttribute('rx', (DOT * a).toFixed(2));
+         eL.setAttribute('ry', (DOT * a * blink).toFixed(2));
+         eR.setAttribute('ry', (DOT * (e > 0.5 ? blink : 1)).toFixed(2));
+      }
+
       function draw(t) {
          tState = t;
          const e = ease(t);
@@ -102,17 +116,7 @@ export default function JeitoSmile({
             'M' + pts.map((p) => `${(p[0] + ox).toFixed(1)} ${(p[1] + oy).toFixed(1)}`).join('L')
          );
 
-         const rx = JDOT[0] * (1 - e) + ER[0] * e + look[0] * e;
-         const ry = JDOT[1] * (1 - e) + ER[1] * e + look[1] * e;
-         eR.setAttribute('cx', rx.toFixed(1));
-         eR.setAttribute('cy', ry.toFixed(1));
-
-         const a = Math.max(0, Math.min(1, (e - 0.45) / 0.4));
-         eL.setAttribute('cx', (EL[0] + look[0]).toFixed(1));
-         eL.setAttribute('cy', (EL[1] + look[1]).toFixed(1));
-         eL.setAttribute('rx', (DOT * a).toFixed(2));
-         eL.setAttribute('ry', (DOT * a * blink).toFixed(2));
-         eR.setAttribute('ry', (DOT * (e > 0.5 ? blink : 1)).toFixed(2));
+         updateEyes(e);
       }
 
       function tween(from, to, dur, done) {
@@ -122,8 +126,12 @@ export default function JeitoSmile({
             if (t0 === null) t0 = ts;
             const p = Math.min(1, (ts - t0) / dur);
             draw(from + (to - from) * p);
-            if (p < 1) anim = requestAnimationFrame(step);
-            else if (done) done();
+            if (p < 1) {
+               anim = requestAnimationFrame(step);
+            } else {
+               anim = null;
+               if (done) done();
+            }
          }
          anim = requestAnimationFrame(step);
       }
@@ -139,23 +147,28 @@ export default function JeitoSmile({
          tween(0, 1, 1300);
       }, 500);
 
-      // 2. Movimiento: los ojos siguen suavemente el cursor
+      // 2. Movimiento: los ojos siguen suavemente el cursor por toda la pantalla
       const handlePointerMove = (ev) => {
          const r = svg.getBoundingClientRect();
-         const dx = ev.clientX - (r.left + r.width / 2);
-         const dy = ev.clientY - (r.top + r.height * 0.4);
+         const centerX = r.left + r.width / 2;
+         const centerY = r.top + r.height * 0.38;
+         const dx = ev.clientX - centerX;
+         const dy = ev.clientY - centerY;
          const d = Math.sqrt(dx * dx + dy * dy) || 1;
-         const m = Math.min(7, d / 40);
+         // En el SVG viewBox (230x230), con tamaño rendered 112px-128px,
+         // un desplazamiento de 14 unidades representa ~8-9px visibles de movimiento.
+         const maxDistance = 14;
+         const m = Math.min(maxDistance, d / 22);
          lookT = [(dx / d) * m, (dy / d) * m];
       };
 
       window.addEventListener('pointermove', handlePointerMove, { passive: true });
 
       function loop() {
-         look[0] += (lookT[0] - look[0]) * 0.15;
-         look[1] += (lookT[1] - look[1]) * 0.15;
-         if (!anim || tState === 1 || tState === 0) {
-            if (tState > 0.99) draw(1);
+         look[0] += (lookT[0] - look[0]) * 0.18;
+         look[1] += (lookT[1] - look[1]) * 0.18;
+         if (!anim && tState > 0.5) {
+            updateEyes();
          }
          loopAnim = requestAnimationFrame(loop);
       }
@@ -164,11 +177,12 @@ export default function JeitoSmile({
       // 3. Parpadeo periódico natural cada 2.5s a 5s
       function scheduleBlink() {
          blinkTimeout = setTimeout(() => {
-            if (tState > 0.99) {
+            if (tState > 0.9) {
                const t0 = performance.now();
                function b(ts) {
                   const p = (ts - t0) / 180;
                   blink = p < 1 ? Math.abs(1 - 2 * p) * 0.92 + 0.08 : 1;
+                  if (!anim && tState > 0.5) updateEyes();
                   if (p < 1) requestAnimationFrame(b);
                }
                requestAnimationFrame(b);
@@ -252,8 +266,8 @@ export default function JeitoSmile({
             strokeLinecap="round"
             strokeLinejoin="round"
          />
-         <ellipse ref={eyeLRef} fill={eyeColor} rx="19" ry="19" cx="0" cy="0" />
-         <ellipse ref={eyeRRef} fill={eyeColor} rx="19" ry="19" cx="0" cy="0" />
+         <ellipse ref={eyeLRef} fill={eyeColor} rx="0" ry="0" cx={EL[0].toFixed(1)} cy={EL[1].toFixed(1)} />
+         <ellipse ref={eyeRRef} fill={eyeColor} rx={DOT} ry={DOT} cx={JDOT[0].toFixed(1)} cy={JDOT[1].toFixed(1)} />
       </svg>
    );
 }
