@@ -12,23 +12,26 @@ import {
    ArrowDownTrayIcon,
    CheckCircleIcon,
    XMarkIcon,
-   CurrencyDollarIcon,
-   BanknotesIcon,
    ArrowTrendingUpIcon,
-   ArrowTrendingDownIcon,
 } from '@heroicons/react/24/outline';
 
-const clp = (n, showSign = false) => {
+const formatClp = (n, showSign = false) => {
    const val = Number(n || 0);
-   const absFormatted = new Intl.NumberFormat('es-CL', {
-      style: 'currency',
-      currency: 'CLP',
-      maximumFractionDigits: 0,
-   }).format(Math.abs(val));
+   const absFormatted = Math.abs(val).toLocaleString('es-CL');
+   if (val < 0) return `-$ ${absFormatted}`;
+   if (val > 0 && showSign) return `+$ ${absFormatted}`;
+   return `$ ${absFormatted}`;
+};
 
-   if (val < 0) return `-${absFormatted}`;
-   if (val > 0 && showSign) return `+${absFormatted}`;
-   return absFormatted;
+const formatTableAmount = (val, isOutflow = false) => {
+   const num = Number(val || 0);
+   if (num === 0) return { text: '$ 0', isZero: true };
+   const effectiveVal = isOutflow && num > 0 ? -num : num;
+   const absFormatted = Math.abs(effectiveVal).toLocaleString('es-CL');
+   if (effectiveVal < 0) {
+      return { text: `-$ ${absFormatted}`, isZero: false, isNegative: true };
+   }
+   return { text: `$ ${absFormatted}`, isZero: false, isNegative: false };
 };
 
 const toYmd = (date) => {
@@ -38,20 +41,51 @@ const toYmd = (date) => {
    return `${year}-${month}-${day}`;
 };
 
+const formatSpanishDateLong = (ymdStr) => {
+   if (!ymdStr) return '';
+   const [y, m, d] = String(ymdStr).split('-').map(Number);
+   if (!y || !m) return '';
+   const monthsEs = [
+      'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+      'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'
+   ];
+   const day = d || 30;
+   return `Al ${day} de ${monthsEs[m - 1] || ''} de ${y}`;
+};
+
+const formatTableSubtitle = (months, reportLevel) => {
+   if (!months || months.length === 0) return 'Detalle mensualizado';
+   const monthsEs = [
+      'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+      'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+   ];
+   const firstKey = months[0]?.key || '';
+   const lastKey = months[months.length - 1]?.key || '';
+   const [, m1] = firstKey.split('-').map(Number);
+   const [y2, m2] = lastKey.split('-').map(Number);
+
+   const firstLabel = monthsEs[(m1 || 1) - 1] || months[0]?.label || '';
+   const lastLabel = (monthsEs[(m2 || 12) - 1] || months[months.length - 1]?.label || '').toLowerCase();
+   const year = y2 || new Date().getFullYear();
+   const levelLabel = reportLevel === 2 ? 'detalle por cuenta' : 'vista agrupada';
+
+   return `${firstLabel} a ${lastLabel} ${year} · ${levelLabel}`;
+};
+
 export default function CashFlow() {
    const { entityId, ready } = useEntityRequired();
 
-   // Filtros principales
-   const [periodMode, setPeriodMode] = useState('quarter'); // 'current_month' | 'quarter' | 'semester' | 'year' | 'range'
+   // Filtros principales (Por defecto Año completo y Por cuenta, idéntico a imagen de referencia)
+   const [periodMode, setPeriodMode] = useState('year'); // 'current_month' | 'quarter' | 'semester' | 'year' | 'range'
    const [fromDate, setFromDate] = useState(() => {
       const now = new Date();
-      return toYmd(new Date(now.getFullYear(), now.getMonth() - 2, 1));
+      return toYmd(new Date(now.getFullYear(), 0, 1));
    });
    const [toDate, setToDate] = useState(() => {
       const now = new Date();
-      return toYmd(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+      return toYmd(new Date(now.getFullYear(), 11, 31));
    });
-   const [reportLevel, setReportLevel] = useState(1); // 1 = Nivel 1 (Agrupado), 2 = Nivel 2 (Cuentas)
+   const [reportLevel, setReportLevel] = useState(2); // 1 = Agrupado, 2 = Por cuenta
 
    // Estado de datos
    const [cashFlowData, setCashFlowData] = useState(null);
@@ -61,6 +95,8 @@ export default function CashFlow() {
    // Grupos expandidos
    const [expandedGroups, setExpandedGroups] = useState({
       operacion: true,
+      inversion: true,
+      financiamiento: true,
    });
 
    // Estado del Modal Mayor Analítico Auxiliar (Drill-down)
@@ -235,281 +271,479 @@ export default function CashFlow() {
       toast.success('Archivo CSV descargado exitosamente');
    };
 
-   if (!ready) return <EntityRequiredNotice />;
-
    const months = cashFlowData?.period?.months || [];
    const kpis = cashFlowData?.kpis || {};
    const structure = cashFlowData?.structure || [];
    const endingBankBalanceRow = cashFlowData?.endingBankBalanceRow;
 
+   // Datos procesados para el gráfico de barras "Saldo final en bancos"
+   const chartData = useMemo(() => {
+      if (!endingBankBalanceRow || !months.length) return [];
+      const now = new Date();
+      const currentYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+      // Encontrar cuál mes es el vigente
+      const hasCurrent = months.some(m => m.key === currentYm);
+      const targetCurrentKey = hasCurrent ? currentYm : months[months.length - 1]?.key;
+
+      return months.map(m => {
+         const val = Number(endingBankBalanceRow.monthlyAmounts?.[m.key] || 0);
+         const isCurrent = m.key === targetCurrentKey;
+         const shortName = m.label?.split(' ')[0] || m.label;
+         return {
+            ...m,
+            val,
+            isCurrent,
+            shortName,
+         };
+      });
+   }, [endingBankBalanceRow, months]);
+
+   const maxBalance = useMemo(() => {
+      const vals = chartData.map(d => d.val);
+      const m = Math.max(0, ...vals);
+      return m > 0 ? m * 1.18 : 120000000;
+   }, [chartData]);
+
+   if (!ready) return <EntityRequiredNotice />;
+
    return (
-      <div className="space-y-6">
-         {/* Top Header & Filter Card */}
-         <div className="bg-bg-content rounded-3xl p-5 border border-border-subtle shadow-sm">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-5 pb-5 border-b border-border-subtle">
+      <div className="space-y-6 max-w-[1600px] mx-auto pb-12">
+         {/* ======================================================== */}
+         {/* 1. Header: Breadcrumb, Título & Botones de Acción       */}
+         {/* ======================================================== */}
+         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+               <div className="flex items-center gap-1.5 text-xs text-[#8E9BB5] font-medium mb-1">
+                  <span>Reportes</span>
+                  <span>›</span>
+                  <span className="text-[#55607A]">Flujo de caja</span>
+               </div>
+               <h1 className="text-2xl sm:text-3xl font-nunito font-black text-[#0A1A3F] tracking-tight">
+                  Flujo de caja
+               </h1>
+               <p className="text-xs sm:text-sm text-[#55607A] font-medium mt-0.5">
+                  Cuánta plata entró, cuánta salió y con cuánto quedas, mes a mes.
+               </p>
+            </div>
+
+            {/* Botones de acción (Actualizar y Exportar Excel) */}
+            <div className="flex items-center gap-2.5 shrink-0">
+               <button
+                  type="button"
+                  onClick={() => {
+                     loadCashFlow();
+                     toast.success('Flujo de Caja actualizado');
+                  }}
+                  disabled={loading}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full border border-[#E2EAFD] bg-white hover:bg-[#F5F8FF] text-[#0A1A3F] text-xs font-bold transition shadow-xs cursor-pointer disabled:opacity-50"
+               >
+                  <ArrowPathIcon className={`w-4 h-4 text-[#0A1A3F] ${loading ? 'animate-spin' : ''}`} />
+                  <span>Actualizar</span>
+               </button>
+
+               <button
+                  type="button"
+                  onClick={handleExportCSV}
+                  disabled={loading || !cashFlowData}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#1F6BFF] hover:bg-[#1657D7] text-white text-xs font-bold transition shadow-xs cursor-pointer disabled:opacity-50"
+               >
+                  <ArrowDownTrayIcon className="w-4 h-4 stroke-[2.5]" />
+                  <span>Exportar Excel</span>
+               </button>
+            </div>
+         </div>
+
+         {/* ======================================================== */}
+         {/* 2. Barra de Filtros: Periodos, Rango y Reportabilidad   */}
+         {/* ======================================================== */}
+         <div className="bg-white rounded-2xl border border-[#E2EAFD] p-2 sm:p-2.5 flex flex-col lg:flex-row lg:items-center justify-between gap-3 shadow-xs">
+            {/* Lado izquierdo: Presets de Periodo + Rango de Fechas */}
+            <div className="flex flex-wrap items-center gap-2.5">
+               {/* Preset Pills */}
+               <div className="inline-flex rounded-xl bg-[#F5F8FF] p-1 border border-[#E2EAFD] text-xs font-medium">
+                  <button
+                     type="button"
+                     onClick={() => handlePreset('current_month')}
+                     className={`px-3.5 py-1.5 rounded-lg text-xs transition cursor-pointer ${
+                        periodMode === 'current_month'
+                           ? 'bg-white text-[#0A1A3F] font-bold shadow-xs'
+                           : 'text-[#55607A] hover:text-[#0A1A3F] font-semibold'
+                     }`}
+                  >
+                     Mes en curso
+                  </button>
+                  <button
+                     type="button"
+                     onClick={() => handlePreset('quarter')}
+                     className={`px-3.5 py-1.5 rounded-lg text-xs transition cursor-pointer ${
+                        periodMode === 'quarter'
+                           ? 'bg-white text-[#0A1A3F] font-bold shadow-xs'
+                           : 'text-[#55607A] hover:text-[#0A1A3F] font-semibold'
+                     }`}
+                  >
+                     Trimestre
+                  </button>
+                  <button
+                     type="button"
+                     onClick={() => handlePreset('semester')}
+                     className={`px-3.5 py-1.5 rounded-lg text-xs transition cursor-pointer ${
+                        periodMode === 'semester'
+                           ? 'bg-white text-[#0A1A3F] font-bold shadow-xs'
+                           : 'text-[#55607A] hover:text-[#0A1A3F] font-semibold'
+                     }`}
+                  >
+                     Semestre
+                  </button>
+                  <button
+                     type="button"
+                     onClick={() => handlePreset('year')}
+                     className={`px-3.5 py-1.5 rounded-lg text-xs transition cursor-pointer ${
+                        periodMode === 'year'
+                           ? 'bg-white text-[#0A1A3F] font-bold shadow-xs'
+                           : 'text-[#55607A] hover:text-[#0A1A3F] font-semibold'
+                     }`}
+                  >
+                     Año completo
+                  </button>
+               </div>
+
+               {/* Date Range Inputs */}
+               <div className="flex items-center gap-2">
+                  <div className="relative flex items-center">
+                     <span className="absolute left-3 pointer-events-none text-[#8E9BB5] text-xs">📅</span>
+                     <DateInput
+                        disabled={loading}
+                        className="w-32 sm:w-36 h-9 pl-8 pr-3 text-xs rounded-xl border border-[#E2EAFD] bg-[#F8FAFF] text-[#0A1A3F] font-bold shadow-xs hover:border-[#1F6BFF] focus:outline-none focus:ring-1 focus:ring-[#1F6BFF] transition cursor-pointer"
+                        value={fromDate}
+                        onChange={(val) => {
+                           setFromDate(val);
+                           setPeriodMode('range');
+                        }}
+                        placeholder="Desde"
+                     />
+                  </div>
+                  <span className="text-[#8E9BB5] font-bold text-xs select-none">—</span>
+                  <div className="relative flex items-center">
+                     <span className="absolute left-3 pointer-events-none text-[#8E9BB5] text-xs">📅</span>
+                     <DateInput
+                        disabled={loading}
+                        className="w-32 sm:w-36 h-9 pl-8 pr-3 text-xs rounded-xl border border-[#E2EAFD] bg-[#F8FAFF] text-[#0A1A3F] font-bold shadow-xs hover:border-[#1F6BFF] focus:outline-none focus:ring-1 focus:ring-[#1F6BFF] transition cursor-pointer"
+                        value={toDate}
+                        onChange={(val) => {
+                           setToDate(val);
+                           setPeriodMode('range');
+                        }}
+                        min={fromDate || undefined}
+                        placeholder="Hasta"
+                     />
+                  </div>
+               </div>
+            </div>
+
+            {/* Lado derecho: Píldoras de Nivel (Detalle | Agrupado | Por cuenta) */}
+            <div className="inline-flex rounded-xl bg-[#F5F8FF] p-1 border border-[#E2EAFD] text-xs font-medium self-start lg:self-auto">
+               <button
+                  type="button"
+                  onClick={() => {
+                     setReportLevel(2);
+                     const allExp = {};
+                     structure.forEach(g => { allExp[g.key] = true; });
+                     setExpandedGroups(allExp);
+                  }}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs transition cursor-pointer ${
+                     reportLevel === 2 && Object.values(expandedGroups).every(Boolean)
+                        ? 'bg-white text-[#0A1A3F] font-bold shadow-xs'
+                        : 'text-[#55607A] hover:text-[#0A1A3F] font-semibold'
+                  }`}
+               >
+                  Detalle
+               </button>
+               <button
+                  type="button"
+                  onClick={() => setReportLevel(1)}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs transition cursor-pointer ${
+                     reportLevel === 1
+                        ? 'bg-[#1F6BFF] text-white font-bold shadow-xs'
+                        : 'text-[#55607A] hover:text-[#0A1A3F] font-semibold'
+                  }`}
+               >
+                  Agrupado
+               </button>
+               <button
+                  type="button"
+                  onClick={() => setReportLevel(2)}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs transition cursor-pointer ${
+                     reportLevel === 2 && !Object.values(expandedGroups).every(Boolean)
+                        ? 'bg-[#1F6BFF] text-white font-bold shadow-xs'
+                        : reportLevel === 2
+                        ? 'bg-[#1F6BFF] text-white font-bold shadow-xs'
+                        : 'text-[#55607A] hover:text-[#0A1A3F] font-semibold'
+                  }`}
+               >
+                  Por cuenta
+               </button>
+            </div>
+         </div>
+
+         {/* ======================================================== */}
+         {/* 3. Tarjetas KPI de Resumen (4 Cards Jeito Oficial)       */}
+         {/* ======================================================== */}
+         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Card 1: Cobros en efectivo */}
+            <div className="bg-white rounded-2xl border border-[#E2EAFD] p-4 sm:p-5 flex flex-col justify-between shadow-xs">
+               <div className="flex items-center justify-between">
+                  <span className="text-xs text-[#55607A] font-semibold">Cobros en efectivo</span>
+                  <div className="w-8 h-8 rounded-xl bg-[#EFF3FF] flex items-center justify-center text-[#1F6BFF] shrink-0">
+                     <svg className="w-4 h-4 text-[#0A1A3F]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="22 7 13.5 15.5 8.5 10.5 2 17" />
+                        <polyline points="16 7 22 7 22 13" />
+                     </svg>
+                  </div>
+               </div>
+               <div className="mt-3">
+                  <div className="font-nunito font-black text-xl sm:text-2xl text-[#0A1A3F] tracking-tight">
+                     {formatClp(kpis.totalIncomes)}
+                  </div>
+               </div>
+            </div>
+
+            {/* Card 2: Pagos en efectivo */}
+            <div className="bg-white rounded-2xl border border-[#E2EAFD] p-4 sm:p-5 flex flex-col justify-between shadow-xs">
+               <div className="flex items-center justify-between">
+                  <span className="text-xs text-[#55607A] font-semibold">Pagos en efectivo</span>
+                  <div className="w-8 h-8 rounded-xl bg-[#EFF3FF] flex items-center justify-center text-[#1F6BFF] shrink-0">
+                     <svg className="w-4 h-4 text-[#0A1A3F]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="22 17 13.5 8.5 8.5 13.5 2 7" />
+                        <polyline points="16 17 22 17 22 11" />
+                     </svg>
+                  </div>
+               </div>
+               <div className="mt-3">
+                  <div className="font-nunito font-black text-xl sm:text-2xl text-[#0A1A3F] tracking-tight">
+                     {formatClp(kpis.totalExpenses ? -Math.abs(kpis.totalExpenses) : 0)}
+                  </div>
+               </div>
+            </div>
+
+            {/* Card 3: Flujo neto operacional */}
+            <div className="bg-white rounded-2xl border border-[#E2EAFD] p-4 sm:p-5 flex flex-col justify-between shadow-xs">
+               <div className="flex items-center justify-between">
+                  <span className="text-xs text-[#55607A] font-semibold">Flujo neto operacional</span>
+                  <div className="w-8 h-8 rounded-xl bg-[#EFF3FF] flex items-center justify-center text-[#1F6BFF] shrink-0">
+                     <svg className="w-4 h-4 text-[#0A1A3F]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M4 8h11" />
+                        <path d="M12.5 4.5 16 8l-3.5 3.5" />
+                        <path d="M20 16H9" />
+                        <path d="M11.5 12.5 8 16l3.5 3.5" />
+                     </svg>
+                  </div>
+               </div>
+               <div className="mt-3">
+                  <div className="font-nunito font-black text-xl sm:text-2xl text-[#0A1A3F] tracking-tight">
+                     {formatClp(kpis.netOperatingFlow, true)}
+                  </div>
+                  <div className="inline-flex items-center gap-1 bg-[#EEF4FF] text-[#1F6BFF] px-2.5 py-0.5 rounded-full text-[10px] font-bold mt-2 self-start">
+                     <ArrowTrendingUpIcon className="w-3 h-3 stroke-[2.5]" />
+                     <span>{Number(kpis.netOperatingFlow || 0) >= 0 ? 'Positivo todo el año' : 'Negativo en el año'}</span>
+                  </div>
+               </div>
+            </div>
+
+            {/* Card 4: Saldo disponible en bancos (Dark Navy Jeito) */}
+            <div className="bg-[#0A1A3F] text-white rounded-2xl p-4 sm:p-5 flex flex-col justify-between shadow-xs border border-[#162955]">
+               <div className="flex items-center justify-between">
+                  <span className="text-xs text-[#8E9BB5] font-semibold">Saldo disponible en bancos</span>
+                  <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center text-white shrink-0">
+                     <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M3.5 9.5 12 4.5l8.5 5" />
+                        <path d="M4.5 20h15" />
+                        <path d="M6.5 12.5v4.5" />
+                        <path d="M10.5 12.5v4.5" />
+                        <path d="M14.5 12.5v4.5" />
+                        <path d="M18.5 12.5v4.5" />
+                     </svg>
+                  </div>
+               </div>
+               <div className="mt-3">
+                  <div className="font-nunito font-black text-xl sm:text-2xl text-white tracking-tight">
+                     {formatClp(kpis.currentBankBalance)}
+                  </div>
+                  <div className="text-[11px] text-[#8E9BB5] font-medium mt-1">
+                     {formatSpanishDateLong(toDate || new Date())}
+                  </div>
+               </div>
+            </div>
+         </div>
+
+         {/* ======================================================== */}
+         {/* 4. Gráfico de Barras: Saldo final en bancos             */}
+         {/* ======================================================== */}
+         {endingBankBalanceRow && months.length > 0 && (
+            <div className="bg-white rounded-3xl border border-[#E2EAFD] p-6 shadow-xs">
+               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+                  <div>
+                     <h3 className="font-nunito font-black text-lg text-[#0A1A3F] leading-tight">
+                        Saldo final en bancos
+                     </h3>
+                     <p className="text-xs text-[#55607A] font-medium mt-0.5">
+                        Con cuánto cerraste cada mes.
+                     </p>
+                  </div>
+
+                  {/* Legend */}
+                  <div className="flex items-center gap-4 text-xs">
+                     <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-xs bg-[#DCE8FE]"></span>
+                        <span className="text-[#8E9BB5] font-medium">Meses cerrados</span>
+                     </div>
+                     <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-xs bg-[#1F6BFF]"></span>
+                        <span className="text-[#55607A] font-bold">Mes en curso</span>
+                     </div>
+                  </div>
+               </div>
+
+               {/* Chart Body Layout */}
+               <div className="flex pt-6 pb-2">
+                  {/* Y-axis labels */}
+                  <div className="w-14 flex flex-col justify-between text-right text-[11px] font-semibold text-[#8E9BB5] pr-3 select-none h-44 pb-6">
+                     <span>${Math.round(maxBalance / 1000000)} M</span>
+                     <span>${Math.round((maxBalance * 0.666) / 1000000)} M</span>
+                     <span>${Math.round((maxBalance * 0.333) / 1000000)} M</span>
+                     <span>$0 M</span>
+                  </div>
+
+                  {/* Bars & Grid Container */}
+                  <div className="relative flex-1 flex flex-col justify-between">
+                     {/* Horizontal Gridlines */}
+                     <div className="absolute inset-x-0 top-0 border-b border-[#F0F4FD] pointer-events-none" />
+                     <div className="absolute inset-x-0 top-[33.3%] border-b border-[#F0F4FD] pointer-events-none" />
+                     <div className="absolute inset-x-0 top-[66.6%] border-b border-[#F0F4FD] pointer-events-none" />
+                     <div className="absolute inset-x-0 top-[100%] border-b border-[#F0F4FD] pointer-events-none" />
+
+                     {/* Bars */}
+                     <div className="h-44 flex items-end justify-between gap-1 sm:gap-2.5 px-2 relative z-10">
+                        {chartData.map((d) => {
+                           const pct = maxBalance > 0 ? Math.min(100, Math.max(4, (Math.max(0, d.val) / maxBalance) * 100)) : 4;
+                           return (
+                              <div key={d.key} className="flex-1 flex flex-col items-center justify-end h-full group relative">
+                                 {d.isCurrent && d.val > 0 && (
+                                    <div className="text-[11px] font-black text-[#0A1A3F] mb-1.5 whitespace-nowrap animate-in fade-in">
+                                       ${Math.round(d.val / 1000000)} M
+                                    </div>
+                                 )}
+                                 <div
+                                    style={{ height: `${pct}%` }}
+                                    className={`w-full max-w-[44px] rounded-t-lg sm:rounded-t-xl transition-all duration-300 ${
+                                       d.isCurrent
+                                          ? 'bg-[#1F6BFF] shadow-sm'
+                                          : 'bg-[#DCE8FE] hover:bg-[#C9DDFF]'
+                                    }`}
+                                    title={`${d.label}: ${formatClp(d.val)}`}
+                                 />
+                              </div>
+                           );
+                        })}
+                     </div>
+
+                     {/* X-axis Month Labels */}
+                     <div className="flex items-center justify-between gap-1 sm:gap-2.5 px-2 pt-2.5 border-t border-[#F0F4FD]">
+                        {chartData.map((d) => (
+                           <div key={d.key} className="flex-1 text-center text-[11px] font-semibold text-[#55607A] truncate">
+                              {d.shortName}
+                           </div>
+                        ))}
+                     </div>
+                  </div>
+               </div>
+            </div>
+         )}
+
+         {/* ======================================================== */}
+         {/* 5. Contenedor Principal: Detalle del flujo (Tabla)       */}
+         {/* ======================================================== */}
+         <div className="bg-white rounded-3xl border border-[#E2EAFD] shadow-xs overflow-hidden">
+            {/* Encabezado de la Tarjeta */}
+            <div className="p-6 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#F0F4FD]">
                <div>
-                  <h2 className="text-2xl font-bold text-heading tracking-tight">Flujo de Caja (Comparativo Mensual)</h2>
-                  <p className="text-sm text-text-soft mt-1">
-                     Visualización de periodos mensualizados con reporte por Nivel 1 (Agrupado) y Nivel 2 (Cuentas) respaldado en la conciliación bancaria.
+                  <h2 className="font-nunito font-black text-lg text-[#0A1A3F] leading-tight">
+                     Detalle del flujo
+                  </h2>
+                  <p className="text-xs text-[#55607A] font-medium mt-0.5">
+                     {formatTableSubtitle(months, reportLevel)}
                   </p>
                </div>
-
-               {/* Botones de acción */}
-               <div className="flex flex-wrap items-center gap-3">
-                  <button
-                     onClick={() => {
-                        loadCashFlow();
-                        toast.success('Flujo de Caja actualizado');
-                     }}
-                     disabled={loading}
-                     className="h-10 flex items-center justify-center gap-2 px-4 rounded-xl border border-border-subtle bg-bg-content text-text-main text-xs font-semibold transition shadow-sm hover:bg-surface-2 hover:text-brand focus:outline-none focus:ring-2 focus:ring-brand cursor-pointer"
-                  >
-                     <ArrowPathIcon className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-                     <span>Actualizar</span>
-                  </button>
-                  <button
-                     onClick={handleExportCSV}
-                     disabled={loading || !cashFlowData}
-                     className="h-10 flex items-center justify-center gap-2 px-4 rounded-xl border border-border-subtle bg-bg-content text-text-main text-xs font-semibold transition shadow-sm hover:bg-surface-2 hover:text-brand focus:outline-none focus:ring-2 focus:ring-brand cursor-pointer disabled:opacity-50"
-                  >
-                     <ArrowDownTrayIcon className="w-4 h-4" />
-                     <span>Exportar Excel</span>
-                  </button>
+               <div className="text-xs text-[#8E9BB5] font-semibold flex items-center gap-1 select-none">
+                  <span>Desliza para ver más meses</span>
+                  <span>›</span>
                </div>
             </div>
 
-            {/* Selector de Periodo y Reportabilidad */}
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pt-4">
-               {/* Period Pills & Date Range Inputs */}
-               <div className="flex flex-wrap items-center gap-2.5">
-                  <div className="inline-flex rounded-xl bg-surface-2 p-1 border border-border-subtle text-xs font-medium">
-                     <button
-                        type="button"
-                        onClick={() => handlePreset('current_month')}
-                        className={`px-3 py-1.5 rounded-lg transition ${
-                           periodMode === 'current_month'
-                              ? 'bg-bg-content text-heading font-semibold shadow-sm'
-                              : 'text-text-soft hover:text-heading'
-                        }`}
-                     >
-                        Solo Mes en Curso
-                     </button>
-                     <button
-                        type="button"
-                        onClick={() => handlePreset('quarter')}
-                        className={`px-3 py-1.5 rounded-lg transition ${
-                           periodMode === 'quarter'
-                              ? 'bg-bg-content text-heading font-semibold shadow-sm'
-                              : 'text-text-soft hover:text-heading'
-                        }`}
-                     >
-                        El Trimestre (3 Meses)
-                     </button>
-                     <button
-                        type="button"
-                        onClick={() => handlePreset('semester')}
-                        className={`px-3 py-1.5 rounded-lg transition ${
-                           periodMode === 'semester'
-                              ? 'bg-bg-content text-heading font-semibold shadow-sm'
-                              : 'text-text-soft hover:text-heading'
-                        }`}
-                     >
-                        El Semestre (6 Meses)
-                     </button>
-                     <button
-                        type="button"
-                        onClick={() => handlePreset('year')}
-                        className={`px-3 py-1.5 rounded-lg transition ${
-                           periodMode === 'year'
-                              ? 'bg-bg-content text-heading font-semibold shadow-sm'
-                              : 'text-text-soft hover:text-heading'
-                        }`}
-                     >
-                        Todo el Año (12 Meses)
-                     </button>
-                  </div>
-
-                  {/* Rango de fechas colocado al lado del contenedor de opciones */}
-                  <div className="flex items-center gap-1.5">
-                     <div className="w-32">
-                        <DateInput
-                           disabled={loading}
-                           className="w-full h-9 flex items-center px-3 text-xs rounded-xl border border-border-subtle bg-bg-content text-text-main shadow-sm hover:border-brand/50 focus:outline-none focus:ring-2 focus:ring-brand font-medium transition cursor-pointer"
-                           value={fromDate}
-                           onChange={(val) => {
-                              setFromDate(val);
-                              setPeriodMode('range');
-                           }}
-                           placeholder="Desde"
-                        />
-                     </div>
-                     <span className="text-text-soft font-semibold text-xs">—</span>
-                     <div className="w-32">
-                        <DateInput
-                           disabled={loading}
-                           className="w-full h-9 flex items-center px-3 text-xs rounded-xl border border-border-subtle bg-bg-content text-text-main shadow-sm hover:border-brand/50 focus:outline-none focus:ring-2 focus:ring-brand font-medium transition cursor-pointer"
-                           value={toDate}
-                           onChange={(val) => {
-                              setToDate(val);
-                              setPeriodMode('range');
-                           }}
-                           min={fromDate || undefined}
-                           placeholder="Hasta"
-                        />
-                     </div>
-                  </div>
-               </div>
-
-               {/* Reportabilidad Pills */}
-               <div className="flex items-center gap-3">
-                  <span className="text-xs text-text-soft font-medium">Reportabilidad:</span>
-                  <div className="inline-flex rounded-xl bg-surface-2 p-1 border border-border-subtle text-xs font-medium">
-                     <button
-                        type="button"
-                        onClick={() => setReportLevel(1)}
-                        className={`px-3 py-1.5 rounded-lg transition ${
-                           reportLevel === 1
-                              ? 'bg-brand text-white font-semibold shadow-sm'
-                              : 'text-text-soft hover:text-heading'
-                        }`}
-                     >
-                        Nivel 1 (Agrupado)
-                     </button>
-                     <button
-                        type="button"
-                        onClick={() => setReportLevel(2)}
-                        className={`px-3 py-1.5 rounded-lg transition ${
-                           reportLevel === 2
-                              ? 'bg-brand text-white font-semibold shadow-sm'
-                              : 'text-text-soft hover:text-heading'
-                        }`}
-                     >
-                        Nivel 2 (Cuentas)
-                     </button>
-                  </div>
-               </div>
-            </div>
-         </div>
-
-         {/* KPI Summary Cards */}
-         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="rounded-2xl border border-border-subtle bg-surface-1 p-4 shadow-sm flex items-center gap-4">
-               <div className="p-3 bg-emerald-500/10 text-emerald-600 rounded-xl">
-                  <ArrowTrendingUpIcon className="w-6 h-6" />
-               </div>
-               <div>
-                  <div className="text-xs font-semibold text-text-soft uppercase tracking-wide">Cobros en Efectivo</div>
-                  <div className="text-lg md:text-xl font-bold text-heading">{clp(kpis.totalIncomes)}</div>
-               </div>
-            </div>
-
-            <div className="rounded-2xl border border-border-subtle bg-surface-1 p-4 shadow-sm flex items-center gap-4">
-               <div className="p-3 bg-amber-500/10 text-amber-600 rounded-xl">
-                  <ArrowTrendingDownIcon className="w-6 h-6" />
-               </div>
-               <div>
-                  <div className="text-xs font-semibold text-text-soft uppercase tracking-wide">Pagos en Efectivo</div>
-                  <div className="text-lg md:text-xl font-bold text-heading">{clp(kpis.totalExpenses)}</div>
-               </div>
-            </div>
-
-            <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-4 shadow-sm flex items-center gap-4 ring-1 ring-emerald-500/20">
-               <div className="p-3 bg-emerald-600 text-white rounded-xl">
-                  <BanknotesIcon className="w-6 h-6" />
-               </div>
-               <div>
-                  <div className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 uppercase tracking-wide">
-                     Flujo Neto Operacional
-                  </div>
-                  <div className="text-lg md:text-xl font-bold text-emerald-700 dark:text-emerald-300">
-                     {clp(kpis.netOperatingFlow, true)}
-                  </div>
-               </div>
-            </div>
-
-            <div className="rounded-2xl border border-brand/30 bg-brand/5 p-4 shadow-sm flex items-center gap-4 ring-1 ring-brand/10">
-               <div className="p-3 bg-brand text-white rounded-xl">
-                  <CurrencyDollarIcon className="w-6 h-6" />
-               </div>
-               <div>
-                  <div className="text-xs font-semibold text-brand uppercase tracking-wide">
-                     Saldo Disponible en Bancos
-                  </div>
-                  <div className="text-lg md:text-xl font-bold text-brand">
-                     {clp(kpis.currentBankBalance)}
-                  </div>
-               </div>
-            </div>
-         </div>
-
-         {/* Contenedor Principal de la Tabla */}
-         <div className="bg-bg-content rounded-3xl border border-border-subtle shadow-sm overflow-hidden">
+            {/* Cuerpo de la Tabla */}
             {loading ? (
                <div className="p-16 flex flex-col items-center justify-center gap-3">
-                  <ArrowPathIcon className="w-8 h-8 animate-spin text-brand" />
-                  <span className="text-sm text-text-soft font-medium">Calculando Flujo de Caja desde Conciliación Bancaria...</span>
+                  <ArrowPathIcon className="w-8 h-8 animate-spin text-[#1F6BFF]" />
+                  <span className="text-xs text-[#55607A] font-medium">Calculando Flujo de Caja desde Conciliación Bancaria...</span>
                </div>
             ) : error ? (
-               <div className="p-12 text-center text-danger">
-                  <p className="font-semibold">{error}</p>
+               <div className="p-12 text-center text-rose-600">
+                  <p className="font-semibold text-xs">{error}</p>
                   <button
                      onClick={loadCashFlow}
-                     className="mt-4 px-4 py-2 rounded-xl bg-brand text-white text-xs font-semibold"
+                     className="mt-4 px-4 py-2 rounded-xl bg-[#1F6BFF] text-white text-xs font-semibold cursor-pointer"
                   >
                      Reintentar
                   </button>
                </div>
             ) : structure.length === 0 ? (
-               <div className="p-16 text-center text-text-soft">
-                  <BanknotesIcon className="w-12 h-12 mx-auto mb-3 opacity-40" />
-                  <p className="font-semibold text-heading">No hay movimientos de tesorería registrados en el periodo seleccionado</p>
-                  <p className="text-xs mt-1">Los datos se alimentan automáticamente de los movimientos bancarios conciliados con compras, ventas y honorarios.</p>
+               <div className="p-16 text-center text-[#55607A]">
+                  <p className="font-semibold text-sm text-[#0A1A3F]">No hay movimientos de tesorería registrados en el periodo seleccionado</p>
+                  <p className="text-xs text-[#8E9BB5] mt-1">Los datos se alimentan automáticamente de los movimientos bancarios conciliados con compras, ventas y honorarios.</p>
                </div>
             ) : (
                <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs border-collapse">
                      <thead>
-                        <tr className="border-b border-border-subtle bg-surface-1 text-text-soft uppercase tracking-wider font-semibold">
-                           <th className="py-3.5 px-4 min-w-[280px]">Concepto Flujo de Efectivo</th>
+                        <tr className="bg-[#0A1A3F] text-white">
+                           <th className="py-3.5 px-5 text-left text-white font-bold text-xs sticky left-0 bg-[#0A1A3F] z-20 min-w-[320px]">
+                              Concepto flujo de efectivo
+                           </th>
                            {months.map((m) => (
-                              <th key={m.key} className="py-3.5 px-3 text-right min-w-[120px]">
+                              <th key={m.key} className="py-3.5 px-4 text-right text-white font-bold text-xs min-w-[110px] whitespace-nowrap">
                                  {m.label}
                               </th>
                            ))}
-                           <th className="py-3.5 px-4 text-right min-w-[140px] bg-slate-900 text-white font-bold tracking-normal text-[13px]">
-                              Total Flujo Neto
-                           </th>
                         </tr>
                      </thead>
-                     <tbody className="divide-y divide-border-subtle font-medium">
+                     <tbody className="divide-y divide-[#F0F4FD] font-medium">
                         {structure.map((group) => {
-                           const isExpanded = reportLevel === 2 && Boolean(expandedGroups[group.key] ?? true);
+                           const isExpanded = Boolean(expandedGroups[group.key] ?? true);
 
                            return (
                               <React.Fragment key={group.key}>
                                  {/* Fila de Encabezado de Grupo (ACTIVIDADES DE OPERACIÓN) */}
-                                 <tr className="bg-bg-content hover:bg-surface-1/60 transition-colors">
-                                    <td className="py-3 px-4 font-bold text-heading">
+                                 <tr className="bg-white hover:bg-[#F8FAFF] transition-colors border-b border-[#F0F4FD]">
+                                    <td className="py-3 px-5 font-bold text-[#0A1A3F] sticky left-0 bg-white hover:bg-[#F8FAFF] z-10">
                                        <div className="flex items-center gap-2">
-                                          {reportLevel === 2 && (
-                                             <button
-                                                type="button"
-                                                onClick={() => toggleGroup(group.key)}
-                                                className="p-1 rounded hover:bg-surface-2 text-text-soft transition cursor-pointer"
-                                                title={isExpanded ? 'Colapsar cuentas' : 'Expandir cuentas'}
-                                             >
-                                                {isExpanded ? (
-                                                   <ChevronDownIcon className="w-4 h-4 text-brand" />
-                                                ) : (
-                                                   <ChevronRightIcon className="w-4 h-4" />
-                                                )}
-                                             </button>
-                                          )}
-                                          <span>{group.label}</span>
+                                          <button
+                                             type="button"
+                                             onClick={() => toggleGroup(group.key)}
+                                             className="p-0.5 rounded text-[#55607A] hover:text-[#0A1A3F] transition cursor-pointer"
+                                             title={isExpanded ? 'Colapsar' : 'Expandir'}
+                                          >
+                                             {isExpanded ? (
+                                                <ChevronDownIcon className="w-4 h-4 stroke-[2.5]" />
+                                             ) : (
+                                                <ChevronRightIcon className="w-4 h-4 stroke-[2.5]" />
+                                             )}
+                                          </button>
+                                          <span className="text-xs font-bold text-[#0A1A3F]">{group.label}</span>
                                        </div>
                                     </td>
                                     {months.map((m) => {
                                        const val = group.monthlyAmounts[m.key] || 0;
+                                       const cell = formatTableAmount(val);
                                        return (
                                           <td
                                              key={m.key}
@@ -524,36 +758,30 @@ export default function CashFlow() {
                                                    });
                                                 }
                                              }}
-                                             className={`py-3 px-3 text-right font-bold transition ${
-                                                val !== 0 ? 'cursor-pointer hover:underline hover:text-brand' : ''
-                                             } ${val >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}
+                                             className={`py-3 px-4 text-right font-bold text-xs tabular-nums transition ${
+                                                val !== 0 ? 'cursor-pointer hover:underline hover:text-[#1F6BFF]' : ''
+                                             } ${cell.isZero ? 'text-[#A0AEC0]' : 'text-[#0A1A3F]'}`}
                                              title={val !== 0 ? 'Clic para ver Mayor Analítico Auxiliar' : ''}
                                           >
-                                             {clp(val)}
+                                             {cell.text}
                                           </td>
                                        );
                                     })}
-                                    <td className="py-3 px-4 text-right font-bold text-heading bg-surface-1/80">
-                                       {clp(group.total)}
-                                    </td>
                                  </tr>
 
                                  {/* Filas de Conceptos (Nivel 1) */}
-                                 {group.items?.map((item) => {
+                                 {isExpanded && group.items?.map((item) => {
                                     const isOutflow = item.isOutflow;
 
                                     return (
                                        <React.Fragment key={item.key}>
-                                          <tr className="hover:bg-surface-1/40 transition-colors">
-                                             <td className="py-2.5 px-4 pl-10 text-text-main font-medium">
-                                                <div className="flex items-center gap-2">
-                                                   <span className="w-1.5 h-1.5 rounded-full bg-text-soft/40"></span>
-                                                   <span className="truncate">{item.name}</span>
-                                                </div>
+                                          <tr className="bg-white hover:bg-[#F8FAFF] transition-colors border-b border-[#F0F4FD]">
+                                             <td className="py-2.5 px-5 pl-10 text-[#0A1A3F] font-medium text-xs sticky left-0 bg-white hover:bg-[#F8FAFF] z-10">
+                                                <span className="truncate">{item.name}</span>
                                              </td>
                                              {months.map((m) => {
                                                 const rawVal = item.monthlyAmounts[m.key] || 0;
-                                                const displayVal = isOutflow && rawVal > 0 ? -rawVal : rawVal;
+                                                const cell = formatTableAmount(rawVal, isOutflow);
 
                                                 return (
                                                    <td
@@ -565,43 +793,40 @@ export default function CashFlow() {
                                                             accountCode: item.code,
                                                             monthKey: m.key,
                                                             conceptName: `${item.name} (${m.label})`,
-                                                            cellAmount: displayVal,
+                                                            cellAmount: isOutflow && rawVal > 0 ? -rawVal : rawVal,
                                                          })
                                                       }
-                                                      className={`py-2.5 px-3 text-right font-mono transition ${
+                                                      className={`py-2.5 px-4 text-right text-xs tabular-nums transition ${
                                                          rawVal !== 0
-                                                            ? 'cursor-pointer hover:underline hover:text-brand hover:font-bold'
-                                                            : 'opacity-40'
-                                                      }`}
+                                                            ? 'cursor-pointer hover:underline hover:text-[#1F6BFF] hover:font-bold'
+                                                            : ''
+                                                      } ${cell.isZero ? 'text-[#A0AEC0]' : 'text-[#0A1A3F]'}`}
                                                       title={rawVal !== 0 ? 'Clic para ver Mayor Analítico Auxiliar' : ''}
                                                    >
-                                                      {clp(displayVal)}
+                                                      {cell.text}
                                                    </td>
                                                 );
                                              })}
-                                             <td className="py-2.5 px-4 text-right font-mono font-semibold bg-surface-1/30">
-                                                {clp(isOutflow && item.total > 0 ? -item.total : item.total)}
-                                             </td>
                                           </tr>
 
-                                          {/* Cuentas contables detalladas (Nivel 2) */}
-                                          {reportLevel === 2 && isExpanded &&
+                                          {/* Cuentas contables detalladas (Nivel 2 / Por cuenta) */}
+                                          {reportLevel === 2 &&
                                              item.accounts?.map((acc) => (
                                                 <tr
                                                    key={acc.code}
-                                                   className="text-text-soft hover:bg-surface-1/40 hover:text-heading transition-colors text-[11.5px]"
+                                                   className="bg-white hover:bg-[#F8FAFF] transition-colors border-b border-[#F0F4FD]"
                                                 >
-                                                   <td className="py-2 px-4 pl-14 font-normal">
+                                                   <td className="py-2 px-5 pl-14 font-normal sticky left-0 bg-white hover:bg-[#F8FAFF] z-10">
                                                       <div className="flex items-center gap-2">
-                                                         <span className="font-mono text-[10px] bg-surface-2 px-1.5 py-0.5 rounded border border-border-subtle">
+                                                         <span className="px-2 py-0.5 rounded font-mono text-[11px] font-bold bg-[#EFF3FF] text-[#1F6BFF] border border-[#D8E4FF] shrink-0">
                                                             {acc.code}
                                                          </span>
-                                                         <span className="truncate">{acc.name}</span>
+                                                         <span className="truncate text-xs text-[#55607A]">{acc.name}</span>
                                                       </div>
                                                    </td>
                                                    {months.map((m) => {
                                                       const accVal = acc.monthlyAmounts[m.key] || 0;
-                                                      const displayAccVal = isOutflow && accVal > 0 ? -accVal : accVal;
+                                                      const cell = formatTableAmount(accVal, isOutflow);
 
                                                       return (
                                                          <td
@@ -613,23 +838,20 @@ export default function CashFlow() {
                                                                   accountCode: acc.code,
                                                                   monthKey: m.key,
                                                                   conceptName: `${acc.code} ${acc.name} (${m.label})`,
-                                                                  cellAmount: displayAccVal,
+                                                                  cellAmount: isOutflow && accVal > 0 ? -accVal : accVal,
                                                                })
                                                             }
-                                                            className={`py-2 px-3 text-right font-mono transition ${
+                                                            className={`py-2 px-4 text-right text-xs tabular-nums transition ${
                                                                accVal !== 0
-                                                                  ? 'cursor-pointer hover:underline hover:text-brand hover:font-bold'
-                                                                  : 'opacity-40'
-                                                            }`}
+                                                                  ? 'cursor-pointer hover:underline hover:text-[#1F6BFF] hover:font-bold'
+                                                                  : ''
+                                                            } ${cell.isZero ? 'text-[#A0AEC0]' : 'text-[#55607A]'}`}
                                                             title={accVal !== 0 ? 'Clic para ver Mayor Analítico Auxiliar' : ''}
                                                          >
-                                                            {clp(displayAccVal)}
+                                                            {cell.text}
                                                          </td>
                                                       );
                                                    })}
-                                                   <td className="py-2 px-4 text-right font-mono font-semibold bg-surface-1/30">
-                                                      {clp(isOutflow && acc.total > 0 ? -acc.total : acc.total)}
-                                                   </td>
                                                 </tr>
                                              ))}
                                        </React.Fragment>
@@ -641,24 +863,22 @@ export default function CashFlow() {
 
                         {/* Fila Destacada: SALDO FINAL EN BANCOS (DISPONIBLE) */}
                         {endingBankBalanceRow && (
-                           <tr className="bg-[#0f172a] text-white font-bold border-t-2 border-slate-800">
-                              <td className="py-4 px-4 text-[13px] tracking-wide text-white uppercase font-bold">
+                           <tr className="bg-[#0A1A3F] text-white font-bold border-t border-[#1E305C]">
+                              <td className="py-3.5 px-5 text-xs tracking-wide text-white font-bold sticky left-0 bg-[#0A1A3F] z-20">
                                  {endingBankBalanceRow.label}
                               </td>
                               {months.map((m) => {
                                  const balanceVal = endingBankBalanceRow.monthlyAmounts[m.key] || 0;
+                                 const cell = formatTableAmount(balanceVal);
                                  return (
                                     <td
                                        key={m.key}
-                                       className="py-4 px-3 text-right font-bold text-[13px] text-emerald-400 font-mono"
+                                       className="py-3.5 px-4 text-right font-bold text-xs text-white tabular-nums"
                                     >
-                                       {clp(balanceVal)}
+                                       {cell.text}
                                     </td>
                                  );
                               })}
-                              <td className="py-4 px-4 text-right font-extrabold text-[15px] bg-slate-950 text-emerald-400 font-mono">
-                                 {clp(endingBankBalanceRow.total)}
-                              </td>
                            </tr>
                         )}
                      </tbody>
@@ -668,7 +888,7 @@ export default function CashFlow() {
          </div>
 
          {/* ======================================================== */}
-         {/* Modal Mayor Analítico Auxiliar (Drill-down de Cartola)   */}
+         {/* 6. Modal Mayor Analítico Auxiliar (Drill-down de Cartola) */}
          {/* ======================================================== */}
          {drillModalOpen &&
             createPortal(
@@ -676,54 +896,59 @@ export default function CashFlow() {
                   onClick={(e) => {
                      if (e.target === e.currentTarget) setDrillModalOpen(false);
                   }}
-                  className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-xs p-4 animate-in fade-in duration-200"
+                  className="fixed inset-0 z-[200] flex items-center justify-center bg-[#0A1A3F]/40 backdrop-blur-xs p-3 sm:p-4 md:p-6 overflow-y-auto"
                >
-                  <div className="w-full max-w-4xl bg-bg-content rounded-2xl shadow-2xl border border-border-subtle overflow-hidden flex flex-col max-h-[90vh]">
-                     {/* Dark Header */}
-                     <div className="bg-[#0f172a] text-white p-5 flex items-start justify-between shrink-0">
-                        <div>
-                           <h3 className="text-base md:text-lg font-bold tracking-tight">
-                              Mayor Analítico Auxiliar: {drillData?.conceptName || 'Detalle de Movimientos'} {drillData?.monthLabel || ''}
-                           </h3>
-                           <p className="text-xs text-slate-400 mt-0.5">
-                              Detalle de movimientos de cartola bancaria e imputaciones respaldadas
-                           </p>
+                  <div className="w-full max-w-4xl bg-white rounded-3xl shadow-2xl border border-[#E2EAFD] overflow-hidden my-auto flex flex-col max-h-[90vh]">
+                     {/* Header */}
+                     <div className="px-6 py-4 border-b border-[#E2EAFD] flex items-center justify-between bg-white shrink-0">
+                        <div className="flex items-center gap-3">
+                           <div className="w-10 h-10 rounded-2xl bg-[#EFF3FF] flex items-center justify-center text-[#1F6BFF] shrink-0">
+                              <CheckCircleIcon className="w-5 h-5 stroke-[2.5]" />
+                           </div>
+                           <div>
+                              <h3 className="text-base font-nunito font-black text-[#0A1A3F] tracking-tight">
+                                 Mayor Analítico Auxiliar: {drillData?.conceptName || 'Detalle de Movimientos'} {drillData?.monthLabel || ''}
+                              </h3>
+                              <p className="text-xs text-[#55607A] font-medium mt-0.5">
+                                 Detalle de movimientos de cartola bancaria e imputaciones respaldadas
+                              </p>
+                           </div>
                         </div>
                         <button
                            type="button"
                            onClick={() => setDrillModalOpen(false)}
-                           className="text-slate-400 hover:text-white transition p-1 rounded-lg hover:bg-slate-800 cursor-pointer"
+                           className="p-2 rounded-xl text-[#8E9BB5] hover:text-[#0A1A3F] hover:bg-[#EEF3FF] transition cursor-pointer"
                         >
                            <XMarkIcon className="w-5 h-5" />
                         </button>
                      </div>
 
                      {/* Body Content */}
-                     <div className="p-5 overflow-y-auto space-y-4">
+                     <div className="p-6 overflow-y-auto space-y-4">
                         {/* Monto Total Box */}
-                        <div className="rounded-xl border border-border-subtle bg-surface-1 p-4 flex items-center justify-between">
-                           <span className="text-xs md:text-sm text-text-soft font-medium">
+                        <div className="rounded-2xl border border-[#E2EAFD] bg-[#F8FAFF] p-4 flex items-center justify-between shadow-xs">
+                           <span className="text-xs sm:text-sm text-[#55607A] font-medium">
                               Monto total conciliado a esta celda:
                            </span>
-                           <span className="text-lg md:text-xl font-extrabold text-heading font-mono">
-                              {clp(targetCellAmount)}
+                           <span className="text-lg sm:text-xl font-nunito font-black text-[#0A1A3F] tabular-nums">
+                              {formatClp(targetCellAmount)}
                            </span>
                         </div>
 
                         {drillLoading ? (
                            <div className="py-12 flex flex-col items-center justify-center gap-2">
-                              <ArrowPathIcon className="w-7 h-7 animate-spin text-brand" />
-                              <span className="text-xs text-text-soft font-medium">Cargando movimientos bancarios...</span>
+                              <ArrowPathIcon className="w-7 h-7 animate-spin text-[#1F6BFF]" />
+                              <span className="text-xs text-[#55607A] font-medium">Cargando movimientos bancarios...</span>
                            </div>
                         ) : !drillData?.documents?.length ? (
-                           <div className="py-10 text-center text-text-soft text-xs">
+                           <div className="py-10 text-center text-[#8E9BB5] text-xs">
                               No se encontraron movimientos individuales asociados a esta celda en este periodo.
                            </div>
                         ) : (
-                           <div className="border border-border-subtle rounded-xl overflow-hidden shadow-xs">
+                           <div className="border border-[#E2EAFD] rounded-2xl overflow-hidden shadow-xs">
                               <table className="w-full text-left text-xs">
                                  <thead>
-                                    <tr className="bg-surface-2 text-text-soft font-semibold border-b border-border-subtle">
+                                    <tr className="bg-[#F8FAFF] text-[#55607A] font-bold border-b border-[#E2EAFD]">
                                        <th className="py-2.5 px-3">Fecha</th>
                                        <th className="py-2.5 px-3">Folio / TRX</th>
                                        <th className="py-2.5 px-3">RUT / Entidad</th>
@@ -731,17 +956,17 @@ export default function CashFlow() {
                                        <th className="py-2.5 px-3 text-right">Monto Neto</th>
                                     </tr>
                                  </thead>
-                                 <tbody className="divide-y divide-border-subtle font-medium">
+                                 <tbody className="divide-y divide-[#F0F4FD] font-medium text-[#0A1A3F]">
                                     {drillData.documents.map((doc) => (
-                                       <tr key={doc.id} className="hover:bg-surface-1 transition-colors">
-                                          <td className="py-2.5 px-3 text-text-soft whitespace-nowrap">{doc.date}</td>
-                                          <td className="py-2.5 px-3 font-mono font-semibold text-brand whitespace-nowrap">
+                                       <tr key={doc.id} className="hover:bg-[#F8FAFF] transition-colors">
+                                          <td className="py-2.5 px-3 text-[#55607A] whitespace-nowrap">{doc.date}</td>
+                                          <td className="py-2.5 px-3 font-mono font-bold text-[#1F6BFF] whitespace-nowrap">
                                              {doc.folio_display}
                                           </td>
-                                          <td className="py-2.5 px-3 font-mono text-text-main whitespace-nowrap">{doc.counterparty_rut}</td>
-                                          <td className="py-2.5 px-3 text-heading truncate max-w-[260px]">{doc.counterparty_name}</td>
-                                          <td className="py-2.5 px-3 text-right font-extrabold text-heading whitespace-nowrap font-mono">
-                                             {clp(doc.amount_net)}
+                                          <td className="py-2.5 px-3 font-mono text-[#0A1A3F] whitespace-nowrap">{doc.counterparty_rut}</td>
+                                          <td className="py-2.5 px-3 text-[#0A1A3F] font-medium truncate max-w-[260px]">{doc.counterparty_name}</td>
+                                          <td className="py-2.5 px-3 text-right font-bold text-[#0A1A3F] whitespace-nowrap tabular-nums">
+                                             {formatClp(doc.amount_net)}
                                           </td>
                                        </tr>
                                     ))}
@@ -751,16 +976,16 @@ export default function CashFlow() {
                         )}
                      </div>
 
-                     {/* Footer matching screenshot */}
-                     <div className="p-4 border-t border-border-subtle bg-surface-1 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
-                        <div className="flex items-center gap-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-                           <CheckCircleIcon className="w-5 h-5 shrink-0" />
+                     {/* Footer */}
+                     <div className="px-6 py-4 border-t border-[#E2EAFD] bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
+                        <div className="flex items-center gap-2 text-xs font-bold text-[#1F6BFF]">
+                           <CheckCircleIcon className="w-5 h-5 shrink-0 stroke-[2.5]" />
                            <span>Suma de registros cuadra 1:1 con el monto seleccionado ({drillData?.documents?.length || 0} comprobantes)</span>
                         </div>
                         <button
                            type="button"
                            onClick={() => setDrillModalOpen(false)}
-                           className="px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold shadow-sm transition self-end sm:self-auto cursor-pointer"
+                           className="px-5 py-2 rounded-full bg-[#1F6BFF] hover:bg-[#1657D7] text-white text-xs font-bold shadow-xs transition self-end sm:self-auto cursor-pointer"
                         >
                            Cerrar Auxiliar
                         </button>
