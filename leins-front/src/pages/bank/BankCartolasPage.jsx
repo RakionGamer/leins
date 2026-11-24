@@ -1185,6 +1185,12 @@ export default function BankCartolasPage() {
 
    const [assignAmount, setAssignAmount] = useState("");
    const [isEditingAssign, setIsEditingAssign] = useState(false);
+   const modalBodyRef = React.useRef(null);
+   useEffect(() => {
+      if (reconcileTx && modalBodyRef.current) {
+         modalBodyRef.current.scrollTop = 0;
+      }
+   }, [reconcileTx]);
    const [isTyping, setIsTyping] = React.useState(false);
    const typingTimer = React.useRef(null);
 
@@ -2799,17 +2805,17 @@ export default function BankCartolasPage() {
          {/* ===== Modal Conciliar (Jeito Oficial Pixel-Perfect) ===== */}
          {reconcileTx && (
             <div
-               className="fixed inset-0 z-[200] bg-[#0A1A3F]/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5"
+               className="fixed inset-0 z-[200] bg-[#0A1A3F]/40 backdrop-blur-xs flex items-start justify-center pt-3 sm:pt-4 md:pt-6 pb-4 px-3 sm:px-4 overflow-y-auto"
                onClick={() => { if (!showPayableDetail) closeConciliarSmooth(); }}
             >
                <div
-                  className={`w-full max-w-5xl max-h-[92vh] flex flex-col bg-white rounded-3xl shadow-2xl border border-[#E2EAFD] overflow-hidden ${
+                  className={`w-full max-w-5xl max-h-[94vh] flex flex-col bg-white rounded-3xl shadow-2xl border border-[#E2EAFD] overflow-hidden my-auto sm:my-0 ${
                      modalClosing ? 'animate-[fadeOutDown_.18s_ease-in_forwards]' : 'opacity-0 translate-y-2 animate-[fadeInUp_.24s_ease-out_forwards]'
                   }`}
                   onClick={(e) => e.stopPropagation()}
                >
                   {/* Header */}
-                  <div className="px-6 py-4 sm:py-5 border-b border-[#E2EAFD] flex items-center justify-between bg-white shrink-0">
+                  <div className="px-5 py-3 sm:py-3.5 border-b border-[#E2EAFD] flex items-center justify-between bg-white shrink-0">
                      <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-2xl bg-[#EFF3FF] flex items-center justify-center text-[#1F6BFF] shrink-0">
                            <CheckIcon className="w-5 h-5 stroke-[2.5]" />
@@ -2834,11 +2840,11 @@ export default function BankCartolasPage() {
                   </div>
 
                   {/* Body (scrollable) */}
-                  <div className="px-6 py-5 overflow-y-auto space-y-5 grow">
+                  <div ref={modalBodyRef} className="px-5 py-3.5 overflow-y-auto space-y-3.5 grow">
                      {/* Top 2 Comparison Cards */}
                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {/* Card A: Movimiento bancario */}
-                        <div className="bg-[#F8FAFF] rounded-2xl border border-[#E2EAFD] p-4 flex items-center justify-between shadow-xs">
+                        <div className="bg-[#F8FAFF] rounded-2xl border border-[#E2EAFD] p-3.5 flex items-center justify-between shadow-xs">
                            <div className="min-w-0 pr-2">
                               <div className="text-xs text-[#8E9BB5] font-medium truncate">
                                  Movimiento bancario  {formatYmdToDmy(reconcileTx.fecha)} · Cta. cte. {
@@ -2868,7 +2874,7 @@ export default function BankCartolasPage() {
                         </div>
 
                         {/* Card B: Seleccionado y Diferencia */}
-                        <div className="bg-[#F8FAFF] rounded-2xl border border-[#E2EAFD] p-4 flex flex-col justify-between shadow-xs">
+                        <div className="bg-[#F8FAFF] rounded-2xl border border-[#E2EAFD] p-3.5 flex flex-col justify-between shadow-xs">
                            <div>
                               <div className="flex items-center justify-between">
                                  <span className="text-xs text-[#55607A] font-medium">Seleccionado</span>
@@ -2941,15 +2947,22 @@ export default function BankCartolasPage() {
                               ) : dailySalesGroups.length === 0 ? (
                                  <div className="px-4 py-3 text-xs text-[#8E9BB5] font-medium">No hay ventas pendientes agrupables cerca de esta fecha.</div>
                               ) : (
-                                 <div className="max-h-56 overflow-auto">
-                                    <table className="w-full text-xs border-collapse">
+                                 <div className="max-h-48 overflow-y-auto">
+                                    <table className="w-full text-xs border-collapse table-fixed">
+                                       <colgroup>
+                                          <col className="w-[110px]" />
+                                          <col className="w-auto" />
+                                          <col className="w-[110px]" />
+                                          <col className="w-[110px]" />
+                                          <col className="w-[130px]" />
+                                       </colgroup>
                                        <thead>
                                           <tr className="bg-[#F4F7FE] border-b border-[#E2EAFD] text-[#55607A]">
-                                             <th className="py-2.5 px-4 text-left font-semibold w-[130px]">Día</th>
-                                             <th className="py-2.5 px-4 text-left font-semibold">Documentos</th>
-                                             <th className="py-2.5 px-4 text-right font-semibold w-[130px]">Total día</th>
-                                             <th className="py-2.5 px-4 text-right font-semibold w-[130px]">Diferencia</th>
-                                             <th className="py-2.5 px-4 text-right w-[140px]"></th>
+                                             <th className="py-2 px-3 text-left font-semibold whitespace-nowrap">Día</th>
+                                             <th className="py-2 px-3 text-left font-semibold">Documentos</th>
+                                             <th className="py-2 px-3 text-right font-semibold whitespace-nowrap">Total día</th>
+                                             <th className="py-2 px-3 text-right font-semibold whitespace-nowrap">Diferencia</th>
+                                             <th className="py-2 px-3 text-right whitespace-nowrap"></th>
                                           </tr>
                                        </thead>
                                        <tbody className="divide-y divide-[#E2EAFD]">
@@ -3266,48 +3279,55 @@ export default function BankCartolasPage() {
                         </div>
                      ) : (
                         <div className="bg-white rounded-2xl border border-[#E2EAFD] overflow-hidden shadow-xs">
-                           <div className="overflow-x-auto">
-                              <table className="w-full text-xs border-collapse">
-                                 <thead>
-                                    <tr className="bg-[#F4F7FE] border-b border-[#E2EAFD] text-[#55607A]">
-                                       <th
-                                          className="py-3 px-4 text-left font-semibold whitespace-nowrap cursor-pointer hover:bg-[#EEF3FF] select-none transition-colors"
-                                          onClick={() => setModalSortConfig(s => ({ key: 'remaining_amount', dir: s.key === 'remaining_amount' ? (s.dir === 'none' ? 'desc' : (s.dir === 'desc' ? 'asc' : 'none')) : 'desc' }))}
-                                          title="Ordenar por saldo"
-                                       >
-                                          Saldo por asignar {modalSortConfig.key === 'remaining_amount' ? (modalSortConfig.dir === 'asc' ? '↑' : modalSortConfig.dir === 'desc' ? '↓' : '') : ''}
-                                       </th>
-                                       <th
-                                          className="py-3 px-4 text-left font-semibold whitespace-nowrap cursor-pointer hover:bg-[#EEF3FF] select-none transition-colors"
-                                          onClick={() => setModalSortConfig(s => ({ key: 'total_amount', dir: s.key === 'total_amount' ? (s.dir === 'none' ? 'desc' : (s.dir === 'desc' ? 'asc' : 'none')) : 'desc' }))}
-                                          title="Ordenar por monto"
-                                       >
-                                          Monto {modalSortConfig.key === 'total_amount' ? (modalSortConfig.dir === 'asc' ? '↑' : modalSortConfig.dir === 'desc' ? '↓' : '') : ''}
-                                       </th>
-                                       <th
-                                          className="py-3 px-4 text-left font-semibold whitespace-nowrap cursor-pointer hover:bg-[#EEF3FF] select-none transition-colors"
-                                          onClick={() => setModalSortConfig(s => ({ key: 'issue_date', dir: s.key === 'issue_date' ? (s.dir === 'none' ? 'desc' : (s.dir === 'desc' ? 'asc' : 'none')) : 'desc' }))}
-                                          title="Ordenar por fecha"
-                                       >
-                                          Fecha {modalSortConfig.key === 'issue_date' ? (modalSortConfig.dir === 'asc' ? '↑' : modalSortConfig.dir === 'desc' ? '↓' : '') : ''}
-                                       </th>
-                                       <th
-                                          className="py-3 px-4 text-left font-semibold whitespace-nowrap cursor-pointer hover:bg-[#EEF3FF] select-none transition-colors"
-                                          onClick={() => setModalSortConfig(s => ({ key: 'type', dir: s.key === 'type' ? (s.dir === 'none' ? 'desc' : (s.dir === 'desc' ? 'asc' : 'none')) : 'desc' }))}
-                                          title="Ordenar por tipo"
-                                       >
-                                          Tipo {modalSortConfig.key === 'type' ? (modalSortConfig.dir === 'asc' ? '↑' : modalSortConfig.dir === 'desc' ? '↓' : '') : ''}
-                                       </th>
-                                       <th
-                                          className="py-3 px-4 text-left font-semibold whitespace-nowrap cursor-pointer hover:bg-[#EEF3FF] select-none transition-colors"
-                                          onClick={() => setModalSortConfig(s => ({ key: 'description', dir: s.key === 'description' ? (s.dir === 'none' ? 'desc' : (s.dir === 'desc' ? 'asc' : 'none')) : 'desc' }))}
-                                          title="Ordenar por descripción"
-                                       >
-                                          Descripción {modalSortConfig.key === 'description' ? (modalSortConfig.dir === 'asc' ? '↑' : modalSortConfig.dir === 'desc' ? '↓' : '') : ''}
-                                       </th>
-                                       <th className="py-3 px-4 text-right font-semibold whitespace-nowrap"></th>
-                                    </tr>
-                                 </thead>
+                           <table className="w-full text-xs border-collapse table-fixed">
+                              <colgroup>
+                                 <col className="w-[125px]" />
+                                 <col className="w-[105px]" />
+                                 <col className="w-[95px]" />
+                                 <col className="w-[105px]" />
+                                 <col className="w-auto" />
+                                 <col className="w-[135px]" />
+                              </colgroup>
+                              <thead>
+                                 <tr className="bg-[#F4F7FE] border-b border-[#E2EAFD] text-[#55607A]">
+                                    <th
+                                       className="py-2.5 px-3 text-left font-semibold whitespace-nowrap cursor-pointer hover:bg-[#EEF3FF] select-none transition-colors"
+                                       onClick={() => setModalSortConfig(s => ({ key: 'remaining_amount', dir: s.key === 'remaining_amount' ? (s.dir === 'none' ? 'desc' : (s.dir === 'desc' ? 'asc' : 'none')) : 'desc' }))}
+                                       title="Ordenar por saldo"
+                                    >
+                                       Saldo por asignar {modalSortConfig.key === 'remaining_amount' ? (modalSortConfig.dir === 'asc' ? '↑' : modalSortConfig.dir === 'desc' ? '↓' : '') : ''}
+                                    </th>
+                                    <th
+                                       className="py-2.5 px-3 text-left font-semibold whitespace-nowrap cursor-pointer hover:bg-[#EEF3FF] select-none transition-colors"
+                                       onClick={() => setModalSortConfig(s => ({ key: 'total_amount', dir: s.key === 'total_amount' ? (s.dir === 'none' ? 'desc' : (s.dir === 'desc' ? 'asc' : 'none')) : 'desc' }))}
+                                       title="Ordenar por monto"
+                                    >
+                                       Monto {modalSortConfig.key === 'total_amount' ? (modalSortConfig.dir === 'asc' ? '↑' : modalSortConfig.dir === 'desc' ? '↓' : '') : ''}
+                                    </th>
+                                    <th
+                                       className="py-2.5 px-3 text-left font-semibold whitespace-nowrap cursor-pointer hover:bg-[#EEF3FF] select-none transition-colors"
+                                       onClick={() => setModalSortConfig(s => ({ key: 'issue_date', dir: s.key === 'issue_date' ? (s.dir === 'none' ? 'desc' : (s.dir === 'desc' ? 'asc' : 'none')) : 'desc' }))}
+                                       title="Ordenar por fecha"
+                                    >
+                                       Fecha {modalSortConfig.key === 'issue_date' ? (modalSortConfig.dir === 'asc' ? '↑' : modalSortConfig.dir === 'desc' ? '↓' : '') : ''}
+                                    </th>
+                                    <th
+                                       className="py-2.5 px-3 text-left font-semibold whitespace-nowrap cursor-pointer hover:bg-[#EEF3FF] select-none transition-colors"
+                                       onClick={() => setModalSortConfig(s => ({ key: 'type', dir: s.key === 'type' ? (s.dir === 'none' ? 'desc' : (s.dir === 'desc' ? 'asc' : 'none')) : 'desc' }))}
+                                       title="Ordenar por tipo"
+                                    >
+                                       Tipo {modalSortConfig.key === 'type' ? (modalSortConfig.dir === 'asc' ? '↑' : modalSortConfig.dir === 'desc' ? '↓' : '') : ''}
+                                    </th>
+                                    <th
+                                       className="py-2.5 px-3 text-left font-semibold whitespace-nowrap cursor-pointer hover:bg-[#EEF3FF] select-none transition-colors"
+                                       onClick={() => setModalSortConfig(s => ({ key: 'description', dir: s.key === 'description' ? (s.dir === 'none' ? 'desc' : (s.dir === 'desc' ? 'asc' : 'none')) : 'desc' }))}
+                                       title="Ordenar por descripción"
+                                    >
+                                       Descripción {modalSortConfig.key === 'description' ? (modalSortConfig.dir === 'asc' ? '↑' : modalSortConfig.dir === 'desc' ? '↓' : '') : ''}
+                                    </th>
+                                    <th className="py-2.5 px-3 text-right font-semibold whitespace-nowrap"></th>
+                                 </tr>
+                              </thead>
                                  <tbody className="divide-y divide-[#E2EAFD]">
                                     {menuLoading ? (
                                        <tr>
@@ -3353,16 +3373,16 @@ export default function BankCartolasPage() {
                                                    selected ? 'bg-[#EEF3FF]/70' : 'hover:bg-[#F8FAFF]'
                                                 }`}
                                              >
-                                                <td className="py-3 px-4 font-bold text-[#0A1A3F] tabular-nums whitespace-nowrap">
+                                                <td className="py-2.5 px-3 font-bold text-[#0A1A3F] tabular-nums whitespace-nowrap truncate">
                                                    $ {Math.abs(pendingAmount).toLocaleString('es-CL')}
                                                 </td>
-                                                <td className="py-3 px-4 font-medium text-[#55607A] tabular-nums whitespace-nowrap">
+                                                <td className="py-2.5 px-3 font-medium text-[#55607A] tabular-nums whitespace-nowrap truncate">
                                                    $ {Math.abs(totalAmount).toLocaleString('es-CL')}
                                                 </td>
-                                                <td className="py-3 px-4 text-[#55607A] whitespace-nowrap">
+                                                <td className="py-2.5 px-3 text-[#55607A] whitespace-nowrap truncate">
                                                    {dateStr}
                                                 </td>
-                                                <td className="py-3 px-4 whitespace-nowrap">
+                                                <td className="py-2.5 px-3 whitespace-nowrap">
                                                    {isBank ? (
                                                       <span className="inline-flex items-center rounded-md overflow-hidden text-[10px] font-bold border border-[#E2EAFD] shadow-2xs">
                                                          <span className="px-2 h-5 flex items-center bg-[#5CB9A5] text-white">
@@ -3376,30 +3396,32 @@ export default function BankCartolasPage() {
                                                       renderDocBadge(d.doc_type_code, d.folio || d.id)
                                                    )}
                                                 </td>
-                                                <td className="py-3 px-4">
-                                                   <div className="truncate max-w-xs md:max-w-md text-xs font-medium text-[#55607A]" title={descStr}>
+                                                <td className="py-2.5 px-3 overflow-hidden">
+                                                   <div className="truncate text-xs font-medium text-[#55607A]" title={descStr}>
                                                       {descStr}
                                                    </div>
                                                 </td>
-                                                <td className="py-3 px-4 text-right whitespace-nowrap">
-                                                   <button
-                                                      type="button"
-                                                      onClick={() => toggleCandidateSelection(d)}
-                                                      className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-bold shadow-xs transition cursor-pointer ${
-                                                         selected
-                                                            ? 'bg-[#1F6BFF] hover:bg-[#1657D7] text-white'
-                                                            : 'border border-[#C3D4FA] bg-white hover:bg-[#EEF3FF] text-[#0A1A3F]'
-                                                      }`}
-                                                   >
-                                                      {selected ? (
-                                                         <>
-                                                            <CheckIcon className="w-3.5 h-3.5 stroke-[2.5]" />
-                                                            <span>Seleccionado</span>
-                                                         </>
-                                                      ) : (
-                                                         <span>Seleccionar</span>
-                                                      )}
-                                                   </button>
+                                                <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                                                   <div className="flex justify-end">
+                                                      <button
+                                                         type="button"
+                                                         onClick={() => toggleCandidateSelection(d)}
+                                                         className={`inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold shadow-xs transition cursor-pointer ${
+                                                            selected
+                                                               ? 'bg-[#1F6BFF] hover:bg-[#1657D7] text-white'
+                                                               : 'border border-[#C3D4FA] bg-white hover:bg-[#EEF3FF] text-[#0A1A3F]'
+                                                         }`}
+                                                      >
+                                                         {selected ? (
+                                                            <>
+                                                               <CheckIcon className="w-3.5 h-3.5 stroke-[2.5]" />
+                                                               <span>Seleccionado</span>
+                                                            </>
+                                                         ) : (
+                                                            <span>Seleccionar</span>
+                                                         )}
+                                                      </button>
+                                                   </div>
                                                 </td>
                                              </tr>
                                           );
@@ -3407,7 +3429,6 @@ export default function BankCartolasPage() {
                                     )}
                                  </tbody>
                               </table>
-                           </div>
 
                            {/* Paginación si aplica */}
                            {selectedTargetKind === 'document' && modalTotalPages > 1 && (
@@ -3438,7 +3459,7 @@ export default function BankCartolasPage() {
                   </div>
 
                   {/* Footer */}
-                  <div className="px-6 py-4 bg-white border-t border-[#E2EAFD] flex items-center justify-between shrink-0">
+                  <div className="px-5 py-3.5 bg-white border-t border-[#E2EAFD] flex items-center justify-between shrink-0">
                      <div>
                         {txRemainingAfter === 0 && assigned > 0 ? (
                            <div className="flex items-center gap-2 text-xs font-bold text-[#1F6BFF]">
