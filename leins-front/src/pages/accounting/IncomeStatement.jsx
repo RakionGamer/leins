@@ -78,18 +78,18 @@ export default function IncomeStatement() {
       const now = new Date();
       return toYmd(new Date(now.getFullYear(), now.getMonth() + 1, 0));
    });
-   const [reportLevel, setReportLevel] = useState(1); // 1 = Agrupado, 2 = Por cuenta
+   const [reportLevel, setReportLevel] = useState(2); // 1 = Agrupado, 2 = Por cuenta (Cuentas visibles por defecto)
 
    // Estado de datos
    const [statementData, setStatementData] = useState(null);
    const [loading, setLoading] = useState(true);
    const [error, setError] = useState(null);
 
-   // Filas expandidas (por defecto ingresos expandido según imagen de referencia)
+   // Filas expandidas (todas abiertas por defecto en modo "Por cuenta")
    const [expandedGroups, setExpandedGroups] = useState({
       ingresos: true,
-      costos: false,
-      gastos: false,
+      costos: true,
+      gastos: true,
    });
 
    // Estado del Modal Mayor Analítico Auxiliar (Drill-down)
@@ -393,12 +393,10 @@ export default function IncomeStatement() {
                   type="button"
                   onClick={() => {
                      setReportLevel(2);
-                     const allExp = {};
-                     structure.forEach(g => { allExp[g.key] = true; });
-                     setExpandedGroups(allExp);
+                     setExpandedGroups({ ingresos: true, costos: true, gastos: true });
                   }}
                   className={`px-3.5 py-1.5 rounded-lg text-xs transition cursor-pointer ${
-                     reportLevel === 2 && Object.values(expandedGroups).every(Boolean)
+                     reportLevel === 2
                         ? 'bg-[#1F6BFF] text-white font-bold shadow-xs'
                         : 'text-[#55607A] hover:text-[#0A1A3F] font-semibold'
                   }`}
@@ -409,6 +407,7 @@ export default function IncomeStatement() {
                   type="button"
                   onClick={() => {
                      setReportLevel(1);
+                     setExpandedGroups({ ingresos: false, costos: false, gastos: false });
                   }}
                   className={`px-3.5 py-1.5 rounded-lg text-xs transition cursor-pointer ${
                      reportLevel === 1
@@ -422,9 +421,10 @@ export default function IncomeStatement() {
                   type="button"
                   onClick={() => {
                      setReportLevel(2);
+                     setExpandedGroups({ ingresos: true, costos: true, gastos: true });
                   }}
                   className={`px-3.5 py-1.5 rounded-lg text-xs transition cursor-pointer ${
-                     reportLevel === 2 && !Object.values(expandedGroups).every(Boolean)
+                     reportLevel === 2
                         ? 'bg-[#1F6BFF] text-white font-bold shadow-xs'
                         : 'text-[#55607A] hover:text-[#0A1A3F] font-semibold'
                   }`}
@@ -628,7 +628,7 @@ export default function IncomeStatement() {
                            }
 
                            // 3. Grupos principales (1. Ingresos operacionales, 2. Costos, 3. Gastos)
-                           const isExpanded = Boolean(expandedGroups[item.key]);
+                           const isExpanded = reportLevel === 2 || Boolean(expandedGroups[item.key]);
                            const isNegativeCost = item.key === 'costos' || item.key === 'gastos';
 
                            return (

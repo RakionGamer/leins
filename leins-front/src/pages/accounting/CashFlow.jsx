@@ -447,13 +447,11 @@ export default function CashFlow() {
                   type="button"
                   onClick={() => {
                      setReportLevel(2);
-                     const allExp = {};
-                     structure.forEach(g => { allExp[g.key] = true; });
-                     setExpandedGroups(allExp);
+                     setExpandedGroups({ operacion: true });
                   }}
                   className={`px-3.5 py-1.5 rounded-lg text-xs transition cursor-pointer ${
-                     reportLevel === 2 && Object.values(expandedGroups).every(Boolean)
-                        ? 'bg-white text-[#0A1A3F] font-bold shadow-xs'
+                     reportLevel === 2
+                        ? 'bg-[#1F6BFF] text-white font-bold shadow-xs'
                         : 'text-[#55607A] hover:text-[#0A1A3F] font-semibold'
                   }`}
                >
@@ -472,11 +470,12 @@ export default function CashFlow() {
                </button>
                <button
                   type="button"
-                  onClick={() => setReportLevel(2)}
+                  onClick={() => {
+                     setReportLevel(2);
+                     setExpandedGroups({ operacion: true });
+                  }}
                   className={`px-3.5 py-1.5 rounded-lg text-xs transition cursor-pointer ${
-                     reportLevel === 2 && !Object.values(expandedGroups).every(Boolean)
-                        ? 'bg-[#1F6BFF] text-white font-bold shadow-xs'
-                        : reportLevel === 2
+                     reportLevel === 2
                         ? 'bg-[#1F6BFF] text-white font-bold shadow-xs'
                         : 'text-[#55607A] hover:text-[#0A1A3F] font-semibold'
                   }`}

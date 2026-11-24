@@ -3782,7 +3782,7 @@ class AccountingService {
             amount = isCreditNote ? -Math.abs(net) : Math.abs(net);
          }
 
-         if (targetAcc && ['INGRESOS', 'COSTOS', 'GASTOS'].includes(targetAcc.type)) {
+         if (targetAcc && (['INGRESOS', 'COSTOS', 'GASTOS'].includes(targetAcc.type) || targetAcc.code?.startsWith('4') || targetAcc.code?.startsWith('5') || targetAcc.code?.startsWith('6'))) {
             const entry = getOrCreateAccMov(targetAcc);
             entry.monthlyAmounts[mKey] = (entry.monthlyAmounts[mKey] || 0) + amount;
             entry.total += amount;
@@ -3790,7 +3790,7 @@ class AccountingService {
       }
 
       // Clasificación jerárquica:
-      // 1. Ingresos Operacionales (Cuentas tipo INGRESOS o código 51.*)
+      // 1. Ingresos Operacionales (Cuentas tipo INGRESOS o código 4.* / 51.*)
       // 2. Costo Directo de Ventas (Cuentas tipo COSTOS o código 61.01.* o nombre con costo)
       // 3. Gastos Operacionales / OPEX (Cuentas tipo GASTOS 61.02, 61.03, 61.04...)
       const ingresosAccounts = [];
@@ -3798,7 +3798,7 @@ class AccountingService {
       const gastosAccounts = [];
 
       for (const item of accountMovements.values()) {
-         if (item.code.startsWith('51') || item.type === 'INGRESOS') {
+         if (item.code.startsWith('5') || item.code.startsWith('4') || item.type === 'INGRESOS') {
             ingresosAccounts.push(item);
          } else if (item.code.startsWith('61.01') || item.type === 'COSTOS' || item.name.toLowerCase().includes('costo')) {
             costosAccounts.push(item);
@@ -4273,6 +4273,7 @@ class AccountingService {
          order: [['code', 'ASC']]
       });
       const accountByCode = new Map(allAccounts.map(a => [a.code, a]));
+      const accountById = new Map(allAccounts.map(a => [a.id, a]));
 
       // Estructura de conceptos (Flujo Directo basado estrictamente en conciliaciones bancarias)
       const concepts = [
@@ -4331,6 +4332,21 @@ class AccountingService {
          }
       }
 
+      const addConceptAccountAmount = (conceptKey, accCode, accName, mKey, amt) => {
+         if (!conceptData[conceptKey].accounts[accCode]) {
+            const initMonthly = {};
+            monthsList.forEach(m => { initMonthly[m.key] = 0; });
+            conceptData[conceptKey].accounts[accCode] = {
+               code: accCode,
+               name: accName || accCode,
+               monthly: initMonthly,
+               total: 0
+            };
+         }
+         conceptData[conceptKey].accounts[accCode].monthly[mKey] = (conceptData[conceptKey].accounts[accCode].monthly[mKey] || 0) + amt;
+         conceptData[conceptKey].accounts[accCode].total += amt;
+      };
+
       // Procesar exclusivamente los movimientos con conciliación bancaria
       for (const r of recons) {
          const tx = r.tx;
@@ -4343,42 +4359,38 @@ class AccountingService {
 
          const amount = Number(r.amount_applied || tx.amount || 0);
          const docTypeCode = doc ? Number(doc.doc_type_code) : null;
+         const docAcc = doc?.accounting_account_id ? accountById.get(doc.accounting_account_id) : null;
 
          if (tx.type === 'income') {
             // Abono en banco conciliado con documento de venta
-            const targetAcc = (docTypeCode === 39 || docTypeCode === 41) ? '11.05.20' : '11.05.10';
+            const targetAccCode = docAcc ? docAcc.code : ((docTypeCode === 39 || docTypeCode === 41) ? '11.05.20' : '11.05.10');
+            const targetAccName = docAcc ? docAcc.name : ((docTypeCode === 39 || docTypeCode === 41) ? 'Clientes boletas' : 'Clientes');
             conceptData.cobros_clientes.monthly[mKey] = (conceptData.cobros_clientes.monthly[mKey] || 0) + amount;
             conceptData.cobros_clientes.total += amount;
-            if (conceptData.cobros_clientes.accounts[targetAcc]) {
-               conceptData.cobros_clientes.accounts[targetAcc].monthly[mKey] += amount;
-               conceptData.cobros_clientes.accounts[targetAcc].total += amount;
-            }
+            addConceptAccountAmount('cobros_clientes', targetAccCode, targetAccName, mKey, amount);
          } else if (tx.type === 'expense') {
             // Cargo en banco
             if (docTypeCode === 1002) {
                // Conciliado con Boleta de Honorarios
+               const targetAccCode = docAcc ? docAcc.code : '21.12.15';
+               const targetAccName = docAcc ? docAcc.name : 'Honorarios por pagar';
                conceptData.pagos_honorarios.monthly[mKey] = (conceptData.pagos_honorarios.monthly[mKey] || 0) + amount;
                conceptData.pagos_honorarios.total += amount;
-               if (conceptData.pagos_honorarios.accounts['21.12.15']) {
-                  conceptData.pagos_honorarios.accounts['21.12.15'].monthly[mKey] += amount;
-                  conceptData.pagos_honorarios.accounts['21.12.15'].total += amount;
-               }
+               addConceptAccountAmount('pagos_honorarios', targetAccCode, targetAccName, mKey, amount);
             } else if (docTypeCode == null || doc?.source === 'MANUAL') {
                // Gasto Directo / Sin soporte tributado (Arriendo, Patente, etc.)
+               const targetAccCode = docAcc ? docAcc.code : '61.04.10';
+               const targetAccName = docAcc ? docAcc.name : 'Gastos de administración';
                conceptData.pagos_gastos.monthly[mKey] = (conceptData.pagos_gastos.monthly[mKey] || 0) + amount;
                conceptData.pagos_gastos.total += amount;
-               if (conceptData.pagos_gastos.accounts['61.04.00']) {
-                  conceptData.pagos_gastos.accounts['61.04.00'].monthly[mKey] += amount;
-                  conceptData.pagos_gastos.accounts['61.04.00'].total += amount;
-               }
+               addConceptAccountAmount('pagos_gastos', targetAccCode, targetAccName, mKey, amount);
             } else {
                // Conciliado con Factura de Compra / Proveedores
+               const targetAccCode = docAcc ? docAcc.code : '21.07.10';
+               const targetAccName = docAcc ? docAcc.name : 'Proveedores nacionales';
                conceptData.pagos_proveedores.monthly[mKey] = (conceptData.pagos_proveedores.monthly[mKey] || 0) + amount;
                conceptData.pagos_proveedores.total += amount;
-               if (conceptData.pagos_proveedores.accounts['21.07.10']) {
-                  conceptData.pagos_proveedores.accounts['21.07.10'].monthly[mKey] += amount;
-                  conceptData.pagos_proveedores.accounts['21.07.10'].total += amount;
-               }
+               addConceptAccountAmount('pagos_proveedores', targetAccCode, targetAccName, mKey, amount);
             }
          }
       }
