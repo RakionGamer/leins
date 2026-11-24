@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback } from "react";
+import { createPortal } from "react-dom";
 import * as XLSX from "xlsx";
 import { useAuth } from '../../context/AuthContext';
 import { usePermissions } from '../../hooks/usePermissions';
@@ -1187,8 +1188,13 @@ export default function BankCartolasPage() {
    const [isEditingAssign, setIsEditingAssign] = useState(false);
    const modalBodyRef = React.useRef(null);
    useEffect(() => {
-      if (reconcileTx && modalBodyRef.current) {
-         modalBodyRef.current.scrollTop = 0;
+      if (reconcileTx) {
+         modalBodyRef.current && (modalBodyRef.current.scrollTop = 0);
+         const prevOverflow = document.body.style.overflow;
+         document.body.style.overflow = 'hidden';
+         return () => {
+            document.body.style.overflow = prevOverflow;
+         };
       }
    }, [reconcileTx]);
    const [isTyping, setIsTyping] = React.useState(false);
@@ -2803,13 +2809,13 @@ export default function BankCartolasPage() {
             </div>
          )}
          {/* ===== Modal Conciliar (Jeito Oficial Pixel-Perfect) ===== */}
-         {reconcileTx && (
+         {reconcileTx && typeof document !== 'undefined' && createPortal(
             <div
-               className="fixed inset-0 z-[200] bg-[#0A1A3F]/40 backdrop-blur-xs flex items-start justify-center pt-3 sm:pt-4 md:pt-6 pb-4 px-3 sm:px-4 overflow-y-auto"
+               className="fixed inset-0 z-[200] bg-[#0A1A3F]/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 md:p-6 overflow-y-auto"
                onClick={() => { if (!showPayableDetail) closeConciliarSmooth(); }}
             >
                <div
-                  className={`w-full max-w-5xl max-h-[94vh] flex flex-col bg-white rounded-3xl shadow-2xl border border-[#E2EAFD] overflow-hidden my-auto sm:my-0 ${
+                  className={`w-full max-w-5xl max-h-[92vh] flex flex-col bg-white rounded-3xl shadow-2xl border border-[#E2EAFD] overflow-hidden my-auto ${
                      modalClosing ? 'animate-[fadeOutDown_.18s_ease-in_forwards]' : 'opacity-0 translate-y-2 animate-[fadeInUp_.24s_ease-out_forwards]'
                   }`}
                   onClick={(e) => e.stopPropagation()}
@@ -3531,7 +3537,8 @@ export default function BankCartolasPage() {
                      </div>
                   </div>
                )}
-            </div>
+            </div>,
+            document.body
          )}
 
          {/* ===== modal subir excel ===== */}
