@@ -7,7 +7,17 @@ import { formatRutCL } from '../../utils/validators';
 import EntityCredentialsPanel from './EntityCredentialsPanel';
 import ClientUsersPanel from './ClientUsersPanel';
 import EntityRowActionsMenu from './EntityRowActionsMenu';
-import { PlusIcon, ArrowUpIcon, ArrowDownIcon } from '@heroicons/react/24/outline';
+import {
+   PlusIcon,
+   ArrowUpIcon,
+   ArrowDownIcon,
+   ArrowPathIcon,
+   MagnifyingGlassIcon,
+   BuildingOffice2Icon,
+   CheckCircleIcon,
+   NoSymbolIcon,
+   BuildingLibraryIcon,
+} from '@heroicons/react/24/outline';
 import {
    listEntities,
    createEntity,
@@ -46,7 +56,7 @@ function useDebouncedValue(value, delay = 300) {
 
 export default function EntitiesPage() {
    const queryClient = useQueryClient();
-   const { entityId, setEntity } = useEntity();
+   const { entityId, setEntity, currentEntity } = useEntity();
 
    const [search, setSearch] = useState('');
    const [page, setPage] = useState(0);
@@ -82,6 +92,29 @@ export default function EntitiesPage() {
    const total = Number(data?.total || rows.length || 0);
    const totalPages = Math.max(1, Math.ceil(total / pageSize));
    const selectedEntityId = Number(entityId || 0);
+
+   // Estadísticas para las tarjetas KPI de Jeito
+   const stats = useMemo(() => {
+      let activeCount = 0;
+      let inactiveCount = 0;
+      for (const r of rows) {
+         if (isEntityActive(r)) activeCount++;
+         else inactiveCount++;
+      }
+      return {
+         total,
+         active: activeOnly ? total : activeCount,
+         inactive: activeOnly ? 0 : inactiveCount,
+      };
+   }, [rows, total, activeOnly]);
+
+   // Nombre de la entidad seleccionada en la sesión actual
+   const activeSessionEntityName = useMemo(() => {
+      if (currentEntity?.name) return currentEntity.name;
+      const found = rows.find((r) => Number(r.id) === selectedEntityId);
+      if (found) return found.name || found.legal_name || `Entidad #${found.id}`;
+      return selectedEntityId ? `Entidad #${selectedEntityId}` : 'Ninguna seleccionada';
+   }, [currentEntity, rows, selectedEntityId]);
 
    const formTitle = useMemo(
       () => (editingId ? 'Editar entidad' : 'Nueva entidad'),
@@ -190,7 +223,7 @@ export default function EntitiesPage() {
       const isActive = isEntityActive(row);
       const nextStateId = isActive ? INACTIVE_STATE_ID : ACTIVE_STATE_ID;
       const action = isActive ? 'desactivar' : 'activar';
-      const ok = window.confirm(`Quieres ${action} la entidad ${row.name || row.legal_name || row.id}?`);
+      const ok = window.confirm(`¿Quieres ${action} la entidad ${row.name || row.legal_name || row.id}?`);
       if (!ok) return;
 
       try {
@@ -214,7 +247,7 @@ export default function EntitiesPage() {
 
    const onDelete = async (row) => {
       const ok = window.confirm(
-         `Vas a eliminar la entidad "${row.name || row.legal_name || row.id}". Esta accion no se puede deshacer. Continuar?`
+         `Vas a eliminar la entidad "${row.name || row.legal_name || row.id}". Esta acción no se puede deshacer. ¿Continuar?`
       );
       if (!ok) return;
 
@@ -231,8 +264,8 @@ export default function EntitiesPage() {
                .join(', ');
             toast.success(
                detail
-                  ? `No se pudo eliminar, tiene datos asociados: ${detail}. Se desactivo en su lugar.`
-                  : 'La entidad tenia datos asociados: se desactivo en lugar de eliminarse'
+                  ? `No se pudo eliminar, tiene datos asociados: ${detail}. Se desactivó en su lugar.`
+                  : 'La entidad tenía datos asociados: se desactivó en lugar de eliminarse'
             );
             if (Number(row.id) === selectedEntityId) clearSelectedEntity();
          }
@@ -247,69 +280,202 @@ export default function EntitiesPage() {
    };
 
    return (
-      <div className="animate-fade-in space-y-5">
-         <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-content)] p-4 md:p-5">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-               <div>
-                  <h1 className="text-xl md:text-2xl font-semibold text-[var(--heading)]">Entidades</h1>
-                  <p className="text-sm text-[var(--text-soft)] mt-1">
-                     Crea, edita y administra las entidades del sistema.
-                  </p>
+      <div className="space-y-6">
+         {/* ======================================================== */}
+         {/* 1. Encabezado principal (Jeito Official Identity)        */}
+         {/* ======================================================== */}
+         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+               <div className="flex items-center gap-2 text-xs font-medium text-[#8E9BB5] mb-1">
+                  <span>General</span>
+                  <span>›</span>
+                  <span className="text-[#55607A]">Entidades</span>
                </div>
-               <div className="flex flex-wrap items-center gap-3">
-                  <div className="inline-flex items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-1)] px-3 py-2 text-sm">
-                     <span className="text-[var(--text-soft)]">Total entidades</span>
-                     <span className="font-semibold text-[var(--heading)]">{total}</span>
-                     {isFetching && <span className="text-xs text-[var(--text-soft)]">(actualizando)</span>}
+               <h1 className="text-2xl sm:text-3xl font-nunito font-black text-[#0A1A3F] tracking-tight">
+                  Entidades
+               </h1>
+               <p className="text-xs sm:text-sm text-[#55607A] font-medium mt-0.5">
+                  Crea, edita y administra las entidades y empresas del sistema.
+               </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+               <button
+                  type="button"
+                  onClick={openCreateModal}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#1F6BFF] hover:bg-[#1657D7] text-white text-xs font-bold transition shadow-xs cursor-pointer"
+               >
+                  <PlusIcon className="w-4 h-4 stroke-[2.5]" />
+                  <span>Nueva entidad</span>
+               </button>
+            </div>
+         </div>
+
+         {/* ======================================================== */}
+         {/* 2. Tarjetas KPI de Resumen (Jeito Metric Cards)          */}
+         {/* ======================================================== */}
+         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Card 1: Total entidades */}
+            <div className="bg-white rounded-2xl border border-[#E2EAFD] p-4 shadow-xs flex items-center gap-3.5">
+               <div className="w-10 h-10 rounded-xl bg-[#EFF3FF] flex items-center justify-center text-[#1F6BFF] shrink-0">
+                  <BuildingOffice2Icon className="w-5 h-5 stroke-[2.2]" />
+               </div>
+               <div className="min-w-0">
+                  <div className="text-xs text-[#55607A] font-semibold">Total entidades</div>
+                  <div className="font-nunito font-black text-xl text-[#0A1A3F] tracking-tight mt-0.5">
+                     {total}
                   </div>
-                  <button
-                     type="button"
-                     onClick={openCreateModal}
-                     className="inline-flex items-center gap-2 rounded-lg bg-[var(--brand)] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-strong focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
-                  >
-                     <PlusIcon className="h-5 w-5" />
-                     Nueva entidad
-                  </button>
+               </div>
+            </div>
+
+            {/* Card 2: Entidades activas */}
+            <div className="bg-white rounded-2xl border border-[#E2EAFD] p-4 shadow-xs flex items-center gap-3.5">
+               <div className="w-10 h-10 rounded-xl bg-[#E8F8F0] flex items-center justify-center text-[#0D9488] shrink-0">
+                  <CheckCircleIcon className="w-5 h-5 stroke-[2.2]" />
+               </div>
+               <div className="min-w-0">
+                  <div className="text-xs text-[#55607A] font-semibold">Activas en página</div>
+                  <div className="font-nunito font-black text-xl text-[#0D9488] tracking-tight mt-0.5">
+                     {stats.active}
+                  </div>
+               </div>
+            </div>
+
+            {/* Card 3: Entidades inactivas */}
+            <div className="bg-white rounded-2xl border border-[#E2EAFD] p-4 shadow-xs flex items-center gap-3.5">
+               <div className="w-10 h-10 rounded-xl bg-[#F3F4F6] flex items-center justify-center text-[#6B7280] shrink-0">
+                  <NoSymbolIcon className="w-5 h-5 stroke-[2.2]" />
+               </div>
+               <div className="min-w-0">
+                  <div className="text-xs text-[#55607A] font-semibold">Inactivas en página</div>
+                  <div className="font-nunito font-black text-xl text-[#6B7280] tracking-tight mt-0.5">
+                     {stats.inactive}
+                  </div>
+               </div>
+            </div>
+
+            {/* Card 4: Entidad activa en sesión */}
+            <div className="bg-white rounded-2xl border border-[#E2EAFD] p-4 shadow-xs flex items-center gap-3.5">
+               <div className="w-10 h-10 rounded-xl bg-[#EFF3FF] flex items-center justify-center text-[#1F6BFF] shrink-0">
+                  <BuildingLibraryIcon className="w-5 h-5 stroke-[2.2]" />
+               </div>
+               <div className="min-w-0 flex-1">
+                  <div className="text-xs text-[#55607A] font-semibold">Entidad en sesión</div>
+                  <div className="font-nunito font-bold text-sm text-[#0A1A3F] truncate tracking-tight mt-0.5" title={activeSessionEntityName}>
+                     {activeSessionEntityName}
+                  </div>
                </div>
             </div>
          </div>
 
-         <div>
-            <section className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-content)] p-4">
-               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                  <h2 className="text-lg font-semibold text-[var(--heading)]">Listado</h2>
-                  <input
-                     type="text"
-                     value={search}
-                     onChange={(e) => {
-                        setSearch(e.target.value);
+         {/* ======================================================== */}
+         {/* 3. Tarjeta de Filtros de Búsqueda                       */}
+         {/* ======================================================== */}
+         <div className="bg-white rounded-2xl border border-[#E2EAFD] p-5 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+               <div className="flex items-center gap-2 text-sm font-bold text-[#0A1A3F]">
+                  <svg className="w-4 h-4 text-[#1F6BFF]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                     <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+                  </svg>
+                  <span>Filtros de búsqueda</span>
+               </div>
+               <div className="flex items-center gap-3">
+                  <button
+                     type="button"
+                     onClick={() => {
+                        setSearch('');
+                        setSortBy('name');
+                        setSortOrder('asc');
+                        setActiveOnly(false);
                         setPage(0);
                      }}
-                     className="border border-[var(--border-subtle)] bg-[var(--surface-1)] rounded-lg px-3 py-2 text-sm sm:w-[320px]"
-                     placeholder="Buscar por nombre o RUT..."
-                     autoComplete="off"
-                  />
-               </div>
+                     className="flex items-center gap-1.5 text-xs font-semibold text-[#8E9BB5] hover:text-[#0A1A3F] transition cursor-pointer"
+                  >
+                     <ArrowPathIcon className="w-3.5 h-3.5" />
+                     <span>Limpiar filtros</span>
+                  </button>
 
-               <div className="mt-3 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
-                  <div className="inline-flex items-center gap-2">
-                     <label htmlFor="entities-sort-by" className="text-xs text-[var(--text-soft)] whitespace-nowrap">Ordenar por</label>
-                     <select
-                        id="entities-sort-by"
-                        value={sortBy}
-                        onChange={(e) => {
-                           setSortBy(e.target.value);
+                  <div className="inline-flex p-1 bg-[#F5F8FF] rounded-xl border border-[#E2EAFD] text-xs font-medium">
+                     <button
+                        type="button"
+                        onClick={() => {
+                           setActiveOnly(false);
                            setPage(0);
                         }}
-                        className="min-w-[128px] border border-[var(--border-subtle)] bg-[var(--surface-1)] text-[var(--text-main)] rounded-lg pl-3 pr-9 py-1.5 text-sm cursor-pointer"
+                        className={`px-3 py-1 rounded-lg transition font-bold text-xs cursor-pointer ${
+                           !activeOnly
+                              ? 'bg-white text-[#1F6BFF] shadow-xs'
+                              : 'text-[#55607A] hover:text-[#0A1A3F]'
+                        }`}
                      >
-                        <option value="name">Nombre</option>
-                        <option value="rut">RUT</option>
-                        <option value="id">ID</option>
-                     </select>
+                        Todas
+                     </button>
+                     <button
+                        type="button"
+                        onClick={() => {
+                           setActiveOnly(true);
+                           setPage(0);
+                        }}
+                        className={`px-3 py-1 rounded-lg transition font-bold text-xs cursor-pointer ${
+                           activeOnly
+                              ? 'bg-white text-[#1F6BFF] shadow-xs'
+                              : 'text-[#55607A] hover:text-[#0A1A3F]'
+                        }`}
+                     >
+                        Solo activas
+                     </button>
                   </div>
-                  <div className="inline-flex items-center gap-2">
-                     <label htmlFor="entities-sort-order" className="text-xs text-[var(--text-soft)] whitespace-nowrap">Dirección</label>
+               </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 sm:gap-4 pt-1">
+               {/* 1. Búsqueda */}
+               <div className="lg:col-span-6">
+                  <label className="block text-[11px] font-bold text-[#55607A] uppercase tracking-wider mb-1.5">
+                     Búsqueda
+                  </label>
+                  <div className="relative flex items-center">
+                     <MagnifyingGlassIcon className="w-4 h-4 text-[#8E9BB5] absolute left-3.5 pointer-events-none" />
+                     <input
+                        type="text"
+                        value={search}
+                        onChange={(e) => {
+                           setSearch(e.target.value);
+                           setPage(0);
+                        }}
+                        className="w-full h-11 pl-10 pr-4 text-xs font-medium rounded-xl border border-[#E2EAFD] bg-[#F8FAFF] text-[#0A1A3F] placeholder-[#8E9BB5] focus:outline-none focus:ring-1 focus:ring-[#1F6BFF] focus:border-[#1F6BFF] transition"
+                        placeholder="Buscar por nombre o RUT..."
+                        autoComplete="off"
+                     />
+                  </div>
+               </div>
+
+               {/* 2. Ordenar por */}
+               <div className="lg:col-span-3">
+                  <label htmlFor="entities-sort-by" className="block text-[11px] font-bold text-[#55607A] uppercase tracking-wider mb-1.5">
+                     Ordenar por
+                  </label>
+                  <select
+                     id="entities-sort-by"
+                     value={sortBy}
+                     onChange={(e) => {
+                        setSortBy(e.target.value);
+                        setPage(0);
+                     }}
+                     className="w-full h-11 pl-3.5 pr-9 text-xs font-medium rounded-xl border border-[#E2EAFD] bg-[#F8FAFF] text-[#0A1A3F] focus:outline-none focus:ring-1 focus:ring-[#1F6BFF] focus:border-[#1F6BFF] transition cursor-pointer"
+                  >
+                     <option value="name">Nombre</option>
+                     <option value="rut">RUT</option>
+                     <option value="id">ID</option>
+                  </select>
+               </div>
+
+               {/* 3. Dirección */}
+               <div className="lg:col-span-3">
+                  <label htmlFor="entities-sort-order" className="block text-[11px] font-bold text-[#55607A] uppercase tracking-wider mb-1.5">
+                     Dirección
+                  </label>
+                  <div className="flex items-center gap-2">
                      <select
                         id="entities-sort-order"
                         value={sortOrder}
@@ -317,7 +483,7 @@ export default function EntitiesPage() {
                            setSortOrder(e.target.value);
                            setPage(0);
                         }}
-                        className="min-w-[144px] border border-[var(--border-subtle)] bg-[var(--surface-1)] text-[var(--text-main)] rounded-lg pl-3 pr-9 py-1.5 text-sm cursor-pointer"
+                        className="w-full h-11 pl-3.5 pr-9 text-xs font-medium rounded-xl border border-[#E2EAFD] bg-[#F8FAFF] text-[#0A1A3F] focus:outline-none focus:ring-1 focus:ring-[#1F6BFF] focus:border-[#1F6BFF] transition cursor-pointer"
                      >
                         <option value="asc">Ascendente</option>
                         <option value="desc">Descendente</option>
@@ -328,7 +494,7 @@ export default function EntitiesPage() {
                            setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'));
                            setPage(0);
                         }}
-                        className="inline-flex h-[34px] w-[34px] items-center justify-center rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-1)] text-[var(--text-main)] hover:bg-[var(--surface-2)] transition cursor-pointer"
+                        className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#E2EAFD] bg-[#F8FAFF] text-[#0A1A3F] hover:bg-white hover:border-[#1F6BFF] transition cursor-pointer"
                         title={sortOrder === 'asc' ? 'Orden ascendente (clic para cambiar a descendente)' : 'Orden descendente (clic para cambiar a ascendente)'}
                         aria-label={sortOrder === 'asc' ? 'Cambiar dirección a descendente' : 'Cambiar dirección a ascendente'}
                      >
@@ -339,197 +505,265 @@ export default function EntitiesPage() {
                         )}
                      </button>
                   </div>
-                  <label className="inline-flex items-center gap-2 text-xs text-[var(--text-soft)] cursor-pointer select-none">
-                     <input
-                        type="checkbox"
-                        checked={activeOnly}
-                        onChange={(e) => {
-                           setActiveOnly(e.target.checked);
-                           setPage(0);
-                        }}
-                        className="rounded border-[var(--border-subtle)] text-[var(--brand)] focus:ring-[var(--brand)]"
-                     />
-                     Solo activas
-                  </label>
                </div>
+            </div>
 
-               {error && (
-                  <div className="mt-3 rounded-lg border border-red-200 bg-red-50 text-red-700 text-sm p-3">
-                     {error?.message || 'No se pudieron cargar las entidades'}
-                  </div>
-               )}
-
-               {isLoading ? (
-                  <div className="mt-4 text-sm text-[var(--text-soft)]">Cargando entidades...</div>
-               ) : (
-                  <div className="mt-4 overflow-x-auto">
-                     <table className="w-full min-w-[700px] text-sm">
-                        <thead>
-                           <tr className="border-b border-[var(--border-subtle)] text-[var(--text-soft)]">
-                              <th className="text-left py-2 px-2">
-                                 <button
-                                    type="button"
-                                    onClick={() => handleHeaderSort('name')}
-                                    className={`inline-flex items-center gap-1 font-semibold hover:text-[var(--heading)] transition cursor-pointer ${sortBy === 'name' ? 'text-[var(--heading)]' : 'text-[var(--text-soft)]'}`}
-                                 >
-                                    <span>Nombre</span>
-                                    {sortBy === 'name' && (
-                                       sortOrder === 'asc'
-                                          ? <ArrowUpIcon className="h-3.5 w-3.5 text-[var(--brand)]" />
-                                          : <ArrowDownIcon className="h-3.5 w-3.5 text-[var(--brand)]" />
-                                    )}
-                                 </button>
-                              </th>
-                              <th className="text-left py-2 px-2">
-                                 <button
-                                    type="button"
-                                    onClick={() => handleHeaderSort('rut')}
-                                    className={`inline-flex items-center gap-1 font-semibold hover:text-[var(--heading)] transition cursor-pointer ${sortBy === 'rut' ? 'text-[var(--heading)]' : 'text-[var(--text-soft)]'}`}
-                                 >
-                                    <span>RUT</span>
-                                    {sortBy === 'rut' && (
-                                       sortOrder === 'asc'
-                                          ? <ArrowUpIcon className="h-3.5 w-3.5 text-[var(--brand)]" />
-                                          : <ArrowDownIcon className="h-3.5 w-3.5 text-[var(--brand)]" />
-                                    )}
-                                 </button>
-                              </th>
-                              <th className="text-left py-2 px-2">Estado</th>
-                              <th className="text-left py-2 px-2">Razón social</th>
-                              <th className="text-left py-2 px-2">
-                                 <button
-                                    type="button"
-                                    onClick={() => handleHeaderSort('id')}
-                                    className={`inline-flex items-center gap-1 font-semibold hover:text-[var(--heading)] transition cursor-pointer ${sortBy === 'id' ? 'text-[var(--heading)]' : 'text-[var(--text-soft)]'}`}
-                                 >
-                                    <span>ID</span>
-                                    {sortBy === 'id' && (
-                                       sortOrder === 'asc'
-                                          ? <ArrowUpIcon className="h-3.5 w-3.5 text-[var(--brand)]" />
-                                          : <ArrowDownIcon className="h-3.5 w-3.5 text-[var(--brand)]" />
-                                    )}
-                                 </button>
-                              </th>
-                              <th className="w-[68px] text-right py-2 px-2">Acciones</th>
-                           </tr>
-                        </thead>
-                        <tbody>
-                           {rows.length === 0 && (
-                              <tr>
-                                 <td colSpan={6} className="py-6 text-center text-[var(--text-soft)]">
-                                    No hay entidades registradas.
-                                 </td>
-                              </tr>
-                           )}
-                           {rows.map((row) => {
-                              const isSelected = Number(row.id) === selectedEntityId;
-                              const isActive = isEntityActive(row);
-                              const canDelete = row.permissions?.can_delete ?? true;
-                              const canUpdate = row.permissions?.can_update ?? true;
-                              return (
-                                 <tr key={row.id} className="border-b border-[var(--border-subtle)] last:border-b-0">
-                                    <td className="py-2 px-2 text-[var(--text-main)]">
-                                       <div className="flex items-center gap-2">
-                                          <span>{row.name || row.legal_name || '-'}</span>
-                                          {isSelected && (
-                                             <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
-                                                Seleccionada
-                                             </span>
-                                          )}
-                                       </div>
-                                    </td>
-                                    <td className="py-2 px-2 text-[var(--text-main)]">{row.rut || '-'}</td>
-                                    <td className="py-2 px-2">
-                                       <span className={`text-xs px-2 py-1 rounded-full ${isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600'}`}>
-                                          {entityStateLabel(row)}
-                                       </span>
-                                    </td>
-                                    <td className="py-2 px-2 text-[var(--text-main)]">{row.legal_name || '-'}</td>
-                                    <td className="py-2 px-2 text-[var(--text-soft)]">{row.id}</td>
-                                    <td className="py-2 px-2">
-                                       <div className="flex justify-end">
-                                          <EntityRowActionsMenu
-                                             row={row}
-                                             isSelected={isSelected}
-                                             isActive={isActive}
-                                             canUpdate={canUpdate}
-                                             canDelete={canDelete}
-                                             isChangingState={Number(changingStateId) === Number(row.id)}
-                                             isDeleting={Number(deletingId) === Number(row.id)}
-                                             onSelect={selectEntity}
-                                             onEdit={startEdit}
-                                             onOpenCredentials={setCredentialsEntity}
-                                             onOpenClients={setClientsEntity}
-                                             onToggleState={onToggleState}
-                                             onDelete={onDelete}
-                                          />
-                                       </div>
-                                    </td>
-                                 </tr>
-                              );
-                           })}
-                        </tbody>
-                     </table>
-                  </div>
-               )}
-
-               {!isLoading && (
-                  <div className="mt-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-t border-[var(--border-subtle)] pt-3">
-                     <div className="text-sm text-[var(--text-soft)]">
-                        Página {Math.min(page + 1, totalPages)} de {totalPages}
-                     </div>
-                     <div className="flex items-center gap-2">
-                        <button
-                           type="button"
-                           disabled={page === 0}
-                           onClick={() => setPage((p) => Math.max(0, p - 1))}
-                           className="px-3 py-1.5 rounded-md border border-[var(--border-subtle)] disabled:opacity-50"
-                        >
-                           Anterior
-                        </button>
-                        <button
-                           type="button"
-                           disabled={(page + 1) >= totalPages}
-                           onClick={() => setPage((p) => p + 1)}
-                           className="px-3 py-1.5 rounded-md border border-[var(--border-subtle)] disabled:opacity-50"
-                        >
-                           Siguiente
-                        </button>
-                        <select
-                           aria-label="Filas por página"
-                           value={pageSize}
-                           onChange={(e) => {
-                              setPageSize(Number(e.target.value));
-                              setPage(0);
-                           }}
-                           className="min-w-[82px] border border-[var(--border-subtle)] bg-[var(--surface-1)] text-[var(--text-main)] rounded-lg pl-3 pr-9 py-1.5 text-sm cursor-pointer"
-                        >
-                           <option value={25}>25</option>
-                           <option value={50}>50</option>
-                           <option value={100}>100</option>
-                        </select>
-                     </div>
-                  </div>
-               )}
-            </section>
+            {/* Checkbox oculto/accesible para compatibilidad completa */}
+            <div className="hidden">
+               <label className="inline-flex items-center gap-2 text-xs text-[#55607A]">
+                  <input
+                     type="checkbox"
+                     checked={activeOnly}
+                     onChange={(e) => {
+                        setActiveOnly(e.target.checked);
+                        setPage(0);
+                     }}
+                  />
+                  Solo activas
+               </label>
+            </div>
          </div>
 
+         {error && (
+            <div className="rounded-2xl border border-rose-200 bg-rose-50 text-rose-700 text-xs font-medium p-4 flex items-center justify-between">
+               <span>{error?.message || 'No se pudieron cargar las entidades'}</span>
+               <button
+                  type="button"
+                  onClick={refreshEntities}
+                  className="underline font-bold hover:text-rose-900"
+               >
+                  Reintentar
+               </button>
+            </div>
+         )}
+
+         {/* ======================================================== */}
+         {/* 4. Tabla de Entidades (Jeito Official Identity)          */}
+         {/* ======================================================== */}
+         <div className="bg-white rounded-2xl border border-[#E2EAFD] shadow-xs overflow-hidden">
+            <div className="overflow-x-auto">
+               <table className="w-full text-left border-collapse">
+                  <thead>
+                     <tr className="bg-[#F0F4FD] text-[#55607A] text-[11px] font-bold uppercase tracking-wider border-b border-[#E2EAFD]">
+                        <th className="py-3.5 px-4">
+                           <button
+                              type="button"
+                              onClick={() => handleHeaderSort('name')}
+                              className={`inline-flex items-center gap-1.5 font-bold hover:text-[#0A1A3F] transition cursor-pointer ${
+                                 sortBy === 'name' ? 'text-[#1F6BFF]' : 'text-[#55607A]'
+                              }`}
+                           >
+                              <span>Nombre / Fantasía</span>
+                              {sortBy === 'name' && (
+                                 sortOrder === 'asc'
+                                    ? <ArrowUpIcon className="h-3.5 w-3.5 text-[#1F6BFF]" />
+                                    : <ArrowDownIcon className="h-3.5 w-3.5 text-[#1F6BFF]" />
+                              )}
+                           </button>
+                        </th>
+                        <th className="py-3.5 px-4">
+                           <button
+                              type="button"
+                              onClick={() => handleHeaderSort('rut')}
+                              className={`inline-flex items-center gap-1.5 font-bold hover:text-[#0A1A3F] transition cursor-pointer ${
+                                 sortBy === 'rut' ? 'text-[#1F6BFF]' : 'text-[#55607A]'
+                              }`}
+                           >
+                              <span>RUT</span>
+                              {sortBy === 'rut' && (
+                                 sortOrder === 'asc'
+                                    ? <ArrowUpIcon className="h-3.5 w-3.5 text-[#1F6BFF]" />
+                                    : <ArrowDownIcon className="h-3.5 w-3.5 text-[#1F6BFF]" />
+                              )}
+                           </button>
+                        </th>
+                        <th className="py-3.5 px-4">Razón social</th>
+                        <th className="py-3.5 px-4">Estado</th>
+                        <th className="py-3.5 px-4">
+                           <button
+                              type="button"
+                              onClick={() => handleHeaderSort('id')}
+                              className={`inline-flex items-center gap-1.5 font-bold hover:text-[#0A1A3F] transition cursor-pointer ${
+                                 sortBy === 'id' ? 'text-[#1F6BFF]' : 'text-[#55607A]'
+                              }`}
+                           >
+                              <span>ID</span>
+                              {sortBy === 'id' && (
+                                 sortOrder === 'asc'
+                                    ? <ArrowUpIcon className="h-3.5 w-3.5 text-[#1F6BFF]" />
+                                    : <ArrowDownIcon className="h-3.5 w-3.5 text-[#1F6BFF]" />
+                              )}
+                           </button>
+                        </th>
+                        <th className="py-3.5 px-4 text-right">Acciones</th>
+                     </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#F0F4FD] text-xs">
+                     {isLoading ? (
+                        <tr>
+                           <td colSpan={6} className="py-12 text-center text-[#8E9BB5]">
+                              <div className="flex flex-col items-center justify-center gap-2">
+                                 <div className="w-6 h-6 border-2 border-[#1F6BFF] border-t-transparent rounded-full animate-spin" />
+                                 <span className="font-medium">Cargando entidades...</span>
+                              </div>
+                           </td>
+                        </tr>
+                     ) : rows.length === 0 ? (
+                        <tr>
+                           <td colSpan={6} className="py-12 text-center text-[#8E9BB5]">
+                              <div className="flex flex-col items-center justify-center gap-1">
+                                 <BuildingOffice2Icon className="w-8 h-8 text-[#8E9BB5] stroke-[1.5]" />
+                                 <span className="font-semibold text-sm text-[#0A1A3F] mt-1">No hay entidades registradas</span>
+                                 <span className="text-xs">Prueba ajustando los filtros o crea una nueva entidad.</span>
+                              </div>
+                           </td>
+                        </tr>
+                     ) : (
+                        rows.map((row) => {
+                           const isSelected = Number(row.id) === selectedEntityId;
+                           const isActive = isEntityActive(row);
+                           const canDelete = row.permissions?.can_delete ?? true;
+                           const canUpdate = row.permissions?.can_update ?? true;
+                           return (
+                              <tr
+                                 key={row.id}
+                                 className="hover:bg-[#F9FBFF] transition group"
+                              >
+                                 {/* Nombre */}
+                                 <td className="py-3.5 px-4 font-bold text-[#0A1A3F]">
+                                    <div className="flex items-center gap-2">
+                                       <span>{row.name || row.legal_name || '-'}</span>
+                                       {isSelected && (
+                                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#EFF3FF] text-[#1F6BFF] border border-[#BFDBFE]">
+                                             Activa en sesión
+                                          </span>
+                                       )}
+                                    </div>
+                                 </td>
+
+                                 {/* RUT */}
+                                 <td className="py-3.5 px-4 font-mono font-semibold text-[#55607A]">
+                                    {row.rut || '-'}
+                                 </td>
+
+                                 {/* Razón social */}
+                                 <td className="py-3.5 px-4 text-[#55607A] font-medium max-w-[260px] truncate" title={row.legal_name || ''}>
+                                    {row.legal_name || '-'}
+                                 </td>
+
+                                 {/* Estado */}
+                                 <td className="py-3.5 px-4">
+                                    {isActive ? (
+                                       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-[#E8F8F0] text-[#0D9488]">
+                                          <span className="w-1.5 h-1.5 rounded-full bg-[#10B981]" />
+                                          {entityStateLabel(row)}
+                                       </span>
+                                    ) : (
+                                       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-[#F3F4F6] text-[#6B7280]">
+                                          <span className="w-1.5 h-1.5 rounded-full bg-[#9CA3AF]" />
+                                          {entityStateLabel(row)}
+                                       </span>
+                                    )}
+                                 </td>
+
+                                 {/* ID */}
+                                 <td className="py-3.5 px-4 font-mono text-[#8E9BB5]">
+                                    #{row.id}
+                                 </td>
+
+                                 {/* Acciones */}
+                                 <td className="py-3.5 px-4 text-right">
+                                    <div className="flex justify-end">
+                                       <EntityRowActionsMenu
+                                          row={row}
+                                          isSelected={isSelected}
+                                          isActive={isActive}
+                                          canUpdate={canUpdate}
+                                          canDelete={canDelete}
+                                          isChangingState={Number(changingStateId) === Number(row.id)}
+                                          isDeleting={Number(deletingId) === Number(row.id)}
+                                          onSelect={selectEntity}
+                                          onEdit={startEdit}
+                                          onOpenCredentials={setCredentialsEntity}
+                                          onOpenClients={setClientsEntity}
+                                          onToggleState={onToggleState}
+                                          onDelete={onDelete}
+                                       />
+                                    </div>
+                                 </td>
+                              </tr>
+                           );
+                        })
+                     )}
+                  </tbody>
+               </table>
+            </div>
+
+            {/* Paginación Jeito */}
+            {!isLoading && total > 0 && (
+               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-5 py-3.5 border-t border-[#E2EAFD] bg-[#FAFBFD]">
+                  <div className="text-xs text-[#55607A] font-medium">
+                     Mostrando {rows.length === 0 ? 0 : page * pageSize + 1}–{Math.min((page + 1) * pageSize, total)} de {total} entidades
+                  </div>
+                  <div className="flex items-center gap-2">
+                     <button
+                        type="button"
+                        disabled={page === 0}
+                        onClick={() => setPage((p) => Math.max(0, p - 1))}
+                        className="px-3.5 py-1.5 rounded-lg border border-[#E2EAFD] bg-white hover:bg-[#F5F8FF] text-xs font-bold text-[#0A1A3F] transition disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shadow-2xs"
+                     >
+                        Anterior
+                     </button>
+                     <div className="text-xs font-semibold text-[#55607A] px-2">
+                        Página {Math.min(page + 1, totalPages)} de {totalPages}
+                     </div>
+                     <button
+                        type="button"
+                        disabled={(page + 1) >= totalPages}
+                        onClick={() => setPage((p) => p + 1)}
+                        className="px-3.5 py-1.5 rounded-lg border border-[#E2EAFD] bg-white hover:bg-[#F5F8FF] text-xs font-bold text-[#0A1A3F] transition disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shadow-2xs"
+                     >
+                        Siguiente
+                     </button>
+                     <select
+                        aria-label="Filas por página"
+                        value={pageSize}
+                        onChange={(e) => {
+                           setPageSize(Number(e.target.value));
+                           setPage(0);
+                        }}
+                        className="min-w-[82px] border border-[#E2EAFD] bg-white text-[#0A1A3F] rounded-lg pl-3 pr-9 py-1.5 text-xs font-semibold cursor-pointer focus:outline-none focus:ring-1 focus:ring-[#1F6BFF]"
+                     >
+                        <option value={25}>25</option>
+                        <option value={50}>50</option>
+                        <option value={100}>100</option>
+                     </select>
+                  </div>
+               </div>
+            )}
+         </div>
+
+         {/* ======================================================== */}
+         {/* 5. Modales (Crear/Editar, Credenciales, Clientes)        */}
+         {/* ======================================================== */}
          <Modal
             isOpen={entityModalOpen}
             onClose={closeEntityModal}
             title={formTitle}
             maxWidth="max-w-xl"
          >
-            <form className="space-y-4" onSubmit={onSubmit}>
+            <form className="space-y-4 pt-1" onSubmit={onSubmit}>
                <div className="flex flex-col gap-1.5">
-                  <label htmlFor="entity-name" className="text-sm text-[var(--text-soft)]">Nombre</label>
+                  <label htmlFor="entity-name" className="text-[11px] font-bold text-[#55607A] uppercase tracking-wider">
+                     Nombre / Fantasía *
+                  </label>
                   <input
                      id="entity-name"
                      type="text"
                      value={form.name}
                      onChange={(e) => setForm((s) => ({ ...s, name: e.target.value }))}
-                     className="border border-[var(--border-subtle)] bg-[var(--surface-1)] rounded-lg p-2"
-                     placeholder="Ej: Empresa SpA"
+                     className="w-full h-11 px-4 text-xs font-medium rounded-xl border border-[#E2EAFD] bg-[#F8FAFF] text-[#0A1A3F] placeholder-[#8E9BB5] focus:outline-none focus:ring-1 focus:ring-[#1F6BFF] focus:border-[#1F6BFF] transition"
+                     placeholder="Ej: Comercial Andes SpA"
                      maxLength={120}
                      autoComplete="off"
                      autoFocus
@@ -537,46 +771,52 @@ export default function EntitiesPage() {
                </div>
 
                <div className="flex flex-col gap-1.5">
-                  <label htmlFor="entity-rut" className="text-sm text-[var(--text-soft)]">RUT</label>
+                  <label htmlFor="entity-rut" className="text-[11px] font-bold text-[#55607A] uppercase tracking-wider">
+                     RUT contribuyente *
+                  </label>
                   <input
                      id="entity-rut"
                      type="text"
                      value={form.rut}
                      onChange={(e) => setForm((s) => ({ ...s, rut: formatRutCL(e.target.value) }))}
-                     className="border border-[var(--border-subtle)] bg-[var(--surface-1)] rounded-lg p-2"
-                     placeholder="Ej: 76.123.456-7"
+                     className="w-full h-11 px-4 text-xs font-medium rounded-xl border border-[#E2EAFD] bg-[#F8FAFF] text-[#0A1A3F] placeholder-[#8E9BB5] focus:outline-none focus:ring-1 focus:ring-[#1F6BFF] focus:border-[#1F6BFF] transition"
+                     placeholder="Ej: 76.999.555-2"
                      maxLength={12}
                      autoComplete="off"
                   />
                </div>
 
                <div className="flex flex-col gap-1.5">
-                  <label htmlFor="entity-legal-name" className="text-sm text-[var(--text-soft)]">Razon social (opcional)</label>
+                  <label htmlFor="entity-legal-name" className="text-[11px] font-bold text-[#55607A] uppercase tracking-wider">
+                     Razón social (opcional)
+                  </label>
                   <input
                      id="entity-legal-name"
                      type="text"
                      value={form.legalName}
                      onChange={(e) => setForm((s) => ({ ...s, legalName: e.target.value }))}
-                     className="border border-[var(--border-subtle)] bg-[var(--surface-1)] rounded-lg p-2"
-                     placeholder="Ej: Empresa Servicios Limitada"
+                     className="w-full h-11 px-4 text-xs font-medium rounded-xl border border-[#E2EAFD] bg-[#F8FAFF] text-[#0A1A3F] placeholder-[#8E9BB5] focus:outline-none focus:ring-1 focus:ring-[#1F6BFF] focus:border-[#1F6BFF] transition"
+                     placeholder="Ej: Comercial e Inversiones Los Andes Limitada"
                      maxLength={160}
                      autoComplete="off"
                   />
                </div>
 
-               <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 pt-2">
+               <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2.5 pt-4 border-t border-[#E2EAFD]">
                   <button
                      type="button"
                      onClick={closeEntityModal}
                      disabled={saving}
-                     className="px-4 py-2 rounded-lg border border-[var(--border-subtle)] text-[var(--text-main)] disabled:opacity-50"
+                     className="px-5 py-2.5 rounded-full border border-[#E2EAFD] bg-white hover:bg-[#F5F8FF] text-[#0A1A3F] text-xs font-bold transition shadow-xs cursor-pointer disabled:opacity-50"
                   >
                      Cancelar
                   </button>
                   <button
                      type="submit"
                      disabled={saving}
-                     className={`px-4 py-2 rounded-lg text-white ${saving ? 'bg-gray-400 cursor-not-allowed' : 'bg-[var(--brand)] hover:bg-brand-strong'}`}
+                     className={`px-5 py-2.5 rounded-full text-white text-xs font-bold transition shadow-xs cursor-pointer ${
+                        saving ? 'bg-gray-400 cursor-not-allowed' : 'bg-[#1F6BFF] hover:bg-[#1657D7]'
+                     }`}
                   >
                      {saving ? 'Guardando...' : (editingId ? 'Guardar cambios' : 'Crear entidad')}
                   </button>

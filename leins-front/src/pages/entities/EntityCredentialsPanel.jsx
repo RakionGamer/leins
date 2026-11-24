@@ -37,7 +37,7 @@ function credentialLabel(row) {
 
 function revealedSecret(row, revealed) {
    const value = revealed[row.id];
-   if (!value) return row.secret_preview || '********';
+   if (!value) return row.secret_preview || '••••••••';
    return value;
 }
 
@@ -169,7 +169,7 @@ export default function EntityCredentialsPanel({ entity }) {
    };
 
    const onDelete = async (row) => {
-      const ok = window.confirm(`Eliminar la credencial ${credentialLabel(row)}?`);
+      const ok = window.confirm(`¿Eliminar la credencial ${credentialLabel(row)}?`);
       if (!ok) return;
 
       try {
@@ -187,7 +187,7 @@ export default function EntityCredentialsPanel({ entity }) {
 
    const onReveal = async (row) => {
       const ok = window.confirm(
-         'Vas a revelar una clave de acceso externa. Esta accion quedara auditada. Deseas continuar?'
+         'Vas a revelar una clave de acceso externa. Esta acción quedará auditada. ¿Deseas continuar?'
       );
       if (!ok) return;
 
@@ -216,76 +216,88 @@ export default function EntityCredentialsPanel({ entity }) {
    };
 
    return (
-      <div className="space-y-4">
-         <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="space-y-5">
+         {/* Top Info Bar */}
+         <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-2xl bg-[#F8FAFF] border border-[#E2EAFD]">
             <div>
-               <p className="text-sm text-[var(--text-soft)]">Entidad</p>
-               <h3 className="text-lg font-semibold text-[var(--heading)]">
+               <p className="text-xs font-bold text-[#8E9BB5] uppercase tracking-wider">Entidad</p>
+               <h3 className="text-base font-bold text-[#0A1A3F] mt-0.5">
                   {entity?.name || entity?.legal_name || `Entidad ${entityId}`}
                </h3>
-               <p className="mt-1 text-sm text-[var(--text-soft)]">{getEntityRut(entity) || 'Sin RUT registrado'}</p>
+               <p className="text-xs font-mono text-[#55607A]">{getEntityRut(entity) || 'Sin RUT registrado'}</p>
             </div>
-            <div className="inline-flex items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-1)] px-3 py-2 text-sm">
-               <span className="text-[var(--text-soft)]">Credenciales</span>
-               <span className="font-semibold text-[var(--heading)]">{total}</span>
-               {isFetching && <span className="text-xs text-[var(--text-soft)]">(actualizando)</span>}
+            <div className="inline-flex items-center gap-2 rounded-xl border border-[#E2EAFD] bg-white px-3.5 py-2 text-xs shadow-2xs">
+               <span className="text-[#55607A] font-medium">Credenciales registradas:</span>
+               <span className="font-bold text-[#0A1A3F]">{total}</span>
+               {isFetching && <span className="text-[10px] text-[#8E9BB5]">(actualizando)</span>}
             </div>
          </div>
 
-         <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
-            <section className="xl:col-span-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-1)] p-4">
-               <h4 className="text-base font-semibold text-[var(--heading)]">{formTitle}</h4>
-               <form className="mt-4 space-y-3" onSubmit={onSubmit}>
+         <div className="grid grid-cols-1 xl:grid-cols-5 gap-5">
+            {/* Formulario */}
+            <section className="xl:col-span-2 rounded-2xl border border-[#E2EAFD] bg-white p-5 shadow-xs">
+               <h4 className="text-sm font-bold text-[#0A1A3F]">{formTitle}</h4>
+               <p className="text-xs text-[#55607A] mt-0.5">Configura el acceso para automatizaciones y consultas.</p>
+
+               <form className="mt-4 space-y-3.5" onSubmit={onSubmit}>
                   <div className="flex flex-col gap-1">
-                     <label htmlFor="credential-type" className="text-sm text-[var(--text-soft)]">Tipo</label>
+                     <label htmlFor="credential-type" className="text-[11px] font-bold text-[#55607A] uppercase tracking-wider">
+                        Tipo de servicio
+                     </label>
                      <select
                         id="credential-type"
                         value={form.type}
                         disabled={isEditing}
                         onChange={(e) => resetForm(e.target.value)}
-                        className="border border-[var(--border-subtle)] bg-[var(--bg-content)] rounded-lg p-2 disabled:opacity-70"
+                        className="w-full h-10 px-3.5 text-xs font-medium rounded-xl border border-[#E2EAFD] bg-[#F8FAFF] text-[#0A1A3F] focus:outline-none focus:ring-1 focus:ring-[#1F6BFF] disabled:opacity-60 cursor-pointer"
                      >
-                        <option value="SII">SII</option>
-                        <option value="BANK">Banco</option>
+                        <option value="SII">SII (Servicio de Impuestos Internos)</option>
+                        <option value="BANK">Banco (Cartola bancaria)</option>
                      </select>
                   </div>
 
                   {formType === 'SII' ? (
                      <>
                         <div className="flex flex-col gap-1">
-                           <label htmlFor="credential-rut" className="text-sm text-[var(--text-soft)]">RUT contribuyente</label>
+                           <label htmlFor="credential-rut" className="text-[11px] font-bold text-[#55607A] uppercase tracking-wider">
+                              RUT contribuyente
+                           </label>
                            <input
                               id="credential-rut"
                               type="text"
                               value={form.rut}
                               onChange={(e) => setForm((s) => ({ ...s, rut: formatRutCL(e.target.value) }))}
-                              className="border border-[var(--border-subtle)] bg-[var(--bg-content)] rounded-lg p-2"
+                              className="w-full h-10 px-3.5 text-xs font-medium rounded-xl border border-[#E2EAFD] bg-[#F8FAFF] text-[#0A1A3F] placeholder-[#8E9BB5] focus:outline-none focus:ring-1 focus:ring-[#1F6BFF]"
                               placeholder="Ej: 76.123.456-7"
                               maxLength={12}
                               autoComplete="off"
                            />
                         </div>
                         <div className="flex flex-col gap-1">
-                           <label htmlFor="credential-clave" className="text-sm text-[var(--text-soft)]">Clave SII</label>
+                           <label htmlFor="credential-clave" className="text-[11px] font-bold text-[#55607A] uppercase tracking-wider">
+                              Clave SII
+                           </label>
                            <input
                               id="credential-clave"
                               type="password"
                               value={form.clave}
                               onChange={(e) => setForm((s) => ({ ...s, clave: e.target.value }))}
-                              className="border border-[var(--border-subtle)] bg-[var(--bg-content)] rounded-lg p-2"
-                              placeholder={isEditing ? 'Deja vacio para mantener la clave actual' : 'Clave SII'}
+                              className="w-full h-10 px-3.5 text-xs font-medium rounded-xl border border-[#E2EAFD] bg-[#F8FAFF] text-[#0A1A3F] placeholder-[#8E9BB5] focus:outline-none focus:ring-1 focus:ring-[#1F6BFF]"
+                              placeholder={isEditing ? 'Deja vacío para mantener la actual' : 'Clave de acceso SII'}
                               maxLength={255}
                               autoComplete="new-password"
                            />
                         </div>
                         <div className="flex flex-col gap-1">
-                           <label htmlFor="credential-confirm-clave" className="text-sm text-[var(--text-soft)]">Repetir clave SII</label>
+                           <label htmlFor="credential-confirm-clave" className="text-[11px] font-bold text-[#55607A] uppercase tracking-wider">
+                              Repetir clave SII
+                           </label>
                            <input
                               id="credential-confirm-clave"
                               type="password"
                               value={form.confirmClave}
                               onChange={(e) => setForm((s) => ({ ...s, confirmClave: e.target.value }))}
-                              className="border border-[var(--border-subtle)] bg-[var(--bg-content)] rounded-lg p-2"
+                              className="w-full h-10 px-3.5 text-xs font-medium rounded-xl border border-[#E2EAFD] bg-[#F8FAFF] text-[#0A1A3F] placeholder-[#8E9BB5] focus:outline-none focus:ring-1 focus:ring-[#1F6BFF]"
                               placeholder={isEditing ? 'Solo si cambias la clave' : 'Repite la clave'}
                               maxLength={255}
                               autoComplete="new-password"
@@ -295,38 +307,44 @@ export default function EntityCredentialsPanel({ entity }) {
                   ) : (
                      <>
                         <div className="flex flex-col gap-1">
-                           <label htmlFor="credential-bank" className="text-sm text-[var(--text-soft)]">Banco</label>
+                           <label htmlFor="credential-bank" className="text-[11px] font-bold text-[#55607A] uppercase tracking-wider">
+                              Banco
+                           </label>
                            <select
                               id="credential-bank"
                               value={form.bank}
                               onChange={(e) => setForm((s) => ({ ...s, bank: e.target.value }))}
-                              className="border border-[var(--border-subtle)] bg-[var(--bg-content)] rounded-lg p-2"
+                              className="w-full h-10 px-3.5 text-xs font-medium rounded-xl border border-[#E2EAFD] bg-[#F8FAFF] text-[#0A1A3F] focus:outline-none focus:ring-1 focus:ring-[#1F6BFF] cursor-pointer"
                            >
                               <option value="santander-officebanking">Santander OfficeBanking</option>
                            </select>
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-[1fr_80px] gap-3">
                            <div className="flex flex-col gap-1">
-                              <label htmlFor="credential-username" className="text-sm text-[var(--text-soft)]">Usuario / RUT</label>
+                              <label htmlFor="credential-username" className="text-[11px] font-bold text-[#55607A] uppercase tracking-wider">
+                                 Usuario / RUT
+                              </label>
                               <input
                                  id="credential-username"
                                  type="text"
                                  value={form.username}
                                  onChange={(e) => setForm((s) => ({ ...s, username: e.target.value }))}
-                                 className="border border-[var(--border-subtle)] bg-[var(--bg-content)] rounded-lg p-2"
+                                 className="w-full h-10 px-3.5 text-xs font-medium rounded-xl border border-[#E2EAFD] bg-[#F8FAFF] text-[#0A1A3F] placeholder-[#8E9BB5] focus:outline-none focus:ring-1 focus:ring-[#1F6BFF]"
                                  placeholder="Ej: 12345678"
                                  maxLength={120}
                                  autoComplete="off"
                               />
                            </div>
                            <div className="flex flex-col gap-1">
-                              <label htmlFor="credential-dv" className="text-sm text-[var(--text-soft)]">DV</label>
+                              <label htmlFor="credential-dv" className="text-[11px] font-bold text-[#55607A] uppercase tracking-wider">
+                                 DV
+                              </label>
                               <input
                                  id="credential-dv"
                                  type="text"
                                  value={form.dv}
                                  onChange={(e) => setForm((s) => ({ ...s, dv: e.target.value.toUpperCase().slice(0, 1) }))}
-                                 className="border border-[var(--border-subtle)] bg-[var(--bg-content)] rounded-lg p-2"
+                                 className="w-full h-10 px-3.5 text-xs font-medium text-center rounded-xl border border-[#E2EAFD] bg-[#F8FAFF] text-[#0A1A3F] placeholder-[#8E9BB5] focus:outline-none focus:ring-1 focus:ring-[#1F6BFF]"
                                  placeholder="K"
                                  maxLength={1}
                                  autoComplete="off"
@@ -334,26 +352,30 @@ export default function EntityCredentialsPanel({ entity }) {
                            </div>
                         </div>
                         <div className="flex flex-col gap-1">
-                           <label htmlFor="credential-password" className="text-sm text-[var(--text-soft)]">Clave bancaria</label>
+                           <label htmlFor="credential-password" className="text-[11px] font-bold text-[#55607A] uppercase tracking-wider">
+                              Clave bancaria
+                           </label>
                            <input
                               id="credential-password"
                               type="password"
                               value={form.password}
                               onChange={(e) => setForm((s) => ({ ...s, password: e.target.value }))}
-                              className="border border-[var(--border-subtle)] bg-[var(--bg-content)] rounded-lg p-2"
-                              placeholder={isEditing ? 'Deja vacio para mantener la clave actual' : 'Clave bancaria'}
+                              className="w-full h-10 px-3.5 text-xs font-medium rounded-xl border border-[#E2EAFD] bg-[#F8FAFF] text-[#0A1A3F] placeholder-[#8E9BB5] focus:outline-none focus:ring-1 focus:ring-[#1F6BFF]"
+                              placeholder={isEditing ? 'Deja vacío para mantener la actual' : 'Clave bancaria'}
                               maxLength={255}
                               autoComplete="new-password"
                            />
                         </div>
                         <div className="flex flex-col gap-1">
-                           <label htmlFor="credential-confirm-password" className="text-sm text-[var(--text-soft)]">Repetir clave bancaria</label>
+                           <label htmlFor="credential-confirm-password" className="text-[11px] font-bold text-[#55607A] uppercase tracking-wider">
+                              Repetir clave bancaria
+                           </label>
                            <input
                               id="credential-confirm-password"
                               type="password"
                               value={form.confirmPassword}
                               onChange={(e) => setForm((s) => ({ ...s, confirmPassword: e.target.value }))}
-                              className="border border-[var(--border-subtle)] bg-[var(--bg-content)] rounded-lg p-2"
+                              className="w-full h-10 px-3.5 text-xs font-medium rounded-xl border border-[#E2EAFD] bg-[#F8FAFF] text-[#0A1A3F] placeholder-[#8E9BB5] focus:outline-none focus:ring-1 focus:ring-[#1F6BFF]"
                               placeholder={isEditing ? 'Solo si cambias la clave' : 'Repite la clave'}
                               maxLength={255}
                               autoComplete="new-password"
@@ -363,106 +385,116 @@ export default function EntityCredentialsPanel({ entity }) {
                   )}
 
                   {(isEditing ? canUpdate : canCreate) ? (
-                  <div className="flex flex-wrap items-center gap-2 pt-1">
-                     <button
-                        type="submit"
-                        disabled={saving}
-                        className={`px-4 py-2 rounded-lg text-white ${saving ? 'bg-gray-400 cursor-not-allowed' : 'bg-[var(--brand)]'}`}
-                     >
-                        {saving ? 'Guardando...' : (isEditing ? 'Guardar cambios' : 'Crear credencial')}
-                     </button>
-                     {isEditing && (
+                     <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-[#E2EAFD]">
                         <button
-                           type="button"
-                           onClick={() => resetForm(form.type)}
-                           className="px-4 py-2 rounded-lg border border-[var(--border-subtle)] text-[var(--text-main)]"
+                           type="submit"
+                           disabled={saving}
+                           className={`px-5 py-2.5 rounded-full text-white text-xs font-bold transition shadow-xs cursor-pointer ${
+                              saving ? 'bg-gray-400 cursor-not-allowed' : 'bg-[#1F6BFF] hover:bg-[#1657D7]'
+                           }`}
                         >
-                           Cancelar
+                           {saving ? 'Guardando...' : (isEditing ? 'Guardar cambios' : 'Crear credencial')}
                         </button>
-                     )}
-                  </div>
+                        {isEditing && (
+                           <button
+                              type="button"
+                              onClick={() => resetForm(form.type)}
+                              className="px-4 py-2 rounded-full border border-[#E2EAFD] bg-white hover:bg-[#F5F8FF] text-[#55607A] text-xs font-bold cursor-pointer"
+                           >
+                              Cancelar
+                           </button>
+                        )}
+                     </div>
                   ) : (
-                     <div className="pt-1 text-sm text-[var(--text-soft)]">
+                     <div className="pt-2 text-xs text-[#8E9BB5]">
                         No tienes permiso para {isEditing ? 'editar' : 'crear'} credenciales en esta entidad.
                      </div>
                   )}
                </form>
             </section>
 
-            <section className="xl:col-span-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-1)] p-4">
-               <h4 className="text-base font-semibold text-[var(--heading)]">Credenciales existentes</h4>
+            {/* Listado de credenciales */}
+            <section className="xl:col-span-3 rounded-2xl border border-[#E2EAFD] bg-white p-5 shadow-xs">
+               <h4 className="text-sm font-bold text-[#0A1A3F]">Credenciales existentes</h4>
+               <p className="text-xs text-[#55607A] mt-0.5">Listado de claves asociadas y su estado de sincronización.</p>
 
                {error && (
-                  <div className="mt-3 rounded-lg border border-red-200 bg-red-50 text-red-700 text-sm p-3">
+                  <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 text-xs p-3">
                      {error?.message || 'No se pudieron cargar las credenciales'}
                   </div>
                )}
 
                {isLoading ? (
-                  <div className="mt-4 text-sm text-[var(--text-soft)]">Cargando credenciales...</div>
+                  <div className="mt-6 text-xs text-[#8E9BB5] text-center py-8">Cargando credenciales...</div>
                ) : (
-                  <div className="mt-4 overflow-x-auto">
-                     <table className="w-full min-w-[640px] text-sm">
+                  <div className="mt-4 overflow-x-auto rounded-xl border border-[#E2EAFD]">
+                     <table className="w-full min-w-[540px] text-xs">
                         <thead>
-                           <tr className="border-b border-[var(--border-subtle)] text-[var(--text-soft)]">
-                              <th className="text-left py-2 px-2">Tipo</th>
-                              <th className="text-left py-2 px-2">Identificador</th>
-                              <th className="text-left py-2 px-2">Estado</th>
-                              <th className="text-left py-2 px-2">Clave</th>
-                              <th className="text-right py-2 px-2">Acciones</th>
+                           <tr className="bg-[#F0F4FD] text-[#55607A] text-[11px] font-bold uppercase tracking-wider border-b border-[#E2EAFD]">
+                              <th className="text-left py-2.5 px-3">Tipo</th>
+                              <th className="text-left py-2.5 px-3">Identificador</th>
+                              <th className="text-left py-2.5 px-3">Estado</th>
+                              <th className="text-left py-2.5 px-3">Clave</th>
+                              <th className="text-right py-2.5 px-3">Acciones</th>
                            </tr>
                         </thead>
-                        <tbody>
-                           {rows.length === 0 && (
+                        <tbody className="divide-y divide-[#F0F4FD]">
+                           {rows.length === 0 ? (
                               <tr>
-                                 <td colSpan={5} className="py-6 text-center text-[var(--text-soft)]">
-                                    Aun no hay credenciales registradas para esta entidad.
+                                 <td colSpan={5} className="py-8 text-center text-[#8E9BB5]">
+                                    Aún no hay credenciales registradas para esta entidad.
                                  </td>
                               </tr>
+                           ) : (
+                              rows.map((row) => (
+                                 <tr key={row.id} className="hover:bg-[#F9FBFF] transition">
+                                    <td className="py-2.5 px-3 font-bold text-[#0A1A3F]">{row.type}</td>
+                                    <td className="py-2.5 px-3 text-[#55607A] font-medium">{credentialLabel(row)}</td>
+                                    <td className="py-2.5 px-3">
+                                       <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                                          row.has_secret ? 'bg-[#E8F8F0] text-[#0D9488]' : 'bg-amber-100 text-amber-700'
+                                       }`}>
+                                          <span className={`w-1.5 h-1.5 rounded-full ${row.has_secret ? 'bg-[#10B981]' : 'bg-amber-500'}`} />
+                                          {row.has_secret ? 'Configurada' : 'Sin clave'}
+                                       </span>
+                                    </td>
+                                    <td className="py-2.5 px-3 font-mono text-[#55607A] text-xs">{revealedSecret(row, revealed)}</td>
+                                    <td className="py-2.5 px-3 text-right">
+                                       <div className="flex justify-end gap-1.5">
+                                          <button
+                                             type="button"
+                                             onClick={() => onReveal(row)}
+                                             disabled={Number(revealingId) === Number(row.id)}
+                                             className="px-2.5 py-1 rounded-lg border border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 text-xs font-semibold disabled:opacity-50 cursor-pointer"
+                                          >
+                                             {Number(revealingId) === Number(row.id) ? 'Ver...' : 'Ver'}
+                                          </button>
+                                          {canUpdate && (
+                                             <button
+                                                type="button"
+                                                onClick={() => startEdit(row)}
+                                                className="px-2.5 py-1 rounded-lg border border-[#E2EAFD] bg-white hover:bg-[#F5F8FF] text-[#0A1A3F] text-xs font-semibold cursor-pointer"
+                                             >
+                                                Editar
+                                             </button>
+                                          )}
+                                          {canDelete && (
+                                             <button
+                                                type="button"
+                                                onClick={() => onDelete(row)}
+                                                disabled={Number(deletingId) === Number(row.id)}
+                                                className={`px-2.5 py-1 rounded-lg text-white text-xs font-semibold cursor-pointer ${
+                                                   Number(deletingId) === Number(row.id) ? 'bg-gray-400' : 'bg-rose-600 hover:bg-rose-700'
+                                                }`}
+                                             >
+                                                {Number(deletingId) === Number(row.id) ? '...' : 'Eliminar'}
+                                             </button>
+                                          )}
+                                       </div>
+                                    </td>
+                                 </tr>
+                              ))
                            )}
-                           {rows.map((row) => (
-                              <tr key={row.id} className="border-b border-[var(--border-subtle)] last:border-b-0">
-                                 <td className="py-2 px-2 text-[var(--text-main)]">{row.type}</td>
-                                 <td className="py-2 px-2 text-[var(--text-main)]">{credentialLabel(row)}</td>
-                                 <td className="py-2 px-2">
-                                    <span className={`text-xs px-2 py-1 rounded-full ${row.has_secret ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                                       {row.has_secret ? 'Configurada' : 'Sin clave'}
-                                    </span>
-                                 </td>
-                                 <td className="py-2 px-2 font-mono text-[var(--text-main)]">{revealedSecret(row, revealed)}</td>
-                                 <td className="py-2 px-2">
-                                    <div className="flex justify-end gap-2">
-                                       <button
-                                          type="button"
-                                          onClick={() => onReveal(row)}
-                                          disabled={Number(revealingId) === Number(row.id)}
-                                          className="px-3 py-1.5 rounded-md border border-amber-300 text-amber-700 hover:bg-amber-50 disabled:opacity-60"
-                                       >
-                                          {Number(revealingId) === Number(row.id) ? 'Ver...' : 'Ver'}
-                                       </button>
-                                       {canUpdate && (
-                                          <button
-                                             type="button"
-                                             onClick={() => startEdit(row)}
-                                             className="px-3 py-1.5 rounded-md border border-[var(--border-subtle)] text-[var(--text-main)] hover:bg-[var(--bg-content)]"
-                                          >
-                                             Editar
-                                          </button>
-                                       )}
-                                       {canDelete && (
-                                          <button
-                                             type="button"
-                                             onClick={() => onDelete(row)}
-                                             disabled={Number(deletingId) === Number(row.id)}
-                                             className={`px-3 py-1.5 rounded-md text-white ${Number(deletingId) === Number(row.id) ? 'bg-gray-400' : 'bg-[var(--danger)]'}`}
-                                          >
-                                             {Number(deletingId) === Number(row.id) ? 'Eliminando...' : 'Eliminar'}
-                                          </button>
-                                       )}
-                                    </div>
-                                 </td>
-                              </tr>
-                           ))}
                         </tbody>
                      </table>
                   </div>

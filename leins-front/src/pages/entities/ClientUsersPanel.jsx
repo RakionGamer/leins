@@ -103,7 +103,7 @@ export default function ClientUsersPanel({ entity }) {
       const nextReadOnly = !row.read_only;
       const action = nextReadOnly ? 'quitar' : 'otorgar';
       const ok = window.confirm(
-         `Vas a ${action} el permiso de deshacer conciliaciones a "${row.username}" en esta entidad. Continuar?`
+         `¿Vas a ${action} el permiso de deshacer conciliaciones a "${row.username}" en esta entidad? ¿Continuar?`
       );
       if (!ok) return;
 
@@ -120,69 +120,79 @@ export default function ClientUsersPanel({ entity }) {
    };
 
    return (
-      <div className="space-y-4">
-         <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="space-y-5">
+         {/* Top Info Bar */}
+         <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-2xl bg-[#F8FAFF] border border-[#E2EAFD]">
             <div>
-               <p className="text-sm text-[var(--text-soft)]">Entidad</p>
-               <h3 className="text-lg font-semibold text-[var(--heading)]">
+               <p className="text-xs font-bold text-[#8E9BB5] uppercase tracking-wider">Entidad</p>
+               <h3 className="text-base font-bold text-[#0A1A3F] mt-0.5">
                   {entity?.name || entity?.legal_name || `Entidad ${entityId}`}
                </h3>
-               <p className="mt-1 text-sm text-[var(--text-soft)]">{getEntityRut(entity) || 'Sin RUT registrado'}</p>
+               <p className="text-xs font-mono text-[#55607A]">{getEntityRut(entity) || 'Sin RUT registrado'}</p>
             </div>
-            <div className="inline-flex items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-1)] px-3 py-2 text-sm">
-               <span className="text-[var(--text-soft)]">Clientes</span>
-               <span className="font-semibold text-[var(--heading)]">{rows.length}</span>
-               {isFetching && <span className="text-xs text-[var(--text-soft)]">(actualizando)</span>}
+            <div className="inline-flex items-center gap-2 rounded-xl border border-[#E2EAFD] bg-white px-3.5 py-2 text-xs shadow-2xs">
+               <span className="text-[#55607A] font-medium">Clientes asociados:</span>
+               <span className="font-bold text-[#0A1A3F]">{rows.length}</span>
+               {isFetching && <span className="text-[10px] text-[#8E9BB5]">(actualizando)</span>}
             </div>
          </div>
 
-         <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
-            <section className="xl:col-span-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-1)] p-4">
-               <h4 className="text-base font-semibold text-[var(--heading)]">
-                  {isEditing ? 'Editar cliente' : 'Nuevo cliente'}
+         <div className="grid grid-cols-1 xl:grid-cols-5 gap-5">
+            {/* Formulario */}
+            <section className="xl:col-span-2 rounded-2xl border border-[#E2EAFD] bg-white p-5 shadow-xs">
+               <h4 className="text-sm font-bold text-[#0A1A3F]">
+                  {isEditing ? 'Editar cliente' : 'Nuevo usuario cliente'}
                </h4>
-               <p className="mt-1 text-xs text-[var(--text-soft)]">
+               <p className="mt-1 text-xs text-[#55607A]">
                   {isEditing
                      ? 'Actualiza los datos del cliente o asigna una nueva contraseña.'
-                     : 'Crea una cuenta para que el cliente ingrese al portal (login separado) y autogestione esta entidad.'}
+                     : 'Crea una cuenta para que el cliente ingrese al portal y autogestione esta entidad.'}
                </p>
-               <form className="mt-4 space-y-3" onSubmit={onSubmit}>
+
+               <form className="mt-4 space-y-3.5" onSubmit={onSubmit}>
                   <div className="flex flex-col gap-1">
-                     <label htmlFor="client-username" className="text-sm text-[var(--text-soft)]">Username</label>
+                     <label htmlFor="client-username" className="text-[11px] font-bold text-[#55607A] uppercase tracking-wider">
+                        Username / Usuario *
+                     </label>
                      <input
                         id="client-username"
                         type="text"
                         value={form.username}
                         onChange={(e) => setForm((s) => ({ ...s, username: e.target.value }))}
-                        className="border border-[var(--border-subtle)] bg-[var(--bg-content)] rounded-lg p-2"
+                        className="w-full h-10 px-3.5 text-xs font-medium rounded-xl border border-[#E2EAFD] bg-[#F8FAFF] text-[#0A1A3F] placeholder-[#8E9BB5] focus:outline-none focus:ring-1 focus:ring-[#1F6BFF]"
                         placeholder="Ej: cliente.empresa"
                         maxLength={60}
                         autoComplete="off"
                      />
                   </div>
+
                   <div className="grid grid-cols-2 gap-3">
                      <div className="flex flex-col gap-1">
-                        <label htmlFor="client-name" className="text-sm text-[var(--text-soft)]">Nombre</label>
+                        <label htmlFor="client-name" className="text-[11px] font-bold text-[#55607A] uppercase tracking-wider">
+                           Nombre
+                        </label>
                         <input
                            id="client-name"
                            type="text"
                            value={form.name}
                            onChange={(e) => setForm((s) => ({ ...s, name: e.target.value }))}
-                           className="border border-[var(--border-subtle)] bg-[var(--bg-content)] rounded-lg p-2"
+                           className="w-full h-10 px-3.5 text-xs font-medium rounded-xl border border-[#E2EAFD] bg-[#F8FAFF] text-[#0A1A3F] placeholder-[#8E9BB5] focus:outline-none focus:ring-1 focus:ring-[#1F6BFF]"
                            placeholder="Ej: Juan"
                            maxLength={255}
                            autoComplete="off"
                         />
                      </div>
                      <div className="flex flex-col gap-1">
-                        <label htmlFor="client-last-name" className="text-sm text-[var(--text-soft)]">Apellido</label>
+                        <label htmlFor="client-last-name" className="text-[11px] font-bold text-[#55607A] uppercase tracking-wider">
+                           Apellido
+                        </label>
                         <input
                            id="client-last-name"
                            type="text"
                            value={form.lastName}
                            onChange={(e) => setForm((s) => ({ ...s, lastName: e.target.value }))}
-                           className="border border-[var(--border-subtle)] bg-[var(--bg-content)] rounded-lg p-2"
-                           placeholder="Ej: Perez"
+                           className="w-full h-10 px-3.5 text-xs font-medium rounded-xl border border-[#E2EAFD] bg-[#F8FAFF] text-[#0A1A3F] placeholder-[#8E9BB5] focus:outline-none focus:ring-1 focus:ring-[#1F6BFF]"
+                           placeholder="Ej: Pérez"
                            maxLength={255}
                            autoComplete="off"
                         />
@@ -191,159 +201,178 @@ export default function ClientUsersPanel({ entity }) {
 
                   {isEditing ? (
                      <div className="flex flex-col gap-1">
-                        <label htmlFor="client-password" className="text-sm text-[var(--text-soft)]">
-                           Nueva Clave <span className="text-xs text-[var(--text-soft)]">(Opcional)</span>
+                        <label htmlFor="client-password" className="text-[11px] font-bold text-[#55607A] uppercase tracking-wider">
+                           Nueva Clave <span className="text-[10px] text-[#8E9BB5] font-normal">(Opcional)</span>
                         </label>
                         <input
                            id="client-password"
                            type="password"
                            value={form.password}
                            onChange={(e) => setForm((s) => ({ ...s, password: e.target.value }))}
-                           className="border border-[var(--border-subtle)] bg-[var(--bg-content)] rounded-lg p-2"
+                           className="w-full h-10 px-3.5 text-xs font-medium rounded-xl border border-[#E2EAFD] bg-[#F8FAFF] text-[#0A1A3F] placeholder-[#8E9BB5] focus:outline-none focus:ring-1 focus:ring-[#1F6BFF]"
                            placeholder="Dejar vacía para mantener la actual"
                            minLength={6}
                            autoComplete="new-password"
                         />
-                        <span className="text-[11px] text-[var(--text-soft)]">
+                        <span className="text-[10px] text-[#8E9BB5]">
                            Mínimo 6 caracteres. Si no deseas cambiarla, déjala en blanco.
                         </span>
                      </div>
                   ) : (
                      <>
                         <div className="flex flex-col gap-1">
-                           <label htmlFor="client-email" className="text-sm text-[var(--text-soft)]">Email</label>
+                           <label htmlFor="client-email" className="text-[11px] font-bold text-[#55607A] uppercase tracking-wider">
+                              Email de acceso *
+                           </label>
                            <input
                               id="client-email"
                               type="email"
                               value={form.email}
                               onChange={(e) => setForm((s) => ({ ...s, email: e.target.value }))}
-                              className="border border-[var(--border-subtle)] bg-[var(--bg-content)] rounded-lg p-2"
+                              className="w-full h-10 px-3.5 text-xs font-medium rounded-xl border border-[#E2EAFD] bg-[#F8FAFF] text-[#0A1A3F] placeholder-[#8E9BB5] focus:outline-none focus:ring-1 focus:ring-[#1F6BFF]"
                               placeholder="cliente@empresa.cl"
                               maxLength={255}
                               autoComplete="off"
                            />
                         </div>
                         <div className="flex flex-col gap-1">
-                           <label htmlFor="client-password" className="text-sm text-[var(--text-soft)]">Clave</label>
+                           <label htmlFor="client-password" className="text-[11px] font-bold text-[#55607A] uppercase tracking-wider">
+                              Clave inicial *
+                           </label>
                            <input
                               id="client-password"
                               type="password"
                               value={form.password}
                               onChange={(e) => setForm((s) => ({ ...s, password: e.target.value }))}
-                              className="border border-[var(--border-subtle)] bg-[var(--bg-content)] rounded-lg p-2"
-                              placeholder="Minimo 6 caracteres"
+                              className="w-full h-10 px-3.5 text-xs font-medium rounded-xl border border-[#E2EAFD] bg-[#F8FAFF] text-[#0A1A3F] placeholder-[#8E9BB5] focus:outline-none focus:ring-1 focus:ring-[#1F6BFF]"
+                              placeholder="Mínimo 6 caracteres"
                               maxLength={255}
                               autoComplete="new-password"
                            />
                         </div>
-                        <label className="inline-flex items-center gap-2 text-sm text-[var(--text-main)]">
+                        <label className="inline-flex items-center gap-2 text-xs font-medium text-[#55607A] cursor-pointer pt-1">
                            <input
                               type="checkbox"
                               checked={form.readOnly}
                               onChange={(e) => setForm((s) => ({ ...s, readOnly: e.target.checked }))}
+                              className="rounded border-[#E2EAFD] text-[#1F6BFF] focus:ring-[#1F6BFF]"
                            />
-                           Solo lectura (no podra deshacer conciliaciones)
+                           <span>Solo lectura (no podrá deshacer conciliaciones)</span>
                         </label>
                      </>
                   )}
 
                   {(isEditing ? canUpdate : canCreate) ? (
-                  <div className="flex flex-wrap items-center gap-2 pt-1">
-                     <button
-                        type="submit"
-                        disabled={saving}
-                        className={`px-4 py-2 rounded-lg text-white ${saving ? 'bg-gray-400 cursor-not-allowed' : 'bg-[var(--brand)]'}`}
-                     >
-                        {saving ? 'Guardando...' : (isEditing ? 'Guardar cambios' : 'Crear cliente')}
-                     </button>
-                     {isEditing && (
+                     <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-[#E2EAFD]">
                         <button
-                           type="button"
-                           onClick={resetForm}
-                           className="px-4 py-2 rounded-lg border border-[var(--border-subtle)] text-[var(--text-main)]"
+                           type="submit"
+                           disabled={saving}
+                           className={`px-5 py-2.5 rounded-full text-white text-xs font-bold transition shadow-xs cursor-pointer ${
+                              saving ? 'bg-gray-400 cursor-not-allowed' : 'bg-[#1F6BFF] hover:bg-[#1657D7]'
+                           }`}
                         >
-                           Cancelar
+                           {saving ? 'Guardando...' : (isEditing ? 'Guardar cambios' : 'Crear cliente')}
                         </button>
-                     )}
-                  </div>
+                        {isEditing && (
+                           <button
+                              type="button"
+                              onClick={resetForm}
+                              className="px-4 py-2 rounded-full border border-[#E2EAFD] bg-white hover:bg-[#F5F8FF] text-[#55607A] text-xs font-bold cursor-pointer"
+                           >
+                              Cancelar
+                           </button>
+                        )}
+                     </div>
                   ) : (
-                     <div className="pt-1 text-sm text-[var(--text-soft)]">
+                     <div className="pt-2 text-xs text-[#8E9BB5]">
                         No tienes permiso para {isEditing ? 'editar' : 'crear'} clientes en esta entidad.
                      </div>
                   )}
                </form>
             </section>
 
-            <section className="xl:col-span-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-1)] p-4">
-               <h4 className="text-base font-semibold text-[var(--heading)]">Clientes existentes</h4>
+            {/* Listado de clientes */}
+            <section className="xl:col-span-3 rounded-2xl border border-[#E2EAFD] bg-white p-5 shadow-xs">
+               <h4 className="text-sm font-bold text-[#0A1A3F]">Clientes existentes</h4>
+               <p className="text-xs text-[#55607A] mt-0.5">Cuentas creadas para esta entidad y sus permisos de operación.</p>
 
                {error && (
-                  <div className="mt-3 rounded-lg border border-red-200 bg-red-50 text-red-700 text-sm p-3">
+                  <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 text-xs p-3">
                      {error?.message || 'No se pudieron cargar los clientes'}
                   </div>
                )}
 
                {isLoading ? (
-                  <div className="mt-4 text-sm text-[var(--text-soft)]">Cargando clientes...</div>
+                  <div className="mt-6 text-xs text-[#8E9BB5] text-center py-8">Cargando clientes...</div>
                ) : (
-                  <div className="mt-4 overflow-x-auto">
-                     <table className="w-full min-w-[680px] text-sm">
+                  <div className="mt-4 overflow-x-auto rounded-xl border border-[#E2EAFD]">
+                     <table className="w-full min-w-[580px] text-xs">
                         <thead>
-                           <tr className="border-b border-[var(--border-subtle)] text-[var(--text-soft)]">
-                              <th className="text-left py-2 px-2">Username</th>
-                              <th className="text-left py-2 px-2">Nombre</th>
-                              <th className="text-left py-2 px-2">Email</th>
-                              <th className="text-left py-2 px-2">Puede deshacer conciliaciones</th>
-                              <th className="text-right py-2 px-2">Acciones</th>
+                           <tr className="bg-[#F0F4FD] text-[#55607A] text-[11px] font-bold uppercase tracking-wider border-b border-[#E2EAFD]">
+                              <th className="text-left py-2.5 px-3">Usuario</th>
+                              <th className="text-left py-2.5 px-3">Nombre</th>
+                              <th className="text-left py-2.5 px-3">Email</th>
+                              <th className="text-left py-2.5 px-3">Deshacer conc.</th>
+                              <th className="text-right py-2.5 px-3">Acciones</th>
                            </tr>
                         </thead>
-                        <tbody>
-                           {rows.length === 0 && (
+                        <tbody className="divide-y divide-[#F0F4FD]">
+                           {rows.length === 0 ? (
                               <tr>
-                                 <td colSpan={5} className="py-6 text-center text-[var(--text-soft)]">
-                                    Aun no hay clientes creados para esta entidad.
+                                 <td colSpan={5} className="py-8 text-center text-[#8E9BB5]">
+                                    Aún no hay clientes creados para esta entidad.
                                  </td>
                               </tr>
+                           ) : (
+                              rows.map((row) => (
+                                 <tr key={row.id} className="hover:bg-[#F9FBFF] transition">
+                                    <td className="py-2.5 px-3 font-bold text-[#0A1A3F]">{row.username}</td>
+                                    <td className="py-2.5 px-3 text-[#55607A] font-medium">
+                                       {[row.name, row.last_name].filter(Boolean).join(' ') || '-'}
+                                    </td>
+                                    <td className="py-2.5 px-3 text-[#55607A] font-mono">{row.email}</td>
+                                    <td className="py-2.5 px-3">
+                                       <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                                          !row.read_only ? 'bg-[#E8F8F0] text-[#0D9488]' : 'bg-gray-100 text-gray-600'
+                                       }`}>
+                                          <span className={`w-1.5 h-1.5 rounded-full ${!row.read_only ? 'bg-[#10B981]' : 'bg-gray-400'}`} />
+                                          {!row.read_only ? 'Sí' : 'No'}
+                                       </span>
+                                    </td>
+                                    <td className="py-2.5 px-3 text-right">
+                                       <div className="flex justify-end gap-1.5">
+                                          {canUpdate && (
+                                             <button
+                                                type="button"
+                                                onClick={() => startEdit(row)}
+                                                className="px-2.5 py-1 rounded-lg border border-[#E2EAFD] bg-white hover:bg-[#F5F8FF] text-[#0A1A3F] text-xs font-semibold cursor-pointer"
+                                             >
+                                                Editar
+                                             </button>
+                                          )}
+                                          {canUpdate && (
+                                             <button
+                                                type="button"
+                                                onClick={() => onToggleReadOnly(row)}
+                                                disabled={Number(updatingId) === Number(row.id)}
+                                                className={`px-2.5 py-1 rounded-lg text-white text-xs font-semibold cursor-pointer ${
+                                                   Number(updatingId) === Number(row.id)
+                                                      ? 'bg-gray-400'
+                                                      : row.read_only
+                                                         ? 'bg-[#10B981] hover:bg-[#059669]'
+                                                         : 'bg-rose-600 hover:bg-rose-700'
+                                                }`}
+                                             >
+                                                {Number(updatingId) === Number(row.id)
+                                                   ? '...'
+                                                   : row.read_only ? 'Permitir' : 'Bloquear'}
+                                             </button>
+                                          )}
+                                       </div>
+                                    </td>
+                                 </tr>
+                              ))
                            )}
-                           {rows.map((row) => (
-                              <tr key={row.id} className="border-b border-[var(--border-subtle)] last:border-b-0">
-                                 <td className="py-2 px-2 text-[var(--text-main)]">{row.username}</td>
-                                 <td className="py-2 px-2 text-[var(--text-main)]">
-                                    {[row.name, row.last_name].filter(Boolean).join(' ') || '-'}
-                                 </td>
-                                 <td className="py-2 px-2 text-[var(--text-main)]">{row.email}</td>
-                                 <td className="py-2 px-2">
-                                    <span className={`text-xs px-2 py-1 rounded-full ${!row.read_only ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600'}`}>
-                                       {!row.read_only ? 'Si' : 'No'}
-                                    </span>
-                                 </td>
-                                 <td className="py-2 px-2">
-                                    <div className="flex justify-end gap-2">
-                                       {canUpdate && (
-                                          <button
-                                             type="button"
-                                             onClick={() => startEdit(row)}
-                                             className="px-3 py-1.5 rounded-md border border-[var(--border-subtle)] text-[var(--text-main)] hover:bg-[var(--bg-content)]"
-                                          >
-                                             Editar
-                                          </button>
-                                       )}
-                                       {canUpdate && (
-                                          <button
-                                             type="button"
-                                             onClick={() => onToggleReadOnly(row)}
-                                             disabled={Number(updatingId) === Number(row.id)}
-                                             className={`px-3 py-1.5 rounded-md text-white ${Number(updatingId) === Number(row.id) ? 'bg-gray-400' : row.read_only ? 'bg-emerald-600' : 'bg-[var(--danger)]'}`}
-                                          >
-                                             {Number(updatingId) === Number(row.id)
-                                                ? 'Guardando...'
-                                                : row.read_only ? 'Habilitar' : 'Quitar permiso'}
-                                          </button>
-                                       )}
-                                    </div>
-                                 </td>
-                              </tr>
-                           ))}
                         </tbody>
                      </table>
                   </div>

@@ -120,12 +120,12 @@ export default function EntityRowActionsMenu({
             title={isBusy ? (isDeleting ? 'Eliminando...' : 'Guardando...') : 'Acciones'}
             className={`inline-flex h-8 w-8 items-center justify-center rounded-lg border transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
                open
-                  ? 'border-[var(--brand)] bg-[var(--surface-2)] text-[var(--heading)]'
-                  : 'border-[var(--border-subtle)] bg-[var(--surface-1)] text-[var(--text-main)] hover:bg-[var(--surface-2)] hover:border-[var(--border-strong)]'
+                  ? 'border-[#1F6BFF] bg-[#EFF3FF] text-[#1F6BFF]'
+                  : 'border-[#E2EAFD] bg-white text-[#55607A] hover:bg-[#F5F8FF] hover:text-[#0A1A3F] hover:border-[#BFDBFE]'
             }`}
          >
             {isBusy ? (
-               <span className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--brand)] border-t-transparent" />
+               <span className="h-4 w-4 animate-spin rounded-full border-2 border-[#1F6BFF] border-t-transparent" />
             ) : (
                <EllipsisVerticalIcon className="h-5 w-5" />
             )}
@@ -146,21 +146,21 @@ export default function EntityRowActionsMenu({
                      ...(coords.top !== null ? { top: `${coords.top}px` } : {}),
                      ...(coords.bottom !== null ? { bottom: `${coords.bottom}px` } : {}),
                   }}
-                  className="max-h-[calc(100vh-16px)] overflow-y-auto rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-content)] p-1.5 shadow-xl ring-1 ring-black/5 dark:ring-white/10"
+                  className="max-h-[calc(100vh-16px)] overflow-y-auto rounded-2xl border border-[#E2EAFD] bg-white p-1.5 shadow-xl ring-1 ring-black/5"
                >
                   <button
                      type="button"
                      role="menuitem"
                      disabled={!isActive}
                      onClick={() => runAction(() => onSelect(row))}
-                     className="flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left text-sm text-[var(--text-main)] hover:bg-emerald-500/10 hover:text-emerald-700 dark:hover:text-emerald-300 disabled:opacity-45 disabled:cursor-not-allowed transition cursor-pointer"
+                     className="flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2 text-left text-xs font-semibold text-[#0A1A3F] hover:bg-[#E8F8F0] hover:text-[#0D9488] disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
                   >
                      <span className="inline-flex items-center gap-2">
-                        <CheckCircleIcon className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                        <CheckCircleIcon className="h-4 w-4 text-emerald-600 shrink-0" />
                         <span>Seleccionar</span>
                      </span>
                      {isSelected && (
-                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#E8F8F0] text-[#0D9488]">
                            Activa
                         </span>
                      )}
@@ -171,9 +171,9 @@ export default function EntityRowActionsMenu({
                         type="button"
                         role="menuitem"
                         onClick={() => runAction(() => onEdit(row))}
-                        className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm text-[var(--text-main)] hover:bg-[var(--surface-2)] transition cursor-pointer"
+                        className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-xs font-semibold text-[#0A1A3F] hover:bg-[#F5F8FF] hover:text-[#1F6BFF] transition cursor-pointer"
                      >
-                        <PencilSquareIcon className="h-4 w-4 text-[var(--text-soft)] shrink-0" />
+                        <PencilSquareIcon className="h-4 w-4 text-[#8E9BB5] shrink-0" />
                         <span>Editar</span>
                      </button>
                   )}
@@ -183,9 +183,9 @@ export default function EntityRowActionsMenu({
                         type="button"
                         role="menuitem"
                         onClick={() => runAction(() => onOpenCredentials(row))}
-                        className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm text-[var(--text-main)] hover:bg-sky-500/10 hover:text-sky-700 dark:hover:text-sky-300 transition cursor-pointer"
+                        className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-xs font-semibold text-[#0A1A3F] hover:bg-[#EFF3FF] hover:text-[#1F6BFF] transition cursor-pointer"
                      >
-                        <KeyIcon className="h-4 w-4 text-sky-600 dark:text-sky-400 shrink-0" />
+                        <KeyIcon className="h-4 w-4 text-[#1F6BFF] shrink-0" />
                         <span>Credenciales</span>
                      </button>
                   )}
@@ -194,14 +194,14 @@ export default function EntityRowActionsMenu({
                      type="button"
                      role="menuitem"
                      onClick={() => runAction(() => onOpenClients(row))}
-                     className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm text-[var(--text-main)] hover:bg-violet-500/10 hover:text-violet-700 dark:hover:text-violet-300 transition cursor-pointer"
+                     className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-xs font-semibold text-[#0A1A3F] hover:bg-[#F3E8FF] hover:text-[#7C3AED] transition cursor-pointer"
                   >
-                     <UsersIcon className="h-4 w-4 text-violet-600 dark:text-violet-400 shrink-0" />
+                     <UsersIcon className="h-4 w-4 text-purple-600 shrink-0" />
                      <span>Clientes</span>
                   </button>
 
                   {(canUpdate || canDelete) && (
-                     <div className="my-1 border-t border-[var(--border-subtle)]" role="separator" />
+                     <div className="my-1.5 border-t border-[#F0F4FD]" role="separator" />
                   )}
 
                   {canUpdate && (
@@ -210,10 +210,10 @@ export default function EntityRowActionsMenu({
                         role="menuitem"
                         disabled={isChangingState}
                         onClick={() => runAction(() => onToggleState(row))}
-                        className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                        className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-xs font-semibold transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
                            isActive
-                              ? 'text-amber-700 dark:text-amber-300 hover:bg-amber-500/10'
-                              : 'text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10'
+                              ? 'text-amber-700 hover:bg-amber-50'
+                              : 'text-emerald-700 hover:bg-emerald-50'
                         }`}
                      >
                         <PowerIcon className="h-4 w-4 shrink-0" />
@@ -233,7 +233,7 @@ export default function EntityRowActionsMenu({
                         role="menuitem"
                         disabled={isDeleting}
                         onClick={() => runAction(() => onDelete(row))}
-                        className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm text-[var(--danger)] hover:bg-red-500/10 disabled:opacity-50 disabled:cursor-not-allowed transition cursor-pointer"
+                        className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-xs font-semibold text-rose-600 hover:bg-rose-50 disabled:opacity-50 disabled:cursor-not-allowed transition cursor-pointer"
                      >
                         <TrashIcon className="h-4 w-4 shrink-0" />
                         <span>{isDeleting ? 'Eliminando...' : 'Eliminar'}</span>
