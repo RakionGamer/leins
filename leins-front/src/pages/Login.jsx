@@ -83,12 +83,13 @@ export default function Login() {
                   </div>
                </div>
 
-               {/* Sonrisa Jeito oficial: ojos #1F6BFF y boca blanca */}
+               {/* Sonrisa Jeito oficial: interactiva, ojos siguen el cursor y parpadean */}
                <div className="shrink-0 self-center lg:self-auto lg:mr-6 xl:mr-10">
                   <JeitoSmile
                      className="w-24 h-24 sm:w-28 sm:h-28 lg:w-32 lg:h-32"
                      mouthColor="#FFFFFF"
                      eyeColor="#1F6BFF"
+                     animated={true}
                   />
                </div>
             </div>

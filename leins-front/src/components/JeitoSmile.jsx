@@ -1,30 +1,259 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
+
+const DEG = Math.PI / 180;
+const W = 36;
+const DOT = 19;
+const J = { a: 100, r: Math.max(32, W * 0.95), th: 105 * DEG };
+const S = J.a + J.r * J.th;
+const PHI = 150 * DEG;
+
+function ease(t) {
+   return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
+function centerline(e, N = 90) {
+   const h0 = (90 * DEG) * (1 - e) + (180 * DEG - PHI / 2) * e;
+   const kS = PHI / S;
+   let x = 0;
+   let y = 0;
+   let h = h0;
+   const pts = [[0, 0]];
+   const ds = S / N;
+
+   for (let i = 0; i < N; i++) {
+      const s = (i + 0.5) * ds;
+      const k = (s < J.a ? 0 : 1 / J.r) * (1 - e) + kS * e;
+      h += k * ds / 2;
+      x += Math.cos(h) * ds;
+      y += Math.sin(h) * ds;
+      h += k * ds / 2;
+      pts.push([x, y]);
+   }
+   return pts;
+}
+
+const F = centerline(1);
+let mnx = 1e9, mxx = -1e9, mny = 1e9, mxy = -1e9;
+F.forEach((p) => {
+   mnx = Math.min(mnx, p[0]);
+   mxx = Math.max(mxx, p[0]);
+   mny = Math.min(mny, p[1]);
+   mxy = Math.max(mxy, p[1]);
+});
+
+const eyeUp = 46 + W * 0.4;
+const CX = 150;
+const CY = 162;
+const faceTop = mny - eyeUp - DOT;
+const faceH = mxy - faceTop;
+const fx = CX - (mnx + mxx) / 2;
+const fy = CY - faceTop - faceH / 2;
+const span = F[0][0] - F[F.length - 1][0];
+const EL = [fx + F[F.length - 1][0] + span * 0.17, fy + mny - eyeUp];
+const ER = [fx + F[0][0] - span * 0.17, fy + mny - eyeUp];
+const JX = CX + 16;
+const JY = CY - 58;
+const JDOT = [JX, JY - W / 2 - 14 - DOT];
 
 export default function JeitoSmile({
    className = 'w-28 h-28',
    mouthColor = '#FFFFFF',
    eyeColor = '#1F6BFF',
+   animated = false,
    ...props
 }) {
+   const svgRef = useRef(null);
+   const strokeRef = useRef(null);
+   const eyeLRef = useRef(null);
+   const eyeRRef = useRef(null);
+
+   useEffect(() => {
+      if (!animated) return;
+
+      const stroke = strokeRef.current;
+      const eL = eyeLRef.current;
+      const eR = eyeRRef.current;
+      const svg = svgRef.current;
+      if (!stroke || !eL || !eR || !svg) return;
+
+      const prefersReducedMotion =
+         typeof window !== 'undefined' &&
+         window.matchMedia &&
+         window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      let look = [0, 0];
+      let lookT = [0, 0];
+      let blink = 1;
+      let tState = 0;
+      let anim = null;
+      let loopAnim = null;
+      let blinkTimeout = null;
+      let busy = false;
+
+      function draw(t) {
+         tState = t;
+         const e = ease(t);
+         const pts = centerline(e);
+         const ox = JX * (1 - e) + fx * e;
+         const oy = JY * (1 - e) + fy * e;
+
+         stroke.setAttribute(
+            'd',
+            'M' + pts.map((p) => `${(p[0] + ox).toFixed(1)} ${(p[1] + oy).toFixed(1)}`).join('L')
+         );
+
+         const rx = JDOT[0] * (1 - e) + ER[0] * e + look[0] * e;
+         const ry = JDOT[1] * (1 - e) + ER[1] * e + look[1] * e;
+         eR.setAttribute('cx', rx.toFixed(1));
+         eR.setAttribute('cy', ry.toFixed(1));
+
+         const a = Math.max(0, Math.min(1, (e - 0.45) / 0.4));
+         eL.setAttribute('cx', (EL[0] + look[0]).toFixed(1));
+         eL.setAttribute('cy', (EL[1] + look[1]).toFixed(1));
+         eL.setAttribute('rx', (DOT * a).toFixed(2));
+         eL.setAttribute('ry', (DOT * a * blink).toFixed(2));
+         eR.setAttribute('ry', (DOT * (e > 0.5 ? blink : 1)).toFixed(2));
+      }
+
+      function tween(from, to, dur, done) {
+         let t0 = null;
+         cancelAnimationFrame(anim);
+         function step(ts) {
+            if (t0 === null) t0 = ts;
+            const p = Math.min(1, (ts - t0) / dur);
+            draw(from + (to - from) * p);
+            if (p < 1) anim = requestAnimationFrame(step);
+            else if (done) done();
+         }
+         anim = requestAnimationFrame(step);
+      }
+
+      if (prefersReducedMotion) {
+         draw(1);
+         return;
+      }
+
+      // 1. Estado inicial: parte como 'j' y se transforma en carita sonriente
+      draw(0);
+      const startTimer = setTimeout(() => {
+         tween(0, 1, 1300);
+      }, 500);
+
+      // 2. Movimiento: los ojos siguen suavemente el cursor
+      const handlePointerMove = (ev) => {
+         const r = svg.getBoundingClientRect();
+         const dx = ev.clientX - (r.left + r.width / 2);
+         const dy = ev.clientY - (r.top + r.height * 0.4);
+         const d = Math.sqrt(dx * dx + dy * dy) || 1;
+         const m = Math.min(7, d / 40);
+         lookT = [(dx / d) * m, (dy / d) * m];
+      };
+
+      window.addEventListener('pointermove', handlePointerMove, { passive: true });
+
+      function loop() {
+         look[0] += (lookT[0] - look[0]) * 0.15;
+         look[1] += (lookT[1] - look[1]) * 0.15;
+         if (!anim || tState === 1 || tState === 0) {
+            if (tState > 0.99) draw(1);
+         }
+         loopAnim = requestAnimationFrame(loop);
+      }
+      loopAnim = requestAnimationFrame(loop);
+
+      // 3. Parpadeo periódico natural cada 2.5s a 5s
+      function scheduleBlink() {
+         blinkTimeout = setTimeout(() => {
+            if (tState > 0.99) {
+               const t0 = performance.now();
+               function b(ts) {
+                  const p = (ts - t0) / 180;
+                  blink = p < 1 ? Math.abs(1 - 2 * p) * 0.92 + 0.08 : 1;
+                  if (p < 1) requestAnimationFrame(b);
+               }
+               requestAnimationFrame(b);
+            }
+            scheduleBlink();
+         }, 2600 + Math.random() * 2400);
+      }
+      scheduleBlink();
+
+      // 4. Interacción al hacer clic: vuelve a ser 'j' y vuelve a sonreír
+      const handleClick = () => {
+         if (busy) return;
+         busy = true;
+         tween(tState, 0, 650, () => {
+            setTimeout(() => {
+               tween(0, 1, 1000, () => {
+                  busy = false;
+               });
+            }, 200);
+         });
+      };
+
+      svg.addEventListener('click', handleClick);
+
+      return () => {
+         clearTimeout(startTimer);
+         clearTimeout(blinkTimeout);
+         cancelAnimationFrame(anim);
+         cancelAnimationFrame(loopAnim);
+         window.removeEventListener('pointermove', handlePointerMove);
+         svg.removeEventListener('click', handleClick);
+      };
+   }, [animated]);
+
+   if (!animated) {
+      const e = 1;
+      const pts = centerline(e);
+      const ox = fx;
+      const oy = fy;
+      const d = 'M' + pts.map((p) => `${(p[0] + ox).toFixed(1)} ${(p[1] + oy).toFixed(1)}`).join('L');
+
+      return (
+         <svg
+            className={className}
+            aria-hidden="true"
+            focusable="false"
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="35 35 230 230"
+            {...props}
+         >
+            <path
+               d={d}
+               fill="none"
+               stroke={mouthColor}
+               strokeWidth="36"
+               strokeLinecap="round"
+               strokeLinejoin="round"
+            />
+            <ellipse cx={EL[0].toFixed(1)} cy={EL[1].toFixed(1)} rx={DOT} ry={DOT} fill={eyeColor} />
+            <ellipse cx={ER[0].toFixed(1)} cy={ER[1].toFixed(1)} rx={DOT} ry={DOT} fill={eyeColor} />
+         </svg>
+      );
+   }
+
    return (
       <svg
-         className={className}
-         aria-hidden="true"
-         focusable="false"
+         ref={svgRef}
+         className={`${className} cursor-pointer select-none transition-transform active:scale-95`}
+         aria-label="Carita sonriente Jeito"
+         role="img"
          xmlns="http://www.w3.org/2000/svg"
-         viewBox="-84.61 -72.51 169.23 162.91"
+         viewBox="35 35 230 230"
+         title="Haz clic en la carita"
          {...props}
       >
          <path
-            d="M54.72 18.52L54.27 20.10L53.77 21.68L53.23 23.23L52.65 24.77L52.02 26.30L51.34 27.80L50.62 29.28L49.86 30.74L49.06 32.18L48.22 33.60L47.33 34.99L46.41 36.35L45.44 37.69L44.44 38.99L43.40 40.27L42.32 41.52L41.21 42.73L40.06 43.91L38.88 45.06L37.66 46.18L36.41 47.25L35.14 48.29L33.83 49.30L32.49 50.26L31.13 51.19L29.74 52.07L28.33 52.92L26.89 53.72L25.42 54.48L23.94 55.20L22.44 55.87L20.92 56.50L19.38 57.09L17.82 57.63L16.25 58.13L14.66 58.58L13.06 58.98L11.46 59.34L9.84 59.65L8.21 59.91L6.58 60.12L4.94 60.29L3.29 60.41L1.65 60.48L0.00 60.51L-1.65 60.48L-3.29 60.41L-4.94 60.29L-6.58 60.12L-8.21 59.91L-9.84 59.65L-11.46 59.34L-13.06 58.98L-14.66 58.58L-16.25 58.13L-17.82 57.63L-19.38 57.09L-20.92 56.50L-22.44 55.87L-23.94 55.20L-25.42 54.48L-26.89 53.72L-28.33 52.92L-29.74 52.07L-31.13 51.19L-32.49 50.26L-33.83 49.30L-35.14 48.29L-36.41 47.25L-37.66 46.18L-38.88 45.06L-40.06 43.91L-41.21 42.73L-42.32 41.52L-43.40 40.27L-44.44 38.99L-45.44 37.69L-46.41 36.35L-47.33 34.99L-48.22 33.60L-49.06 32.18L-49.86 30.74L-50.62 29.28L-51.34 27.80L-52.02 26.30L-52.65 24.77L-53.23 23.23L-53.77 21.68L-54.27 20.10L-54.72 18.52"
+            ref={strokeRef}
             fill="none"
             stroke={mouthColor}
-            strokeWidth="35.79"
+            strokeWidth="36"
             strokeLinecap="round"
             strokeLinejoin="round"
          />
-         <circle cx="-36.115093817622565" cy="-41.795640658224556" r="18.711656441717793" fill={eyeColor} />
-         <circle cx="36.115093817622565" cy="-41.795640658224556" r="18.711656441717793" fill={eyeColor} />
+         <ellipse ref={eyeLRef} fill={eyeColor} rx="19" ry="19" cx="0" cy="0" />
+         <ellipse ref={eyeRRef} fill={eyeColor} rx="19" ry="19" cx="0" cy="0" />
       </svg>
    );
 }
