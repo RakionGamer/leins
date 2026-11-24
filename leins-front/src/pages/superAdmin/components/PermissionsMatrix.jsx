@@ -5,28 +5,26 @@ import {
    PERMISSION_PRESETS,
    getPresetPermissions,
 } from '../../../constants/permissions';
+import { SparklesIcon } from '@heroicons/react/24/outline';
 import {
-   BanknotesIcon,
-   BuildingOffice2Icon,
-   ArrowTrendingUpIcon,
-   ArrowTrendingDownIcon,
-   BookOpenIcon,
-   CheckCircleIcon,
-   XCircleIcon,
-   ShieldCheckIcon,
-   SparklesIcon,
-} from '@heroicons/react/24/outline';
+   BancoIcon,
+   IngresosIcon,
+   EgresosIcon,
+   ContabilidadIcon,
+   EntidadesIcon,
+   CandadoIcon,
+} from '../../../components/icons/SidebarIcons';
 
 const MODULE_ICONS = {
-   bank_movements: BanknotesIcon,
-   bank_accounts: BuildingOffice2Icon,
-   income_sales: ArrowTrendingUpIcon,
-   income_receivables: ArrowTrendingUpIcon,
-   expenses_purchases: ArrowTrendingDownIcon,
-   expenses_honorarium: ArrowTrendingDownIcon,
-   expenses_payables: ArrowTrendingDownIcon,
-   accounting: BookOpenIcon,
-   entities: BuildingOffice2Icon,
+   bank_movements: BancoIcon,
+   bank_accounts: BancoIcon,
+   income_sales: IngresosIcon,
+   income_receivables: IngresosIcon,
+   expenses_purchases: EgresosIcon,
+   expenses_honorarium: EgresosIcon,
+   expenses_payables: EgresosIcon,
+   accounting: ContabilidadIcon,
+   entities: EntidadesIcon,
 };
 
 export default function PermissionsMatrix({ permissions, onChange, disabled = false }) {
@@ -70,24 +68,26 @@ export default function PermissionsMatrix({ permissions, onChange, disabled = fa
    return (
       <div className="space-y-6">
          {/* BARRA SUPERIOR DE PRESETS Y CONTADOR */}
-         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 p-4 bg-gray-50 dark:bg-white/5 border border-border-subtle rounded-2xl">
+         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 p-4 sm:p-5 bg-[#F8FAFF] border border-[#E2EAFD] rounded-2xl">
             <div>
                <div className="flex items-center gap-2">
-                  <ShieldCheckIcon className="w-5 h-5 text-brand" />
-                  <span className="text-sm font-bold text-heading dark:text-white">Matriz de Permisos</span>
-                  <span className="text-xs px-2.5 py-0.5 rounded-full bg-brand/10 text-brand font-bold">
+                  <CandadoIcon className="w-5 h-5 text-[#1F6BFF]" />
+                  <span className="text-sm font-black font-nunito text-[#0A1A3F]">
+                     Matriz de Permisos
+                  </span>
+                  <span className="text-xs px-2.5 py-0.5 rounded-full bg-[#EFF3FF] text-[#1F6BFF] font-bold border border-[#DCE5FF]">
                      {activeCount} / {totalCount} activos
                   </span>
                </div>
-               <p className="text-xs text-text-soft mt-0.5">
-                  Asigna permisos directos o aplica una plantilla de acceso rápido.
+               <p className="text-xs text-[#55607A] mt-0.5">
+                  Asigna permisos directos por módulo o aplica una plantilla de acceso rápido.
                </p>
             </div>
 
             {/* PRESETS RÁPIDOS */}
             <div className="flex flex-wrap items-center gap-2">
-               <span className="text-xs font-semibold text-text-soft flex items-center gap-1">
-                  <SparklesIcon className="w-3.5 h-3.5 text-brand" /> Plantillas:
+               <span className="text-xs font-semibold text-[#55607A] flex items-center gap-1">
+                  <SparklesIcon className="w-3.5 h-3.5 text-[#1F6BFF]" /> Plantillas:
                </span>
                {PERMISSION_PRESETS.map((preset) => (
                   <button
@@ -96,7 +96,7 @@ export default function PermissionsMatrix({ permissions, onChange, disabled = fa
                      disabled={disabled}
                      onClick={() => handleApplyPreset(preset.key)}
                      title={preset.desc}
-                     className="px-2.5 py-1 text-xs font-semibold rounded-lg border border-border-subtle bg-bg-content hover:bg-brand/10 hover:border-brand/40 hover:text-brand text-text-main transition shadow-2xs cursor-pointer active:scale-95 disabled:opacity-50"
+                     className="px-3 py-1.5 text-xs font-bold rounded-xl border border-[#E2EAFD] bg-white hover:border-[#1F6BFF] hover:text-[#1F6BFF] text-[#0A1A3F] transition shadow-2xs cursor-pointer active:scale-95 disabled:opacity-50"
                   >
                      {preset.label}
                   </button>
@@ -107,7 +107,7 @@ export default function PermissionsMatrix({ permissions, onChange, disabled = fa
          {/* REJILLA MODULAR */}
          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {Object.entries(PERMISSION_MODULES).map(([modKey, modDef]) => {
-               const Icon = MODULE_ICONS[modKey] || ShieldCheckIcon;
+               const Icon = MODULE_ICONS[modKey] || CandadoIcon;
                const modPerms = permissions?.[modKey] || {};
                const modTotal = modDef.permissions.length;
                const modActive = modDef.permissions.filter((p) => modPerms[p.key]).length;
@@ -116,19 +116,19 @@ export default function PermissionsMatrix({ permissions, onChange, disabled = fa
                return (
                   <div
                      key={modKey}
-                     className="border border-border-subtle rounded-2xl bg-bg-content p-4 shadow-2xs hover:shadow-soft transition-all duration-200"
+                     className="border border-[#E2EAFD] rounded-2xl bg-white p-5 shadow-xs hover:border-[#DCE5FF] transition-all duration-200 flex flex-col justify-between"
                   >
                      {/* ENCABEZADO DE MÓDULO */}
-                     <div className="flex items-center justify-between pb-3 mb-3 border-b border-border-subtle">
-                        <div className="flex items-center gap-2.5">
-                           <div className="w-8 h-8 rounded-xl bg-brand/10 text-brand flex items-center justify-center shrink-0">
-                              <Icon className="w-4 h-4" />
+                     <div className="flex items-center justify-between pb-3.5 mb-3.5 border-b border-[#E2EAFD]">
+                        <div className="flex items-center gap-3">
+                           <div className="w-8 h-8 rounded-xl bg-[#EFF3FF] text-[#0A1A3F] flex items-center justify-center shrink-0">
+                              <Icon className="w-4 h-4 text-[#0A1A3F]" />
                            </div>
                            <div>
-                              <h3 className="text-sm font-bold text-heading dark:text-white leading-tight">
+                              <h3 className="text-sm font-black font-nunito text-[#0A1A3F] leading-tight">
                                  {modDef.label}
                               </h3>
-                              <p className="text-[11px] text-text-soft">{modDef.description}</p>
+                              <p className="text-[11px] text-[#55607A] mt-0.5">{modDef.description}</p>
                            </div>
                         </div>
 
@@ -138,11 +138,11 @@ export default function PermissionsMatrix({ permissions, onChange, disabled = fa
                               type="button"
                               disabled={disabled}
                               onClick={() => handleToggleModuleAll(modKey, !allActive)}
-                              className={`text-[11px] font-bold px-2 py-1 rounded-md transition ${
+                              className={`text-[11px] font-bold px-2.5 py-1 rounded-lg transition cursor-pointer disabled:opacity-50 ${
                                  allActive
-                                    ? 'text-danger hover:bg-danger/10'
-                                    : 'text-brand hover:bg-brand/10'
-                              } cursor-pointer disabled:opacity-50`}
+                                    ? 'text-[#E5484D] hover:bg-[#FDF0F0]'
+                                    : 'text-[#1F6BFF] hover:bg-[#EFF3FF]'
+                              }`}
                            >
                               {allActive ? 'Desmarcar' : 'Marcar todo'}
                            </button>
@@ -160,28 +160,28 @@ export default function PermissionsMatrix({ permissions, onChange, disabled = fa
                                  onClick={() => handleToggleSingle(modKey, p.key)}
                                  className={`flex items-center justify-between p-2.5 rounded-xl border transition cursor-pointer select-none min-h-[46px] ${
                                     isChecked
-                                       ? 'bg-brand/5 border-brand/30 dark:bg-brand/10 dark:border-brand/40 shadow-2xs'
-                                       : 'bg-gray-50/60 dark:bg-white/5 border-border-subtle/70 opacity-75 hover:opacity-100 hover:border-border-subtle'
+                                       ? 'bg-[#F0F4FD] border-[#1F6BFF]/40 shadow-xs'
+                                       : 'bg-[#FAFCFF] border-[#E2EAFD] hover:border-[#D9E2EC]'
                                  } ${disabled ? 'pointer-events-none opacity-50' : ''}`}
                               >
                                  <div className="pr-2 min-w-0 flex-1 flex items-center gap-1.5 flex-wrap">
                                     <span
                                        className={`text-xs leading-snug ${
                                           isChecked
-                                             ? 'text-heading dark:text-white font-semibold'
-                                             : 'text-text-soft font-normal'
+                                             ? 'text-[#0A1A3F] font-bold'
+                                             : 'text-[#55607A] font-medium'
                                        }`}
                                     >
                                        {p.label}
                                     </span>
                                     {p.badge && (
                                        <span
-                                          className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider shrink-0 ${
+                                          className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider shrink-0 ${
                                              p.badge === 'Crítico'
-                                                ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300'
+                                                ? 'bg-amber-100 text-amber-800'
                                                 : p.badge === 'Peligro'
-                                                ? 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300'
-                                                : 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/40 dark:text-cyan-300'
+                                                ? 'bg-red-100 text-red-800'
+                                                : 'bg-[#EFF3FF] text-[#1F6BFF]'
                                           }`}
                                        >
                                           {p.badge}
@@ -193,7 +193,7 @@ export default function PermissionsMatrix({ permissions, onChange, disabled = fa
                                  <div className="shrink-0 ml-2">
                                     <div
                                        className={`w-9 h-5 flex items-center rounded-full p-0.5 transition-colors duration-200 ease-in-out ${
-                                          isChecked ? 'bg-brand' : 'bg-gray-300 dark:bg-neutral-700'
+                                          isChecked ? 'bg-[#1F6BFF]' : 'bg-[#D1D5DB]'
                                        }`}
                                     >
                                        <div

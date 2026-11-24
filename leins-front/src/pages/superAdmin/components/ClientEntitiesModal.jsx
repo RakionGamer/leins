@@ -5,7 +5,7 @@ import SpinnerButton from 'components/SpinnerButton';
 import { updateClientUser } from '../../../services/clientUsersApi';
 import { useEntities } from '../../../hooks/useEntities';
 import { toast } from 'components/Toaster';
-import { BuildingOffice2Icon, CheckIcon } from '@heroicons/react/24/outline';
+import { CheckIcon } from '@heroicons/react/24/outline';
 
 export default function ClientEntitiesModal({ isOpen, onClose, client, onSuccess }) {
    const [selectedEntityIds, setSelectedEntityIds] = useState([]);
@@ -61,15 +61,15 @@ export default function ClientEntitiesModal({ isOpen, onClose, client, onSuccess
          title={`Empresas Asignadas — ${clientDisplayName}`}
       >
          <div className="space-y-4">
-            <p className="text-xs text-text-soft -mt-1 pb-3 border-b border-border-subtle">
+            <p className="text-xs text-[#55607A] -mt-1 pb-3 border-b border-[#E2EAFD]">
                Marca las empresas que este cliente podrá gestionar en el portal.
             </p>
 
-            <div className="max-h-72 overflow-y-auto divide-y divide-border-subtle/50 rounded-2xl border border-border-subtle bg-bg-content p-2">
+            <div className="max-h-72 overflow-y-auto divide-y divide-[#E2EAFD]/60 rounded-2xl border border-[#E2EAFD] bg-white p-2">
                {loadingEntities ? (
-                  <p className="p-4 text-center text-xs text-text-soft">Cargando empresas...</p>
+                  <p className="p-4 text-center text-xs text-[#55607A]">Cargando empresas...</p>
                ) : availableEntities?.length === 0 ? (
-                  <p className="p-4 text-center text-xs text-text-soft">No hay empresas disponibles.</p>
+                  <p className="p-4 text-center text-xs text-[#55607A]">No hay empresas disponibles.</p>
                ) : (
                   availableEntities?.map((ent) => {
                      const isChecked = selectedEntityIds.includes(Number(ent.id));
@@ -77,22 +77,22 @@ export default function ClientEntitiesModal({ isOpen, onClose, client, onSuccess
                         <div
                            key={ent.id}
                            onClick={() => handleToggle(ent.id)}
-                           className={`flex items-center justify-between p-3 hover:bg-gray-50 dark:hover:bg-white/5 rounded-xl cursor-pointer transition select-none ${
-                              isChecked ? 'bg-brand/5 dark:bg-brand/10' : ''
+                           className={`flex items-center justify-between p-3 hover:bg-[#F9FBFF] rounded-xl cursor-pointer transition select-none ${
+                              isChecked ? 'bg-[#F0F4FD]' : ''
                            }`}
                         >
                            <div className="min-w-0 pr-3">
-                              <p className="text-sm font-semibold text-heading dark:text-white truncate">
+                              <p className="text-sm font-bold text-[#0A1A3F] truncate">
                                  {ent.name || ent.legal_name}
                               </p>
-                              <p className="text-xs text-text-soft">{ent.rut || ent.tax_id}</p>
+                              <p className="text-xs text-[#55607A]">{ent.rut || ent.tax_id}</p>
                            </div>
 
                            <div
                               className={`w-6 h-6 rounded-lg flex items-center justify-center border transition ${
                                  isChecked
-                                    ? 'bg-brand border-brand text-white shadow-2xs'
-                                    : 'border-border-subtle bg-bg-content text-transparent'
+                                    ? 'bg-[#1F6BFF] border-[#1F6BFF] text-white shadow-xs'
+                                    : 'border-[#D9E2EC] bg-white text-transparent'
                               }`}
                            >
                               <CheckIcon className="w-4 h-4 stroke-[3]" />
@@ -103,19 +103,19 @@ export default function ClientEntitiesModal({ isOpen, onClose, client, onSuccess
                )}
             </div>
 
-            <div className="pt-4 border-t border-border-subtle flex justify-end items-center gap-3">
+            <div className="pt-4 border-t border-[#E2EAFD] flex justify-end items-center gap-3">
                <button
                   type="button"
                   onClick={onClose}
                   disabled={saving}
-                  className="px-4 py-2 text-sm font-semibold rounded-xl border border-border-subtle hover:bg-gray-100 dark:hover:bg-white/5 text-text-soft transition cursor-pointer"
+                  className="px-5 py-2.5 rounded-full border border-[#E2EAFD] text-[#55607A] hover:text-[#0A1A3F] hover:bg-[#F8FAFF] text-xs font-bold transition cursor-pointer"
                >
                   Cancelar
                </button>
                <SpinnerButton
                   loading={saving}
                   onClick={handleSave}
-                  className="bg-brand text-white px-5 py-2 rounded-xl text-sm font-bold shadow-lg hover:bg-brand-strong transition cursor-pointer active:scale-95"
+                  className="px-6 py-2.5 rounded-full bg-[#1F6BFF] hover:bg-[#1657D7] text-white text-xs font-bold transition shadow-xs cursor-pointer active:scale-95"
                >
                   Guardar Asignaciones
                </SpinnerButton>

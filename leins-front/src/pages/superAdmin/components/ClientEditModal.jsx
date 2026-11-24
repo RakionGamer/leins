@@ -6,7 +6,6 @@ import FormError from 'components/FormError';
 import SpinnerButton from 'components/SpinnerButton';
 import { updateClientUser } from '../../../services/clientUsersApi';
 import { toast } from 'components/Toaster';
-import { PencilSquareIcon } from '@heroicons/react/24/outline';
 
 export default function ClientEditModal({ isOpen, onClose, client, onSuccess }) {
    const [username, setUsername] = useState('');
@@ -67,7 +66,7 @@ export default function ClientEditModal({ isOpen, onClose, client, onSuccess }) 
          title={`Editar Cliente — ${client?.username || ''}`}
       >
          <form onSubmit={handleSubmit} className="space-y-4">
-            <p className="text-xs text-text-soft -mt-1 pb-3 border-b border-border-subtle">
+            <p className="text-xs text-[#55607A] -mt-1 pb-3 border-b border-[#E2EAFD]">
                Modifica los datos personales o restablece la contraseña de este cliente.
             </p>
 
@@ -108,19 +107,19 @@ export default function ClientEditModal({ isOpen, onClose, client, onSuccess }) 
                </div>
             </div>
 
-            <div className="pt-4 border-t border-border-subtle flex justify-end items-center gap-3">
+            <div className="pt-4 border-t border-[#E2EAFD] flex justify-end items-center gap-3">
                <button
                   type="button"
                   onClick={onClose}
                   disabled={saving}
-                  className="px-4 py-2 text-sm font-semibold rounded-xl border border-border-subtle hover:bg-gray-100 dark:hover:bg-white/5 text-text-soft transition cursor-pointer"
+                  className="px-5 py-2.5 rounded-full border border-[#E2EAFD] text-[#55607A] hover:text-[#0A1A3F] hover:bg-[#F8FAFF] text-xs font-bold transition cursor-pointer"
                >
                   Cancelar
                </button>
                <SpinnerButton
                   type="submit"
                   loading={saving}
-                  className="bg-brand text-white px-5 py-2 rounded-xl text-sm font-bold shadow-lg hover:bg-brand-strong transition cursor-pointer active:scale-95"
+                  className="px-6 py-2.5 rounded-full bg-[#1F6BFF] hover:bg-[#1657D7] text-white text-xs font-bold transition shadow-xs cursor-pointer active:scale-95"
                >
                   Guardar Cambios
                </SpinnerButton>

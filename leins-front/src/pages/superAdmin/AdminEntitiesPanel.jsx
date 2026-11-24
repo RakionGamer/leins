@@ -1,8 +1,13 @@
 import React, { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'components/Toaster';
-import { LockClosedIcon } from '@heroicons/react/24/outline';
 import Tooltip from 'components/Tooltip';
+import {
+   EntidadesIcon,
+   CandadoIcon,
+   BuscarIcon,
+   EliminarIcon
+} from 'components/icons/SidebarIcons';
 import {
    getAdminEntityAssignments,
    listAssignableEntities,
@@ -29,10 +34,10 @@ function entityRut(row) {
 const LOCKED_MESSAGE = 'No puedes asignar una entidad que no administras';
 
 const PERMISSION_HELP = {
-   canCreate: 'Puede crear cosas nuevas en esta entidad: cuentas bancarias, credenciales, clientes, subir cartolas y conciliar movimientos.',
-   canUpdate: 'Puede editar lo ya existente en esta entidad: datos de la entidad, cuentas bancarias, credenciales y clientes.',
-   canDelete: 'Puede eliminar cosas en esta entidad: la entidad misma, cuentas bancarias, credenciales, y deshacer conciliaciones.',
-   isAdmin: 'Control total sobre la entidad (incluye crear, editar y eliminar). Ademas, puede asignar o quitar esta entidad a otros administradores.',
+   canCreate: 'Puede crear elementos en esta entidad: cuentas bancarias, credenciales, clientes, cartolas y conciliaciones.',
+   canUpdate: 'Puede editar datos existentes: entidad, cuentas bancarias, credenciales y clientes.',
+   canDelete: 'Puede eliminar elementos: entidad, cuentas bancarias, credenciales y deshacer conciliaciones.',
+   isAdmin: 'Control total de la entidad. Permite asignar o quitar esta entidad a otros administradores.',
 };
 
 export default function AdminEntitiesPanel({ admin }) {
@@ -92,7 +97,7 @@ export default function AdminEntitiesPanel({ admin }) {
             entityId,
             ...flags
          });
-         toast.success('Entidad asignada');
+         toast.success('Entidad asignada correctamente');
          setSelectedEntityId('');
          setFlags(DEFAULT_FLAGS);
          await refresh();
@@ -130,13 +135,13 @@ export default function AdminEntitiesPanel({ admin }) {
    };
 
    const onRemove = async (row) => {
-      const ok = window.confirm(`Quitar acceso a ${entityName(row)}?`);
+      const ok = window.confirm(`¿Quitar acceso a ${entityName(row)}?`);
       if (!ok) return;
 
       try {
          setRemovingId(Number(row.entity_id));
          await removeEntityFromAdmin({ adminId, entityId: row.entity_id });
-         toast.success('Entidad quitada');
+         toast.success('Entidad desvinculada');
          await refresh();
       } catch (err) {
          toast.error(err?.message || 'No se pudo quitar la entidad');
@@ -146,200 +151,238 @@ export default function AdminEntitiesPanel({ admin }) {
    };
 
    return (
-      <div className="space-y-5">
-         <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-               <p className="text-sm text-text-soft">Super administrador</p>
-               <h3 className="text-lg font-semibold text-heading dark:text-white">
-                  {admin?.username || `Admin ${adminId}`}
-               </h3>
-               <p className="mt-1 text-sm text-text-soft">{admin?.email}</p>
+      <div className="space-y-6">
+         {/* Admin Profile Summary Card */}
+         <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl bg-[#F8FAFF] border border-[#E2EAFD]">
+            <div className="flex items-center gap-3.5">
+               <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-[#1F6BFF] to-[#4B88FF] text-white flex items-center justify-center font-nunito font-black text-base shadow-xs">
+                  {(admin?.username || 'A').slice(0, 2).toUpperCase()}
+               </div>
+               <div>
+                  <div className="flex items-center gap-2">
+                     <span className="text-[10px] font-black uppercase tracking-wider text-[#1F6BFF] bg-[#EFF3FF] px-2 py-0.5 rounded-md border border-[#DCE5FF]">
+                        Super Administrador
+                     </span>
+                  </div>
+                  <h4 className="font-nunito font-black text-base text-[#0A1A3F] leading-tight mt-0.5">
+                     {admin?.username || `Admin ${adminId}`}
+                  </h4>
+                  <p className="text-xs text-[#55607A]">{admin?.email || 'Sin correo registrado'}</p>
+               </div>
             </div>
-            <div className="inline-flex items-center gap-2 rounded-lg border border-border-subtle bg-surface-1 px-3 py-2 text-sm">
-               <span className="text-text-soft">Asignadas</span>
-               <span className="font-semibold text-heading dark:text-white">{assignedRows.length}</span>
+            <div className="inline-flex items-center gap-2 rounded-full border border-[#DCE5FF] bg-[#EFF3FF] px-3.5 py-1.5 text-xs">
+               <span className="text-[#55607A] font-semibold">Entidades Asignadas</span>
+               <span className="font-black text-[#1F6BFF] bg-white px-2 py-0.5 rounded-full border border-[#DCE5FF]">
+                  {assignedRows.length}
+               </span>
             </div>
          </div>
 
-         <section className="rounded-xl border border-border-subtle bg-surface-1 p-4">
-            <h4 className="text-base font-semibold text-heading dark:text-white">Asignar entidad</h4>
-            <form className="mt-4 grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-3" onSubmit={onAssign}>
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div className="flex flex-col gap-1">
-                     <label className="text-sm text-text-soft" htmlFor="entity-assignment-search">Buscar</label>
-                     <input
-                        id="entity-assignment-search"
-                        type="text"
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        className="border border-border-subtle bg-bg-content rounded-lg p-2"
-                        placeholder="Nombre o RUT"
-                        autoComplete="off"
-                     />
+         {/* Form: Asignar Entidad */}
+         <section className="rounded-2xl border border-[#E2EAFD] bg-white p-5 shadow-xs">
+            <div className="flex items-center gap-2.5 mb-3.5">
+               <div className="w-7 h-7 rounded-xl bg-[#EFF3FF] flex items-center justify-center text-[#1F6BFF]">
+                  <EntidadesIcon className="w-4 h-4" />
+               </div>
+               <h4 className="font-nunito font-black text-sm text-[#0A1A3F]">Asignar Nueva Entidad</h4>
+            </div>
+
+            <form className="space-y-4" onSubmit={onAssign}>
+               <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                  <div className="sm:col-span-4 flex flex-col gap-1.5">
+                     <label className="text-[11px] font-bold uppercase tracking-wider text-[#55607A]" htmlFor="entity-assignment-search">
+                        Buscar Entidad
+                     </label>
+                     <div className="relative">
+                        <BuscarIcon className="w-4 h-4 text-[#55607A] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                        <input
+                           id="entity-assignment-search"
+                           type="text"
+                           value={search}
+                           onChange={(e) => setSearch(e.target.value)}
+                           className="w-full bg-[#F8FAFF] focus:bg-white border border-[#E2EAFD] focus:border-[#1F6BFF] focus:ring-1 focus:ring-[#1F6BFF] rounded-xl pl-9 pr-3 py-2 text-xs text-[#0A1A3F] placeholder:text-[#55607A]/50 outline-hidden transition-all"
+                           placeholder="Filtrar por nombre o RUT..."
+                           autoComplete="off"
+                        />
+                     </div>
                   </div>
-                  <div className="flex flex-col gap-1">
-                     <label className="text-sm text-text-soft" htmlFor="entity-assignment-select">Entidad</label>
+
+                  <div className="sm:col-span-5 flex flex-col gap-1.5">
+                     <label className="text-[11px] font-bold uppercase tracking-wider text-[#55607A]" htmlFor="entity-assignment-select">
+                        Seleccionar Entidad
+                     </label>
                      <select
                         id="entity-assignment-select"
                         value={selectedEntityId}
                         onChange={(e) => setSelectedEntityId(e.target.value)}
-                        className="border border-border-subtle bg-bg-content rounded-lg p-2"
+                        className="w-full bg-[#F8FAFF] focus:bg-white border border-[#E2EAFD] focus:border-[#1F6BFF] focus:ring-1 focus:ring-[#1F6BFF] rounded-xl px-3 py-2 text-xs text-[#0A1A3F] outline-hidden transition-all"
                      >
-                        <option value="">Selecciona...</option>
+                        <option value="">Selecciona una entidad ({assignableEntities.length} disponibles)...</option>
                         {assignableEntities.map((row) => (
                            <option key={row.id} value={row.id}>
-                              {entityName(row)} {entityRut(row) ? `- ${entityRut(row)}` : ''}
+                              {entityName(row)} {entityRut(row) ? `(${entityRut(row)})` : ''}
                            </option>
                         ))}
                      </select>
                   </div>
+
+                  <div className="sm:col-span-3 flex items-end">
+                     <button
+                        type="submit"
+                        disabled={saving || !selectedEntityId}
+                        className={`w-full py-2.5 px-4 rounded-full text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 ${
+                           saving || !selectedEntityId
+                              ? 'bg-[#E2EAFD] text-[#55607A] cursor-not-allowed opacity-70'
+                              : 'bg-[#1F6BFF] hover:bg-[#1657D7] text-white hover:shadow-md'
+                        }`}
+                     >
+                        {saving ? 'Asignando...' : 'Asignar Entidad'}
+                     </button>
+                  </div>
                </div>
 
-               <div className="flex items-end">
-                  <button
-                     type="submit"
-                     disabled={saving}
-                     className={`px-4 py-2 rounded-lg text-white ${saving ? 'bg-gray-400 cursor-not-allowed' : 'bg-brand hover:bg-brand-strong'}`}
-                  >
-                     {saving ? 'Asignando...' : 'Asignar'}
-                  </button>
-               </div>
-
-               <div className="lg:col-span-2 flex flex-wrap gap-4 pt-1 text-sm text-text-soft">
-                  <Tooltip content={PERMISSION_HELP.canCreate}>
-                     <label className="inline-flex items-center gap-2 cursor-help">
-                        <input type="checkbox" checked={flags.canCreate} onChange={(e) => setFlags((s) => ({ ...s, canCreate: e.target.checked }))} />
-                        Crear
-                     </label>
-                  </Tooltip>
-                  <Tooltip content={PERMISSION_HELP.canUpdate}>
-                     <label className="inline-flex items-center gap-2 cursor-help">
-                        <input type="checkbox" checked={flags.canUpdate} onChange={(e) => setFlags((s) => ({ ...s, canUpdate: e.target.checked }))} />
-                        Editar
-                     </label>
-                  </Tooltip>
-                  <Tooltip content={PERMISSION_HELP.canDelete}>
-                     <label className="inline-flex items-center gap-2 cursor-help">
-                        <input type="checkbox" checked={flags.canDelete} onChange={(e) => setFlags((s) => ({ ...s, canDelete: e.target.checked }))} />
-                        Eliminar
-                     </label>
-                  </Tooltip>
-                  <Tooltip content={PERMISSION_HELP.isAdmin}>
-                     <label className="inline-flex items-center gap-2 cursor-help">
-                        <input type="checkbox" checked={flags.isAdmin} onChange={(e) => setFlags((s) => ({ ...s, isAdmin: e.target.checked }))} />
-                        Administrador de entidad
-                     </label>
-                  </Tooltip>
+               {/* Permisos de asignación */}
+               <div className="p-3 bg-[#F8FAFF] rounded-xl border border-[#E2EAFD] flex flex-wrap items-center gap-4">
+                  <span className="text-[11px] font-bold text-[#55607A] uppercase tracking-wider">Permisos iniciales:</span>
+                  {[
+                     { key: 'canCreate', label: 'Crear', help: PERMISSION_HELP.canCreate },
+                     { key: 'canUpdate', label: 'Editar', help: PERMISSION_HELP.canUpdate },
+                     { key: 'canDelete', label: 'Eliminar', help: PERMISSION_HELP.canDelete },
+                     { key: 'isAdmin', label: 'Administrador de entidad', help: PERMISSION_HELP.isAdmin },
+                  ].map(({ key, label, help }) => (
+                     <Tooltip key={key} content={help}>
+                        <label className="inline-flex items-center gap-2 cursor-pointer select-none text-xs font-semibold text-[#0A1A3F] hover:text-[#1F6BFF] transition-colors">
+                           <input
+                              type="checkbox"
+                              checked={flags[key]}
+                              onChange={(e) => setFlags((s) => ({ ...s, [key]: e.target.checked }))}
+                              className="w-4 h-4 rounded text-[#1F6BFF] accent-[#1F6BFF] border-[#E2EAFD] focus:ring-0 cursor-pointer"
+                           />
+                           <span>{label}</span>
+                        </label>
+                     </Tooltip>
+                  ))}
                </div>
             </form>
          </section>
 
-         <section className="rounded-xl border border-border-subtle bg-surface-1 p-4">
-            <h4 className="text-base font-semibold text-heading dark:text-white">Entidades asignadas</h4>
+         {/* Tabla de Entidades Asignadas */}
+         <section className="rounded-2xl border border-[#E2EAFD] bg-white shadow-xs overflow-hidden">
+            <div className="px-5 py-3.5 border-b border-[#E2EAFD] flex items-center justify-between bg-white">
+               <h4 className="font-nunito font-black text-sm text-[#0A1A3F]">Entidades Asignadas</h4>
+               <span className="text-xs text-[#55607A]">{assignedRows.length} vinculadas</span>
+            </div>
 
             {assignmentsQuery.error && (
-               <div className="mt-3 rounded-lg border border-red-200 bg-red-50 text-red-700 text-sm p-3">
+               <div className="m-4 rounded-xl border border-[#FCA5A5] bg-[#FEF2F2] text-[#B91C1C] text-xs p-3 font-semibold">
                   {assignmentsQuery.error?.message || 'No se pudieron cargar las asignaciones'}
                </div>
             )}
 
             {assignmentsQuery.isLoading ? (
-               <div className="mt-4 text-sm text-text-soft">Cargando asignaciones...</div>
+               <div className="py-12 text-center text-xs text-[#55607A] font-semibold animate-pulse">
+                  Cargando asignaciones...
+               </div>
             ) : (
-               <div className="mt-4 overflow-x-auto">
-                  <table className="w-full min-w-[720px] text-sm">
+               <div className="overflow-x-auto">
+                  <table className="w-full min-w-[700px] text-xs">
                      <thead>
-                        <tr className="border-b border-border-subtle text-text-soft">
-                           <th className="text-left py-2 px-2">Entidad</th>
-                           <th className="text-left py-2 px-2">RUT</th>
-                           <th className="text-center py-2 px-2">
+                        <tr className="bg-[#F0F4FD] text-[#55607A] text-[11px] font-bold uppercase tracking-wider">
+                           <th className="text-left py-3 px-4">Entidad</th>
+                           <th className="text-left py-3 px-4">RUT</th>
+                           <th className="text-center py-3 px-3">
                               <Tooltip content={PERMISSION_HELP.canCreate}>
-                                 <span className="cursor-help border-b border-dotted border-text-soft">Crear</span>
+                                 <span className="cursor-help border-b border-dotted border-[#55607A]">Crear</span>
                               </Tooltip>
                            </th>
-                           <th className="text-center py-2 px-2">
+                           <th className="text-center py-3 px-3">
                               <Tooltip content={PERMISSION_HELP.canUpdate}>
-                                 <span className="cursor-help border-b border-dotted border-text-soft">Editar</span>
+                                 <span className="cursor-help border-b border-dotted border-[#55607A]">Editar</span>
                               </Tooltip>
                            </th>
-                           <th className="text-center py-2 px-2">
+                           <th className="text-center py-3 px-3">
                               <Tooltip content={PERMISSION_HELP.canDelete}>
-                                 <span className="cursor-help border-b border-dotted border-text-soft">Eliminar</span>
+                                 <span className="cursor-help border-b border-dotted border-[#55607A]">Eliminar</span>
                               </Tooltip>
                            </th>
-                           <th className="text-center py-2 px-2">
+                           <th className="text-center py-3 px-3">
                               <Tooltip content={PERMISSION_HELP.isAdmin}>
-                                 <span className="cursor-help border-b border-dotted border-text-soft">Admin entidad</span>
+                                 <span className="cursor-help border-b border-dotted border-[#55607A]">Admin Entidad</span>
                               </Tooltip>
                            </th>
-                           <th className="text-right py-2 px-2">Acciones</th>
+                           <th className="text-right py-3 px-4">Acción</th>
                         </tr>
                      </thead>
-                     <tbody>
+                     <tbody className="divide-y divide-[#E2EAFD]/70">
                         {assignedRows.length === 0 && (
                            <tr>
-                              <td colSpan={7} className="py-6 text-center text-text-soft">
-                                 Este super administrador no tiene entidades asignadas.
+                              <td colSpan={7} className="py-10 text-center text-xs text-[#55607A]">
+                                 Este super administrador no tiene entidades asignadas aún.
                               </td>
                            </tr>
                         )}
                         {assignedRows.map((row) => {
                            const canManage = row.can_manage !== false;
                            return (
-                           <tr key={row.entity_id} className={`border-b border-border-subtle last:border-b-0 ${canManage ? '' : 'bg-gray-50/70 dark:bg-white/5'}`}>
-                              <td className="py-2 px-2 text-heading dark:text-white">
-                                 <div className="flex items-center gap-2">
-                                    <span>{entityName(row)}</span>
-                                    {!canManage && (
+                              <tr key={row.entity_id} className={`hover:bg-[#F9FBFF] transition-colors ${canManage ? '' : 'bg-gray-50/60'}`}>
+                                 <td className="py-3 px-4">
+                                    <div className="flex items-center gap-2">
+                                       <span className="font-bold text-[#0A1A3F]">{entityName(row)}</span>
+                                       {!canManage && (
+                                          <Tooltip content={LOCKED_MESSAGE}>
+                                             <span className="inline-flex items-center gap-1 rounded-full bg-[#FFFBEB] px-2 py-0.5 text-[10px] font-bold text-[#B45309] border border-[#FDE68A]" aria-label={LOCKED_MESSAGE}>
+                                                <CandadoIcon className="h-3 w-3" /> Bloqueada
+                                             </span>
+                                          </Tooltip>
+                                       )}
+                                    </div>
+                                 </td>
+                                 <td className="py-3 px-4 text-[#55607A] font-medium">{entityRut(row) || '-'}</td>
+                                 {[
+                                    ['canCreate', row.can_create],
+                                    ['canUpdate', row.can_update],
+                                    ['canDelete', row.can_delete],
+                                    ['isAdmin', row.is_admin],
+                                 ].map(([key, checked]) => (
+                                    <td key={key} className="py-3 px-3 text-center">
+                                       <Tooltip content={canManage ? null : LOCKED_MESSAGE}>
+                                          <span className="inline-flex items-center justify-center">
+                                             <input
+                                                type="checkbox"
+                                                checked={Boolean(checked)}
+                                                disabled={!canManage}
+                                                onChange={() => toggleFlag(row, key)}
+                                                aria-label={key}
+                                                className={`w-4 h-4 rounded text-[#1F6BFF] accent-[#1F6BFF] border-[#E2EAFD] ${
+                                                   !canManage ? 'cursor-not-allowed opacity-40' : 'cursor-pointer'
+                                                }`}
+                                             />
+                                          </span>
+                                       </Tooltip>
+                                    </td>
+                                 ))}
+                                 <td className="py-3 px-4 text-right">
+                                    {canManage ? (
+                                       <button
+                                          type="button"
+                                          onClick={() => onRemove(row)}
+                                          disabled={Number(removingId) === Number(row.entity_id)}
+                                          className={`inline-flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full text-[#E5484D] hover:bg-[#FDF0F0] border border-[#E5484D]/30 transition-colors ${
+                                             Number(removingId) === Number(row.entity_id) ? 'opacity-50 cursor-not-allowed' : ''
+                                          }`}
+                                       >
+                                          <EliminarIcon className="w-3.5 h-3.5" />
+                                          {Number(removingId) === Number(row.entity_id) ? 'Quitando...' : 'Quitar'}
+                                       </button>
+                                    ) : (
                                        <Tooltip content={LOCKED_MESSAGE}>
-                                          <span className="inline-flex items-center rounded-full bg-amber-100 p-1 text-amber-700 ring-1 ring-amber-200" aria-label={LOCKED_MESSAGE}>
-                                             <LockClosedIcon className="h-3.5 w-3.5" />
+                                          <span className="inline-flex items-center gap-1 rounded-full border border-[#E2EAFD] bg-[#F8FAFF] px-2.5 py-1 text-[11px] font-bold text-[#55607A]">
+                                             <CandadoIcon className="w-3 h-3 text-[#55607A]" /> Bloqueada
                                           </span>
                                        </Tooltip>
                                     )}
-                                 </div>
-                              </td>
-                              <td className="py-2 px-2 text-text-soft">{entityRut(row) || '-'}</td>
-                              {[
-                                 ['canCreate', row.can_create],
-                                 ['canUpdate', row.can_update],
-                                 ['canDelete', row.can_delete],
-                                 ['isAdmin', row.is_admin],
-                              ].map(([key, checked]) => (
-                                 <td key={key} className="py-2 px-2 text-center">
-                                    <Tooltip content={canManage ? null : LOCKED_MESSAGE}>
-                                       <span className="inline-flex">
-                                          <input
-                                             type="checkbox"
-                                             checked={Boolean(checked)}
-                                             disabled={!canManage}
-                                             onChange={() => toggleFlag(row, key)}
-                                             aria-label={key}
-                                             className={!canManage ? 'cursor-not-allowed opacity-50' : ''}
-                                          />
-                                       </span>
-                                    </Tooltip>
                                  </td>
-                              ))}
-                              <td className="py-2 px-2 text-right">
-                                 {canManage ? (
-                                    <button
-                                       type="button"
-                                       onClick={() => onRemove(row)}
-                                       disabled={Number(removingId) === Number(row.entity_id)}
-                                       className={`px-3 py-1.5 rounded-md text-white ${Number(removingId) === Number(row.entity_id) ? 'bg-gray-400' : 'bg-danger'}`}
-                                    >
-                                       {Number(removingId) === Number(row.entity_id) ? 'Quitando...' : 'Quitar'}
-                                    </button>
-                                 ) : (
-                                    <Tooltip content={LOCKED_MESSAGE}>
-                                       <span className="inline-flex items-center rounded-md border border-border-subtle bg-bg-content px-2.5 py-1.5 text-xs font-medium text-text-soft">
-                                          Bloqueada
-                                       </span>
-                                    </Tooltip>
-                                 )}
-                              </td>
-                           </tr>
+                              </tr>
                            );
                         })}
                      </tbody>
@@ -349,7 +392,7 @@ export default function AdminEntitiesPanel({ admin }) {
          </section>
 
          {entitiesQuery.error && (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            <div className="rounded-xl border border-[#FDE68A] bg-[#FFFBEB] p-3 text-xs text-[#92400E] font-medium">
                {entitiesQuery.error?.message || 'No se pudieron cargar entidades disponibles'}
             </div>
          )}

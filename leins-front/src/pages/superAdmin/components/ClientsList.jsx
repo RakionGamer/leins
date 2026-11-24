@@ -10,14 +10,15 @@ import ClientEntitiesModal from './ClientEntitiesModal';
 import {
    MagnifyingGlassIcon,
    PlusIcon,
-   ShieldCheckIcon,
-   BuildingOffice2Icon,
-   PencilSquareIcon,
-   TrashIcon,
    ChevronLeftIcon,
    ChevronRightIcon,
-   UserIcon,
 } from '@heroicons/react/24/outline';
+import {
+   EntidadesIcon,
+   CandadoIcon,
+   EditarIcon,
+   EliminarIcon,
+} from '../../../components/icons/SidebarIcons';
 
 export default function ClientsList() {
    const {
@@ -48,17 +49,17 @@ export default function ClientsList() {
    return (
       <div className="space-y-4">
          {/* BARRA SUPERIOR: BUSCADOR, FILTRO POR EMPRESA Y BOTÓN NUEVO */}
-         <div className="flex flex-col md:flex-row justify-between items-center gap-3">
-            <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+         <div className="flex flex-col sm:flex-row justify-between items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
                {/* BUSCADOR */}
-               <div className="relative group w-full sm:w-64">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                     <MagnifyingGlassIcon className="h-4 w-4 text-gray-400 group-focus-within:text-brand" />
+               <div className="relative group w-full sm:w-72">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                     <MagnifyingGlassIcon className="h-4 w-4 text-[#8E9BB5] group-focus-within:text-[#1F6BFF]" />
                   </div>
                   <input
                      type="text"
-                     className="block w-full pl-9 pr-3 py-2 border border-border-subtle rounded-xl bg-bg-content text-xs focus:ring-brand focus:border-brand transition-all shadow-2xs"
-                     placeholder="Buscar cliente, email, usuario..."
+                     className="block w-full pl-10 pr-4 py-2.5 border border-[#E2EAFD] rounded-xl bg-[#F8FAFF] text-xs text-[#0A1A3F] placeholder-[#8E9BB5] focus:outline-none focus:ring-1 focus:ring-[#1F6BFF] focus:border-[#1F6BFF] transition shadow-xs"
+                     placeholder="Buscar por cliente, email o usuario..."
                      value={search}
                      onChange={(e) => {
                         setSearch(e.target.value);
@@ -68,14 +69,14 @@ export default function ClientsList() {
                </div>
 
                {/* FILTRO POR EMPRESA */}
-               <div className="w-full sm:w-56">
+               <div className="w-full sm:w-60">
                   <select
                      value={selectedEntityId || ''}
                      onChange={(e) => {
                         setSelectedEntityId(e.target.value ? Number(e.target.value) : null);
                         setPage(1);
                      }}
-                     className="block w-full px-3 py-2 border border-border-subtle rounded-xl bg-bg-content text-xs focus:ring-brand focus:border-brand shadow-2xs font-medium text-text-main"
+                     className="block w-full px-3.5 py-2.5 border border-[#E2EAFD] rounded-xl bg-[#F8FAFF] text-xs font-semibold text-[#0A1A3F] focus:outline-none focus:ring-1 focus:ring-[#1F6BFF] focus:border-[#1F6BFF] shadow-xs cursor-pointer"
                   >
                      <option value="">Todas las empresas</option>
                      {availableEntities?.map((ent) => (
@@ -91,37 +92,40 @@ export default function ClientsList() {
             <button
                type="button"
                onClick={() => setCreateModalOpen(true)}
-               className="flex items-center gap-2 bg-brand text-white px-4 py-2 rounded-xl text-xs font-bold shadow-lg hover:bg-brand-strong transition-all cursor-pointer active:scale-95 shrink-0"
+               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#1F6BFF] hover:bg-[#1657D7] text-white text-xs font-bold transition shadow-xs cursor-pointer shrink-0"
             >
-               <PlusIcon className="w-4 h-4" />
+               <PlusIcon className="w-4 h-4 stroke-[2.5]" />
                <span>Nuevo Cliente</span>
             </button>
          </div>
 
          {/* TABLA DE CLIENTES */}
-         <div className="bg-bg-content border border-border-subtle rounded-2xl shadow-soft overflow-hidden">
+         <div className="bg-white border border-[#E2EAFD] rounded-2xl shadow-xs overflow-hidden">
             <div className="overflow-x-auto">
                <table className="w-full min-w-[860px] text-left border-collapse">
                   <thead>
-                     <tr className="border-b border-border-subtle bg-gray-50/50 dark:bg-white/5">
-                        <th className="p-4 text-xs font-bold uppercase tracking-widest text-text-soft">Cliente</th>
-                        <th className="p-4 text-xs font-bold uppercase tracking-widest text-text-soft">Email</th>
-                        <th className="p-4 text-xs font-bold uppercase tracking-widest text-text-soft">Empresas Asignadas</th>
-                        <th className="p-4 text-xs font-bold uppercase tracking-widest text-text-soft text-center">Estado</th>
-                        <th className="p-4 text-xs font-bold uppercase tracking-widest text-text-soft text-end w-56">Acciones</th>
+                     <tr className="border-b border-[#E2EAFD] bg-[#F0F4FD] text-[#55607A] text-[11px] font-bold uppercase tracking-wider">
+                        <th className="py-3.5 px-4">Cliente</th>
+                        <th className="py-3.5 px-4">Email</th>
+                        <th className="py-3.5 px-4">Empresas Asignadas</th>
+                        <th className="py-3.5 px-4 text-center">Estado</th>
+                        <th className="py-3.5 px-4 text-right w-52">Acciones</th>
                      </tr>
                   </thead>
-                  <tbody className="divide-y divide-border-subtle/50">
+                  <tbody className="divide-y divide-[#E2EAFD]/70">
                      {loading ? (
                         <tr>
-                           <td colSpan="5" className="p-8 text-center text-text-soft text-sm">
-                              Cargando clientes...
+                           <td colSpan="5" className="py-12 text-center text-[#8E9BB5] text-xs">
+                              <div className="flex flex-col items-center justify-center gap-2">
+                                 <div className="w-6 h-6 border-2 border-[#1F6BFF] border-t-transparent rounded-full animate-spin" />
+                                 <span className="font-medium">Cargando clientes...</span>
+                              </div>
                            </td>
                         </tr>
                      ) : clients.length === 0 ? (
                         <tr>
-                           <td colSpan="5" className="p-8 text-center text-text-soft text-sm">
-                              No se encontraron clientes contratantes.
+                           <td colSpan="5" className="py-12 text-center text-[#8E9BB5] text-xs">
+                              No se encontraron clientes contratantes registrados.
                            </td>
                         </tr>
                      ) : (
@@ -129,45 +133,45 @@ export default function ClientsList() {
                            const assignedEntities = client.entities || [];
 
                            return (
-                              <tr key={client.id} className="hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
+                              <tr key={client.id} className="hover:bg-[#F9FBFF] transition group">
                                  {/* NOMBRE Y USUARIO */}
-                                 <td className="p-4">
+                                 <td className="py-3.5 px-4">
                                     <div className="flex items-center gap-3">
-                                       <div className="w-9 h-9 rounded-2xl bg-brand/10 text-brand flex items-center justify-center font-bold text-xs shrink-0">
+                                       <div className="w-9 h-9 rounded-xl bg-[#EFF3FF] text-[#1F6BFF] flex items-center justify-center font-bold text-xs font-nunito shrink-0">
                                           {client.name?.[0] || client.username?.[0]?.toUpperCase() || 'C'}
                                        </div>
                                        <div className="min-w-0">
-                                          <p className="font-semibold text-heading dark:text-white text-sm truncate">
+                                          <p className="font-bold text-[#0A1A3F] text-sm truncate">
                                              {client.name ? `${client.name} ${client.last_name || ''}` : client.username}
                                           </p>
-                                          <p className="text-xs text-text-soft">@{client.username}</p>
+                                          <p className="text-xs text-[#55607A]">@{client.username}</p>
                                        </div>
                                     </div>
                                  </td>
 
                                  {/* EMAIL */}
-                                 <td className="p-4 text-xs text-text-soft font-medium">
+                                 <td className="py-3.5 px-4 text-xs text-[#55607A] font-medium font-sans">
                                     {client.email}
                                  </td>
 
                                  {/* EMPRESAS ASIGNADAS */}
-                                 <td className="p-4">
+                                 <td className="py-3.5 px-4">
                                     {assignedEntities.length === 0 ? (
-                                       <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">
+                                       <span className="text-xs text-[#E5484D] font-semibold bg-[#FDF0F0] px-2.5 py-1 rounded-full border border-[#E5484D]/20">
                                           Sin empresas asignadas
                                        </span>
                                     ) : (
-                                       <div className="flex flex-wrap items-center gap-1.5 max-w-xs">
+                                       <div className="flex flex-wrap items-center gap-1.5 max-w-sm">
                                           {assignedEntities.slice(0, 2).map((ent) => (
                                              <span
                                                 key={ent.id}
-                                                className="inline-flex items-center text-[11px] font-semibold px-2 py-0.5 rounded-lg bg-gray-100 dark:bg-white/10 text-text-main"
+                                                className="inline-flex items-center text-[11px] font-semibold px-2.5 py-0.5 rounded-lg bg-[#EFF3FF] text-[#1F6BFF] border border-[#DCE5FF]"
                                              >
                                                 {ent.name}
                                              </span>
                                           ))}
                                           {assignedEntities.length > 2 && (
-                                             <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-brand/10 text-brand">
+                                             <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-[#0A1A3F] text-white">
                                                 +{assignedEntities.length - 2} más
                                              </span>
                                           )}
@@ -176,14 +180,14 @@ export default function ClientsList() {
                                  </td>
 
                                  {/* ESTADO */}
-                                 <td className="p-4 text-center">
+                                 <td className="py-3.5 px-4 text-center">
                                     <button
                                        type="button"
                                        onClick={() => toggleState(client)}
                                        className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                                          client.state_id === 1 ? 'bg-success' : 'bg-gray-300 dark:bg-neutral-700'
+                                          client.state_id === 1 ? 'bg-[#10B981]' : 'bg-[#D1D5DB]'
                                        }`}
-                                       title={client.state_id === 1 ? 'Cliente Activo (Clic para suspender)' : 'Cliente Suspendido (Clic para activar)'}
+                                       title={client.state_id === 1 ? 'Activo (Clic para suspender)' : 'Suspendido (Clic para activar)'}
                                     >
                                        <span
                                           className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
@@ -194,15 +198,16 @@ export default function ClientsList() {
                                  </td>
 
                                  {/* ACCIONES */}
-                                 <td className="p-4 text-end">
-                                    <div className="flex items-center justify-end gap-1">
+                                 <td className="py-3.5 px-4 text-right w-52">
+                                    <div className="flex items-center justify-end gap-1.5">
                                        <Tooltip content="Configurar Permisos Granulares">
                                           <button
                                              type="button"
                                              onClick={() => setPermissionsClient(client)}
-                                             className="p-1.5 rounded-lg text-brand hover:bg-brand/10 transition cursor-pointer"
+                                             className="p-2 rounded-xl text-[#1F6BFF] hover:bg-[#EFF3FF] transition cursor-pointer"
+                                             aria-label="Permisos granulares"
                                           >
-                                             <ShieldCheckIcon className="w-5 h-5" />
+                                             <CandadoIcon className="w-4 h-4" />
                                           </button>
                                        </Tooltip>
 
@@ -210,9 +215,10 @@ export default function ClientsList() {
                                           <button
                                              type="button"
                                              onClick={() => setEntitiesClient(client)}
-                                             className="p-1.5 rounded-lg text-text-soft hover:text-heading hover:bg-gray-100 dark:hover:bg-white/10 transition cursor-pointer"
+                                             className="p-2 rounded-xl text-[#55607A] hover:text-[#0A1A3F] hover:bg-[#F0F4FD] transition cursor-pointer"
+                                             aria-label="Asignar empresas"
                                           >
-                                             <BuildingOffice2Icon className="w-5 h-5" />
+                                             <EntidadesIcon className="w-4 h-4" />
                                           </button>
                                        </Tooltip>
 
@@ -220,9 +226,10 @@ export default function ClientsList() {
                                           <button
                                              type="button"
                                              onClick={() => setEditClient(client)}
-                                             className="p-1.5 rounded-lg text-text-soft hover:text-heading hover:bg-gray-100 dark:hover:bg-white/10 transition cursor-pointer"
+                                             className="p-2 rounded-xl text-[#55607A] hover:text-[#1F6BFF] hover:bg-[#EFF3FF] transition cursor-pointer"
+                                             aria-label="Editar cliente"
                                           >
-                                             <PencilSquareIcon className="w-5 h-5" />
+                                             <EditarIcon className="w-4 h-4" />
                                           </button>
                                        </Tooltip>
 
@@ -230,9 +237,10 @@ export default function ClientsList() {
                                           <button
                                              type="button"
                                              onClick={() => removeClient(client.id)}
-                                             className="p-1.5 rounded-lg text-danger/80 hover:text-danger hover:bg-danger/10 transition cursor-pointer"
+                                             className="p-2 rounded-xl text-[#55607A] hover:text-[#E5484D] hover:bg-[#FDF0F0] transition cursor-pointer"
+                                             aria-label="Eliminar cliente"
                                           >
-                                             <TrashIcon className="w-5 h-5" />
+                                             <EliminarIcon className="w-4 h-4" />
                                           </button>
                                        </Tooltip>
                                     </div>
@@ -247,16 +255,16 @@ export default function ClientsList() {
 
             {/* PAGINACIÓN */}
             {totalPages > 1 && (
-               <div className="p-4 border-t border-border-subtle flex items-center justify-between">
-                  <span className="text-xs text-text-soft">
+               <div className="py-3 px-4 border-t border-[#E2EAFD] flex items-center justify-between bg-white text-xs text-[#55607A]">
+                  <span className="font-medium">
                      Mostrando página {page} de {totalPages} ({total} clientes en total)
                   </span>
-                  <div className="flex gap-2">
+                  <div className="flex items-center gap-2">
                      <button
                         type="button"
                         disabled={page === 1}
                         onClick={() => setPage((p) => Math.max(1, p - 1))}
-                        className="p-1.5 border border-border-subtle rounded-lg text-text-soft hover:bg-gray-50 dark:hover:bg-white/5 disabled:opacity-40 cursor-pointer"
+                        className="p-1.5 border border-[#E2EAFD] rounded-lg text-[#0A1A3F] hover:bg-[#F8FAFF] disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
                      >
                         <ChevronLeftIcon className="w-4 h-4" />
                      </button>
@@ -264,7 +272,7 @@ export default function ClientsList() {
                         type="button"
                         disabled={page >= totalPages}
                         onClick={() => setPage((p) => p + 1)}
-                        className="p-1.5 border border-border-subtle rounded-lg text-text-soft hover:bg-gray-50 dark:hover:bg-white/5 disabled:opacity-40 cursor-pointer"
+                        className="p-1.5 border border-[#E2EAFD] rounded-lg text-[#0A1A3F] hover:bg-[#F8FAFF] disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
                      >
                         <ChevronRightIcon className="w-4 h-4" />
                      </button>

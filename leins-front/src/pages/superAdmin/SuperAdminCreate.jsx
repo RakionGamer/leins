@@ -1,29 +1,33 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createSuperAdmin } from '../../services/userApi';
 import { toast } from 'components/Toaster';
-import SpinnerButton from 'components/SpinnerButton';
 import {
-   UserPlusIcon,
-   ArrowLeftIcon,
-   UserIcon,
-   EnvelopeIcon,
-   LockClosedIcon,
-   IdentificationIcon
-} from '@heroicons/react/24/outline';
+   AdministradoresIcon,
+   IzquierdaIcon,
+   UsuarioIcon,
+   CandadoIcon,
+   CheckIcon
+} from 'components/icons/SidebarIcons';
 
 export default function SuperAdminCreate() {
    const navigate = useNavigate();
    const [loading, setLoading] = useState(false);
    const [form, setForm] = useState({
-      name: '', last_name: '', username: '', email: '', password: ''
+      name: '',
+      last_name: '',
+      username: '',
+      email: '',
+      password: ''
    });
 
    const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
    const handleSubmit = async (e) => {
       e.preventDefault();
-      if (!form.username || !form.password || !form.email) return toast.error('Completa los campos obligatorios');
+      if (!form.username || !form.password || !form.email) {
+         return toast.error('Completa los campos obligatorios (*)');
+      }
 
       setLoading(true);
       try {
@@ -31,33 +35,34 @@ export default function SuperAdminCreate() {
          toast.success('Super administrador creado correctamente');
          navigate('/super-admin');
       } catch (error) {
-         toast.error(error.message);
+         toast.error(error.message || 'Error al crear super administrador');
       } finally {
          setLoading(false);
       }
    };
 
    return (
-      // 👇 CAMBIO AQUÍ: Quitamos 'max-w-5xl mx-auto'
-      <div className="w-full px-6 py-8 animate-fade-in pb-20">
-
+      <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 py-8 animate-fade-in pb-24">
          <form onSubmit={handleSubmit}>
-            {/* --- HEADER --- */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10 border-b border-border-subtle/50 dark:border-white/5 pb-8">
-               <div className="flex items-center gap-5">
+            {/* Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-[#E2EAFD] mb-8">
+               <div className="flex items-center gap-4">
                   <button
                      type="button"
                      onClick={() => navigate('/super-admin')}
-                     className="p-2 -ml-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10 text-text-soft transition-colors"
+                     className="w-10 h-10 rounded-full bg-[#F0F4FD] hover:bg-[#E2EAFD] text-[#0A1A3F] flex items-center justify-center transition-colors shadow-xs"
+                     title="Volver"
                   >
-                     <ArrowLeftIcon className="w-6 h-6" />
+                     <IzquierdaIcon className="w-4 h-4" />
                   </button>
                   <div>
-                     <div className="flex items-center gap-2 text-brand mb-1">
-                        <UserPlusIcon className="w-5 h-5" />
-                        <span className="text-xs font-bold uppercase tracking-widest">Gestion de super administradores</span>
+                     <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#EFF3FF] text-[#1F6BFF] border border-[#DCE5FF] text-[10px] font-black uppercase tracking-wider mb-1">
+                        <AdministradoresIcon className="w-3.5 h-3.5" />
+                        <span>Gestión de Super Administradores</span>
                      </div>
-                     <h1 className="text-3xl font-semibold text-heading dark:text-white tracking-tight">Nuevo super administrador</h1>
+                     <h1 className="font-nunito font-black text-2xl sm:text-3xl text-[#0A1A3F] tracking-tight">
+                        Nuevo Super Administrador
+                     </h1>
                   </div>
                </div>
 
@@ -65,84 +70,167 @@ export default function SuperAdminCreate() {
                   <button
                      type="button"
                      onClick={() => navigate('/super-admin')}
-                     className="px-4 py-2 text-xs font-medium uppercase tracking-wide text-text-soft hover:text-black dark:text-gray-400 dark:hover:text-white transition-colors"
+                     className="px-5 py-2.5 text-xs font-bold rounded-full border border-[#E2EAFD] text-[#55607A] hover:bg-[#F0F4FD] hover:text-[#0A1A3F] transition-all"
                   >
                      Cancelar
                   </button>
-                  <SpinnerButton
+                  <button
                      type="submit"
-                     loading={loading}
-                     className="flex items-center gap-2 bg-brand text-white px-4 py-2 rounded-xl text-sm font-bold shadow-lg hover:bg-brand-strong transition-all"
+                     disabled={loading}
+                     className="px-6 py-2.5 text-xs font-bold rounded-full text-white bg-[#1F6BFF] hover:bg-[#1657D7] shadow-xs hover:shadow-md transition-all flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                     Crear super administrador
-                  </SpinnerButton>
+                     {loading ? (
+                        <>
+                           <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                           <span>Creando...</span>
+                        </>
+                     ) : (
+                        <span>Crear Super Admin</span>
+                     )}
+                  </button>
                </div>
             </div>
 
-            {/* --- FORMULARIO (GRID) --- */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
-
-               {/* Columna Principal (Datos) - Ocupa 8 columnas */}
-               <div className="lg:col-span-8 space-y-12">
-                  <section>
-                     <h3 className="text-sm font-bold uppercase tracking-widest text-text-soft mb-6 border-b border-border-subtle/30 pb-2 flex items-center gap-2">
-                        <IdentificationIcon className="w-4 h-4" /> Información Personal
-                     </h3>
-                     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
-                        <MinimalInput label="Nombre" name="name" value={form.name} onChange={handleChange} placeholder="Ej. Carlos" />
-                        <MinimalInput label="Apellido" name="last_name" value={form.last_name} onChange={handleChange} placeholder="Ej. Díaz" />
+            {/* Grid Layout */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+               {/* Left form column (8 cols) */}
+               <div className="lg:col-span-8 space-y-6">
+                  {/* Datos Personales */}
+                  <div className="bg-white rounded-2xl border border-[#E2EAFD] p-6 shadow-xs">
+                     <div className="flex items-center gap-2.5 pb-3 border-b border-[#E2EAFD] mb-5">
+                        <div className="w-7 h-7 rounded-lg bg-[#EFF3FF] flex items-center justify-center text-[#1F6BFF]">
+                           <UsuarioIcon className="w-4 h-4" />
+                        </div>
+                        <h2 className="font-nunito font-black text-sm text-[#0A1A3F]">
+                           Información Personal
+                        </h2>
                      </div>
-                  </section>
 
-                  <section>
-                     <h3 className="text-sm font-bold uppercase tracking-widest text-text-soft mb-6 border-b border-border-subtle/30 pb-2 flex items-center gap-2">
-                        <UserIcon className="w-4 h-4" /> Credenciales
-                     </h3>
-                     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
-                        <MinimalInput label="Nombre de Usuario" name="username" value={form.username} onChange={handleChange} placeholder="usuario.sistema" required />
-                        <MinimalInput label="Correo Electrónico" name="email" type="email" value={form.email} onChange={handleChange} placeholder="correo@ejemplo.com" icon={<EnvelopeIcon className="w-4 h-4" />} required />
-                        <div className="md:col-span-2">
-                           <MinimalInput label="Contraseña Inicial" name="password" type="password" value={form.password} onChange={handleChange} placeholder="••••••••••••" icon={<LockClosedIcon className="w-4 h-4" />} required />
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                           <label className="block text-xs font-bold text-[#0A1A3F] mb-1.5" htmlFor="name">
+                              Nombre
+                           </label>
+                           <input
+                              id="name"
+                              name="name"
+                              type="text"
+                              value={form.name}
+                              onChange={handleChange}
+                              placeholder="Ej. Carlos"
+                              className="w-full bg-[#F8FAFF] focus:bg-white border border-[#E2EAFD] focus:border-[#1F6BFF] focus:ring-1 focus:ring-[#1F6BFF] rounded-xl px-3.5 py-2.5 text-xs text-[#0A1A3F] placeholder:text-[#55607A]/50 outline-hidden transition-all"
+                           />
+                        </div>
+                        <div>
+                           <label className="block text-xs font-bold text-[#0A1A3F] mb-1.5" htmlFor="last_name">
+                              Apellido
+                           </label>
+                           <input
+                              id="last_name"
+                              name="last_name"
+                              type="text"
+                              value={form.last_name}
+                              onChange={handleChange}
+                              placeholder="Ej. Díaz"
+                              className="w-full bg-[#F8FAFF] focus:bg-white border border-[#E2EAFD] focus:border-[#1F6BFF] focus:ring-1 focus:ring-[#1F6BFF] rounded-xl px-3.5 py-2.5 text-xs text-[#0A1A3F] placeholder:text-[#55607A]/50 outline-hidden transition-all"
+                           />
                         </div>
                      </div>
-                  </section>
+                  </div>
+
+                  {/* Credenciales de Acceso */}
+                  <div className="bg-white rounded-2xl border border-[#E2EAFD] p-6 shadow-xs">
+                     <div className="flex items-center gap-2.5 pb-3 border-b border-[#E2EAFD] mb-5">
+                        <div className="w-7 h-7 rounded-lg bg-[#EFF3FF] flex items-center justify-center text-[#1F6BFF]">
+                           <CandadoIcon className="w-4 h-4" />
+                        </div>
+                        <h2 className="font-nunito font-black text-sm text-[#0A1A3F]">
+                           Credenciales de Acceso
+                        </h2>
+                     </div>
+
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                           <label className="block text-xs font-bold text-[#0A1A3F] mb-1.5" htmlFor="username">
+                              Nombre de Usuario <span className="text-[#E5484D]">*</span>
+                           </label>
+                           <input
+                              id="username"
+                              name="username"
+                              type="text"
+                              value={form.username}
+                              onChange={handleChange}
+                              placeholder="usuario.sistema"
+                              required
+                              className="w-full bg-[#F8FAFF] focus:bg-white border border-[#E2EAFD] focus:border-[#1F6BFF] focus:ring-1 focus:ring-[#1F6BFF] rounded-xl px-3.5 py-2.5 text-xs text-[#0A1A3F] placeholder:text-[#55607A]/50 outline-hidden transition-all"
+                           />
+                        </div>
+                        <div>
+                           <label className="block text-xs font-bold text-[#0A1A3F] mb-1.5" htmlFor="email">
+                              Correo Electrónico <span className="text-[#E5484D]">*</span>
+                           </label>
+                           <input
+                              id="email"
+                              name="email"
+                              type="email"
+                              value={form.email}
+                              onChange={handleChange}
+                              placeholder="correo@ejemplo.com"
+                              required
+                              className="w-full bg-[#F8FAFF] focus:bg-white border border-[#E2EAFD] focus:border-[#1F6BFF] focus:ring-1 focus:ring-[#1F6BFF] rounded-xl px-3.5 py-2.5 text-xs text-[#0A1A3F] placeholder:text-[#55607A]/50 outline-hidden transition-all"
+                           />
+                        </div>
+                        <div className="md:col-span-2">
+                           <label className="block text-xs font-bold text-[#0A1A3F] mb-1.5" htmlFor="password">
+                              Contraseña Inicial <span className="text-[#E5484D]">*</span>
+                           </label>
+                           <input
+                              id="password"
+                              name="password"
+                              type="password"
+                              value={form.password}
+                              onChange={handleChange}
+                              placeholder="••••••••••••"
+                              required
+                              className="w-full bg-[#F8FAFF] focus:bg-white border border-[#E2EAFD] focus:border-[#1F6BFF] focus:ring-1 focus:ring-[#1F6BFF] rounded-xl px-3.5 py-2.5 text-xs text-[#0A1A3F] placeholder:text-[#55607A]/50 outline-hidden transition-all font-mono"
+                           />
+                        </div>
+                     </div>
+                  </div>
                </div>
 
-               {/* Columna Lateral (Info) - Ocupa 4 columnas */}
+               {/* Right sidebar info column (4 cols) */}
                <div className="lg:col-span-4">
-                  <div className="bg-gray-50 dark:bg-white/5 rounded-2xl p-6 border border-border-subtle/50 sticky top-6">
-                     <h4 className="font-bold text-heading dark:text-white mb-2">Importante</h4>
-                     <p className="text-sm text-text-soft leading-relaxed mb-4">
-                        Al crear un super administrador, este tendra acceso inmediato al panel de control.
+                  <div className="bg-[#F8FAFF] rounded-2xl border border-[#E2EAFD] p-6 sticky top-6 shadow-xs">
+                     <div className="flex items-center gap-2 mb-3">
+                        <div className="w-6 h-6 rounded-md bg-[#EFF3FF] flex items-center justify-center text-[#1F6BFF]">
+                           <CheckIcon className="w-3.5 h-3.5" />
+                        </div>
+                        <h3 className="font-nunito font-black text-sm text-[#0A1A3F]">
+                           Información de Seguridad
+                        </h3>
+                     </div>
+                     <p className="text-xs text-[#55607A] leading-relaxed mb-4">
+                        Al crear este super administrador, tendrá privilegios elevados y podrá gestionar configuraciones y usuarios dentro de la plataforma.
                      </p>
-                     <ul className="text-xs text-text-soft space-y-2 list-disc list-inside">
-                        <li>La contraseña debe ser segura.</li>
-                        <li>El usuario podrá cambiar sus datos luego.</li>
-                        <li>Recomendamos activar 2FA posteriormente.</li>
-                     </ul>
+                     <div className="space-y-2.5 pt-3 border-t border-[#E2EAFD]">
+                        <div className="flex items-start gap-2 text-xs text-[#55607A]">
+                           <span className="w-1.5 h-1.5 rounded-full bg-[#1F6BFF] mt-1.5 shrink-0" />
+                           <span>Usa una contraseña fuerte con letras, números y símbolos.</span>
+                        </div>
+                        <div className="flex items-start gap-2 text-xs text-[#55607A]">
+                           <span className="w-1.5 h-1.5 rounded-full bg-[#1F6BFF] mt-1.5 shrink-0" />
+                           <span>Podrás asignar entidades administrables posteriormente desde la lista.</span>
+                        </div>
+                        <div className="flex items-start gap-2 text-xs text-[#55607A]">
+                           <span className="w-1.5 h-1.5 rounded-full bg-[#1F6BFF] mt-1.5 shrink-0" />
+                           <span>El usuario podrá actualizar su información y clave tras el primer ingreso.</span>
+                        </div>
+                     </div>
                   </div>
                </div>
             </div>
          </form>
-      </div>
-   );
-}
-
-function MinimalInput({ label, name, value, onChange, type = "text", placeholder, icon, required, disabled }) {
-   return (
-      <div className="group relative">
-         <div className="flex justify-between items-end mb-1">
-            <label htmlFor={name} className="block text-[9px] uppercase tracking-widest font-bold text-text-soft group-focus-within:text-brand transition-colors">
-               {label} {required && <span className="text-danger">*</span>}
-            </label>
-         </div>
-         <div className="relative">
-            <input
-               id={name} name={name} type={type} value={value} onChange={onChange} placeholder={placeholder} disabled={disabled}
-               className={`block w-full bg-transparent border-0 border-b text-sm font-normal pb-2 px-0 transition-all duration-300 placeholder:text-text-soft/20 dark:placeholder:text-gray-700 focus:ring-0 ${disabled ? 'border-dashed border-border-subtle text-text-soft/50 cursor-not-allowed' : 'border-border-subtle/40 dark:border-white/10 text-heading dark:text-white focus:border-brand'}`}
-            />
-            {icon && <div className="absolute right-0 bottom-2 text-text-soft/40 group-focus-within:text-brand transition-colors">{icon}</div>}
-         </div>
       </div>
    );
 }
