@@ -1601,7 +1601,15 @@ class BankService {
                bankAcc = accounts.find(a => a.name.toLowerCase().includes('banco')) || accounts.find(a => a.code.startsWith('11.02.'));
             }
 
-            const prefix = expense_type === 'IMPUESTO' ? 'Pago Impuesto' : (expense_type === 'PREVIRED' ? 'Pago Previred' : (expense_type === 'REMUNERACION' ? 'Pago Sueldos' : 'Gasto'));
+            const prefix = expense_type === 'IMPUESTO'
+               ? 'Pago Impuesto'
+               : (expense_type === 'PREVIRED'
+                  ? 'Pago Previred'
+                  : (expense_type === 'REMUNERACION'
+                     ? 'Pago Sueldos'
+                     : (expense_type === 'HONORARIO'
+                        ? 'Pago Honorarios'
+                        : (expense_type === 'COSTO' ? 'Costo' : 'Gasto'))));
             const finalGlosa = concept ? concept.trim() : `${prefix}: ${cleanName || bankTx.description || accountingAccount.name}`.trim();
 
             if (bankAcc) {

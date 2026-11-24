@@ -3139,19 +3139,26 @@ export default function BankCartolasPage() {
                               </p>
                            </div>
 
-                           <div className="flex gap-2 mb-4">
-                              {['GASTO', 'COSTO', 'IMPUESTO'].map((t) => (
+                           <div className="flex flex-wrap gap-2 mb-4">
+                              {[
+                                 { key: 'GASTO', label: 'GASTO' },
+                                 { key: 'COSTO', label: 'COSTO' },
+                                 { key: 'IMPUESTO', label: 'IMPUESTO' },
+                                 { key: 'REMUNERACION', label: 'REMUNERACIÓN' },
+                                 { key: 'PREVIRED', label: 'PREVIRED' },
+                                 { key: 'HONORARIO', label: 'HONORARIO' },
+                              ].map((t) => (
                                  <button
-                                    key={t}
+                                    key={t.key}
                                     type="button"
-                                    onClick={() => setExpenseType(t)}
-                                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-                                       expenseType === t
+                                    onClick={() => setExpenseType(t.key)}
+                                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                                       expenseType === t.key
                                           ? 'bg-[#1F6BFF] text-white shadow-xs'
                                           : 'bg-white border border-[#E2EAFD] text-[#55607A] hover:bg-[#EEF3FF]'
                                     }`}
                                  >
-                                    {t}
+                                    {t.label}
                                  </button>
                               ))}
                            </div>
