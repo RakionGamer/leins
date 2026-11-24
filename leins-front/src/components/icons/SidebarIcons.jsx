@@ -454,3 +454,36 @@ export function SubirIcon({ className = 'w-5 h-5', dotColor = '#1F6BFF', ...prop
       </svg>
    );
 }
+
+export function EntidadActivaIcon({ className = 'w-5 h-5', ...props }) {
+   return (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" {...props}>
+         <path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z" />
+         <path d="m8.5 12 2.5 2.5 5-5" />
+         <circle cx="17.8" cy="6.2" r="1.6" fill="#1F6BFF" stroke="none" />
+      </svg>
+   );
+}
+
+export function EntidadInactivaIcon({ className = 'w-5 h-5', ...props }) {
+   return (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" {...props}>
+         <path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z" />
+         <path d="m6.5 6.5 11 11" />
+         <circle cx="17.8" cy="6.2" r="1.6" fill="#1F6BFF" stroke="none" />
+      </svg>
+   );
+}
+
+export function EntidadSesionIcon({ className = 'w-5 h-5', ...props }) {
+   return (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" {...props}>
+         <path d="M4 20V6.5A1.5 1.5 0 0 1 5.5 5h8A1.5 1.5 0 0 1 15 6.5V20" />
+         <path d="M15 11h4.5A1.5 1.5 0 0 1 21 12.5V20" />
+         <path d="M2 20h20" />
+         <path d="M8.5 9h3" />
+         <path d="M8.5 13h3" />
+         <circle cx="18" cy="6.5" r="1.8" fill="#1F6BFF" stroke="none" />
+      </svg>
+   );
+}

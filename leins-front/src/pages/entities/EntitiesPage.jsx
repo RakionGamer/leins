@@ -13,11 +13,14 @@ import {
    ArrowDownIcon,
    ArrowPathIcon,
    MagnifyingGlassIcon,
-   BuildingOffice2Icon,
-   CheckCircleIcon,
-   NoSymbolIcon,
-   BuildingLibraryIcon,
 } from '@heroicons/react/24/outline';
+import {
+   EntidadesIcon,
+   EntidadActivaIcon,
+   EntidadInactivaIcon,
+   EntidadSesionIcon,
+   FiltroIcon,
+} from '../../components/icons/SidebarIcons';
 import {
    listEntities,
    createEntity,
@@ -108,12 +111,19 @@ export default function EntitiesPage() {
       };
    }, [rows, total, activeOnly]);
 
-   // Nombre de la entidad seleccionada en la sesión actual
+   // Nombre y RUT de la entidad seleccionada en la sesión actual
    const activeSessionEntityName = useMemo(() => {
       if (currentEntity?.name) return currentEntity.name;
       const found = rows.find((r) => Number(r.id) === selectedEntityId);
       if (found) return found.name || found.legal_name || `Entidad #${found.id}`;
       return selectedEntityId ? `Entidad #${selectedEntityId}` : 'Ninguna seleccionada';
+   }, [currentEntity, rows, selectedEntityId]);
+
+   const activeSessionEntityRut = useMemo(() => {
+      if (currentEntity?.rut) return formatRutCL(currentEntity.rut);
+      const found = rows.find((r) => Number(r.id) === selectedEntityId);
+      if (found?.rut) return formatRutCL(found.rut);
+      return selectedEntityId ? `ID #${selectedEntityId}` : 'Espacio de trabajo activo';
    }, [currentEntity, rows, selectedEntityId]);
 
    const formTitle = useMemo(
@@ -312,58 +322,110 @@ export default function EntitiesPage() {
          </div>
 
          {/* ======================================================== */}
-         {/* 2. Tarjetas KPI de Resumen (Jeito Metric Cards)          */}
+         {/* 2. Tarjetas KPI de Resumen (Jeito Metric Cards Oficiales)*/}
          {/* ======================================================== */}
-         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Card 1: Total entidades */}
-            <div className="bg-white rounded-2xl border border-[#E2EAFD] p-4 shadow-xs flex items-center gap-3.5">
-               <div className="w-10 h-10 rounded-xl bg-[#EFF3FF] flex items-center justify-center text-[#1F6BFF] shrink-0">
-                  <BuildingOffice2Icon className="w-5 h-5 stroke-[2.2]" />
-               </div>
-               <div className="min-w-0">
-                  <div className="text-xs text-[#55607A] font-semibold">Total entidades</div>
-                  <div className="font-nunito font-black text-xl text-[#0A1A3F] tracking-tight mt-0.5">
+            <div className="bg-white rounded-2xl border border-[#E2EAFD] p-5 shadow-xs flex flex-col justify-between hover:border-[#DCE5FF] transition-all">
+               <div>
+                  <div className="flex items-center justify-between">
+                     <span className="text-xs font-semibold text-[#55607A]">
+                        Total entidades
+                     </span>
+                     <div className="h-8 w-8 rounded-xl bg-[#EFF3FF] flex items-center justify-center text-[#0A1A3F]">
+                        <EntidadesIcon className="w-4 h-4 text-[#0A1A3F]" />
+                     </div>
+                  </div>
+                  <div className="text-2xl font-black font-nunito text-[#0A1A3F] tabular-nums mt-3 tracking-tight">
                      {total}
                   </div>
+                  <div className="text-xs text-[#55607A] mt-1 font-medium">
+                     {total === 1 ? '1 empresa en sistema' : `${total} empresas registradas`}
+                  </div>
+               </div>
+               <div className="mt-4">
+                  <span className="inline-flex items-center gap-1.5 bg-[#EFF3FF] text-[#1F6BFF] text-[11px] font-bold rounded-full px-2.5 py-1">
+                     <span className="w-1.5 h-1.5 rounded-full bg-[#1F6BFF]"></span>
+                     <span>Catálogo general</span>
+                  </span>
                </div>
             </div>
 
             {/* Card 2: Entidades activas */}
-            <div className="bg-white rounded-2xl border border-[#E2EAFD] p-4 shadow-xs flex items-center gap-3.5">
-               <div className="w-10 h-10 rounded-xl bg-[#E8F8F0] flex items-center justify-center text-[#0D9488] shrink-0">
-                  <CheckCircleIcon className="w-5 h-5 stroke-[2.2]" />
-               </div>
-               <div className="min-w-0">
-                  <div className="text-xs text-[#55607A] font-semibold">Activas en página</div>
-                  <div className="font-nunito font-black text-xl text-[#0D9488] tracking-tight mt-0.5">
+            <div className="bg-white rounded-2xl border border-[#E2EAFD] p-5 shadow-xs flex flex-col justify-between hover:border-[#DCE5FF] transition-all">
+               <div>
+                  <div className="flex items-center justify-between">
+                     <span className="text-xs font-semibold text-[#55607A]">
+                        Entidades activas
+                     </span>
+                     <div className="h-8 w-8 rounded-xl bg-[#EFF3FF] flex items-center justify-center text-[#0A1A3F]">
+                        <EntidadActivaIcon className="w-4 h-4 text-[#0A1A3F]" />
+                     </div>
+                  </div>
+                  <div className="text-2xl font-black font-nunito text-[#0A1A3F] tabular-nums mt-3 tracking-tight">
                      {stats.active}
                   </div>
+                  <div className="text-xs text-[#55607A] mt-1 font-medium">
+                     Habilitadas para operar
+                  </div>
+               </div>
+               <div className="mt-4">
+                  <span className="inline-flex items-center gap-1.5 bg-[#E8F8F0] text-[#0D9488] text-[11px] font-bold rounded-full px-2.5 py-1">
+                     <span className="w-1.5 h-1.5 rounded-full bg-[#0D9488]"></span>
+                     <span>{total > 0 ? `${Math.round((stats.active / total) * 100)}% del total` : 'Operativas'}</span>
+                  </span>
                </div>
             </div>
 
             {/* Card 3: Entidades inactivas */}
-            <div className="bg-white rounded-2xl border border-[#E2EAFD] p-4 shadow-xs flex items-center gap-3.5">
-               <div className="w-10 h-10 rounded-xl bg-[#F3F4F6] flex items-center justify-center text-[#6B7280] shrink-0">
-                  <NoSymbolIcon className="w-5 h-5 stroke-[2.2]" />
-               </div>
-               <div className="min-w-0">
-                  <div className="text-xs text-[#55607A] font-semibold">Inactivas en página</div>
-                  <div className="font-nunito font-black text-xl text-[#6B7280] tracking-tight mt-0.5">
+            <div className="bg-white rounded-2xl border border-[#E2EAFD] p-5 shadow-xs flex flex-col justify-between hover:border-[#DCE5FF] transition-all">
+               <div>
+                  <div className="flex items-center justify-between">
+                     <span className="text-xs font-semibold text-[#55607A]">
+                        Entidades inactivas
+                     </span>
+                     <div className="h-8 w-8 rounded-xl bg-[#EFF3FF] flex items-center justify-center text-[#0A1A3F]">
+                        <EntidadInactivaIcon className="w-4 h-4 text-[#0A1A3F]" />
+                     </div>
+                  </div>
+                  <div className="text-2xl font-black font-nunito text-[#0A1A3F] tabular-nums mt-3 tracking-tight">
                      {stats.inactive}
                   </div>
+                  <div className="text-xs text-[#55607A] mt-1 font-medium">
+                     Pausadas o sin acceso
+                  </div>
+               </div>
+               <div className="mt-4">
+                  <span className="inline-flex items-center gap-1.5 bg-[#F3F4F6] text-[#6B7280] text-[11px] font-bold rounded-full px-2.5 py-1">
+                     <span className="w-1.5 h-1.5 rounded-full bg-[#6B7280]"></span>
+                     <span>{stats.inactive > 0 ? `${stats.inactive} inactivas` : '0 inactivas'}</span>
+                  </span>
                </div>
             </div>
 
-            {/* Card 4: Entidad activa en sesión */}
-            <div className="bg-white rounded-2xl border border-[#E2EAFD] p-4 shadow-xs flex items-center gap-3.5">
-               <div className="w-10 h-10 rounded-xl bg-[#EFF3FF] flex items-center justify-center text-[#1F6BFF] shrink-0">
-                  <BuildingLibraryIcon className="w-5 h-5 stroke-[2.2]" />
-               </div>
-               <div className="min-w-0 flex-1">
-                  <div className="text-xs text-[#55607A] font-semibold">Entidad en sesión</div>
-                  <div className="font-nunito font-bold text-sm text-[#0A1A3F] truncate tracking-tight mt-0.5" title={activeSessionEntityName}>
+            {/* Card 4: Entidad en sesión (Tarjeta destacada Azul Marino oficial) */}
+            <div className="bg-[#0A1A3F] text-white rounded-2xl p-5 shadow-xs flex flex-col justify-between hover:shadow-md transition-all">
+               <div>
+                  <div className="flex items-center justify-between">
+                     <span className="text-xs font-semibold text-[#8E9FCA]">
+                        Entidad en sesión
+                     </span>
+                     <div className="h-8 w-8 rounded-xl bg-white/10 flex items-center justify-center text-white">
+                        <EntidadSesionIcon className="w-4 h-4 text-white" />
+                     </div>
+                  </div>
+                  <div className="text-xl sm:text-2xl font-black font-nunito text-white tracking-tight mt-3 truncate" title={activeSessionEntityName}>
                      {activeSessionEntityName}
                   </div>
+                  <div className="text-xs text-[#8E9FCA] mt-1 font-medium truncate">
+                     {activeSessionEntityRut}
+                  </div>
+               </div>
+               <div className="mt-4">
+                  <span className="inline-flex items-center gap-1.5 bg-white/15 text-white text-[11px] font-bold rounded-full px-2.5 py-1">
+                     <span className="w-1.5 h-1.5 rounded-full bg-[#1F6BFF]"></span>
+                     <span>En uso actual</span>
+                  </span>
                </div>
             </div>
          </div>
@@ -374,9 +436,7 @@ export default function EntitiesPage() {
          <div className="bg-white rounded-2xl border border-[#E2EAFD] p-5 shadow-xs space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                <div className="flex items-center gap-2 text-sm font-bold text-[#0A1A3F]">
-                  <svg className="w-4 h-4 text-[#1F6BFF]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                     <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
-                  </svg>
+                  <FiltroIcon className="w-4 h-4 text-[#1F6BFF]" />
                   <span>Filtros de búsqueda</span>
                </div>
                <div className="flex items-center gap-3">
@@ -612,7 +672,7 @@ export default function EntitiesPage() {
                         <tr>
                            <td colSpan={6} className="py-12 text-center text-[#8E9BB5]">
                               <div className="flex flex-col items-center justify-center gap-1">
-                                 <BuildingOffice2Icon className="w-8 h-8 text-[#8E9BB5] stroke-[1.5]" />
+                                 <EntidadesIcon className="w-8 h-8 text-[#8E9BB5]" />
                                  <span className="font-semibold text-sm text-[#0A1A3F] mt-1">No hay entidades registradas</span>
                                  <span className="text-xs">Prueba ajustando los filtros o crea una nueva entidad.</span>
                               </div>
