@@ -65,8 +65,17 @@ export default function AccountingEntries() {
    const [loading, setLoading] = useState(true);
    const [err, setErr] = useState(null);
 
-   // Expandir el primer asiento por defecto (como en la referencia)
-   const [expandedEntryId, setExpandedEntryId] = useState(null);
+   // Estado de asientos expandidos (soporta cualquier asiento de forma independiente sin forzar ninguno)
+   const [expandedIds, setExpandedIds] = useState(new Set());
+
+   const toggleExpand = (id) => {
+      setExpandedIds((prev) => {
+         const next = new Set(prev);
+         if (next.has(id)) next.delete(id);
+         else next.add(id);
+         return next;
+      });
+   };
 
    const [mode, setMode] = useState('month');
    const [fromDate, setFromDate] = useState('');
@@ -114,17 +123,12 @@ export default function AccountingEntries() {
          const rows = entriesData.rows || [];
          setEntries(rows);
          setAccounts(Array.isArray(accountsData) ? accountsData : []);
-
-         // Expandir el primer asiento si ninguno está seleccionado
-         if (rows.length > 0 && expandedEntryId === null) {
-            setExpandedEntryId(rows[0].id);
-         }
       } catch (e) {
          setErr(e.message || 'Error al cargar asientos contables');
       } finally {
          setLoading(false);
       }
-   }, [entityId, filterMonth, sourceFilter, statusFilter, search, mode, fromDate, toDate, expandedEntryId]);
+   }, [entityId, filterMonth, sourceFilter, statusFilter, search, mode, fromDate, toDate]);
 
    useEffect(() => {
       if (ready && entityId) {
@@ -730,7 +734,7 @@ export default function AccountingEntries() {
                         </tr>
                      ) : (
                         paginatedEntries.map((entry) => {
-                           const isExpanded = expandedEntryId === entry.id;
+                           const isExpanded = expandedIds.has(entry.id);
                            const isAnnulled = entry.status === 'ANNULLED';
                            const sourceInfo = getSourceInfo(entry);
 
@@ -741,7 +745,7 @@ export default function AccountingEntries() {
                                     className={`hover:bg-[#F8FAFF] transition-colors cursor-pointer border-b border-[#F0F4FD] ${
                                        isAnnulled ? 'opacity-60 bg-gray-50/50' : 'bg-white'
                                     }`}
-                                    onClick={() => setExpandedEntryId(isExpanded ? null : entry.id)}
+                                    onClick={() => toggleExpand(entry.id)}
                                  >
                                     <td className="py-3.5 px-3 text-[#8E9BB5] text-center">
                                        <div className="flex items-center justify-center">
@@ -830,45 +834,76 @@ export default function AccountingEntries() {
                                  </tr>
 
                                  {/* Sub-filas de Movimientos Contables (Alineadas pixel-perfect al diseño oficial Jeito) */}
-                                 {isExpanded && entry.items?.map((it, idx) => {
-                                    const acc = it.account || accountById.get(String(it.account_id));
-                                    const accCode = acc?.code || it.account_code || '';
-                                    const accName = acc?.name || it.description || '';
+                                 {isExpanded && (
+                                    <>
+                                       {entry.sii_document && (
+                                          <tr className="bg-[#FAFBFD] border-b border-[#F0F4FD] text-xs">
+                                             <td colSpan={3}></td>
+                                             <td colSpan={6} className="py-2.5 px-3">
+                                                <div className="inline-flex flex-wrap items-center gap-4 text-[11px] text-[#55607A] bg-white px-3 py-1.5 rounded-xl border border-[#E2EAFD] shadow-2xs">
+                                                   <span><b className="text-[#0A1A3F]">Doc SII:</b> {entry.sii_document.document_type || 'DTE'} N° {entry.sii_document.folio}</span>
+                                                   {entry.sii_document.net_amount != null && <span><b className="text-[#0A1A3F]">Neto:</b> {formatClp(entry.sii_document.net_amount)}</span>}
+                                                   {entry.sii_document.tax_amount != null && <span><b className="text-[#0A1A3F]">IVA:</b> {formatClp(entry.sii_document.tax_amount)}</span>}
+                                                   {entry.sii_document.total_amount != null && <span><b className="text-[#0A1A3F]">Total:</b> {formatClp(entry.sii_document.total_amount)}</span>}
+                                                </div>
+                                             </td>
+                                          </tr>
+                                       )}
+                                       {entry.items?.map((it, idx) => {
+                                          const acc = it.account || accountById.get(String(it.account_id));
+                                          const accCode = acc?.code || it.account_code || '';
+                                          const accName = acc?.name || it.description || '';
+                                          const rut = it.counterparty_rut || '';
+                                          const cc = it.cost_center || '';
 
-                                    return (
-                                       <tr
-                                          key={it.id || idx}
-                                          className="bg-[#FAFBFD] hover:bg-[#F2F6FE] transition-colors border-b border-[#F0F4FD]/80 text-xs"
-                                       >
-                                          <td colSpan={3}></td>
-                                          {/* Columna Origen: Badge con código de cuenta */}
-                                          <td className="py-2.5 px-3 whitespace-nowrap">
-                                             {accCode ? (
-                                                <span className="px-2 py-0.5 rounded font-mono text-[11px] font-bold bg-white text-[#0A1A3F] border border-[#E2EAFD] shadow-2xs">
-                                                   {accCode}
-                                                </span>
-                                             ) : (
-                                                <span className="text-[#8E9BB5]">—</span>
-                                             )}
-                                          </td>
-                                          {/* Columna Concepto / glosa: Nombre de la cuenta */}
-                                          <td className="py-2.5 px-3 font-medium text-[#55607A]">
-                                             <span className="truncate max-w-sm block" title={accName}>
-                                                {accName || '—'}
-                                             </span>
-                                          </td>
-                                          {/* Columna Total debe */}
-                                          <td className="py-2.5 px-3 text-right font-medium text-[#55607A] tabular-nums whitespace-nowrap">
-                                             {Number(it.debit) > 0 ? formatClp(it.debit) : '—'}
-                                          </td>
-                                          {/* Columna Total haber */}
-                                          <td className="py-2.5 px-3 text-right font-medium text-[#55607A] tabular-nums whitespace-nowrap">
-                                             {Number(it.credit) > 0 ? formatClp(it.credit) : '—'}
-                                          </td>
-                                          <td colSpan={2}></td>
-                                       </tr>
-                                    );
-                                 })}
+                                          return (
+                                             <tr
+                                                key={it.id || idx}
+                                                className="bg-[#FAFBFD] hover:bg-[#F2F6FE] transition-colors border-b border-[#F0F4FD]/80 text-xs"
+                                             >
+                                                <td colSpan={3}></td>
+                                                {/* Columna Origen: Badge con código de cuenta */}
+                                                <td className="py-2.5 px-3 whitespace-nowrap">
+                                                   {accCode ? (
+                                                      <span className="px-2 py-0.5 rounded font-mono text-[11px] font-bold bg-white text-[#0A1A3F] border border-[#E2EAFD] shadow-2xs">
+                                                         {accCode}
+                                                      </span>
+                                                   ) : (
+                                                      <span className="text-[#8E9BB5]">—</span>
+                                                   )}
+                                                </td>
+                                                {/* Columna Concepto / glosa: Nombre de la cuenta */}
+                                                <td className="py-2.5 px-3 font-medium text-[#55607A]">
+                                                   <div className="flex items-center gap-2">
+                                                      <span className="truncate max-w-sm block" title={accName}>
+                                                         {accName || '—'}
+                                                      </span>
+                                                      {rut && (
+                                                         <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#F0F4FD] text-[#55607A] font-mono shrink-0">
+                                                            {rut}
+                                                         </span>
+                                                      )}
+                                                      {cc && (
+                                                         <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#EFF3FF] text-[#1F6BFF] font-semibold shrink-0">
+                                                            CC: {cc}
+                                                         </span>
+                                                      )}
+                                                   </div>
+                                                </td>
+                                                {/* Columna Total debe */}
+                                                <td className="py-2.5 px-3 text-right font-medium text-[#55607A] tabular-nums whitespace-nowrap">
+                                                   {Number(it.debit) > 0 ? formatClp(it.debit) : '—'}
+                                                </td>
+                                                {/* Columna Total haber */}
+                                                <td className="py-2.5 px-3 text-right font-medium text-[#55607A] tabular-nums whitespace-nowrap">
+                                                   {Number(it.credit) > 0 ? formatClp(it.credit) : '—'}
+                                                </td>
+                                                <td colSpan={2}></td>
+                                             </tr>
+                                          );
+                                       })}
+                                    </>
+                                 )}
                               </React.Fragment>
                            );
                         })
