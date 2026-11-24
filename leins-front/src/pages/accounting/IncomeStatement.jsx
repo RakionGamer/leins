@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useEntityRequired } from '../../hooks/useEntityRequired';
 import EntityRequiredNotice from '../../components/EntityRequiredNotice';
@@ -12,24 +12,32 @@ import {
    ArrowDownTrayIcon,
    CheckCircleIcon,
    XMarkIcon,
+   CheckIcon,
    ChartBarIcon,
-   CurrencyDollarIcon,
-   BanknotesIcon,
-   ArrowTrendingUpIcon,
-   ArrowTrendingDownIcon,
 } from '@heroicons/react/24/outline';
 
-const clp = (n, showSign = false) => {
+const formatClp = (n, showSign = false) => {
    const val = Number(n || 0);
-   const absFormatted = new Intl.NumberFormat('es-CL', {
-      style: 'currency',
-      currency: 'CLP',
-      maximumFractionDigits: 0,
-   }).format(Math.abs(val));
+   const absFormatted = Math.abs(val).toLocaleString('es-CL');
+   if (val < 0) return `-$ ${absFormatted}`;
+   if (val > 0 && showSign) return `+$ ${absFormatted}`;
+   return `$ ${absFormatted}`;
+};
 
-   if (val < 0) return `-${absFormatted}`;
-   if (val > 0 && showSign) return `+${absFormatted}`;
-   return absFormatted;
+const formatTableAmount = (val, isNegativeCost = false) => {
+   const num = Number(val || 0);
+   if (num === 0) return { text: '$ 0', isZero: true };
+   const effectiveVal = isNegativeCost && num > 0 ? -num : num;
+   const absFormatted = Math.abs(effectiveVal).toLocaleString('es-CL');
+   if (effectiveVal < 0) {
+      return { text: `-$ ${absFormatted}`, isZero: false, isNegative: true };
+   }
+   return { text: `$ ${absFormatted}`, isZero: false, isNegative: false };
+};
+
+const formatPct = (val) => {
+   const num = Number(val || 0);
+   return num.toLocaleString('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 };
 
 const toYmd = (date) => {
@@ -39,10 +47,28 @@ const toYmd = (date) => {
    return `${year}-${month}-${day}`;
 };
 
+const formatTableSubtitle = (months) => {
+   if (!months || months.length === 0) return 'Cifras en pesos';
+   const monthsEs = [
+      'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+      'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+   ];
+   const firstKey = months[0]?.key || '';
+   const lastKey = months[months.length - 1]?.key || '';
+   const [, m1] = firstKey.split('-').map(Number);
+   const [y2, m2] = lastKey.split('-').map(Number);
+
+   const firstLabel = monthsEs[(m1 || 1) - 1] || months[0]?.label || '';
+   const lastLabel = (monthsEs[(m2 || 12) - 1] || months[months.length - 1]?.label || '').toLowerCase();
+   const year = y2 || new Date().getFullYear();
+
+   return `${firstLabel} a ${lastLabel} ${year} · cifras en pesos`;
+};
+
 export default function IncomeStatement() {
    const { entityId, ready } = useEntityRequired();
 
-   // Filtros principales
+   // Filtros principales (Por defecto Trimestre y Agrupado, idéntico a imagen de referencia)
    const [periodMode, setPeriodMode] = useState('quarter'); // 'current_month' | 'quarter' | 'semester' | 'year' | 'range'
    const [fromDate, setFromDate] = useState(() => {
       const now = new Date();
@@ -52,18 +78,18 @@ export default function IncomeStatement() {
       const now = new Date();
       return toYmd(new Date(now.getFullYear(), now.getMonth() + 1, 0));
    });
-   const [reportLevel, setReportLevel] = useState(1); // 1 = Nivel 1 (Agrupado), 2 = Nivel 2 (Cuentas)
+   const [reportLevel, setReportLevel] = useState(1); // 1 = Agrupado, 2 = Por cuenta
 
    // Estado de datos
    const [statementData, setStatementData] = useState(null);
    const [loading, setLoading] = useState(true);
    const [error, setError] = useState(null);
 
-   // Filas expandidas (para Nivel 1 cuando se abre individualmente)
+   // Filas expandidas (por defecto ingresos expandido según imagen de referencia)
    const [expandedGroups, setExpandedGroups] = useState({
       ingresos: true,
-      costos: true,
-      gastos: true,
+      costos: false,
+      gastos: false,
    });
 
    // Estado del Modal Mayor Analítico Auxiliar (Drill-down)
@@ -193,7 +219,7 @@ export default function IncomeStatement() {
          // Fila de grupo
          const groupRow = [
             group.label,
-            ...months.map((m) => group.monthlyTotals[m.key] || 0),
+            ...months.map((m) => group.monthlyTotals?.[m.key] || 0),
             group.accumulated || 0,
          ];
          rows.push(groupRow);
@@ -203,7 +229,7 @@ export default function IncomeStatement() {
             group.accounts.forEach((acc) => {
                rows.push([
                   `  ${acc.code} - ${acc.name}`,
-                  ...months.map((m) => acc.monthlyAmounts[m.key] || 0),
+                  ...months.map((m) => acc.monthlyAmounts?.[m.key] || 0),
                   acc.total || 0,
                ]);
             });
@@ -221,357 +247,448 @@ export default function IncomeStatement() {
       toast.success('Archivo CSV descargado exitosamente');
    };
 
-   if (!ready) return <EntityRequiredNotice />;
-
    const months = statementData?.period?.months || [];
    const kpis = statementData?.kpis || {};
    const structure = statementData?.structure || [];
 
+   if (!ready) return <EntityRequiredNotice />;
+
    return (
-      <div className="space-y-6">
-         {/* Top Header & Filter Card */}
-         <div className="bg-bg-content rounded-3xl p-5 border border-border-subtle shadow-sm">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-5 pb-5 border-b border-border-subtle">
+      <div className="space-y-6 max-w-[1600px] mx-auto pb-12">
+         {/* ======================================================== */}
+         {/* 1. Header: Breadcrumb, Título & Botones de Acción       */}
+         {/* ======================================================== */}
+         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+               <div className="flex items-center gap-1.5 text-xs text-[#8E9BB5] font-medium mb-1">
+                  <span>Reportes</span>
+                  <span>›</span>
+                  <span className="text-[#55607A]">Estado de resultados</span>
+               </div>
+               <h1 className="text-2xl sm:text-3xl font-nunito font-black text-[#0A1A3F] tracking-tight">
+                  Estado de resultados
+               </h1>
+               <p className="text-xs sm:text-sm text-[#55607A] font-medium mt-0.5">
+                  Comparativo mensual. Cuánto vendiste, cuánto te costó y con cuánto quedaste.
+               </p>
+            </div>
+
+            {/* Botones de acción (Actualizar y Exportar Excel) */}
+            <div className="flex items-center gap-2.5 shrink-0">
+               <button
+                  type="button"
+                  onClick={() => {
+                     loadStatement();
+                     toast.success('Estado de Resultados actualizado');
+                  }}
+                  disabled={loading}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full border border-[#E2EAFD] bg-white hover:bg-[#F5F8FF] text-[#0A1A3F] text-xs font-bold transition shadow-xs cursor-pointer disabled:opacity-50"
+               >
+                  <ArrowPathIcon className={`w-4 h-4 text-[#0A1A3F] ${loading ? 'animate-spin' : ''}`} />
+                  <span>Actualizar</span>
+               </button>
+
+               <button
+                  type="button"
+                  onClick={handleExportCSV}
+                  disabled={loading || !statementData}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#1F6BFF] hover:bg-[#1657D7] text-white text-xs font-bold transition shadow-xs cursor-pointer disabled:opacity-50"
+               >
+                  <ArrowDownTrayIcon className="w-4 h-4 stroke-[2.5]" />
+                  <span>Exportar Excel</span>
+               </button>
+            </div>
+         </div>
+
+         {/* ======================================================== */}
+         {/* 2. Barra de Filtros: Periodos, Rango y Reportabilidad   */}
+         {/* ======================================================== */}
+         <div className="bg-white rounded-2xl border border-[#E2EAFD] p-2 sm:p-2.5 flex flex-col lg:flex-row lg:items-center justify-between gap-3 shadow-xs">
+            {/* Lado izquierdo: Presets de Periodo + Rango de Fechas */}
+            <div className="flex flex-wrap items-center gap-2.5">
+               {/* Preset Pills */}
+               <div className="inline-flex rounded-xl bg-[#F5F8FF] p-1 border border-[#E2EAFD] text-xs font-medium">
+                  <button
+                     type="button"
+                     onClick={() => handlePreset('current_month')}
+                     className={`px-3.5 py-1.5 rounded-lg text-xs transition cursor-pointer ${
+                        periodMode === 'current_month'
+                           ? 'bg-white text-[#0A1A3F] font-bold shadow-xs'
+                           : 'text-[#55607A] hover:text-[#0A1A3F] font-semibold'
+                     }`}
+                  >
+                     Mes en curso
+                  </button>
+                  <button
+                     type="button"
+                     onClick={() => handlePreset('quarter')}
+                     className={`px-3.5 py-1.5 rounded-lg text-xs transition cursor-pointer ${
+                        periodMode === 'quarter'
+                           ? 'bg-white text-[#0A1A3F] font-bold shadow-xs'
+                           : 'text-[#55607A] hover:text-[#0A1A3F] font-semibold'
+                     }`}
+                  >
+                     Trimestre
+                  </button>
+                  <button
+                     type="button"
+                     onClick={() => handlePreset('semester')}
+                     className={`px-3.5 py-1.5 rounded-lg text-xs transition cursor-pointer ${
+                        periodMode === 'semester'
+                           ? 'bg-white text-[#0A1A3F] font-bold shadow-xs'
+                           : 'text-[#55607A] hover:text-[#0A1A3F] font-semibold'
+                     }`}
+                  >
+                     Semestre
+                  </button>
+                  <button
+                     type="button"
+                     onClick={() => handlePreset('year')}
+                     className={`px-3.5 py-1.5 rounded-lg text-xs transition cursor-pointer ${
+                        periodMode === 'year'
+                           ? 'bg-white text-[#0A1A3F] font-bold shadow-xs'
+                           : 'text-[#55607A] hover:text-[#0A1A3F] font-semibold'
+                     }`}
+                  >
+                     Año completo
+                  </button>
+               </div>
+
+               {/* Date Range Inputs */}
+               <div className="flex items-center gap-2">
+                  <div className="relative flex items-center">
+                     <span className="absolute left-3 pointer-events-none text-[#8E9BB5] text-xs">📅</span>
+                     <DateInput
+                        disabled={loading}
+                        className="w-32 sm:w-36 h-9 pl-8 pr-3 text-xs rounded-xl border border-[#E2EAFD] bg-[#F8FAFF] text-[#0A1A3F] font-bold shadow-xs hover:border-[#1F6BFF] focus:outline-none focus:ring-1 focus:ring-[#1F6BFF] transition cursor-pointer"
+                        value={fromDate}
+                        onChange={(val) => {
+                           setFromDate(val);
+                           setPeriodMode('range');
+                        }}
+                        placeholder="Desde"
+                     />
+                  </div>
+                  <span className="text-[#8E9BB5] font-bold text-xs select-none">—</span>
+                  <div className="relative flex items-center">
+                     <span className="absolute left-3 pointer-events-none text-[#8E9BB5] text-xs">📅</span>
+                     <DateInput
+                        disabled={loading}
+                        className="w-32 sm:w-36 h-9 pl-8 pr-3 text-xs rounded-xl border border-[#E2EAFD] bg-[#F8FAFF] text-[#0A1A3F] font-bold shadow-xs hover:border-[#1F6BFF] focus:outline-none focus:ring-1 focus:ring-[#1F6BFF] transition cursor-pointer"
+                        value={toDate}
+                        onChange={(val) => {
+                           setToDate(val);
+                           setPeriodMode('range');
+                        }}
+                        min={fromDate || undefined}
+                        placeholder="Hasta"
+                     />
+                  </div>
+               </div>
+            </div>
+
+            {/* Lado derecho: Píldoras de Nivel (Detalle | Agrupado | Por cuenta) */}
+            <div className="inline-flex rounded-xl bg-[#F5F8FF] p-1 border border-[#E2EAFD] text-xs font-medium self-start lg:self-auto">
+               <button
+                  type="button"
+                  onClick={() => {
+                     setReportLevel(2);
+                     const allExp = {};
+                     structure.forEach(g => { allExp[g.key] = true; });
+                     setExpandedGroups(allExp);
+                  }}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs transition cursor-pointer ${
+                     reportLevel === 2 && Object.values(expandedGroups).every(Boolean)
+                        ? 'bg-[#1F6BFF] text-white font-bold shadow-xs'
+                        : 'text-[#55607A] hover:text-[#0A1A3F] font-semibold'
+                  }`}
+               >
+                  Detalle
+               </button>
+               <button
+                  type="button"
+                  onClick={() => {
+                     setReportLevel(1);
+                  }}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs transition cursor-pointer ${
+                     reportLevel === 1
+                        ? 'bg-[#1F6BFF] text-white font-bold shadow-xs'
+                        : 'text-[#55607A] hover:text-[#0A1A3F] font-semibold'
+                  }`}
+               >
+                  Agrupado
+               </button>
+               <button
+                  type="button"
+                  onClick={() => {
+                     setReportLevel(2);
+                  }}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs transition cursor-pointer ${
+                     reportLevel === 2 && !Object.values(expandedGroups).every(Boolean)
+                        ? 'bg-[#1F6BFF] text-white font-bold shadow-xs'
+                        : 'text-[#55607A] hover:text-[#0A1A3F] font-semibold'
+                  }`}
+               >
+                  Por cuenta
+               </button>
+            </div>
+         </div>
+
+         {/* ======================================================== */}
+         {/* 3. Tarjetas KPI de Resumen (4 Cards Jeito Oficial)       */}
+         {/* ======================================================== */}
+         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Card 1: Ingresos operacionales */}
+            <div className="bg-white rounded-2xl border border-[#E2EAFD] p-4 sm:p-5 flex flex-col justify-between shadow-xs">
+               <div className="flex items-center justify-between">
+                  <span className="text-xs text-[#55607A] font-semibold">Ingresos operacionales</span>
+                  <div className="w-8 h-8 rounded-xl bg-[#EFF3FF] flex items-center justify-center text-[#1F6BFF] shrink-0">
+                     <svg className="w-4 h-4 text-[#0A1A3F]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="22 7 13.5 15.5 8.5 10.5 2 17" />
+                        <polyline points="16 7 22 7 22 13" />
+                     </svg>
+                  </div>
+               </div>
+               <div className="mt-3">
+                  <div className="font-nunito font-black text-xl sm:text-2xl text-[#0A1A3F] tracking-tight">
+                     {formatClp(kpis.totalIngresos)}
+                  </div>
+               </div>
+            </div>
+
+            {/* Card 2: Costo directo de ventas */}
+            <div className="bg-white rounded-2xl border border-[#E2EAFD] p-4 sm:p-5 flex flex-col justify-between shadow-xs">
+               <div className="flex items-center justify-between">
+                  <span className="text-xs text-[#55607A] font-semibold">Costo directo de ventas</span>
+                  <div className="w-8 h-8 rounded-xl bg-[#EFF3FF] flex items-center justify-center text-[#1F6BFF] shrink-0">
+                     <svg className="w-4 h-4 text-[#0A1A3F]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="22 17 13.5 8.5 8.5 13.5 2 7" />
+                        <polyline points="16 17 22 17 22 11" />
+                     </svg>
+                  </div>
+               </div>
+               <div className="mt-3">
+                  <div className="font-nunito font-black text-xl sm:text-2xl text-[#0A1A3F] tracking-tight">
+                     {formatClp(kpis.totalCostos)}
+                  </div>
+               </div>
+            </div>
+
+            {/* Card 3: Margen bruto */}
+            <div className="bg-white rounded-2xl border border-[#E2EAFD] p-4 sm:p-5 flex flex-col justify-between shadow-xs">
+               <div className="flex items-center justify-between">
+                  <span className="text-xs text-[#55607A] font-semibold">Margen bruto</span>
+                  <div className="w-8 h-8 rounded-xl bg-[#EFF3FF] flex items-center justify-center text-[#1F6BFF] shrink-0">
+                     <ChartBarIcon className="w-4 h-4 text-[#0A1A3F] stroke-[2.25]" />
+                  </div>
+               </div>
+               <div className="mt-3">
+                  <div className="font-nunito font-black text-xl sm:text-2xl text-[#0A1A3F] tracking-tight">
+                     {formatClp(kpis.margenBruto)}
+                  </div>
+                  <div className="text-[11px] text-[#8E9BB5] font-medium mt-1">
+                     {formatPct(kpis.margenBrutoPct)}% de los ingresos
+                  </div>
+               </div>
+            </div>
+
+            {/* Card 4: EBITDA (Dark Navy Jeito) */}
+            <div className="bg-[#0A1A3F] text-white rounded-2xl p-4 sm:p-5 flex flex-col justify-between shadow-xs border border-[#162955]">
+               <div className="flex items-center justify-between">
+                  <span className="text-xs text-[#8E9BB5] font-semibold">EBITDA</span>
+                  <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center text-white shrink-0">
+                     <CheckIcon className="w-4 h-4 text-white stroke-[2.5]" />
+                  </div>
+               </div>
+               <div className="mt-3">
+                  <div className="font-nunito font-black text-xl sm:text-2xl text-white tracking-tight">
+                     {formatClp(kpis.ebitda)}
+                  </div>
+                  <div className="text-[11px] text-[#8E9BB5] font-medium mt-1">
+                     {formatPct(kpis.ebitdaPct)}% de los ingresos
+                  </div>
+               </div>
+            </div>
+         </div>
+
+         {/* ======================================================== */}
+         {/* 4. Contenedor Principal: Estructura P&L (Tabla)          */}
+         {/* ======================================================== */}
+         <div className="bg-white rounded-3xl border border-[#E2EAFD] shadow-xs overflow-hidden">
+            {/* Encabezado de la Tarjeta */}
+            <div className="p-6 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#F0F4FD]">
                <div>
-                  <h2 className="text-2xl font-bold text-heading tracking-tight">Estado de Resultados (Comparativo Mensual)</h2>
-                  <p className="text-sm text-text-soft mt-1">
-                     Visualización de periodos mensualizados con reporte por Nivel 1 (Agrupado) y Nivel 2 (Cuentas) respaldado en operaciones del SII.
+                  <h2 className="font-nunito font-black text-lg text-[#0A1A3F] leading-tight">
+                     Estructura P&L
+                  </h2>
+                  <p className="text-xs text-[#55607A] font-medium mt-0.5">
+                     {formatTableSubtitle(months)}
                   </p>
                </div>
-               <div className="flex flex-wrap items-center gap-3">
-                  <button
-                     onClick={() => {
-                        loadStatement();
-                        toast.success('Estado de Resultados actualizado');
-                     }}
-                     disabled={loading}
-                     className="h-10 flex items-center justify-center gap-2 px-4 rounded-xl border border-border-subtle bg-bg-content text-text-main text-xs font-semibold transition shadow-sm hover:bg-surface-2 hover:text-brand focus:outline-none focus:ring-2 focus:ring-brand cursor-pointer"
-                  >
-                     <ArrowPathIcon className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-                     <span>Actualizar</span>
-                  </button>
-                  <button
-                     onClick={handleExportCSV}
-                     disabled={loading || !statementData}
-                     className="h-10 flex items-center justify-center gap-2 px-4 rounded-xl border border-border-subtle bg-bg-content text-text-main text-xs font-semibold transition shadow-sm hover:bg-surface-2 hover:text-brand focus:outline-none focus:ring-2 focus:ring-brand cursor-pointer disabled:opacity-50"
-                  >
-                     <ArrowDownTrayIcon className="w-4 h-4" />
-                     <span>Exportar Excel</span>
-                  </button>
+               {/* Legend indicadora de cuenta contable */}
+               <div className="flex items-center gap-2 text-xs text-[#8E9BB5] select-none">
+                  <span className="px-2 py-0.5 rounded font-mono text-[11px] font-bold bg-[#EFF3FF] text-[#1F6BFF] border border-[#D8E4FF]">
+                     41.01.10
+                  </span>
+                  <span className="font-medium">= cuenta contable</span>
                </div>
             </div>
 
-            {/* Selector de Periodo y Reportabilidad */}
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-               {/* Period Pills & Date Range Inputs */}
-               <div className="flex flex-wrap items-center gap-2.5">
-                  <div className="inline-flex rounded-xl bg-surface-2 p-1 border border-border-subtle text-xs font-medium">
-                     <button
-                        type="button"
-                        onClick={() => handlePreset('current_month')}
-                        className={`px-3 py-1.5 rounded-lg transition ${
-                           periodMode === 'current_month'
-                              ? 'bg-bg-content text-heading font-semibold shadow-sm'
-                              : 'text-text-soft hover:text-heading'
-                        }`}
-                     >
-                        Solo Mes en Curso
-                     </button>
-                     <button
-                        type="button"
-                        onClick={() => handlePreset('quarter')}
-                        className={`px-3 py-1.5 rounded-lg transition ${
-                           periodMode === 'quarter'
-                              ? 'bg-bg-content text-heading font-semibold shadow-sm'
-                              : 'text-text-soft hover:text-heading'
-                        }`}
-                     >
-                        El Trimestre (3 Meses)
-                     </button>
-                     <button
-                        type="button"
-                        onClick={() => handlePreset('semester')}
-                        className={`px-3 py-1.5 rounded-lg transition ${
-                           periodMode === 'semester'
-                              ? 'bg-bg-content text-heading font-semibold shadow-sm'
-                              : 'text-text-soft hover:text-heading'
-                        }`}
-                     >
-                        El Semestre (6 Meses)
-                     </button>
-                     <button
-                        type="button"
-                        onClick={() => handlePreset('year')}
-                        className={`px-3 py-1.5 rounded-lg transition ${
-                           periodMode === 'year'
-                              ? 'bg-bg-content text-heading font-semibold shadow-sm'
-                              : 'text-text-soft hover:text-heading'
-                        }`}
-                     >
-                        Todo el Año (12 Meses)
-                     </button>
-                  </div>
-
-                  {/* Rango de fechas colocado al lado del contenedor de opciones */}
-                  <div className="flex items-center gap-1.5">
-                     <div className="w-32">
-                        <DateInput
-                           disabled={loading}
-                           className="w-full h-9 flex items-center px-3 text-xs rounded-xl border border-border-subtle bg-bg-content text-text-main shadow-sm hover:border-brand/50 focus:outline-none focus:ring-2 focus:ring-brand font-medium transition cursor-pointer"
-                           value={fromDate}
-                           onChange={(val) => {
-                              setFromDate(val);
-                              setPeriodMode('range');
-                           }}
-                           placeholder="Desde"
-                        />
-                     </div>
-                     <span className="text-text-soft font-semibold text-xs">—</span>
-                     <div className="w-32">
-                        <DateInput
-                           disabled={loading}
-                           className="w-full h-9 flex items-center px-3 text-xs rounded-xl border border-border-subtle bg-bg-content text-text-main shadow-sm hover:border-brand/50 focus:outline-none focus:ring-2 focus:ring-brand font-medium transition cursor-pointer"
-                           value={toDate}
-                           onChange={(val) => {
-                              setToDate(val);
-                              setPeriodMode('range');
-                           }}
-                           min={fromDate || undefined}
-                           placeholder="Hasta"
-                        />
-                     </div>
-                  </div>
-               </div>
-
-               {/* Reportabilidad Pills */}
-               <div className="flex items-center gap-3">
-                  <span className="text-xs text-text-soft font-medium">Reportabilidad:</span>
-                  <div className="inline-flex rounded-xl bg-surface-2 p-1 border border-border-subtle text-xs font-medium">
-                     <button
-                        type="button"
-                        onClick={() => setReportLevel(1)}
-                        className={`px-3 py-1.5 rounded-lg transition ${
-                           reportLevel === 1
-                              ? 'bg-brand text-white font-semibold shadow-sm'
-                              : 'text-text-soft hover:text-heading'
-                        }`}
-                     >
-                        Nivel 1 (Agrupado)
-                     </button>
-                     <button
-                        type="button"
-                        onClick={() => setReportLevel(2)}
-                        className={`px-3 py-1.5 rounded-lg transition ${
-                           reportLevel === 2
-                              ? 'bg-brand text-white font-semibold shadow-sm'
-                              : 'text-text-soft hover:text-heading'
-                        }`}
-                     >
-                        Nivel 2 (Cuentas)
-                     </button>
-                  </div>
-               </div>
-            </div>
-         </div>
-
-         {/* KPI Summary Cards */}
-         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="rounded-2xl border border-border-subtle bg-surface-1 p-4 shadow-sm flex items-center gap-4">
-               <div className="p-3 bg-emerald-500/10 text-emerald-600 rounded-xl">
-                  <ArrowTrendingUpIcon className="w-6 h-6" />
-               </div>
-               <div>
-                  <div className="text-xs font-semibold text-text-soft uppercase tracking-wide">Ingresos Operacionales</div>
-                  <div className="text-lg md:text-xl font-bold text-heading">{clp(kpis.totalIngresos)}</div>
-               </div>
-            </div>
-
-            <div className="rounded-2xl border border-border-subtle bg-surface-1 p-4 shadow-sm flex items-center gap-4">
-               <div className="p-3 bg-amber-500/10 text-amber-600 rounded-xl">
-                  <ArrowTrendingDownIcon className="w-6 h-6" />
-               </div>
-               <div>
-                  <div className="text-xs font-semibold text-text-soft uppercase tracking-wide">Costo Directo Ventas</div>
-                  <div className="text-lg md:text-xl font-bold text-heading">{clp(kpis.totalCostos)}</div>
-               </div>
-            </div>
-
-            <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-4 shadow-sm flex items-center gap-4 ring-1 ring-emerald-500/20">
-               <div className="p-3 bg-emerald-600 text-white rounded-xl">
-                  <BanknotesIcon className="w-6 h-6" />
-               </div>
-               <div>
-                  <div className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 uppercase tracking-wide">
-                     Margen Bruto ({kpis.margenBrutoPct ?? 0}%)
-                  </div>
-                  <div className="text-lg md:text-xl font-bold text-emerald-700 dark:text-emerald-300">
-                     {clp(kpis.margenBruto)}
-                  </div>
-               </div>
-            </div>
-
-            <div className="rounded-2xl border border-brand/30 bg-brand/5 p-4 shadow-sm flex items-center gap-4 ring-1 ring-brand/10">
-               <div className="p-3 bg-brand text-white rounded-xl">
-                  <CurrencyDollarIcon className="w-6 h-6" />
-               </div>
-               <div>
-                  <div className="text-xs font-semibold text-brand uppercase tracking-wide">
-                     EBITDA ({kpis.ebitdaPct ?? 0}%)
-                  </div>
-                  <div className="text-lg md:text-xl font-bold text-brand">
-                     {clp(kpis.ebitda)}
-                  </div>
-               </div>
-            </div>
-         </div>
-
-         {/* Main Statement Table */}
-         <div className="bg-bg-content rounded-3xl border border-border-subtle shadow-sm overflow-hidden">
+            {/* Cuerpo de la Tabla */}
             {loading ? (
                <div className="p-16 flex flex-col items-center justify-center gap-3">
-                  <ArrowPathIcon className="w-8 h-8 animate-spin text-brand" />
-                  <span className="text-sm text-text-soft font-medium">Cargando Estado de Resultados...</span>
+                  <ArrowPathIcon className="w-8 h-8 animate-spin text-[#1F6BFF]" />
+                  <span className="text-xs text-[#55607A] font-medium">Cargando Estado de Resultados...</span>
                </div>
             ) : error ? (
-               <div className="p-12 text-center text-danger">
-                  <p className="font-semibold">{error}</p>
+               <div className="p-12 text-center text-rose-600">
+                  <p className="font-semibold text-xs">{error}</p>
                   <button
                      onClick={loadStatement}
-                     className="mt-4 px-4 py-2 rounded-xl bg-brand text-white text-xs font-semibold"
+                     className="mt-4 px-4 py-2 rounded-xl bg-[#1F6BFF] text-white text-xs font-semibold cursor-pointer"
                   >
                      Reintentar
                   </button>
                </div>
             ) : structure.length === 0 ? (
-               <div className="p-16 text-center text-text-soft">
-                  <ChartBarIcon className="w-12 h-12 mx-auto mb-3 opacity-40" />
-                  <p className="font-semibold text-heading">No hay movimientos registrados en el periodo seleccionado</p>
-                  <p className="text-xs mt-1">Los datos se alimentan automáticamente de las compras, ventas y honorarios extraídos del SII.</p>
+               <div className="p-16 text-center text-[#55607A]">
+                  <p className="font-semibold text-sm text-[#0A1A3F]">No hay movimientos registrados en el periodo seleccionado</p>
+                  <p className="text-xs text-[#8E9BB5] mt-1">Los datos se alimentan automáticamente de las compras, ventas y honorarios extraídos del SII.</p>
                </div>
             ) : (
                <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs border-collapse">
                      <thead>
-                        <tr className="border-b border-border-subtle bg-surface-1 text-text-soft uppercase tracking-wider font-semibold">
-                           <th className="py-3.5 px-4 min-w-[280px]">Estructura P&L / Cuenta Contable</th>
+                        <tr className="bg-[#0A1A3F] text-white">
+                           <th className="py-3.5 px-5 text-left text-white font-bold text-xs sticky left-0 bg-[#0A1A3F] z-20 min-w-[320px]">
+                              Estructura P&L / cuenta contable
+                           </th>
                            {months.map((m) => (
-                              <th key={m.key} className="py-3.5 px-3 text-right min-w-[120px]">
+                              <th key={m.key} className="py-3.5 px-4 text-right text-white font-bold text-xs min-w-[110px] whitespace-nowrap">
                                  {m.label}
                               </th>
                            ))}
-                           <th className="py-3.5 px-4 text-right min-w-[140px] bg-slate-900 text-white font-bold tracking-normal text-[13px]">
-                              Total Acumulado
+                           <th className="py-3.5 px-5 text-right font-black text-xs text-white bg-[#1F6BFF] min-w-[130px] whitespace-nowrap">
+                              Total acumulado
                            </th>
                         </tr>
                      </thead>
-                     <tbody className="divide-y divide-border-subtle font-medium">
+                     <tbody className="divide-y divide-[#F0F4FD] font-medium">
                         {structure.map((item) => {
-                           // 1. Subtotal: Margen Bruto Operacional
+                           // 1. Subtotal: Margen Bruto Operacional (Fila celeste suave)
                            if (item.isSubtotal) {
                               return (
                                  <tr
                                     key={item.key}
-                                    className="bg-emerald-50/60 dark:bg-emerald-950/20 text-emerald-800 dark:text-emerald-300 border-y border-emerald-200 dark:border-emerald-800/40"
+                                    className="bg-[#F2F6FE] text-[#0A1A3F] font-bold border-y border-[#E2EAFD]"
                                  >
-                                    <td className="py-3 px-4 font-bold text-heading">
+                                    <td className="py-3 px-5 font-bold text-[#0A1A3F] sticky left-0 bg-[#F2F6FE] z-10">
                                        {item.label}
                                     </td>
-                                    {months.map((m) => (
-                                       <td key={m.key} className="py-3 px-3 text-right font-bold transition">
-                                          {clp(item.monthlyTotals[m.key])}
-                                       </td>
-                                    ))}
-                                    <td className="py-3 px-4 text-right font-bold text-heading bg-surface-1/80">
-                                       {clp(item.accumulated)}
+                                    {months.map((m) => {
+                                       const val = item.monthlyTotals?.[m.key] || 0;
+                                       const cell = formatTableAmount(val);
+                                       return (
+                                          <td key={m.key} className="py-3 px-4 text-right font-bold text-xs tabular-nums text-[#0A1A3F]">
+                                             {cell.text}
+                                          </td>
+                                       );
+                                    })}
+                                    <td className="py-3 px-5 text-right font-black text-xs text-[#0A1A3F] bg-[#E8F0FE] tabular-nums">
+                                       {formatTableAmount(item.accumulated).text}
                                     </td>
                                  </tr>
                               );
                            }
 
+                           // 2. Fila Total: Resultado neto del período (EBITDA) - Fondo Marino & Total Azul
                            if (item.isTotal) {
                               return (
                                  <tr
                                     key={item.key}
-                                    className="bg-surface-2 font-bold text-heading border-t-2 border-border-subtle"
+                                    className="bg-[#0A1A3F] text-white font-bold border-t border-[#1E305C]"
                                  >
-                                    <td className="py-4 px-4 text-[13px] tracking-wide text-brand">
+                                    <td className="py-3.5 px-5 text-xs tracking-wide text-white font-bold sticky left-0 bg-[#0A1A3F] z-20">
                                        {item.label}
                                     </td>
-                                    {months.map((m) => (
-                                       <td key={m.key} className="py-4 px-3 text-right font-bold text-[13px]">
-                                          {clp(item.monthlyTotals[m.key])}
-                                       </td>
-                                    ))}
-                                    <td className="py-4 px-4 text-right font-extrabold text-[15px] bg-slate-900 text-white">
-                                       {clp(item.accumulated)}
+                                    {months.map((m) => {
+                                       const val = item.monthlyTotals?.[m.key] || 0;
+                                       const cell = formatTableAmount(val);
+                                       return (
+                                          <td key={m.key} className="py-3.5 px-4 text-right font-bold text-xs text-white tabular-nums">
+                                             {cell.text}
+                                          </td>
+                                       );
+                                    })}
+                                    <td className="py-3.5 px-5 text-right font-black text-xs text-white bg-[#1F6BFF] tabular-nums">
+                                       {formatTableAmount(item.accumulated).text}
                                     </td>
                                  </tr>
                               );
                            }
 
-                           // 3. Grupos principales (Ingresos, Costos, Gastos)
-                           const isExpanded = reportLevel === 2 && Boolean(expandedGroups[item.key]);
+                           // 3. Grupos principales (1. Ingresos operacionales, 2. Costos, 3. Gastos)
+                           const isExpanded = Boolean(expandedGroups[item.key]);
                            const isNegativeCost = item.key === 'costos' || item.key === 'gastos';
 
                            return (
                               <React.Fragment key={item.key}>
-                                 <tr className="bg-bg-content hover:bg-surface-1/60 transition-colors">
-                                    <td className="py-3 px-4 font-bold text-heading">
+                                 {/* Fila de Grupo */}
+                                 <tr className="bg-white hover:bg-[#F8FAFF] transition-colors border-b border-[#F0F4FD]">
+                                    <td className="py-3 px-5 font-bold text-[#0A1A3F] sticky left-0 bg-white hover:bg-[#F8FAFF] z-10">
                                        <div className="flex items-center gap-2">
-                                          {reportLevel === 2 && (
-                                             <button
-                                                type="button"
-                                                onClick={() => toggleGroup(item.key)}
-                                                className="p-1 rounded hover:bg-surface-2 text-text-soft transition cursor-pointer"
-                                                title={isExpanded ? 'Colapsar cuentas' : 'Expandir cuentas'}
-                                             >
-                                                {isExpanded ? (
-                                                   <ChevronDownIcon className="w-4 h-4 text-brand" />
-                                                ) : (
-                                                   <ChevronRightIcon className="w-4 h-4" />
-                                                )}
-                                             </button>
-                                          )}
-                                          <span>{item.label}</span>
+                                          <button
+                                             type="button"
+                                             onClick={() => toggleGroup(item.key)}
+                                             className="p-0.5 rounded text-[#55607A] hover:text-[#0A1A3F] transition cursor-pointer"
+                                             title={isExpanded ? 'Colapsar cuentas' : 'Expandir cuentas'}
+                                          >
+                                             {isExpanded ? (
+                                                <ChevronDownIcon className="w-4 h-4 stroke-[2.5]" />
+                                             ) : (
+                                                <ChevronRightIcon className="w-4 h-4 stroke-[2.5]" />
+                                             )}
+                                          </button>
+                                          <span className="text-xs font-bold text-[#0A1A3F]">{item.label}</span>
                                        </div>
                                     </td>
                                     {months.map((m) => {
-                                       const val = item.monthlyTotals[m.key] || 0;
-                                       const displayVal = isNegativeCost && val > 0 ? -val : val;
+                                       const val = item.monthlyTotals?.[m.key] || 0;
+                                       const cell = formatTableAmount(val, isNegativeCost);
                                        return (
                                           <td
                                              key={m.key}
-                                             className={`py-3 px-3 text-right font-bold transition ${
-                                                isNegativeCost ? 'text-text-main' : 'text-emerald-600 dark:text-emerald-400'
+                                             className={`py-3 px-4 text-right font-bold text-xs tabular-nums transition ${
+                                                cell.isZero ? 'text-[#A0AEC0]' : 'text-[#0A1A3F]'
                                              }`}
                                           >
-                                             {clp(displayVal)}
+                                             {cell.text}
                                           </td>
                                        );
                                     })}
-                                    <td className="py-3 px-4 text-right font-bold text-heading bg-surface-1/80">
-                                       {clp(isNegativeCost && item.accumulated > 0 ? -item.accumulated : item.accumulated)}
+                                    <td className="py-3 px-5 text-right font-bold text-xs text-[#0A1A3F] bg-[#F2F6FE] tabular-nums">
+                                       {formatTableAmount(item.accumulated, isNegativeCost).text}
                                     </td>
                                  </tr>
 
-                                 {/* Cuentas contables hijas (Solo visible en Nivel 2) */}
-                                 {reportLevel === 2 && isExpanded &&
+                                 {/* Cuentas contables hijas (visibles si el grupo está expandido) */}
+                                 {isExpanded &&
                                     item.accounts?.map((acc) => (
                                        <tr
                                           key={`${item.key}-${acc.code}`}
-                                          className="text-text-soft hover:bg-surface-1/40 hover:text-heading transition-colors text-[11.5px]"
+                                          className="bg-white hover:bg-[#F8FAFF] transition-colors border-b border-[#F0F4FD]"
                                        >
-                                          <td className="py-2 px-4 pl-10 font-normal">
-                                             <div className="flex items-center gap-2">
-                                                <span className="font-mono text-[10px] bg-surface-2 px-1.5 py-0.5 rounded border border-border-subtle">
+                                          <td className="py-2.5 px-5 pl-12 font-normal sticky left-0 bg-white hover:bg-[#F8FAFF] z-10">
+                                             <div className="flex items-center gap-2.5">
+                                                <span className="px-2 py-0.5 rounded font-mono text-[11px] font-bold bg-[#EFF3FF] text-[#1F6BFF] border border-[#D8E4FF] shrink-0">
                                                    {acc.code}
                                                 </span>
-                                                <span className="truncate">{acc.name}</span>
+                                                <span className="truncate text-xs text-[#55607A]">{acc.name}</span>
                                              </div>
                                           </td>
                                           {months.map((m) => {
-                                             const accVal = acc.monthlyAmounts[m.key] || 0;
-                                             const displayAccVal = isNegativeCost && accVal > 0 ? -accVal : accVal;
+                                             const accVal = acc.monthlyAmounts?.[m.key] || 0;
+                                             const cell = formatTableAmount(accVal, isNegativeCost);
                                              return (
                                                 <td
                                                    key={m.key}
@@ -582,22 +699,22 @@ export default function IncomeStatement() {
                                                          groupKey: item.key,
                                                          monthKey: m.key,
                                                          accountName: `${acc.code} ${acc.name}`,
-                                                         cellAmount: displayAccVal,
+                                                         cellAmount: isNegativeCost && accVal > 0 ? -accVal : accVal,
                                                       })
                                                    }
-                                                   className={`py-2 px-3 text-right font-mono transition ${
+                                                   className={`py-2.5 px-4 text-right text-xs tabular-nums transition ${
                                                       accVal !== 0
-                                                         ? 'cursor-pointer hover:underline hover:text-brand hover:font-bold'
-                                                         : 'opacity-40'
-                                                   }`}
+                                                         ? 'cursor-pointer hover:underline hover:text-[#1F6BFF] hover:font-bold'
+                                                         : ''
+                                                   } ${cell.isZero ? 'text-[#A0AEC0]' : 'text-[#55607A]'}`}
                                                    title={accVal !== 0 ? 'Clic para ver Mayor Analítico Auxiliar' : ''}
                                                 >
-                                                   {clp(displayAccVal)}
+                                                   {cell.text}
                                                 </td>
                                              );
                                           })}
-                                          <td className="py-2 px-4 text-right font-mono font-semibold bg-surface-1/30">
-                                             {clp(isNegativeCost && acc.total > 0 ? -acc.total : acc.total)}
+                                          <td className="py-2.5 px-5 text-right font-medium text-xs text-[#55607A] bg-[#F2F6FE] tabular-nums">
+                                             {formatTableAmount(acc.total, isNegativeCost).text}
                                           </td>
                                        </tr>
                                     ))}
@@ -611,7 +728,7 @@ export default function IncomeStatement() {
          </div>
 
          {/* ======================================================== */}
-         {/* Modal Mayor Analítico Auxiliar (Drill-down exacto al ejemplo) */}
+         {/* 5. Modal Mayor Analítico Auxiliar (Drill-down Jeito)     */}
          {/* ======================================================== */}
          {drillModalOpen &&
             createPortal(
@@ -619,54 +736,59 @@ export default function IncomeStatement() {
                   onClick={(e) => {
                      if (e.target === e.currentTarget) setDrillModalOpen(false);
                   }}
-                  className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-xs p-4 animate-in fade-in duration-200"
+                  className="fixed inset-0 z-[200] flex items-center justify-center bg-[#0A1A3F]/40 backdrop-blur-xs p-3 sm:p-4 md:p-6 overflow-y-auto"
                >
-                  <div className="w-full max-w-4xl bg-bg-content rounded-2xl shadow-2xl border border-border-subtle overflow-hidden flex flex-col max-h-[90vh]">
-                     {/* Dark Header matching screenshot */}
-                     <div className="bg-[#0f172a] text-white p-5 flex items-start justify-between shrink-0">
-                        <div>
-                           <h3 className="text-base md:text-lg font-bold tracking-tight">
-                              Mayor Analítico Auxiliar: {drillData?.accountName || 'Detalle de Imputaciones'} {drillData?.monthLabel || ''}
-                           </h3>
-                           <p className="text-xs text-slate-400 mt-0.5">
-                              Detalle de movimientos e imputaciones respaldadas en operaciones del SII
-                           </p>
+                  <div className="w-full max-w-4xl bg-white rounded-3xl shadow-2xl border border-[#E2EAFD] overflow-hidden my-auto flex flex-col max-h-[90vh]">
+                     {/* Header */}
+                     <div className="px-6 py-4 border-b border-[#E2EAFD] flex items-center justify-between bg-white shrink-0">
+                        <div className="flex items-center gap-3">
+                           <div className="w-10 h-10 rounded-2xl bg-[#EFF3FF] flex items-center justify-center text-[#1F6BFF] shrink-0">
+                              <CheckCircleIcon className="w-5 h-5 stroke-[2.5]" />
+                           </div>
+                           <div>
+                              <h3 className="text-base font-nunito font-black text-[#0A1A3F] tracking-tight">
+                                 Mayor Analítico Auxiliar: {drillData?.accountName || 'Detalle de Imputaciones'} {drillData?.monthLabel || ''}
+                              </h3>
+                              <p className="text-xs text-[#55607A] font-medium mt-0.5">
+                                 Detalle de movimientos e imputaciones respaldadas en operaciones del SII
+                              </p>
+                           </div>
                         </div>
                         <button
                            type="button"
                            onClick={() => setDrillModalOpen(false)}
-                           className="text-slate-400 hover:text-white transition p-1 rounded-lg hover:bg-slate-800"
+                           className="p-2 rounded-xl text-[#8E9BB5] hover:text-[#0A1A3F] hover:bg-[#EEF3FF] transition cursor-pointer"
                         >
                            <XMarkIcon className="w-5 h-5" />
                         </button>
                      </div>
 
                      {/* Body Content */}
-                     <div className="p-5 overflow-y-auto space-y-4">
+                     <div className="p-6 overflow-y-auto space-y-4">
                         {/* Monto Total Box */}
-                        <div className="rounded-xl border border-border-subtle bg-surface-1 p-4 flex items-center justify-between">
-                           <span className="text-xs md:text-sm text-text-soft font-medium">
-                              Monto total conciliado a esta celda:
+                        <div className="rounded-2xl border border-[#E2EAFD] bg-[#F8FAFF] p-4 flex items-center justify-between shadow-xs">
+                           <span className="text-xs sm:text-sm text-[#55607A] font-medium">
+                              Monto total imputado a esta celda:
                            </span>
-                           <span className="text-lg md:text-xl font-extrabold text-heading">
-                              {clp(targetCellAmount)}
+                           <span className="text-lg sm:text-xl font-nunito font-black text-[#0A1A3F] tabular-nums">
+                              {formatClp(targetCellAmount)}
                            </span>
                         </div>
 
                         {drillLoading ? (
                            <div className="py-12 flex flex-col items-center justify-center gap-2">
-                              <ArrowPathIcon className="w-7 h-7 animate-spin text-brand" />
-                              <span className="text-xs text-text-soft font-medium">Cargando comprobantes...</span>
+                              <ArrowPathIcon className="w-7 h-7 animate-spin text-[#1F6BFF]" />
+                              <span className="text-xs text-[#55607A] font-medium">Cargando comprobantes...</span>
                            </div>
                         ) : !drillData?.documents?.length ? (
-                           <div className="py-10 text-center text-text-soft text-xs">
+                           <div className="py-10 text-center text-[#8E9BB5] text-xs">
                               No se encontraron documentos individuales asociados a esta celda en este periodo.
                            </div>
                         ) : (
-                           <div className="border border-border-subtle rounded-xl overflow-hidden shadow-xs">
+                           <div className="border border-[#E2EAFD] rounded-2xl overflow-hidden shadow-xs">
                               <table className="w-full text-left text-xs">
                                  <thead>
-                                    <tr className="bg-surface-2 text-text-soft font-semibold border-b border-border-subtle">
+                                    <tr className="bg-[#F8FAFF] text-[#55607A] font-bold border-b border-[#E2EAFD]">
                                        <th className="py-2.5 px-3">Fecha</th>
                                        <th className="py-2.5 px-3">Folio / TRX</th>
                                        <th className="py-2.5 px-3">RUT / Entidad</th>
@@ -674,17 +796,17 @@ export default function IncomeStatement() {
                                        <th className="py-2.5 px-3 text-right">Monto Neto</th>
                                     </tr>
                                  </thead>
-                                 <tbody className="divide-y divide-border-subtle font-medium">
+                                 <tbody className="divide-y divide-[#F0F4FD] font-medium text-[#0A1A3F]">
                                     {drillData.documents.map((doc) => (
-                                       <tr key={doc.id} className="hover:bg-surface-1 transition-colors">
-                                          <td className="py-2.5 px-3 text-text-soft whitespace-nowrap">{doc.date}</td>
-                                          <td className="py-2.5 px-3 font-mono font-semibold text-brand whitespace-nowrap">
+                                       <tr key={doc.id} className="hover:bg-[#F8FAFF] transition-colors">
+                                          <td className="py-2.5 px-3 text-[#55607A] whitespace-nowrap">{doc.date}</td>
+                                          <td className="py-2.5 px-3 font-mono font-bold text-[#1F6BFF] whitespace-nowrap">
                                              {doc.folio_display}
                                           </td>
-                                          <td className="py-2.5 px-3 font-mono text-text-main whitespace-nowrap">{doc.counterparty_rut}</td>
-                                          <td className="py-2.5 px-3 text-heading truncate max-w-[260px]">{doc.counterparty_name}</td>
-                                          <td className="py-2.5 px-3 text-right font-extrabold text-heading whitespace-nowrap font-mono">
-                                             {clp(doc.amount_net)}
+                                          <td className="py-2.5 px-3 font-mono text-[#0A1A3F] whitespace-nowrap">{doc.counterparty_rut}</td>
+                                          <td className="py-2.5 px-3 text-[#0A1A3F] font-medium truncate max-w-[260px]">{doc.counterparty_name}</td>
+                                          <td className="py-2.5 px-3 text-right font-bold text-[#0A1A3F] whitespace-nowrap tabular-nums">
+                                             {formatClp(doc.amount_net)}
                                           </td>
                                        </tr>
                                     ))}
@@ -694,16 +816,16 @@ export default function IncomeStatement() {
                         )}
                      </div>
 
-                     {/* Footer matching screenshot */}
-                     <div className="p-4 border-t border-border-subtle bg-surface-1 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
-                        <div className="flex items-center gap-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-                           <CheckCircleIcon className="w-5 h-5 shrink-0" />
+                     {/* Footer */}
+                     <div className="px-6 py-4 border-t border-[#E2EAFD] bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
+                        <div className="flex items-center gap-2 text-xs font-bold text-[#1F6BFF]">
+                           <CheckCircleIcon className="w-5 h-5 shrink-0 stroke-[2.5]" />
                            <span>Suma de registros cuadra 1:1 con el monto seleccionado ({drillData?.documents?.length || 0} comprobantes)</span>
                         </div>
                         <button
                            type="button"
                            onClick={() => setDrillModalOpen(false)}
-                           className="px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold shadow-sm transition self-end sm:self-auto cursor-pointer"
+                           className="px-5 py-2 rounded-full bg-[#1F6BFF] hover:bg-[#1657D7] text-white text-xs font-bold shadow-xs transition self-end sm:self-auto cursor-pointer"
                         >
                            Cerrar Auxiliar
                         </button>
