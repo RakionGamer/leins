@@ -162,12 +162,12 @@ export default function Sidebar({ onLogout, onClose, collapsed, setCollapsed }) 
          aria-label="Menú principal"
          onMouseEnter={handleMouseEnter}
          onMouseLeave={handleMouseLeave}
-         className={`h-full bg-[#0A1A3F] text-white p-4 flex flex-col justify-between transition-all duration-300 select-none ${
+         className={`h-full bg-[#0A1A3F] text-white p-4 flex flex-col justify-between transition-all duration-300 select-none overflow-x-hidden ${
             collapsed ? 'w-[70px]' : 'w-[240px]'
          }`}
       >
          {/* CABECERA: Logo Jeito + Toggle Menú */}
-         <div className="flex-1 flex flex-col min-h-0">
+         <div className="flex-1 flex flex-col min-h-0 overflow-x-hidden">
             <div className="flex items-center justify-between mb-6 h-9 px-1 shrink-0">
                <NavLink to="/dashboard" className="flex items-center">
                   <JeitoLogo
@@ -202,7 +202,7 @@ export default function Sidebar({ onLogout, onClose, collapsed, setCollapsed }) 
             </div>
 
             {/* SECCIONES DE NAVEGACIÓN */}
-            <nav className="space-y-6 overflow-y-auto flex-1 pr-1 sidebar-scrollbar">
+            <nav className="space-y-6 overflow-y-auto overflow-x-hidden flex-1 pr-1 sidebar-scrollbar">
                {sections.map((section) => (
                   <div key={section.title} className="space-y-1">
                      {!collapsed && (
@@ -236,12 +236,12 @@ export default function Sidebar({ onLogout, onClose, collapsed, setCollapsed }) 
                                        }`}
                                        title={item.label}
                                     >
-                                       <div className="flex items-center gap-3.5">
+                                       <div className="flex items-center gap-3.5 min-w-0 pr-1">
                                           <Icon className="w-5 h-5 shrink-0 text-[#B9C6E4]" />
                                           {!collapsed && <span className="truncate">{item.label}</span>}
                                        </div>
                                        {!collapsed && item.badge && (
-                                          <span className="text-[11px] font-semibold italic px-2.5 py-0.5 rounded-full bg-[#13285C] text-[#B9C6E4]">
+                                          <span className="text-[11px] font-semibold italic px-2 py-0.5 rounded-full bg-[#13285C] text-[#B9C6E4] shrink-0">
                                              {item.badge}
                                           </span>
                                        )}
@@ -262,12 +262,12 @@ export default function Sidebar({ onLogout, onClose, collapsed, setCollapsed }) 
                                              : 'text-[#B9C6E4] hover:text-white hover:bg-white/5'
                                        }`}
                                     >
-                                       <div className="flex items-center gap-3.5">
+                                       <div className="flex items-center gap-3.5 min-w-0 pr-1">
                                           <Icon className={`w-5 h-5 shrink-0 ${isActive ? 'text-white' : 'text-[#B9C6E4]'}`} />
                                           <span className="truncate">{item.label}</span>
                                        </div>
                                        <ChevronRightIcon
-                                          className={`w-4 h-4 text-[#7081AA] transition-transform duration-200 ${
+                                          className={`w-4 h-4 text-[#7081AA] shrink-0 transition-transform duration-200 ${
                                              isSubOpen ? 'rotate-90 text-white' : ''
                                           }`}
                                        />
@@ -312,7 +312,7 @@ export default function Sidebar({ onLogout, onClose, collapsed, setCollapsed }) 
                                           : 'text-[#B9C6E4] hover:text-white hover:bg-white/5'
                                     } ${collapsed ? 'justify-center px-2' : ''}`}
                                  >
-                                    <div className="flex items-center gap-3.5">
+                                    <div className="flex items-center gap-3.5 min-w-0 pr-1">
                                        <Icon className={`w-5 h-5 shrink-0 ${isActive ? 'text-white' : 'text-[#B9C6E4]'}`} />
                                        {!collapsed && <span className="truncate">{item.label}</span>}
                                     </div>
