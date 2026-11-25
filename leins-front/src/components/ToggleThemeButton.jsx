@@ -31,7 +31,7 @@ export default function ToggleThemeButton() {
             type="button"
             onClick={toggle}
             aria-label={`Cambiar a tema ${isDark ? 'claro' : 'oscuro'}`}
-            className="p-2 text-[#55607A] hover:text-[#0A1A3F] hover:bg-[#EFF3FF] rounded-full transition-colors focus:outline-none"
+            className="p-2 text-[#55607A] hover:text-[#0A1A3F] hover:bg-[#EFF3FF] dark:text-[#8DA2CC] dark:hover:text-white dark:hover:bg-[#132652] rounded-full transition-colors focus:outline-none"
          >
             {isDark ? (
                <SolIcon className="h-5 w-5 transition-transform" />

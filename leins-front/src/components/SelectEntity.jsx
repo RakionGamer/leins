@@ -80,22 +80,22 @@ export default function SelectEntity({ className = '' }) {
    const selectedItem = items.find((item) => Number(item.id) === Number(entityId)) || items[0] || null;
 
    return (
-      <div className={`relative flex items-center gap-2.5 bg-[#EEF3FF] hover:bg-[#E2EAFD] rounded-full pl-1.5 pr-4 h-11 transition-all cursor-pointer group shadow-xs ${className}`}>
+      <div className={`relative flex items-center gap-2.5 bg-[#EEF3FF] hover:bg-[#E2EAFD] dark:bg-[#0E1F45] dark:hover:bg-[#132856] dark:border dark:border-[#1B315E] rounded-full pl-1.5 pr-4 h-11 transition-all cursor-pointer group shadow-xs ${className}`}>
          {/* Círculo blanco con ícono de entidad oficial */}
-         <div className="bg-white rounded-full w-8 h-8 flex items-center justify-center shadow-xs shrink-0">
-            <EntidadesIcon className="w-4 h-4 text-[#0A1A3F]" />
+         <div className="bg-white dark:bg-[#152D63] rounded-full w-8 h-8 flex items-center justify-center shadow-xs shrink-0">
+            <EntidadesIcon className="w-4 h-4 text-[#0A1A3F] dark:text-white" />
          </div>
 
          {/* Textos: ENTIDAD / Nombre · RUT */}
          <div className="flex flex-col text-left leading-tight min-w-0 pr-1">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-[#55607A] font-nunito">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-[#55607A] dark:text-[#8DA2CC] font-nunito">
                ENTIDAD
             </span>
             <div className="flex items-center gap-1.5 mt-0.5">
-               <span className="text-xs font-bold text-[#0A1A3F] font-nunito truncate max-w-[140px] sm:max-w-[200px] md:max-w-[260px]">
+               <span className="text-xs font-bold text-[#0A1A3F] dark:text-white font-nunito truncate max-w-[140px] sm:max-w-[200px] md:max-w-[260px]">
                   {selectedItem ? (selectedItem.name || selectedItem.legal_name || `Entidad ${selectedItem.id}`) : 'Seleccionar entidad'}{selectedItem?.rut ? ` · ${selectedItem.rut}` : ''}
                </span>
-               <AbajoIcon className="w-3.5 h-3.5 text-[#0A1A3F] shrink-0 transition-transform group-hover:translate-y-0.5" />
+               <AbajoIcon className="w-3.5 h-3.5 text-[#0A1A3F] dark:text-[#8DA2CC] shrink-0 transition-transform group-hover:translate-y-0.5" />
             </div>
          </div>
 

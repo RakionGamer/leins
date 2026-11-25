@@ -20,12 +20,12 @@ export default function Header({ toggleSidebar }) {
    }, []);
 
    return (
-      <header className="sticky top-0 z-20 flex h-16 flex-shrink-0 items-center justify-between gap-x-3 sm:gap-x-4 bg-white border-b border-[#E2EAFD] px-4 sm:px-6 lg:px-8 transition-colors">
+      <header className="sticky top-0 z-20 flex h-16 flex-shrink-0 items-center justify-between gap-x-3 sm:gap-x-4 bg-white dark:bg-[#071128] border-b border-[#E2EAFD] dark:border-[#15254A] px-4 sm:px-6 lg:px-8 transition-colors">
          {/* Lado izquierdo: Botón hamburguesa (móvil) + Selector de Entidad + Buscador */}
          <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
             <button
                type="button"
-               className="-m-2 p-2 text-[#55607A] hover:text-[#0A1A3F] md:hidden shrink-0"
+               className="-m-2 p-2 text-[#55607A] dark:text-[#8DA2CC] hover:text-[#0A1A3F] dark:hover:text-white md:hidden shrink-0"
                onClick={toggleSidebar}
             >
                <span className="sr-only">Abrir menú lateral</span>
@@ -39,10 +39,10 @@ export default function Header({ toggleSidebar }) {
             <div className="hidden md:flex items-center flex-1 max-w-[420px]">
                <div
                   onClick={() => searchInputRef.current?.focus()}
-                  className="relative flex items-center w-full h-11 bg-[#F5F8FE] border border-[#DCE6FF] rounded-full pl-5 pr-5 transition-all focus-within:border-[#1F6BFF] focus-within:ring-1 focus-within:ring-[#1F6BFF] cursor-text"
+                  className="relative flex items-center w-full h-11 bg-[#F5F8FE] dark:bg-[#0E1F45] border border-[#DCE6FF] dark:border-[#1B315E] rounded-full pl-5 pr-5 transition-all focus-within:border-[#1F6BFF] focus-within:ring-1 focus-within:ring-[#1F6BFF] cursor-text"
                >
                   <div className="flex items-center pointer-events-none shrink-0">
-                     <svg className="w-4 h-4 text-[#8D97AE]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                     <svg className="w-4 h-4 text-[#8D97AE] dark:text-[#6E83B0]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <circle cx="10.5" cy="10.5" r="7" />
                         <line x1="21" y1="21" x2="15.5" y2="15.5" />
                         <circle cx="10.5" cy="10.5" r="1.75" fill="#1F6BFF" stroke="none" />
@@ -52,11 +52,11 @@ export default function Header({ toggleSidebar }) {
                      ref={searchInputRef}
                      type="text"
                      placeholder="Busca un folio, RUT o monto"
-                     className="w-full bg-transparent border-0 border-none focus:ring-0 focus:outline-none pl-3 pr-2 py-0 text-[13px] font-normal text-[#0A1A3F] placeholder-[#8D97AE] shadow-none font-sans"
+                     className="w-full bg-transparent border-0 border-none focus:ring-0 focus:outline-none pl-3 pr-2 py-0 text-[13px] font-normal text-[#0A1A3F] dark:text-white placeholder-[#8D97AE] dark:placeholder-[#6E83B0] shadow-none font-sans"
                      style={{ border: 'none', outline: 'none', boxShadow: 'none', backgroundColor: 'transparent' }}
                   />
                   <div className="flex items-center pointer-events-none shrink-0">
-                     <kbd className="h-[21px] px-1.5 flex items-center justify-center gap-1 bg-white border border-[#DCE6FF] rounded-[6px] text-[11px] font-medium text-[#55607A] leading-none select-none">
+                     <kbd className="h-[21px] px-1.5 flex items-center justify-center gap-1 bg-white dark:bg-[#142754] border border-[#DCE6FF] dark:border-[#213970] rounded-[6px] text-[11px] font-medium text-[#55607A] dark:text-[#8DA2CC] leading-none select-none">
                         <span>⌘</span>
                         <span>K</span>
                      </kbd>

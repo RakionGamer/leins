@@ -1,6 +1,6 @@
 /* Theme compatibility for native form controls and legacy utility classes.
-   Loaded after Tailwind utilities so older hard-coded white/gray inputs still
-   inherit the active light/dark palette. */
+   Loaded after Tailwind utilities so older hard-coded white/gray/light-Jeito
+   surfaces inherit the active light/dark palette across ALL modules. */
 
 :root {
    --control-bg: var(--bg-content);
@@ -14,14 +14,14 @@
 }
 
 .dark {
-   --control-bg: var(--surface-1);
-   --control-bg-muted: var(--surface-2);
-   --control-text: var(--text-main);
-   --control-placeholder: var(--text-soft);
-   --control-border: var(--border-subtle);
-   --control-focus: var(--brand);
-   --control-disabled-bg: color-mix(in oklab, var(--surface-2) 82%, black);
-   --control-disabled-text: var(--text-soft);
+   --control-bg: #0F2147;
+   --control-bg-muted: #132854;
+   --control-text: #FFFFFF;
+   --control-placeholder: #7E93BE;
+   --control-border: #1C3263;
+   --control-focus: #1F6BFF;
+   --control-disabled-bg: #0A1736;
+   --control-disabled-text: #6E83B0;
 }
 
 input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
@@ -44,7 +44,7 @@ textarea::placeholder,
 .form-input::placeholder,
 .form-textarea::placeholder {
    color: var(--control-placeholder);
-   opacity: 0.72;
+   opacity: 0.78;
 }
 
 input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):focus,
@@ -77,18 +77,25 @@ select optgroup {
    color: var(--control-text);
 }
 
-.dark input.bg-white,
-.dark input.bg-gray-50,
-.dark select.bg-white,
-.dark select.bg-gray-50,
-.dark textarea.bg-white,
-.dark textarea.bg-gray-50,
-.dark input.bg-transparent,
-.dark select.bg-transparent,
-.dark textarea.bg-transparent {
+.dark input.bg-white:not([class*="dark:bg-"]),
+.dark input.bg-gray-50:not([class*="dark:bg-"]),
+.dark select.bg-white:not([class*="dark:bg-"]),
+.dark select.bg-gray-50:not([class*="dark:bg-"]),
+.dark textarea.bg-white:not([class*="dark:bg-"]),
+.dark textarea.bg-gray-50:not([class*="dark:bg-"]),
+.dark input.bg-transparent:not([class*="dark:bg-"]),
+.dark select.bg-transparent:not([class*="dark:bg-"]),
+.dark textarea.bg-transparent:not([class*="dark:bg-"]) {
    background-color: var(--control-bg) !important;
    color: var(--control-text) !important;
    border-color: var(--control-border) !important;
+}
+
+/* Mantener transparente el buscador del header y inputs marcados explicitamente */
+.dark input.bg-transparent[style*="transparent"] {
+   background-color: transparent !important;
+   border-color: transparent !important;
+   box-shadow: none !important;
 }
 
 .dark input.text-black,
@@ -119,4 +126,189 @@ select optgroup {
    background: var(--surface-1);
    color: var(--text-main);
    border-color: var(--border-subtle);
+}
+
+/* ============================================================================
+   JEITO GLOBAL DARK MODE OVERRIDES (Aplica a todos los módulos cuando .dark)
+   Excluye elementos con clases explícitas dark:bg- / dark:text- / dark:border-
+   o .keep-light para preservar tarjetas hero, botones blancos y tooltips.
+   ============================================================================ */
+
+/* 1. Lienzo principal (Shell) */
+.dark .bg-\[\#F5F8FF\]:not([class*="dark:bg-"]) {
+   background-color: #071128 !important;
+}
+
+/* 2. Tarjetas, modales, contenedores blancos */
+.dark .bg-white:not([class*="dark:bg-"]):not(.keep-light) {
+   background-color: #0C1A38 !important;
+}
+.dark .bg-white\/95:not([class*="dark:bg-"]),
+.dark .bg-white\/90:not([class*="dark:bg-"]),
+.dark .bg-white\/80:not([class*="dark:bg-"]) {
+   background-color: rgba(12, 26, 56, 0.94) !important;
+}
+
+/* 3. Superficies suaves / secundarias / inputs */
+.dark .bg-\[\#F8FAFF\]:not([class*="dark:bg-"]),
+.dark .bg-\[\#F9FBFF\]:not([class*="dark:bg-"]),
+.dark .bg-\[\#F5F8FE\]:not([class*="dark:bg-"]),
+.dark .bg-\[\#FAFBFD\]:not([class*="dark:bg-"]),
+.dark .bg-\[\#F8FAFC\]:not([class*="dark:bg-"]),
+.dark .bg-gray-50:not([class*="dark:bg-"]),
+.dark .bg-gray-50\/70:not([class*="dark:bg-"]),
+.dark .bg-gray-50\/60:not([class*="dark:bg-"]),
+.dark .bg-slate-50:not([class*="dark:bg-"]) {
+   background-color: #0F2147 !important;
+}
+
+/* 4. Encabezados de tablas, píldoras suaves e íconos squircle */
+.dark .bg-\[\#F0F4FD\]:not([class*="dark:bg-"]),
+.dark .bg-\[\#EFF3FF\]:not([class*="dark:bg-"]),
+.dark .bg-\[\#EEF3FF\]:not([class*="dark:bg-"]),
+.dark .bg-\[\#F2F6FE\]:not([class*="dark:bg-"]),
+.dark .bg-\[\#E5EDFF\]:not([class*="dark:bg-"]),
+.dark .bg-\[\#E2EAFD\]:not([class*="dark:bg-"]),
+.dark .bg-\[\#DCE5FF\]:not([class*="dark:bg-"]),
+.dark .bg-gray-100:not([class*="dark:bg-"]),
+.dark .bg-slate-100:not([class*="dark:bg-"]) {
+   background-color: #132854 !important;
+}
+
+/* 5. Tarjetas / badges navy profundos en modo claro -> azul real oscuro en dark */
+.dark .bg-\[\#0A1A3F\]:not([class*="dark:bg-"]) {
+   background-color: #122960 !important;
+}
+
+/* 6. Tipografía */
+.dark .text-\[\#0A1A3F\]:not([class*="dark:text-"]),
+.dark .text-gray-900:not([class*="dark:text-"]),
+.dark .text-gray-800:not([class*="dark:text-"]),
+.dark .text-slate-900:not([class*="dark:text-"]),
+.dark .text-slate-800:not([class*="dark:text-"]),
+.dark .text-black:not([class*="dark:text-"]) {
+   color: #FFFFFF !important;
+}
+
+.dark .text-\[\#55607A\]:not([class*="dark:text-"]),
+.dark .text-gray-700:not([class*="dark:text-"]),
+.dark .text-gray-600:not([class*="dark:text-"]),
+.dark .text-slate-700:not([class*="dark:text-"]),
+.dark .text-slate-600:not([class*="dark:text-"]) {
+   color: #8DA2CC !important;
+}
+
+.dark .text-\[\#8D97AE\]:not([class*="dark:text-"]),
+.dark .text-\[\#8E9BB5\]:not([class*="dark:text-"]),
+.dark .text-gray-500:not([class*="dark:text-"]),
+.dark .text-gray-400:not([class*="dark:text-"]) {
+   color: #7E93BE !important;
+}
+
+/* 7. Bordes y divisores */
+.dark .border-\[\#E2EAFD\]:not([class*="dark:border-"]),
+.dark .border-\[\#DCE5FF\]:not([class*="dark:border-"]),
+.dark .border-\[\#DCE6FF\]:not([class*="dark:border-"]),
+.dark .border-\[\#F0F4FD\]:not([class*="dark:border-"]),
+.dark .border-\[\#EFF3FF\]:not([class*="dark:border-"]),
+.dark .border-\[\#D8E2F5\]:not([class*="dark:border-"]),
+.dark .border-\[\#C3D4FA\]:not([class*="dark:border-"]),
+.dark .border-\[\#D9E2EC\]:not([class*="dark:border-"]),
+.dark .border-gray-100:not([class*="dark:border-"]),
+.dark .border-gray-200:not([class*="dark:border-"]),
+.dark .border-gray-300:not([class*="dark:border-"]),
+.dark .border-slate-200:not([class*="dark:border-"]) {
+   border-color: #182B52 !important;
+}
+
+.dark .divide-\[\#E2EAFD\] > :not([hidden]) ~ :not([hidden]),
+.dark .divide-\[\#E2EAFD\]\/70 > :not([hidden]) ~ :not([hidden]),
+.dark .divide-\[\#F0F4FD\] > :not([hidden]) ~ :not([hidden]),
+.dark .divide-gray-100 > :not([hidden]) ~ :not([hidden]),
+.dark .divide-gray-200 > :not([hidden]) ~ :not([hidden]) {
+   border-color: #182B52 !important;
+}
+
+/* 8. Estados Hover */
+.dark .hover\:bg-\[\#F9FBFF\]:hover:not([class*="dark:hover:bg-"]),
+.dark .hover\:bg-\[\#F8FAFF\]:hover:not([class*="dark:hover:bg-"]),
+.dark .hover\:bg-\[\#F5F8FF\]:hover:not([class*="dark:hover:bg-"]),
+.dark .hover\:bg-\[\#F0F4FD\]:hover:not([class*="dark:hover:bg-"]),
+.dark .hover\:bg-\[\#EFF3FF\]:hover:not([class*="dark:hover:bg-"]),
+.dark .hover\:bg-\[\#EEF3FF\]:hover:not([class*="dark:hover:bg-"]),
+.dark .hover\:bg-\[\#F8FAFC\]:hover:not([class*="dark:hover:bg-"]),
+.dark .hover\:bg-gray-50:hover:not([class*="dark:hover:bg-"]),
+.dark .hover\:bg-gray-100:hover:not([class*="dark:hover:bg-"]) {
+   background-color: #152B59 !important;
+}
+
+.dark .hover\:text-\[\#0A1A3F\]:hover:not([class*="dark:hover:text-"]),
+.dark .hover\:text-gray-900:hover:not([class*="dark:hover:text-"]),
+.dark .hover\:text-black:hover:not([class*="dark:hover:text-"]) {
+   color: #FFFFFF !important;
+}
+
+.dark .hover\:border-\[\#DCE5FF\]:hover:not([class*="dark:hover:border-"]) {
+   border-color: #264587 !important;
+}
+
+/* 9. Badges semánticos en modo oscuro (Verde, Rojo, Ámbar, Azul) */
+.dark .bg-\[\#E8F8F0\]:not([class*="dark:bg-"]),
+.dark .bg-emerald-50:not([class*="dark:bg-"]),
+.dark .bg-green-50:not([class*="dark:bg-"]) {
+   background-color: rgba(16, 185, 129, 0.16) !important;
+}
+.dark .bg-emerald-100:not([class*="dark:bg-"]),
+.dark .bg-green-100:not([class*="dark:bg-"]) {
+   background-color: rgba(16, 185, 129, 0.22) !important;
+}
+.dark .text-emerald-700:not([class*="dark:text-"]),
+.dark .text-emerald-800:not([class*="dark:text-"]),
+.dark .text-green-700:not([class*="dark:text-"]),
+.dark .text-green-800:not([class*="dark:text-"]) {
+   color: #34D399 !important;
+}
+
+.dark .bg-\[\#FDF0F0\]:not([class*="dark:bg-"]),
+.dark .bg-red-50:not([class*="dark:bg-"]),
+.dark .bg-rose-50:not([class*="dark:bg-"]) {
+   background-color: rgba(229, 72, 77, 0.16) !important;
+}
+.dark .bg-red-100:not([class*="dark:bg-"]),
+.dark .bg-rose-100:not([class*="dark:bg-"]) {
+   background-color: rgba(229, 72, 77, 0.22) !important;
+}
+.dark .text-red-700:not([class*="dark:text-"]),
+.dark .text-red-800:not([class*="dark:text-"]),
+.dark .text-rose-700:not([class*="dark:text-"]) {
+   color: #FCA5A5 !important;
+}
+
+.dark .bg-\[\#FFFBEB\]:not([class*="dark:bg-"]),
+.dark .bg-amber-50:not([class*="dark:bg-"]),
+.dark .bg-yellow-50:not([class*="dark:bg-"]) {
+   background-color: rgba(245, 158, 11, 0.16) !important;
+}
+.dark .bg-amber-100:not([class*="dark:bg-"]),
+.dark .bg-yellow-100:not([class*="dark:bg-"]) {
+   background-color: rgba(245, 158, 11, 0.22) !important;
+}
+.dark .text-amber-700:not([class*="dark:text-"]),
+.dark .text-amber-800:not([class*="dark:text-"]),
+.dark .text-amber-900:not([class*="dark:text-"]),
+.dark .text-yellow-800:not([class*="dark:text-"]) {
+   color: #FCD34D !important;
+}
+
+.dark .bg-blue-50:not([class*="dark:bg-"]),
+.dark .bg-sky-50:not([class*="dark:bg-"]) {
+   background-color: rgba(31, 107, 255, 0.16) !important;
+}
+.dark .bg-blue-100:not([class*="dark:bg-"]),
+.dark .bg-sky-100:not([class*="dark:bg-"]) {
+   background-color: rgba(31, 107, 255, 0.22) !important;
+}
+.dark .text-blue-700:not([class*="dark:text-"]),
+.dark .text-blue-800:not([class*="dark:text-"]) {
+   color: #7CA8FF !important;
 }

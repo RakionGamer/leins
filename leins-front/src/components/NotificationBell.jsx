@@ -76,10 +76,10 @@ export default function NotificationBell() {
          <button
             type="button"
             onClick={() => setIsOpen(!isOpen)}
-            className="relative p-2 text-[#55607A] hover:text-[#0A1A3F] hover:bg-[#EFF3FF] rounded-full transition-colors focus:outline-none"
+            className="relative p-2 text-[#55607A] hover:text-[#0A1A3F] hover:bg-[#EFF3FF] dark:text-[#8DA2CC] dark:hover:text-white dark:hover:bg-[#132652] rounded-full transition-colors focus:outline-none"
             aria-label="Notificaciones"
          >
-            <CampanaIcon className="w-5 h-5 text-[#55607A]" />
+            <CampanaIcon className="w-5 h-5 text-[#55607A] dark:text-[#8DA2CC]" />
 
             {unread.length > 0 && (
                <span className="absolute top-0.5 right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-[#1F6BFF] text-[9px] font-bold text-white shadow-sm">

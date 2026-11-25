@@ -24,7 +24,7 @@ export default function UserMenu() {
       <Menu as="div" className="relative">
          {/* boton del menu (avatar) */}
          <div>
-            <Menu.Button className="flex items-center gap-2.5 rounded-full p-1 pr-2 hover:bg-[#EFF3FF] focus:outline-none transition-colors group">
+            <Menu.Button className="flex items-center gap-2.5 rounded-full p-1 pr-2 hover:bg-[#EFF3FF] dark:hover:bg-[#132652] focus:outline-none transition-colors group">
                <span className="sr-only">Abrir menú de usuario</span>
 
                {/* avatar circular azul con iniciales en blanco */}
@@ -64,10 +64,10 @@ export default function UserMenu() {
             leaveFrom="transform opacity-100 scale-100"
             leaveTo="transform opacity-0 scale-95"
          >
-            <Menu.Items className="absolute right-0 z-50 mt-2 w-56 origin-top-right rounded-xl bg-white dark:bg-[#1e1e1e] py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none border border-gray-100 dark:border-gray-800">
+            <Menu.Items className="absolute right-0 z-50 mt-2 w-56 origin-top-right rounded-xl bg-white dark:bg-[#0C1A38] py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none border border-gray-100 dark:border-[#182B52]">
 
                {/* cabecera del dropdown */}
-               <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800 mb-1">
+               <div className="px-4 py-3 border-b border-gray-100 dark:border-[#182B52] mb-1">
                   <p className="text-xs text-gray-500 dark:text-gray-400">Conectado como</p>
                   <p className="text-sm font-bold text-gray-900 dark:text-white truncate">{user?.email}</p>
                </div>

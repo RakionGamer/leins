@@ -162,7 +162,7 @@ export default function Sidebar({ onLogout, onClose, collapsed, setCollapsed }) 
          aria-label="Menú principal"
          onMouseEnter={handleMouseEnter}
          onMouseLeave={handleMouseLeave}
-         className={`h-full bg-[#0A1A3F] text-white p-4 flex flex-col justify-between transition-all duration-300 select-none overflow-x-hidden ${
+         className={`h-full bg-[#0A1A3F] dark:bg-[#071128] dark:border-r dark:border-[#15254A] text-white p-4 flex flex-col justify-between transition-all duration-300 select-none overflow-x-hidden ${
             collapsed ? 'w-[70px]' : 'w-[240px]'
          }`}
       >
@@ -329,7 +329,7 @@ export default function Sidebar({ onLogout, onClose, collapsed, setCollapsed }) 
          {/* PIE DEL SIDEBAR: "¿Te ayudamos? Escríbenos a hola@jeito.cl" */}
          <div className="pt-4 border-t border-[#13285C]">
             {!collapsed ? (
-               <div className="flex items-center gap-3 p-2 rounded-xl bg-[#07122B]/50">
+               <div className="flex items-center gap-3 p-2 rounded-xl bg-[#07122B]/50 dark:bg-[#0C1C3E] dark:border dark:border-[#192F5E]">
                   <JeitoSmile className="w-7 h-7 shrink-0" mouthColor="#FFFFFF" eyeColor="#1F6BFF" />
                   <div className="min-w-0">
                      <p className="text-xs font-bold text-white leading-tight">¿Te ayudamos?</p>

@@ -58,7 +58,7 @@ h3, .font-h3 {
    font-weight: 600;
    font-size: 13px;
    line-height: 18px;
-   color: #55607A;
+   color: var(--text-soft);
 }
 .font-amount, .tabular-num {
    font-family: "Nunito Sans", Arial, sans-serif;
@@ -173,32 +173,51 @@ h3, .font-h3 {
 .dark {
    --brand: #1F6BFF;
    --brand-rgb: 31 107 255;
-   --brand-strong: #0A1A3F;
-   --brand-strong-rgb: 10 26 63;
+   --brand-strong: #3B82F6;
+   --brand-strong-rgb: 59 130 246;
+   --brand-tint: #132854;
+   --brand-tint-rgb: 19 40 84;
 
-   --bg-shell: #07122B;
-   --bg-shell-rgb: 7 18 43;
-   --bg-content: #0A1A3F;
-   --bg-content-rgb: 10 26 63;
-   --surface-1: #102352;
-   --surface-1-rgb: 16 35 82;
-   --surface-2: #13285C;
-   --surface-2-rgb: 19 40 92;
+   --bg-shell: #071128;
+   --bg-shell-rgb: 7 17 40;
+   --bg-content: #0C1A38;
+   --bg-content-rgb: 12 26 56;
+   --surface-1: #102247;
+   --surface-1-rgb: 16 34 71;
+   --surface-2: #142956;
+   --surface-2-rgb: 20 41 86;
 
    --text-main: #FFFFFF;
    --text-main-rgb: 255 255 255;
-   --text-soft: #8E9BB5;
-   --text-soft-rgb: 142 155 181;
+   --text-soft: #8DA2CC;
+   --text-soft-rgb: 141 162 204;
    --heading: #FFFFFF;
    --heading-rgb: 255 255 255;
 
-   --border-subtle: #19316C;
-   --border-subtle-rgb: 25 49 108;
-   --border-strong: #234594;
-   --border-strong-rgb: 35 69 148;
+   --border-subtle: #182B52;
+   --border-subtle-rgb: 24 43 82;
+   --border-strong: #233D75;
+   --border-strong-rgb: 35 61 117;
 
-   --bg-sidebar: #0A1A3F;
-   --bg-sidebar-rgb: 10 26 63;
+   --info: #3B82F6;
+   --info-rgb: 59 130 246;
+   --info-bg: #122754;
+   --info-bg-rgb: 18 39 84;
+   --success: #22C58B;
+   --success-rgb: 34 197 139;
+   --success-bg: #0E2B2A;
+   --success-bg-rgb: 14 43 42;
+   --warning: #F5B041;
+   --warning-rgb: 245 176 65;
+   --warning-bg: #2B2214;
+   --warning-bg-rgb: 43 34 20;
+   --danger: #F05A5E;
+   --danger-rgb: 240 90 94;
+   --danger-bg: #2E1622;
+   --danger-bg-rgb: 46 22 34;
+
+   --bg-sidebar: #071128;
+   --bg-sidebar-rgb: 7 17 40;
 }
 
 /* Global base */

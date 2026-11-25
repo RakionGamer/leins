@@ -261,7 +261,7 @@ export default function Home() {
                      aria-checked={yearMode}
                      onClick={() => setYearMode(!yearMode)}
                      className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                        yearMode ? 'bg-[#1F6BFF]' : 'bg-[#DCE5FF]'
+                        yearMode ? 'bg-[#1F6BFF]' : 'bg-[#DCE5FF] dark:bg-[#1C3366]'
                      }`}
                   >
                      <span
@@ -293,8 +293,8 @@ export default function Home() {
                         className="bg-white rounded-2xl border border-[#E2EAFD] p-4 flex items-center justify-between gap-4 shadow-sm hover:shadow-md transition-shadow"
                      >
                         <div className="flex items-center gap-3.5 min-w-0">
-                           <div className="h-10 w-10 rounded-xl bg-[#0A1A3F] flex items-center justify-center text-white shrink-0 shadow-sm">
-                              <AlertaIcon className="w-5 h-5 text-white" />
+                           <div className="h-10 w-10 rounded-xl bg-[#0A1A3F] dark:bg-white flex items-center justify-center text-white dark:text-[#0A1A3F] shrink-0 shadow-sm">
+                              <AlertaIcon className="w-5 h-5 text-white dark:text-[#0A1A3F]" />
                            </div>
                            <div className="min-w-0">
                               <h3 className="text-sm font-bold font-nunito text-[#0A1A3F] truncate">
@@ -308,7 +308,7 @@ export default function Home() {
                         <button
                            type="button"
                            onClick={() => navigate(actionLink)}
-                           className="rounded-full border border-[#E2EAFD] hover:bg-[#EFF3FF] text-[#0A1A3F] text-xs font-bold px-4 py-2 transition-colors shrink-0 shadow-sm"
+                           className="rounded-full border border-[#E2EAFD] dark:border-[#223B73] dark:bg-[#0F2147] hover:bg-[#EFF3FF] dark:hover:bg-[#162D5E] text-[#0A1A3F] dark:text-white text-xs font-bold px-4 py-2 transition-colors shrink-0 shadow-sm"
                         >
                            {actionText}
                         </button>
@@ -342,7 +342,7 @@ export default function Home() {
                </div>
                <div className="mt-4">
                   {salesDiff != null ? (
-                     <span className="inline-flex items-center gap-1 bg-[#0A1A3F] text-white text-[11px] font-bold rounded-full px-2.5 py-1">
+                     <span className="inline-flex items-center gap-1 bg-[#0A1A3F] dark:bg-white text-white dark:text-[#0A1A3F] text-[11px] font-bold rounded-full px-2.5 py-1">
                         <span>{salesDiff >= 0 ? '↗' : '↘'}</span>
                         <span>{salesDiff > 0 ? `+${salesDiff.toFixed(1).replace('.', ',')}%` : `${salesDiff.toFixed(1).replace('.', ',')}%`} vs {comparisonLabel}</span>
                      </span>
@@ -372,7 +372,7 @@ export default function Home() {
                </div>
                <div className="mt-4">
                   {purchasesDiff != null ? (
-                     <span className="inline-flex items-center gap-1 bg-[#0A1A3F] text-white text-[11px] font-bold rounded-full px-2.5 py-1">
+                     <span className="inline-flex items-center gap-1 bg-[#0A1A3F] dark:bg-white text-white dark:text-[#0A1A3F] text-[11px] font-bold rounded-full px-2.5 py-1">
                         <span>{purchasesDiff >= 0 ? '↗' : '↘'}</span>
                         <span>{purchasesDiff > 0 ? `+${purchasesDiff.toFixed(1).replace('.', ',')}%` : `${purchasesDiff.toFixed(1).replace('.', ',')}%`} vs {comparisonLabel}</span>
                      </span>
@@ -400,7 +400,7 @@ export default function Home() {
                </div>
                <div className="mt-4">
                   {resultDiff != null ? (
-                     <span className="inline-flex items-center gap-1 bg-[#0A1A3F] text-white text-[11px] font-bold rounded-full px-2.5 py-1">
+                     <span className="inline-flex items-center gap-1 bg-[#0A1A3F] dark:bg-white text-white dark:text-[#0A1A3F] text-[11px] font-bold rounded-full px-2.5 py-1">
                         <span>{resultDiff >= 0 ? '↗' : '↘'}</span>
                         <span>{resultDiff > 0 ? `+${resultDiff.toFixed(1).replace('.', ',')}%` : `${resultDiff.toFixed(1).replace('.', ',')}%`} vs {comparisonLabel}</span>
                      </span>
@@ -430,7 +430,7 @@ export default function Home() {
                </div>
                <div className="mt-4">
                   {vatDiff != null ? (
-                     <span className="inline-flex items-center gap-1 bg-[#EFF3FF] text-[#1F6BFF] text-[11px] font-bold rounded-full px-2.5 py-1">
+                     <span className="inline-flex items-center gap-1 bg-[#EFF3FF] dark:bg-[#132B5E] text-[#1F6BFF] dark:text-[#7CA8FF] text-[11px] font-bold rounded-full px-2.5 py-1">
                         <span>{vatDiff >= 0 ? '↗' : '↘'}</span>
                         <span>{vatDiff > 0 ? `+${vatDiff.toFixed(1).replace('.', ',')}%` : `${vatDiff.toFixed(1).replace('.', ',')}%`} vs {comparisonLabel}</span>
                      </span>
@@ -468,7 +468,7 @@ export default function Home() {
                            <span>Ingresos</span>
                         </span>
                         <span className="inline-flex items-center gap-1.5">
-                           <span className="w-2.5 h-2.5 rounded-full bg-[#0A1A3F]" />
+                           <span className="w-2.5 h-2.5 rounded-full bg-[#0A1A3F] dark:bg-[#DCE6FF]" />
                            <span>Egresos</span>
                         </span>
                      </div>
@@ -517,25 +517,25 @@ export default function Home() {
                                        {isHovered && (Number(item.sales || 0) > 0 || Number(item.purchases || 0) > 0) && (
                                           <>
                                              <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-px h-40 border-l border-dashed border-[#1F6BFF] pointer-events-none z-10" />
-                                             <div className="absolute bottom-28 left-1/2 -translate-x-1/2 z-30 w-44 bg-[#0A1A3F] text-white rounded-xl p-3 shadow-2xl pointer-events-none animate-fade-in">
-                                                <div className="text-[10px] text-[#8E9BB5] font-semibold">
+                                             <div className="absolute bottom-28 left-1/2 -translate-x-1/2 z-30 w-44 bg-[#0A1A3F] dark:bg-white text-white dark:text-[#0A1A3F] rounded-xl p-3 shadow-2xl pointer-events-none animate-fade-in">
+                                                <div className="text-[10px] text-[#8E9BB5] dark:text-[#55607A] font-semibold">
                                                    {item.date || `${item.day} ${activeMonthName.slice(0, 3)} ${activeYear}`}
                                                 </div>
                                                 <div className="mt-2 flex items-center justify-between text-xs">
                                                    <span className="flex items-center gap-1.5">
                                                       <span className="w-2 h-2 rounded-full bg-[#1F6BFF]" />
-                                                      <span className="text-white/80">Ingresos</span>
+                                                      <span className="text-white/80 dark:text-[#55607A]">Ingresos</span>
                                                    </span>
-                                                   <span className="font-bold text-white tabular-nums">
+                                                   <span className="font-bold text-white dark:text-[#0A1A3F] tabular-nums">
                                                       {formatClp(item.sales)}
                                                    </span>
                                                 </div>
                                                 <div className="mt-1 flex items-center justify-between text-xs">
                                                    <span className="flex items-center gap-1.5">
-                                                      <span className="w-2 h-2 rounded-full border border-white/50" />
-                                                      <span className="text-white/80">Egresos</span>
+                                                      <span className="w-2 h-2 rounded-full border border-white/50 dark:border-[#0A1A3F]/40" />
+                                                      <span className="text-white/80 dark:text-[#55607A]">Egresos</span>
                                                    </span>
-                                                   <span className="font-bold text-white tabular-nums">
+                                                   <span className="font-bold text-white dark:text-[#0A1A3F] tabular-nums">
                                                       {formatClp(item.purchases)}
                                                    </span>
                                                 </div>
@@ -553,8 +553,8 @@ export default function Home() {
                                           />
                                           <div
                                              style={{ height: `${pHeight}%` }}
-                                             className={`w-1 sm:w-1.5 rounded-t-sm bg-[#0A1A3F] transition-all duration-150 ${
-                                                isHovered ? 'ring-2 ring-[#55607A]' : ''
+                                             className={`w-1 sm:w-1.5 rounded-t-sm bg-[#0A1A3F] dark:bg-[#DCE6FF] transition-all duration-150 ${
+                                                isHovered ? 'ring-2 ring-[#55607A] dark:ring-white/60' : ''
                                              }`}
                                           />
                                        </div>
@@ -651,7 +651,7 @@ export default function Home() {
                                     <div className="h-1.5 w-full bg-[#EFF3FF] rounded-full overflow-hidden">
                                        <div
                                           style={{ width: `${Math.min(100, Math.max(0, item.share || 0))}%` }}
-                                          className="h-full bg-[#0A1A3F] rounded-full"
+                                          className="h-full bg-[#0A1A3F] dark:bg-[#DCE6FF] rounded-full"
                                        />
                                     </div>
                                  </div>
@@ -670,7 +670,7 @@ export default function Home() {
                ---------------------------------------------------- */}
             <div className="xl:col-span-4 space-y-6">
                {/* TARJETA: Con cuánto quedas hoy (Azul Profundo con curva decorativa) */}
-              <div className="relative overflow-hidden bg-[#0A1A3F] text-white rounded-[28px] px-7 pt-6 pb-7 shadow-md flex flex-col justify-between min-h-[238px]">
+              <div className="relative overflow-hidden bg-[#0A1A3F] dark:bg-gradient-to-br dark:from-[#102659] dark:to-[#173985] dark:border dark:border-[#234594] text-white rounded-[28px] px-7 pt-6 pb-7 shadow-md flex flex-col justify-between min-h-[238px]">
    {/* Decoración curva de agua en la esquina inferior derecha */}
    <div className="absolute -bottom-6 -right-5 w-[215px] pointer-events-none select-none">
       <JeitoCurve strokeColor="#142A60" className="w-full h-auto" />
@@ -698,11 +698,11 @@ export default function Home() {
       <button
          type="button"
          onClick={() => navigate('/accounting/cash-flow')}
-         className="rounded-full bg-white hover:bg-[#EFF3FF] text-[#0A1A3F] font-bold text-[13.5px] px-6 py-3 transition-colors inline-flex items-center gap-2.5 shadow-sm"
+         className="rounded-full bg-white dark:bg-white hover:bg-[#EFF3FF] dark:hover:bg-[#EEF3FF] text-[#0A1A3F] dark:text-[#0A1A3F] font-bold text-[13.5px] px-6 py-3 transition-colors inline-flex items-center gap-2.5 shadow-sm"
       >
          <span>Ver flujo de caja</span>
          <svg
-            className="w-3.5 h-3.5 text-[#0A1A3F]"
+            className="w-3.5 h-3.5 text-[#0A1A3F] dark:text-[#0A1A3F]"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -733,7 +733,7 @@ export default function Home() {
                         <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
                            {/* Círculo de fondo Hielo */}
                            <path
-                              className="text-[#EFF3FF]"
+                              className="text-[#EFF3FF] dark:text-[#152854]"
                               strokeWidth="3.5"
                               stroke="currentColor"
                               fill="none"
@@ -825,7 +825,7 @@ export default function Home() {
                      <button
                         type="button"
                         onClick={() => navigate('/bank/cartolas')}
-                        className="w-full rounded-full bg-[#EFF3FF] hover:bg-[#DCE5FF] text-[#1F6BFF] font-bold text-xs py-2.5 transition-colors text-center shadow-sm"
+                        className="w-full rounded-full bg-[#EFF3FF] dark:bg-[#102452] hover:bg-[#DCE5FF] dark:hover:bg-[#16316E] text-[#1F6BFF] dark:text-[#7CA8FF] dark:border dark:border-[#1D356B] font-bold text-xs py-2.5 transition-colors text-center shadow-sm"
                      >
                         Revisar datos
                      </button>
