@@ -223,10 +223,25 @@ select optgroup {
 
 .dark .divide-\[\#E2EAFD\] > :not([hidden]) ~ :not([hidden]),
 .dark .divide-\[\#E2EAFD\]\/70 > :not([hidden]) ~ :not([hidden]),
+.dark .divide-\[\#E2EAFD\]\/60 > :not([hidden]) ~ :not([hidden]),
 .dark .divide-\[\#F0F4FD\] > :not([hidden]) ~ :not([hidden]),
+.dark .divide-\[\#F0F4FE\] > :not([hidden]) ~ :not([hidden]),
+.dark .divide-\[\#EFF3FF\] > :not([hidden]) ~ :not([hidden]),
+.dark .divide-\[\#EEF3FF\] > :not([hidden]) ~ :not([hidden]),
 .dark .divide-gray-100 > :not([hidden]) ~ :not([hidden]),
-.dark .divide-gray-200 > :not([hidden]) ~ :not([hidden]) {
+.dark .divide-gray-200 > :not([hidden]) ~ :not([hidden]),
+.dark .divide-y:not([class*="dark:divide-"]) > :not([hidden]) ~ :not([hidden]) {
    border-color: #182B52 !important;
+}
+
+.dark table,
+.dark thead,
+.dark tbody,
+.dark tfoot,
+.dark tr,
+.dark th,
+.dark td {
+   border-color: #182B52;
 }
 
 /* 8. Estados Hover */
