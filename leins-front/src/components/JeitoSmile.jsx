@@ -54,11 +54,66 @@ export default function JeitoSmile({
    mouthColor = '#FFFFFF',
    eyeColor = '#1F6BFF',
    animated = false,
+   winkOnMount = false,
    ...props
 }) {
    const svgRef = useRef(null);
    const eyeLRef = useRef(null);
    const eyeRRef = useRef(null);
+
+   useEffect(() => {
+      if (!winkOnMount) return;
+
+      const eR = eyeRRef.current;
+      const svg = svgRef.current;
+      if (!eR || !svg) return;
+
+      const prefersReducedMotion =
+         typeof window !== 'undefined' &&
+         window.matchMedia &&
+         window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (prefersReducedMotion) return;
+
+      let rafId = null;
+      const startDelay = setTimeout(() => {
+         const t0 = performance.now();
+         const totalMs = 420;
+         function step(ts) {
+            const elapsed = ts - t0;
+            const p = Math.min(1, elapsed / totalMs);
+            // Guiño: cierra ojo derecho (0..0.3), mantiene (0.3..0.65), abre (0.65..1)
+            let scaleY = 1;
+            let tilt = 0;
+            if (p < 0.3) {
+               const k = p / 0.3;
+               scaleY = 1 - 0.88 * k;
+               tilt = -4 * k;
+            } else if (p < 0.65) {
+               scaleY = 0.12;
+               tilt = -4;
+            } else {
+               const k = (p - 0.65) / 0.35;
+               scaleY = 0.12 + 0.88 * k;
+               tilt = -4 * (1 - k);
+            }
+            eR.setAttribute('ry', (DOT * scaleY).toFixed(2));
+            svg.style.transform = `rotate(${tilt.toFixed(2)}deg)`;
+            if (p < 1) {
+               rafId = requestAnimationFrame(step);
+            } else {
+               eR.setAttribute('ry', String(DOT));
+               svg.style.transform = '';
+            }
+         }
+         rafId = requestAnimationFrame(step);
+      }, 220);
+
+      return () => {
+         clearTimeout(startDelay);
+         if (rafId) cancelAnimationFrame(rafId);
+         svg.style.transform = '';
+      };
+   }, [winkOnMount]);
 
    useEffect(() => {
       if (!animated) return;
@@ -161,7 +216,7 @@ export default function JeitoSmile({
       };
    }, [animated]);
 
-   if (!animated) {
+   if (!animated && !winkOnMount) {
       return (
          <svg
             className={className}
@@ -188,7 +243,7 @@ export default function JeitoSmile({
    return (
       <svg
          ref={svgRef}
-         className={`${className} cursor-pointer select-none transition-transform active:scale-95`}
+         className={`${className} select-none ${animated ? 'cursor-pointer transition-transform active:scale-95' : ''}`}
          aria-label="Carita sonriente Jeito"
          role="img"
          xmlns="http://www.w3.org/2000/svg"
