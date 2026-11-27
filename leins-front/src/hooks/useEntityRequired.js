@@ -3,7 +3,9 @@ import { useEntity } from '../context/EntityContext';
 import { useEntities } from './useEntities';
 
 export function useEntityRequired() {
-   const { entityId, setEntity } = useEntity();
+   const entityCtx = useEntity();
+   const entityId = entityCtx?.entityId ?? null;
+   const setEntity = entityCtx?.setEntity;
    const { entities, loading } = useEntities({ limit: 200, activeOnly: true, assignedAdminOnly: true });
 
    const parsedEntityId = Number(entityId || 0);
@@ -13,7 +15,7 @@ export function useEntityRequired() {
    }, [entities, parsedEntityId]);
 
    useEffect(() => {
-      if (loading || !entityId) return;
+      if (loading || !entityId || !setEntity) return;
       if (allowedEntity) return;
 
       setEntity(null);

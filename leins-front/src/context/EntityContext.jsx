@@ -2,20 +2,40 @@ import React, { createContext, useContext, useEffect, useMemo, useState } from '
 
 const EntityCtx = createContext(null);
 
-export function EntityProvider({ children }) {
-   const [entity, setEntity] = useState(null); // { id, name, rut }
-
-   // cargar desde URL o localStorage al inicio
-   useEffect(() => {
+function readInitialEntity() {
+   if (typeof window === 'undefined') return null;
+   try {
       const url = new URL(window.location.href);
-      const fromUrl = url.searchParams.get('entityId');
-      if (fromUrl) {
-         setEntity((prev) => prev?.id === Number(fromUrl) ? prev : { id: Number(fromUrl) });
+      const fromUrl = url.searchParams.get('entityId') || url.searchParams.get('entity_id');
+      if (fromUrl && Number(fromUrl) > 0) {
          localStorage.setItem('entityId', String(fromUrl));
-         return;
+         return { id: Number(fromUrl) };
       }
       const fromLS = localStorage.getItem('entityId');
-      if (fromLS) setEntity({ id: Number(fromLS) });
+      if (fromLS && Number(fromLS) > 0) {
+         return { id: Number(fromLS) };
+      }
+   } catch {
+      // ignore storage errors
+   }
+   return null;
+}
+
+export function EntityProvider({ children }) {
+   const [entity, setEntity] = useState(readInitialEntity); // { id, name, rut }
+
+   // Mantener sincronía si cambia la URL al montar
+   useEffect(() => {
+      try {
+         const url = new URL(window.location.href);
+         const fromUrl = url.searchParams.get('entityId') || url.searchParams.get('entity_id');
+         if (fromUrl && Number(fromUrl) > 0) {
+            setEntity((prev) => (prev?.id === Number(fromUrl) ? prev : { id: Number(fromUrl) }));
+            localStorage.setItem('entityId', String(fromUrl));
+         }
+      } catch {
+         // ignore
+      }
    }, []);
 
    const entityId = entity?.id ?? null;

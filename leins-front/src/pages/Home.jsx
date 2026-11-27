@@ -118,7 +118,7 @@ export default function Home() {
       return () => controller.abort();
    }, [entityId, ready]);
 
-   if (!loadingEntity && !ready) {
+   if (loadingEntity || !ready) {
       return <EntityRequiredNotice />;
    }
 
