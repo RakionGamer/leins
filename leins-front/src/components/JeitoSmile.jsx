@@ -60,6 +60,7 @@ export default function JeitoSmile({
    const svgRef = useRef(null);
    const eyeLRef = useRef(null);
    const eyeRRef = useRef(null);
+   const winkScaleRef = useRef(1);
 
    useEffect(() => {
       if (!winkOnMount) return;
@@ -96,11 +97,13 @@ export default function JeitoSmile({
                scaleY = 0.12 + 0.88 * k;
                tilt = -4 * (1 - k);
             }
+            winkScaleRef.current = scaleY;
             eR.setAttribute('ry', (DOT * scaleY).toFixed(2));
             svg.style.transform = `rotate(${tilt.toFixed(2)}deg)`;
             if (p < 1) {
                rafId = requestAnimationFrame(step);
             } else {
+               winkScaleRef.current = 1;
                eR.setAttribute('ry', String(DOT));
                svg.style.transform = '';
             }
@@ -111,6 +114,7 @@ export default function JeitoSmile({
       return () => {
          clearTimeout(startDelay);
          if (rafId) cancelAnimationFrame(rafId);
+         winkScaleRef.current = 1;
          svg.style.transform = '';
       };
    }, [winkOnMount]);
@@ -139,7 +143,7 @@ export default function JeitoSmile({
          const ry = ER[1] + look[1];
          eR.setAttribute('cx', rx.toFixed(1));
          eR.setAttribute('cy', ry.toFixed(1));
-         eR.setAttribute('ry', (DOT * blink).toFixed(2));
+         eR.setAttribute('ry', (DOT * blink * winkScaleRef.current).toFixed(2));
 
          const lx = EL[0] + look[0];
          const ly = EL[1] + look[1];

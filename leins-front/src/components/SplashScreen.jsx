@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import JeitoLogo from './JeitoLogo';
+import JeitoSmile from './JeitoSmile';
 
 export default function SplashScreen({
    minMs = 0,
@@ -28,16 +28,17 @@ export default function SplashScreen({
 
    return (
       <div className={containerClass} role="status" aria-live="polite">
-         {/* Logo Jeito: empieza como carita y se transforma en la J formando "jeito" */}
-         <JeitoLogo
-            className="w-44 sm:w-52 h-auto text-[#0A1A3F] dark:text-white"
-            dotColor="#1F6BFF"
-            textColor="currentColor"
-            morphFromSmile
+         {/* Solo carita feliz Jeito limpia y animada */}
+         <JeitoSmile
+            className="w-16 h-16 sm:w-20 sm:h-20 text-[#0A1A3F] dark:text-white"
+            mouthColor="currentColor"
+            eyeColor="#1F6BFF"
+            animated
+            winkOnMount
          />
 
          {/* Texto + 3 puntos suspensivos flotantes 1 por 1 */}
-         <div className="mt-6 flex items-baseline gap-1.5">
+         <div className="mt-5 flex items-baseline gap-1.5">
             <span className="text-sm font-semibold text-[#55607A] dark:text-[#8DA2CC] font-nunito tracking-tight">
                {cleanLabel}
             </span>
