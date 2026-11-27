@@ -42,10 +42,10 @@ function App() {
          <Toaster />
 
          {loading ? (
-            <SplashScreen minMs={0} autoHide={false} label="verificando sesion..." />
+            <SplashScreen minMs={0} autoHide={false} label="Verificando sesión..." />
          ) : (
             <ErrorBoundary>
-               <Suspense fallback={<SplashScreen minMs={0} autoHide={false} label="cargando modulo..." />}>
+               <Suspense fallback={<SplashScreen minMs={0} autoHide={false} label="Cargando módulo..." />}>
                   <Routes>
                      {/* rutas publicas (restaurado a tu logica original) */}
                      {routesConfig.filter(r => r.public).map(r => (
@@ -61,7 +61,7 @@ function App() {
                               <PrivateRoute>
                                  <EntityProvider>
                                     <PeriodProvider>
-                                       <Suspense fallback={<SplashScreen minMs={0} autoHide={false} label="cargando modulo..." />}>
+                                       <Suspense fallback={<SplashScreen minMs={0} autoHide={false} label="Cargando módulo..." />}>
                                           <LayoutOutlet element={r.layout} />
                                        </Suspense>
                                     </PeriodProvider>

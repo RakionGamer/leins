@@ -1,8 +1,9 @@
 // src/layouts/DashboardLayout.jsx
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
 import Sidebar from 'components/Sidebar';
 import Header from 'components/Header';
+import SplashScreen from 'components/SplashScreen';
 import { useAuth } from '../context/AuthContext';
 
 export default function DashboardLayout() {
@@ -93,7 +94,9 @@ export default function DashboardLayout() {
             {/* aseguramos que esta etiqueta controle el scroll vertical */}
             <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain bg-[#F5F8FF]">
                <div className="w-full max-w-[1600px] mx-auto p-4 sm:p-6 lg:p-8">
-                  <Outlet />
+                  <Suspense fallback={<SplashScreen fullScreen={false} label="Cargando módulo..." />}>
+                     <Outlet />
+                  </Suspense>
                </div>
             </main>
          </div>
