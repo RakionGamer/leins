@@ -7,8 +7,9 @@ import SplashScreen from '../components/SplashScreen';
 
 export default function PrivateRoute({ children }) {
    const { loading, doRefresh } = useAuth();
-   const [checking, setChecking] = useState(true);
-   const [allowed, setAllowed] = useState(false);
+   const hasValidSync = !loading && !!getAccessToken() && isTokenValid();
+   const [checking, setChecking] = useState(!hasValidSync);
+   const [allowed, setAllowed] = useState(hasValidSync);
    const location = useLocation();
 
    useEffect(() => {
@@ -33,7 +34,7 @@ export default function PrivateRoute({ children }) {
       return () => { mounted = false; };
    }, [loading, doRefresh]);
 
-   if (loading || checking) return <SplashScreen />;
+   if (loading || checking) return <SplashScreen minMs={0} autoHide={false} label="Cargando..." />;
 
    const loginPath = getAuthRole() === 'user' ? '/portal/login' : '/login';
 

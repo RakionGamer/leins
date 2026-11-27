@@ -5,6 +5,8 @@ const J_STROKE = 36.78;
 const J_DOT_R = 20.35;
 const J_DOT_X = 48.39;
 const J_DOT_Y = -135.85;
+const STATIC_J_PATH =
+   'M48.39 -81.61L48.39 -79.94L48.39 -78.28L48.39 -76.61L48.39 -74.94L48.39 -73.28L48.39 -71.61L48.39 -69.94L48.39 -68.28L48.39 -66.61L48.39 -64.94L48.39 -63.27L48.39 -61.61L48.39 -59.94L48.39 -58.27L48.39 -56.61L48.39 -54.94L48.39 -53.27L48.39 -51.61L48.39 -49.94L48.39 -48.27L48.39 -46.61L48.39 -44.94L48.39 -43.27L48.39 -41.60L48.39 -39.94L48.39 -38.27L48.39 -36.60L48.39 -34.94L48.39 -33.27L48.39 -31.60L48.39 -29.94L48.39 -28.27L48.39 -26.60L48.39 -24.93L48.39 -23.27L48.39 -21.60L48.39 -19.93L48.39 -18.27L48.39 -16.60L48.39 -14.93L48.39 -13.27L48.39 -11.60L48.39 -9.93L48.39 -8.26L48.39 -6.60L48.39 -4.93L48.39 -3.26L48.39 -1.60L48.39 0.07L48.39 1.74L48.39 3.40L48.39 5.07L48.35 6.74L48.23 8.40L48.03 10.06L47.75 11.70L47.40 13.33L46.97 14.94L46.46 16.52L45.87 18.09L45.22 19.62L44.49 21.12L43.69 22.58L42.82 24.00L41.88 25.38L40.88 26.71L39.82 28.00L38.69 29.23L37.51 30.41L36.28 31.52L34.99 32.58L33.65 33.58L32.27 34.51L30.84 35.37L29.38 36.17L27.88 36.89L26.34 37.55L24.78 38.12L23.19 38.63L21.58 39.05L19.95 39.40L18.30 39.67L16.65 39.87L14.98 39.98L13.32 40.01L11.65 39.97L9.99 39.84L8.33 39.64L6.69 39.35L5.06 38.99';
 
 // Parámetros de la curva J / Smile en coordenadas del viewBox de JeitoLogo
 const MORPH_A = 86.7;
@@ -12,6 +14,52 @@ const MORPH_R = 34.94;
 const MORPH_TH = 105 * DEG;
 const MORPH_S = MORPH_A + MORPH_R * MORPH_TH;
 const MORPH_PHI = 150 * DEG;
+
+const HOLD_SMILE_MS = 260;
+const MORPH_MS = 680;
+
+// Reloj compartido para que el morph no parpadee ni se reinicie si dos SplashScreen se relevan al instante
+let activeMorphCount = 0;
+let sharedMorphStart = null;
+let sharedResetTimer = null;
+
+function acquireMorphStart() {
+   if (sharedResetTimer) {
+      clearTimeout(sharedResetTimer);
+      sharedResetTimer = null;
+   }
+   if (activeMorphCount === 0 && sharedMorphStart === null) {
+      sharedMorphStart = performance.now();
+   }
+   activeMorphCount += 1;
+   return sharedMorphStart;
+}
+
+function releaseMorphStart() {
+   activeMorphCount = Math.max(0, activeMorphCount - 1);
+   if (activeMorphCount === 0) {
+      sharedResetTimer = setTimeout(() => {
+         if (activeMorphCount === 0) {
+            sharedMorphStart = null;
+         }
+         sharedResetTimer = null;
+      }, 300);
+   }
+}
+
+function getMorphValues(elapsed) {
+   if (elapsed < HOLD_SMILE_MS) {
+      const bp = elapsed / HOLD_SMILE_MS;
+      const blink =
+         bp > 0.2 && bp < 0.85
+            ? 0.15 + 0.85 * Math.abs(1 - 2 * ((bp - 0.2) / 0.65))
+            : 1;
+      return { e: 1, blink, done: false };
+   }
+   const mp = Math.min(1, (elapsed - HOLD_SMILE_MS) / MORPH_MS);
+   const eased = mp < 0.5 ? 4 * mp * mp * mp : 1 - Math.pow(-2 * mp + 2, 3) / 2;
+   return { e: 1 - eased, blink: 1, done: mp >= 1 };
+}
 
 function computeMorphFrame(e) {
    const N = 90;
@@ -33,7 +81,6 @@ function computeMorphFrame(e) {
       pts.push([x, y]);
    }
 
-   // Desplazamiento base en e=0 para alinear exactamente con la J del logo (inicio en 48.39, -81.61)
    let mnx = 1e9, mxx = -1e9, mny = 1e9;
    pts.forEach((p) => {
       mnx = Math.min(mnx, p[0]);
@@ -41,8 +88,6 @@ function computeMorphFrame(e) {
       mny = Math.min(mny, p[1]);
    });
 
-   // En e=0: el punto inicial (0,0) está en (48.39, -81.61)
-   // En e=1: centramos la carita en X=218 (centro del viewBox) y Y=-28
    const smileCx = 218;
    const smileCy = -28;
    const smileFx = smileCx - (mnx + mxx) / 2;
@@ -53,13 +98,11 @@ function computeMorphFrame(e) {
 
    const pathD = 'M' + pts.map((p) => `${(p[0] + fx).toFixed(2)} ${(p[1] + fy).toFixed(2)}`).join('L');
 
-   // Posición de los ojos cuando e=1 (carita centrada en smileCx)
    const smileEyeY = smileCy - 72;
    const eyeSpread = 34;
    const eyeLX = smileCx - eyeSpread;
    const eyeRX = smileCx + eyeSpread;
 
-   // El ojo derecho se convierte en el punto azul de la J (48.39, -135.85)
    const dotX = J_DOT_X * (1 - e) + eyeRX * e;
    const dotY = J_DOT_Y * (1 - e) + smileEyeY * e;
 
@@ -85,14 +128,26 @@ export default function JeitoLogo({
    const wordmarkRef = useRef(null);
    const iDotRef = useRef(null);
 
-   useEffect(() => {
-      if (!morphFromSmile) return;
+   const prefersReducedMotion =
+      typeof window !== 'undefined' &&
+      window.matchMedia &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-      const prefersReducedMotion =
-         typeof window !== 'undefined' &&
-         window.matchMedia &&
-         window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      if (prefersReducedMotion) return;
+   // Calcula estado inicial exacto ANTES del primer pintado para evitar salto de 1 frame
+   const initialElapsed =
+      morphFromSmile && !prefersReducedMotion && sharedMorphStart !== null
+         ? Math.max(0, performance.now() - sharedMorphStart)
+         : 0;
+   const initVals =
+      morphFromSmile && !prefersReducedMotion
+         ? getMorphValues(initialElapsed)
+         : { e: 0, blink: 1, done: true };
+   const initFrame = morphFromSmile && !prefersReducedMotion ? computeMorphFrame(initVals.e) : null;
+   const initWordOpacity = morphFromSmile && !prefersReducedMotion ? Math.max(0, Math.min(1, 1 - initVals.e * 1.15)) : 1;
+   const initShiftX = morphFromSmile && !prefersReducedMotion ? -22 * initVals.e : 0;
+
+   useEffect(() => {
+      if (!morphFromSmile || prefersReducedMotion) return;
 
       const jPath = jPathRef.current;
       const jDot = jDotRef.current;
@@ -101,10 +156,8 @@ export default function JeitoLogo({
       const iDot = iDotRef.current;
       if (!jPath || !jDot || !leftEye || !wordmark || !iDot) return;
 
+      const tStart = acquireMorphStart();
       let rafId = null;
-      const tStart = performance.now();
-      const holdSmileMs = 260;
-      const morphMs = 680;
 
       function applyState(e, blinkScale = 1) {
          const frame = computeMorphFrame(e);
@@ -127,34 +180,14 @@ export default function JeitoLogo({
          iDot.setAttribute('cx', (214.48 + shiftX).toFixed(2));
       }
 
-      // Estado inicial: carita completa
-      applyState(1, 1);
-
       function tick(now) {
-         const elapsed = now - tStart;
+         const elapsed = Math.max(0, now - tStart);
+         const { e, blink, done } = getMorphValues(elapsed);
+         applyState(e, blink);
 
-         if (elapsed < holdSmileMs) {
-            // Pequeño parpadeo alegre mientras es carita
-            const bp = elapsed / holdSmileMs;
-            const blink = bp > 0.2 && bp < 0.85
-               ? 0.15 + 0.85 * Math.abs(1 - 2 * ((bp - 0.2) / 0.65))
-               : 1;
-            applyState(1, blink);
-            rafId = requestAnimationFrame(tick);
-            return;
-         }
-
-         const mp = Math.min(1, (elapsed - holdSmileMs) / morphMs);
-         // Ease cubic in-out
-         const eased = mp < 0.5 ? 4 * mp * mp * mp : 1 - Math.pow(-2 * mp + 2, 3) / 2;
-         const e = 1 - eased;
-
-         applyState(e, 1);
-
-         if (mp < 1) {
+         if (!done) {
             rafId = requestAnimationFrame(tick);
          } else {
-            // Asegurar estado final exacto de JeitoLogo
             leftEye.setAttribute('opacity', '0');
             wordmark.style.opacity = '1';
             wordmark.setAttribute('transform', 'translate(70.79 0)');
@@ -163,12 +196,18 @@ export default function JeitoLogo({
          }
       }
 
-      rafId = requestAnimationFrame(tick);
+      const initialNow = performance.now();
+      const { e, blink, done } = getMorphValues(Math.max(0, initialNow - tStart));
+      applyState(e, blink);
+      if (!done) {
+         rafId = requestAnimationFrame(tick);
+      }
 
       return () => {
          if (rafId) cancelAnimationFrame(rafId);
+         releaseMorphStart();
       };
-   }, [morphFromSmile]);
+   }, [morphFromSmile, prefersReducedMotion]);
 
    return (
       <svg
@@ -182,14 +221,19 @@ export default function JeitoLogo({
       >
          <path
             ref={jPathRef}
-            d="M48.39 -81.61L48.39 -79.94L48.39 -78.28L48.39 -76.61L48.39 -74.94L48.39 -73.28L48.39 -71.61L48.39 -69.94L48.39 -68.28L48.39 -66.61L48.39 -64.94L48.39 -63.27L48.39 -61.61L48.39 -59.94L48.39 -58.27L48.39 -56.61L48.39 -54.94L48.39 -53.27L48.39 -51.61L48.39 -49.94L48.39 -48.27L48.39 -46.61L48.39 -44.94L48.39 -43.27L48.39 -41.60L48.39 -39.94L48.39 -38.27L48.39 -36.60L48.39 -34.94L48.39 -33.27L48.39 -31.60L48.39 -29.94L48.39 -28.27L48.39 -26.60L48.39 -24.93L48.39 -23.27L48.39 -21.60L48.39 -19.93L48.39 -18.27L48.39 -16.60L48.39 -14.93L48.39 -13.27L48.39 -11.60L48.39 -9.93L48.39 -8.26L48.39 -6.60L48.39 -4.93L48.39 -3.26L48.39 -1.60L48.39 0.07L48.39 1.74L48.39 3.40L48.39 5.07L48.35 6.74L48.23 8.40L48.03 10.06L47.75 11.70L47.40 13.33L46.97 14.94L46.46 16.52L45.87 18.09L45.22 19.62L44.49 21.12L43.69 22.58L42.82 24.00L41.88 25.38L40.88 26.71L39.82 28.00L38.69 29.23L37.51 30.41L36.28 31.52L34.99 32.58L33.65 33.58L32.27 34.51L30.84 35.37L29.38 36.17L27.88 36.89L26.34 37.55L24.78 38.12L23.19 38.63L21.58 39.05L19.95 39.40L18.30 39.67L16.65 39.87L14.98 39.98L13.32 40.01L11.65 39.97L9.99 39.84L8.33 39.64L6.69 39.35L5.06 38.99"
+            d={initFrame ? initFrame.pathD : STATIC_J_PATH}
             fill="none"
             stroke={textColor}
             strokeWidth={J_STROKE}
             strokeLinecap="round"
             strokeLinejoin="round"
          />
-         <g ref={wordmarkRef} transform="translate(70.79 0)" fill={textColor}>
+         <g
+            ref={wordmarkRef}
+            transform={`translate(${(70.79 + initShiftX).toFixed(2)} 0)`}
+            style={{ opacity: initWordOpacity }}
+            fill={textColor}
+         >
             <path d="M66.12 2.27Q47.52 2.27 33.99 -4.24Q20.45 -10.74 13.22 -22.73Q5.99 -34.71 5.99 -51.03Q5.99 -66.74 12.91 -78.62Q19.83 -90.50 31.92 -97.21Q44.01 -103.93 59.50 -103.93Q70.87 -103.93 80.17 -100.31Q89.46 -96.69 96.07 -89.77Q102.69 -82.85 106.10 -73.14Q109.50 -63.43 109.50 -51.45Q109.50 -47.31 107.23 -45.35Q104.96 -43.39 100.00 -43.39L36.78 -43.39L36.78 -60.74L82.64 -60.74L79.34 -58.06Q79.34 -65.70 77.27 -70.45Q75.21 -75.21 71.18 -77.69Q67.15 -80.17 61.16 -80.17Q54.75 -80.17 50.10 -77.17Q45.45 -74.17 42.98 -68.39Q40.50 -62.60 40.50 -53.93L40.50 -52.07Q40.50 -37.40 47.00 -31.10Q53.51 -24.79 67.15 -24.79Q71.69 -24.79 77.58 -25.93Q83.47 -27.07 88.84 -29.13Q94.21 -31.20 98.14 -29.86Q102.07 -28.51 104.24 -25.31Q106.40 -22.11 106.61 -18.08Q106.82 -14.05 104.75 -10.23Q102.69 -6.40 97.93 -4.34Q90.70 -1.03 82.54 0.62Q74.38 2.27 66.12 2.27Z" />
             <path d="M143.60 1.86Q134.92 1.86 130.17 -3.31Q125.41 -8.47 125.41 -18.18L125.41 -83.47Q125.41 -93.18 130.17 -98.35Q134.92 -103.51 143.60 -103.51Q152.48 -103.51 157.33 -98.35Q162.19 -93.18 162.19 -83.47L162.19 -18.18Q162.19 -8.47 157.44 -3.31Q152.69 1.86 143.60 1.86Z" />
             <path d="M236.78 2.27Q221.28 2.27 211.26 -2.48Q201.24 -7.23 196.28 -16.84Q191.32 -26.45 191.32 -40.91L191.32 -74.59L184.30 -74.59Q177.69 -74.59 174.07 -78.10Q170.45 -81.61 170.45 -88.22Q170.45 -94.83 174.07 -98.24Q177.69 -101.65 184.30 -101.65L191.32 -101.65L191.32 -114.46Q191.32 -123.55 196.07 -128.31Q200.83 -133.06 209.71 -133.06Q218.60 -133.06 223.35 -128.31Q228.10 -123.55 228.10 -114.46L228.10 -101.65L245.04 -101.65Q251.86 -101.65 255.48 -98.24Q259.09 -94.83 259.09 -88.22Q259.09 -81.61 255.48 -78.10Q251.86 -74.59 245.04 -74.59L228.10 -74.59L228.10 -42.15Q228.10 -34.50 231.71 -30.89Q235.33 -27.27 243.18 -27.27Q246.07 -27.27 248.76 -27.89Q251.45 -28.51 253.72 -28.51Q257.02 -28.72 259.09 -26.55Q261.16 -24.38 261.16 -16.74Q261.16 -10.54 259.30 -6.30Q257.44 -2.07 252.69 -0.21Q249.79 0.83 244.83 1.55Q239.88 2.27 236.78 2.27Z" />
@@ -198,23 +242,30 @@ export default function JeitoLogo({
          {morphFromSmile && (
             <ellipse
                ref={leftEyeRef}
-               cx="184"
-               cy="-100"
+               cx={initFrame ? initFrame.eyeLX.toFixed(2) : '184'}
+               cy={initFrame ? initFrame.eyeLY.toFixed(2) : '-100'}
                rx={J_DOT_R}
-               ry={J_DOT_R}
-               opacity="0"
+               ry={J_DOT_R * initVals.blink}
+               opacity={initFrame ? Math.max(0, Math.min(1, (initVals.e - 0.15) / 0.85)).toFixed(3) : '0'}
                style={{ fill: 'var(--logo-dot)' }}
             />
          )}
          <ellipse
             ref={jDotRef}
-            cx={J_DOT_X}
-            cy={J_DOT_Y}
+            cx={initFrame ? initFrame.dotX.toFixed(2) : J_DOT_X}
+            cy={initFrame ? initFrame.dotY.toFixed(2) : J_DOT_Y}
             rx={J_DOT_R}
-            ry={J_DOT_R}
+            ry={J_DOT_R * initVals.blink}
             style={{ fill: 'var(--logo-dot)' }}
          />
-         <circle ref={iDotRef} cx="214.48" cy="-135.85" r={J_DOT_R} fill={textColor} />
+         <circle
+            ref={iDotRef}
+            cx={(214.48 + initShiftX).toFixed(2)}
+            cy="-135.85"
+            r={J_DOT_R}
+            style={{ opacity: initWordOpacity }}
+            fill={textColor}
+         />
       </svg>
    );
 }
