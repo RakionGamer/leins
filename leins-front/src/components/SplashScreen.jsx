@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import JeitoSmile from './JeitoSmile';
 import JeitoLogo from './JeitoLogo';
 
 export default function SplashScreen({
@@ -29,27 +28,16 @@ export default function SplashScreen({
 
    return (
       <div className={containerClass} role="status" aria-live="polite">
-         <div className="flex flex-col items-center gap-4">
-            {/* Carita Jeito en squircle */}
-            <div className="w-16 h-16 rounded-2xl bg-white dark:bg-[#0C1A38] border border-[#E2EAFD] dark:border-[#182B52] shadow-sm flex items-center justify-center">
-               <JeitoSmile
-                  className="w-10 h-10 text-[#0A1A3F] dark:text-white"
-                  mouthColor="currentColor"
-                  eyeColor="#1F6BFF"
-                  winkOnMount
-               />
-            </div>
-
-            {/* Logo oficial Jeito */}
-            <JeitoLogo
-               className="w-24 h-auto text-[#0A1A3F] dark:text-white"
-               dotColor="#1F6BFF"
-               textColor="currentColor"
-            />
-         </div>
+         {/* Logo Jeito: empieza como carita y se transforma en la J formando "jeito" */}
+         <JeitoLogo
+            className="w-44 sm:w-52 h-auto text-[#0A1A3F] dark:text-white"
+            dotColor="#1F6BFF"
+            textColor="currentColor"
+            morphFromSmile
+         />
 
          {/* Texto + 3 puntos suspensivos flotantes 1 por 1 */}
-         <div className="mt-5 flex items-baseline gap-1.5">
+         <div className="mt-6 flex items-baseline gap-1.5">
             <span className="text-sm font-semibold text-[#55607A] dark:text-[#8DA2CC] font-nunito tracking-tight">
                {cleanLabel}
             </span>
